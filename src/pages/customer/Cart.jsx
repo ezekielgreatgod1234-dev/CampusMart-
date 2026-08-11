@@ -398,22 +398,20 @@ function Cart({
             {/* CHECKOUT */}
 
             <button
-              onClick={() => alert("Checkout coming soon!")}
-              className="
-                w-full
-                mt-6
-                bg-green-600
-                hover:bg-green-700
-                text-white
-                py-3.5
-                rounded-xl
-                font-semibold
-                transition
-              "
-            >
-              Proceed to Checkout
-            </button>
-
+  onClick={() => navigate("/checkout")}
+  className="
+    w-full
+    bg-green-600
+    hover:bg-green-700
+    text-white
+    py-3.5
+    rounded-xl
+    font-semibold
+    transition
+  "
+>
+  Proceed to Checkout
+</button>
 
             <button
               onClick={() => navigate("/browse-products")}
