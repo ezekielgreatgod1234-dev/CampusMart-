@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   FiMenu,
   FiSearch,
@@ -12,8 +13,29 @@ import { useNavigate } from "react-router-dom";
 function Navbar({ setSidebarOpen, cartCount = 0 }) {
   const navigate = useNavigate();
 
+  // ================= SEARCH STATE =================
+  const [search, setSearch] = useState("");
+
+  // ================= SEARCH FUNCTION =================
+  const handleSearch = (e) => {
+    e.preventDefault();
+
+    const trimmedSearch = search.trim();
+
+    // If search is empty, just go to Browse Products
+    if (!trimmedSearch) {
+      navigate("/browse-products");
+      return;
+    }
+
+    // Send search to Browse Products
+    navigate(
+      `/browse-products?search=${encodeURIComponent(trimmedSearch)}`
+    );
+  };
+
   return (
-    <header className="sticky top-0 z-30 bg-green-800 text-white shadow-sm">
+    <header className="bg-green-800 text-white">
 
       <div className="h-20 px-4 sm:px-6 flex items-center justify-between gap-4">
 
@@ -22,6 +44,7 @@ function Navbar({ setSidebarOpen, cartCount = 0 }) {
 
           {/* Mobile Menu */}
           <button
+            type="button"
             onClick={() => setSidebarOpen(true)}
             className="
               lg:hidden
@@ -39,8 +62,11 @@ function Navbar({ setSidebarOpen, cartCount = 0 }) {
           </button>
 
 
-          {/* Search */}
-          <div className="relative flex-1 max-w-md">
+          {/* ================= SEARCH ================= */}
+          <form
+            onSubmit={handleSearch}
+            className="relative flex-1 max-w-md"
+          >
 
             <FiSearch
               className="
@@ -54,6 +80,8 @@ function Navbar({ setSidebarOpen, cartCount = 0 }) {
 
             <input
               type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
               placeholder="Search products..."
               className="
                 w-full
@@ -69,10 +97,11 @@ function Navbar({ setSidebarOpen, cartCount = 0 }) {
                 border-green-600
                 focus:ring-2
                 focus:ring-green-400
+                transition
               "
             />
 
-          </div>
+          </form>
 
         </div>
 
@@ -80,8 +109,9 @@ function Navbar({ setSidebarOpen, cartCount = 0 }) {
         {/* ================= RIGHT ================= */}
         <div className="flex items-center gap-2 sm:gap-4">
 
-          {/* Cart */}
+          {/* ================= CART ================= */}
           <button
+            type="button"
             onClick={() => navigate("/cart")}
             className="
               relative
@@ -96,6 +126,7 @@ function Navbar({ setSidebarOpen, cartCount = 0 }) {
             "
             title="Cart"
           >
+
             <FiShoppingCart className="text-xl" />
 
             {/* Cart Badge */}
@@ -118,14 +149,17 @@ function Navbar({ setSidebarOpen, cartCount = 0 }) {
                   justify-center
                 "
               >
-                {cartCount}
+                {cartCount > 99 ? "99+" : cartCount}
               </span>
             )}
+
           </button>
 
 
-          {/* Notifications */}
+          {/* ================= NOTIFICATIONS ================= */}
           <button
+            type="button"
+            onClick={() => navigate("/notifications")}
             className="
               w-11
               h-11
@@ -136,13 +170,16 @@ function Navbar({ setSidebarOpen, cartCount = 0 }) {
               hover:bg-green-700
               transition
             "
+            title="Notifications"
           >
             <FiBell className="text-xl" />
           </button>
 
 
-          {/* Messages */}
+          {/* ================= MESSAGES ================= */}
           <button
+            type="button"
+            onClick={() => navigate("/messages")}
             className="
               hidden
               sm:flex
@@ -154,13 +191,16 @@ function Navbar({ setSidebarOpen, cartCount = 0 }) {
               hover:bg-green-700
               transition
             "
+            title="Messages"
           >
             <FiMessageCircle className="text-xl" />
           </button>
 
 
-          {/* User */}
-          <div
+          {/* ================= USER ================= */}
+          <button
+            type="button"
+            onClick={() => navigate("/profile")}
             className="
               flex
               items-center
@@ -169,6 +209,8 @@ function Navbar({ setSidebarOpen, cartCount = 0 }) {
               px-3
               py-2
               rounded-full
+              hover:bg-green-600
+              transition
             "
           >
 
@@ -187,7 +229,7 @@ function Navbar({ setSidebarOpen, cartCount = 0 }) {
               <FiUser />
             </div>
 
-            <div className="hidden md:block">
+            <div className="hidden md:block text-left">
 
               <h3 className="font-semibold text-sm">
                 GreatGod
@@ -199,7 +241,7 @@ function Navbar({ setSidebarOpen, cartCount = 0 }) {
 
             </div>
 
-          </div>
+          </button>
 
         </div>
 

@@ -17,9 +17,7 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
 
   // ================= STATES =================
 
-  const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("Newest");
-
   const [filterOpen, setFilterOpen] = useState(false);
   const [maxPrice, setMaxPrice] = useState(1000000);
   const [minRating, setMinRating] = useState(0);
@@ -38,23 +36,46 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
     "Gifts",
   ];
 
-  // Get category directly from URL
+  // ================= URL SEARCH =================
+
+  // Get search text from URL
+  const search = searchParams.get("search") || "";
+
+  // Get category from URL
   const urlCategory = searchParams.get("category");
 
   const selectedCategory = categories.includes(urlCategory)
     ? urlCategory
     : "All";
 
-  // ================= CHANGE CATEGORY =================
+  // ================= SEARCH =================
 
-  const handleCategoryChange = (category) => {
-    if (category === "All") {
-      searchParams.delete("category");
+  const handleSearchChange = (e) => {
+    const value = e.target.value;
+
+    const params = new URLSearchParams(searchParams);
+
+    if (value.trim() === "") {
+      params.delete("search");
     } else {
-      searchParams.set("category", category);
+      params.set("search", value);
     }
 
-    setSearchParams(searchParams);
+    setSearchParams(params);
+  };
+
+  // ================= CATEGORY =================
+
+  const handleCategoryChange = (category) => {
+    const params = new URLSearchParams(searchParams);
+
+    if (category === "All") {
+      params.delete("category");
+    } else {
+      params.set("category", category);
+    }
+
+    setSearchParams(params);
   };
 
   // ================= FILTER PRODUCTS =================
@@ -73,9 +94,11 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
         .toLowerCase()
         .includes(search.toLowerCase());
 
-    const matchesPrice = price <= maxPrice;
+    const matchesPrice =
+      price <= maxPrice;
 
-    const matchesRating = product.rating >= minRating;
+    const matchesRating =
+      product.rating >= minRating;
 
     return (
       matchesCategory &&
@@ -113,14 +136,13 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
   // ================= CLEAR FILTERS =================
 
   const clearFilters = () => {
-    setSearch("");
+    const params = new URLSearchParams();
+
+    setSearchParams(params);
+
     setMaxPrice(1000000);
     setMinRating(0);
     setSortBy("Newest");
-
-    // Remove category from URL
-    searchParams.delete("category");
-    setSearchParams(searchParams);
   };
 
   return (
@@ -155,7 +177,8 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
 
           </div>
 
-          {/* SEARCH */}
+
+          {/* ================= SEARCH ================= */}
 
           <div className="relative w-full lg:w-80 xl:w-96">
 
@@ -172,7 +195,7 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
             <input
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={handleSearchChange}
               placeholder="Search products..."
               className="
                 w-full
@@ -194,6 +217,30 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
           </div>
 
         </div>
+
+
+        {/* ================================================= */}
+        {/* SHOW ACTIVE SEARCH */}
+        {/* ================================================= */}
+
+        {search && (
+          <div className="bg-green-50 border border-green-100 rounded-xl px-4 py-3">
+
+            <p className="text-sm text-green-700">
+
+              Search results for{" "}
+
+              <span className="font-semibold">
+                "{search}"
+              </span>
+
+              {" "}— {filteredProducts.length} product
+              {filteredProducts.length !== 1 ? "s" : ""}
+
+            </p>
+
+          </div>
+        )}
 
 
         {/* ================================================= */}
@@ -239,7 +286,9 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
               <button
                 key={category}
                 type="button"
-                onClick={() => handleCategoryChange(category)}
+                onClick={() =>
+                  handleCategoryChange(category)
+                }
                 className={`
                   shrink-0
                   px-4
@@ -289,9 +338,13 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
           <div>
 
             <h2 className="font-semibold text-gray-800">
+
               {selectedCategory === "All"
-                ? "All Products"
+                ? search
+                  ? "Search Results"
+                  : "All Products"
                 : selectedCategory}
+
             </h2>
 
             <p className="text-sm text-gray-500">
@@ -307,7 +360,9 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
 
             <select
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
+              onChange={(e) =>
+                setSortBy(e.target.value)
+              }
               className="
                 bg-gray-50
                 border
@@ -398,8 +453,6 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
 
         ) : (
 
-          /* NO PRODUCTS */
-
           <div
             className="
               bg-white
@@ -411,12 +464,32 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
             "
           >
 
-            <h3 className="text-lg font-semibold text-gray-800">
+            <div
+              className="
+                w-16
+                h-16
+                mx-auto
+                rounded-full
+                bg-gray-100
+                flex
+                items-center
+                justify-center
+              "
+            >
+              <FiSearch
+                size={26}
+                className="text-gray-400"
+              />
+            </div>
+
+            <h3 className="text-lg font-semibold text-gray-800 mt-4">
               No products found
             </h3>
 
             <p className="text-gray-500 text-sm mt-2">
-              Try changing your search or filters.
+              {search
+                ? `We couldn't find any products matching "${search}".`
+                : "Try changing your search or filters."}
             </p>
 
             <button
@@ -463,7 +536,7 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
           />
 
 
-          {/* FILTER PANEL */}
+          {/* PANEL */}
 
           <div
             className="
@@ -496,7 +569,6 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
 
               </div>
 
-
               <button
                 type="button"
                 onClick={() => setFilterOpen(false)}
@@ -511,15 +583,15 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
                   hover:bg-gray-200
                 "
               >
+
                 <FiX size={20} />
+
               </button>
 
             </div>
 
 
-            {/* ================================================= */}
-            {/* CATEGORY FILTER */}
-            {/* ================================================= */}
+            {/* CATEGORY */}
 
             <div className="mt-8">
 
@@ -544,7 +616,9 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
                     <input
                       type="radio"
                       name="category"
-                      checked={selectedCategory === category}
+                      checked={
+                        selectedCategory === category
+                      }
                       onChange={() =>
                         handleCategoryChange(category)
                       }
@@ -564,9 +638,7 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
             </div>
 
 
-            {/* ================================================= */}
             {/* PRICE */}
-            {/* ================================================= */}
 
             <div className="mt-8">
 
@@ -581,7 +653,6 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
                 </span>
 
               </div>
-
 
               <input
                 type="range"
@@ -599,28 +670,21 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
                 "
               />
 
-
               <div className="flex justify-between text-xs text-gray-400 mt-2">
-
                 <span>₦0</span>
-
                 <span>₦1,000,000</span>
-
               </div>
 
             </div>
 
 
-            {/* ================================================= */}
             {/* RATING */}
-            {/* ================================================= */}
 
             <div className="mt-8">
 
               <h3 className="font-semibold text-gray-800">
                 Minimum Rating
               </h3>
-
 
               <div className="space-y-3 mt-4">
 
@@ -640,10 +704,11 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
                       type="radio"
                       name="rating"
                       checked={minRating === rating}
-                      onChange={() => setMinRating(rating)}
+                      onChange={() =>
+                        setMinRating(rating)
+                      }
                       className="accent-green-600"
                     />
-
 
                     <div className="flex items-center gap-1">
 
@@ -661,7 +726,6 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
                         />
 
                       ))}
-
 
                       <span className="text-sm text-gray-500 ml-1">
                         & up
@@ -704,13 +768,9 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
             </div>
 
 
-            {/* ================================================= */}
             {/* BUTTONS */}
-            {/* ================================================= */}
 
             <div className="flex gap-3 mt-10">
-
-              {/* RESET */}
 
               <button
                 type="button"
@@ -728,9 +788,6 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
               >
                 Reset
               </button>
-
-
-              {/* APPLY */}
 
               <button
                 type="button"

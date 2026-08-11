@@ -5,6 +5,8 @@ import Dashboard from "./pages/customer/Dashboard";
 import BrowseProducts from "./pages/customer/BrowseProducts";
 import ProductDetails from "./pages/customer/ProductDetails";
 import Cart from "./pages/customer/Cart";
+import Messages from "./pages/customer/Messages";
+import Chat from "./pages/customer/Chat";
 
 function App() {
   const [cart, setCart] = useState([]);
@@ -100,6 +102,24 @@ function App() {
     <Dashboard
       cartCount={cartCount}
       addToCart={addToCart}
+    />
+  }
+/>
+
+<Route
+  path="/messages"
+  element={
+    <Messages
+      cartCount={cartCount}
+    />
+  }
+/>
+
+<Route
+  path="/messages/:id"
+  element={
+    <Chat
+      cartCount={cartCount}
     />
   }
 />
