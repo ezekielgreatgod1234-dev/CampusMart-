@@ -1,76 +1,172 @@
-import { FiPackage, FiTruck, FiCheckCircle } from "react-icons/fi";
+import { FiClock, FiTruck, FiCheckCircle } from "react-icons/fi";
 
 function OrderSummary() {
-  const orders = [
-    {
-      title: "Pending",
-      value: 3,
-      icon: <FiPackage size={20} />,
-      bg: "bg-yellow-100",
-      color: "text-yellow-600",
-    },
-    {
-      title: "Shipping",
-      value: 2,
-      icon: <FiTruck size={20} />,
-      bg: "bg-blue-100",
-      color: "text-blue-600",
-    },
-    {
-      title: "Delivered",
-      value: 18,
-      icon: <FiCheckCircle size={20} />,
-      bg: "bg-green-100",
-      color: "text-green-600",
-    },
-  ];
+  const orders = JSON.parse(
+    localStorage.getItem("campusmart_orders") || "[]"
+  );
+
+  const pendingOrders = orders.filter(
+    (order) => order.status === "Pending"
+  );
+
+  const deliveredOrders = orders.filter(
+    (order) => order.status === "Delivered"
+  );
+
+  const shippingOrders = orders.filter(
+    (order) => order.status === "Shipping"
+  );
 
   return (
-    <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-5">
-        <h2 className="text-lg font-bold text-gray-800">
+    <div
+      className="
+        bg-white
+        rounded-2xl
+        border
+        border-gray-100
+        p-5
+      "
+    >
+
+      <div className="flex items-center justify-between">
+
+        <h2 className="font-bold text-gray-800">
           Order Summary
         </h2>
 
-        <button className="text-green-600 text-sm hover:underline">
+        <button className="text-xs text-green-600 hover:underline">
           View All
         </button>
+
       </div>
 
-      {/* Order Items */}
-      <div className="space-y-4">
-        {orders.map((order, index) => (
+
+      <div className="space-y-4 mt-5">
+
+        {/* PENDING */}
+
+        <div className="flex items-center gap-3">
+
           <div
-            key={index}
-            className="flex items-center justify-between"
+            className="
+              w-10
+              h-10
+              rounded-full
+              bg-yellow-100
+              text-yellow-600
+              flex
+              items-center
+              justify-center
+            "
           >
-            <div className="flex items-center gap-3">
-              <div
-                className={`w-11 h-11 rounded-full flex items-center justify-center ${order.bg}`}
-              >
-                <span className={order.color}>
-                  {order.icon}
-                </span>
-              </div>
-
-              <div>
-                <p className="text-sm text-gray-500">
-                  {order.title}
-                </p>
-
-                <h3 className="font-semibold text-gray-800">
-                  {order.value} Orders
-                </h3>
-              </div>
-            </div>
-
-            <button className="text-green-600 text-sm hover:underline">
-              View
-            </button>
+            <FiClock />
           </div>
-        ))}
+
+          <div className="flex-1">
+
+            <p className="text-xs text-gray-500">
+              Pending
+            </p>
+
+            <p className="font-medium text-gray-800">
+              {pendingOrders.length}{" "}
+              {pendingOrders.length === 1
+                ? "Order"
+                : "Orders"}
+            </p>
+
+          </div>
+
+          <button className="text-xs text-green-600">
+            View
+          </button>
+
+        </div>
+
+
+        {/* SHIPPING */}
+
+        <div className="flex items-center gap-3">
+
+          <div
+            className="
+              w-10
+              h-10
+              rounded-full
+              bg-blue-100
+              text-blue-600
+              flex
+              items-center
+              justify-center
+            "
+          >
+            <FiTruck />
+          </div>
+
+          <div className="flex-1">
+
+            <p className="text-xs text-gray-500">
+              Shipping
+            </p>
+
+            <p className="font-medium text-gray-800">
+              {shippingOrders.length}{" "}
+              {shippingOrders.length === 1
+                ? "Order"
+                : "Orders"}
+            </p>
+
+          </div>
+
+          <button className="text-xs text-green-600">
+            View
+          </button>
+
+        </div>
+
+
+        {/* DELIVERED */}
+
+        <div className="flex items-center gap-3">
+
+          <div
+            className="
+              w-10
+              h-10
+              rounded-full
+              bg-green-100
+              text-green-600
+              flex
+              items-center
+              justify-center
+            "
+          >
+            <FiCheckCircle />
+          </div>
+
+          <div className="flex-1">
+
+            <p className="text-xs text-gray-500">
+              Delivered
+            </p>
+
+            <p className="font-medium text-gray-800">
+              {deliveredOrders.length}{" "}
+              {deliveredOrders.length === 1
+                ? "Order"
+                : "Orders"}
+            </p>
+
+          </div>
+
+          <button className="text-xs text-green-600">
+            View
+          </button>
+
+        </div>
+
       </div>
+
     </div>
   );
 }

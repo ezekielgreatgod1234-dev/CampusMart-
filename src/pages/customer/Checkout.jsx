@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import CustomerLayout from "../../layouts/CustomerLayout";
 
@@ -11,10 +11,30 @@ import {
   FiCheckCircle,
 } from "react-icons/fi";
 
-function Checkout({ cart = [], cartCount = 0 }) {
+function Checkout({
+  cart = [],
+  cartCount = 0,
+  placeOrder,
+}) {
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const [paymentMethod, setPaymentMethod] = useState("paystack");
+  // Items selected for checkout
+  const checkoutItems =
+    location.state?.checkoutItems?.length > 0
+      ? location.state.checkoutItems
+      : cart;
+
+  const checkoutType =
+    location.state?.checkoutType || "all";
+
+  const checkoutCount = checkoutItems.reduce(
+    (total, item) => total + item.quantity,
+    0
+  );
+
+  const [paymentMethod, setPaymentMethod] =
+    useState("paystack");
 
   const [formData, setFormData] = useState({
     fullName: "",
@@ -26,13 +46,16 @@ function Checkout({ cart = [], cartCount = 0 }) {
 
   // ================= TOTAL =================
 
-  const cartTotal = cart.reduce((total, item) => {
-    const price = Number(
-      String(item.price).replace(/[₦,]/g, "")
-    );
+  const cartTotal = checkoutItems.reduce(
+    (total, item) => {
+      const price = Number(
+        String(item.price).replace(/[₦,]/g, "")
+      );
 
-    return total + price * item.quantity;
-  }, 0);
+      return total + price * item.quantity;
+    },
+    0
+  );
 
   const deliveryFee = 0;
 
@@ -43,8 +66,8 @@ function Checkout({ cart = [], cartCount = 0 }) {
   const handleChange = (e) => {
     const { name, value } = e.target;
 
-    setFormData((prev) => ({
-      ...prev,
+    setFormData((previous) => ({
+      ...previous,
       [name]: value,
     }));
   };
@@ -55,41 +78,60 @@ function Checkout({ cart = [], cartCount = 0 }) {
     e.preventDefault();
 
     if (
-      !formData.fullName ||
-      !formData.phone ||
-      !formData.address ||
-      !formData.campus
+      !formData.fullName.trim() ||
+      !formData.phone.trim() ||
+      !formData.address.trim() ||
+      !formData.campus.trim()
     ) {
-      alert("Please fill in all required delivery information.");
+      alert(
+        "Please fill in all required delivery information."
+      );
       return;
     }
 
-    if (paymentMethod === "paystack") {
-      // Payment integration will be connected here later.
-      alert("Paystack payment will be connected next.");
-      return;
-    }
+    /*
+      For now Paystack is not connected yet.
+      We simulate a successful payment/order.
+    */
 
-    alert("Order placed successfully!");
+    const order = placeOrder({
+      items: checkoutItems,
+      total,
+      paymentMethod,
+      customer: formData,
+      type: checkoutType,
+    });
 
-    navigate("/dashboard");
+    // Save the order temporarily so OrderSuccess can display it
+    sessionStorage.setItem(
+      "lastOrder",
+      JSON.stringify(order)
+    );
+
+    navigate("/order-success", {
+      state: {
+        order,
+      },
+      replace: true,
+    });
   };
 
-  // ================= EMPTY CART =================
+  // ================= NO ITEMS =================
 
-  if (cart.length === 0) {
+  if (checkoutItems.length === 0) {
     return (
       <CustomerLayout cartCount={0}>
+
         <div className="min-h-[60vh] flex items-center justify-center">
 
           <div className="text-center">
 
             <h1 className="text-2xl font-bold text-gray-800">
-              Your cart is empty
+              Nothing to Checkout
             </h1>
 
             <p className="text-gray-500 mt-2">
-              Add some products before proceeding to checkout.
+              There are no products selected for checkout.
             </p>
 
             <button
@@ -111,6 +153,7 @@ function Checkout({ cart = [], cartCount = 0 }) {
           </div>
 
         </div>
+
       </CustomerLayout>
     );
   }
@@ -140,81 +183,85 @@ function Checkout({ cart = [], cartCount = 0 }) {
             "
           >
             <FiArrowLeft />
-
             Back to Cart
           </button>
 
           <div className="mt-5">
 
-            <h1 className="
-              text-2xl
-              sm:text-3xl
-              font-bold
-              text-gray-800
-            ">
+            <h1
+              className="
+                text-2xl
+                sm:text-3xl
+                font-bold
+                text-gray-800
+              "
+            >
               Checkout
             </h1>
 
             <p className="text-gray-500 mt-1">
-              Complete your order and provide your delivery information.
+              {checkoutType === "single"
+                ? "You're checking out this item."
+                : "You're checking out all items in your cart."}
             </p>
 
           </div>
 
         </div>
 
-
         {/* ================= MAIN GRID ================= */}
 
-        <div className="
-          grid
-          grid-cols-1
-          xl:grid-cols-3
-          gap-6
-        ">
+        <div
+          className="
+            grid
+            grid-cols-1
+            xl:grid-cols-3
+            gap-6
+          "
+        >
 
-          {/* ================================================= */}
-          {/* LEFT SIDE */}
-          {/* ================================================= */}
+          {/* ================= LEFT ================= */}
 
-          <div className="
-            xl:col-span-2
-            space-y-6
-          ">
+          <div
+            className="
+              xl:col-span-2
+              space-y-6
+            "
+          >
 
-            {/* ================= DELIVERY INFORMATION ================= */}
+            {/* ================= DELIVERY ================= */}
 
-            <section className="
-              bg-white
-              rounded-2xl
-              border
-              border-gray-100
-              p-5
-              sm:p-6
-            ">
+            <section
+              className="
+                bg-white
+                rounded-2xl
+                border
+                border-gray-100
+                p-5
+                sm:p-6
+              "
+            >
 
               <div className="flex items-center gap-3">
 
-                <div className="
-                  w-11
-                  h-11
-                  rounded-xl
-                  bg-green-100
-                  text-green-600
-                  flex
-                  items-center
-                  justify-center
-                ">
+                <div
+                  className="
+                    w-11
+                    h-11
+                    rounded-xl
+                    bg-green-100
+                    text-green-600
+                    flex
+                    items-center
+                    justify-center
+                  "
+                >
                   <FiMapPin size={21} />
                 </div>
 
                 <div>
 
-                  <h2 className="
-                    text-lg
-                    font-bold
-                    text-gray-800
-                  ">
+                  <h2 className="text-lg font-bold text-gray-800">
                     Delivery Information
                   </h2>
 
@@ -226,28 +273,21 @@ function Checkout({ cart = [], cartCount = 0 }) {
 
               </div>
 
+              <div
+                className="
+                  grid
+                  grid-cols-1
+                  sm:grid-cols-2
+                  gap-4
+                  mt-6
+                "
+              >
 
-              {/* FORM */}
-
-              <div className="
-                grid
-                grid-cols-1
-                sm:grid-cols-2
-                gap-4
-                mt-6
-              ">
-
-                {/* FULL NAME */}
+                {/* NAME */}
 
                 <div>
 
-                  <label className="
-                    block
-                    text-sm
-                    font-medium
-                    text-gray-700
-                    mb-2
-                  ">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
                     Full Name *
                   </label>
 
@@ -274,18 +314,11 @@ function Checkout({ cart = [], cartCount = 0 }) {
 
                 </div>
 
-
                 {/* PHONE */}
 
                 <div>
 
-                  <label className="
-                    block
-                    text-sm
-                    font-medium
-                    text-gray-700
-                    mb-2
-                  ">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
                     Phone Number *
                   </label>
 
@@ -312,18 +345,11 @@ function Checkout({ cart = [], cartCount = 0 }) {
 
                 </div>
 
-
                 {/* CAMPUS */}
 
                 <div>
 
-                  <label className="
-                    block
-                    text-sm
-                    font-medium
-                    text-gray-700
-                    mb-2
-                  ">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
                     Campus *
                   </label>
 
@@ -350,18 +376,11 @@ function Checkout({ cart = [], cartCount = 0 }) {
 
                 </div>
 
-
                 {/* ADDRESS */}
 
                 <div>
 
-                  <label className="
-                    block
-                    text-sm
-                    font-medium
-                    text-gray-700
-                    mb-2
-                  ">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
                     Delivery Address *
                   </label>
 
@@ -390,18 +409,11 @@ function Checkout({ cart = [], cartCount = 0 }) {
 
               </div>
 
-
               {/* NOTE */}
 
               <div className="mt-4">
 
-                <label className="
-                  block
-                  text-sm
-                  font-medium
-                  text-gray-700
-                  mb-2
-                ">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Delivery Note
                 </label>
 
@@ -431,40 +443,39 @@ function Checkout({ cart = [], cartCount = 0 }) {
 
             </section>
 
-
             {/* ================= PAYMENT ================= */}
 
-            <section className="
-              bg-white
-              rounded-2xl
-              border
-              border-gray-100
-              p-5
-              sm:p-6
-            ">
+            <section
+              className="
+                bg-white
+                rounded-2xl
+                border
+                border-gray-100
+                p-5
+                sm:p-6
+              "
+            >
 
               <div className="flex items-center gap-3">
 
-                <div className="
-                  w-11
-                  h-11
-                  rounded-xl
-                  bg-green-100
-                  text-green-600
-                  flex
-                  items-center
-                  justify-center
-                ">
+                <div
+                  className="
+                    w-11
+                    h-11
+                    rounded-xl
+                    bg-green-100
+                    text-green-600
+                    flex
+                    items-center
+                    justify-center
+                  "
+                >
                   <FiCreditCard size={21} />
                 </div>
 
                 <div>
 
-                  <h2 className="
-                    text-lg
-                    font-bold
-                    text-gray-800
-                  ">
+                  <h2 className="text-lg font-bold text-gray-800">
                     Payment Method
                   </h2>
 
@@ -476,127 +487,99 @@ function Checkout({ cart = [], cartCount = 0 }) {
 
               </div>
 
-
               <div className="space-y-3 mt-6">
 
                 {/* PAYSTACK */}
 
-                <label className={`
-                  flex
-                  items-center
-                  gap-4
-                  p-4
-                  rounded-xl
-                  border
-                  cursor-pointer
-                  transition
-                  ${
-                    paymentMethod === "paystack"
-                      ? "border-green-500 bg-green-50"
-                      : "border-gray-200 hover:border-green-300"
-                  }
-                `}>
+                <label
+                  className={`
+                    flex
+                    items-center
+                    gap-4
+                    p-4
+                    rounded-xl
+                    border
+                    cursor-pointer
+                    transition
+                    ${
+                      paymentMethod === "paystack"
+                        ? "border-green-500 bg-green-50"
+                        : "border-gray-200 hover:border-green-300"
+                    }
+                  `}
+                >
 
                   <input
                     type="radio"
                     name="payment"
                     value="paystack"
-                    checked={paymentMethod === "paystack"}
+                    checked={
+                      paymentMethod === "paystack"
+                    }
                     onChange={(e) =>
                       setPaymentMethod(e.target.value)
                     }
                     className="accent-green-600"
                   />
 
-                  <div className="
-                    w-10
-                    h-10
-                    rounded-lg
-                    bg-white
-                    flex
-                    items-center
-                    justify-center
-                  ">
-                    <FiCreditCard className="text-green-600" />
-                  </div>
+                  <FiCreditCard className="text-green-600" />
 
-                  <div className="flex-1">
+                  <div>
 
-                    <p className="
-                      font-semibold
-                      text-gray-800
-                    ">
+                    <p className="font-semibold text-gray-800">
                       Paystack
                     </p>
 
-                    <p className="
-                      text-xs
-                      text-gray-500
-                      mt-1
-                    ">
-                      Pay securely with card, bank transfer or USSD.
+                    <p className="text-xs text-gray-500 mt-1">
+                      Card, bank transfer or USSD.
                     </p>
 
                   </div>
 
                 </label>
 
-
                 {/* CASH */}
 
-                <label className={`
-                  flex
-                  items-center
-                  gap-4
-                  p-4
-                  rounded-xl
-                  border
-                  cursor-pointer
-                  transition
-                  ${
-                    paymentMethod === "cash"
-                      ? "border-green-500 bg-green-50"
-                      : "border-gray-200 hover:border-green-300"
-                  }
-                `}>
+                <label
+                  className={`
+                    flex
+                    items-center
+                    gap-4
+                    p-4
+                    rounded-xl
+                    border
+                    cursor-pointer
+                    transition
+                    ${
+                      paymentMethod === "cash"
+                        ? "border-green-500 bg-green-50"
+                        : "border-gray-200 hover:border-green-300"
+                    }
+                  `}
+                >
 
                   <input
                     type="radio"
                     name="payment"
                     value="cash"
-                    checked={paymentMethod === "cash"}
+                    checked={
+                      paymentMethod === "cash"
+                    }
                     onChange={(e) =>
                       setPaymentMethod(e.target.value)
                     }
                     className="accent-green-600"
                   />
 
-                  <div className="
-                    w-10
-                    h-10
-                    rounded-lg
-                    bg-white
-                    flex
-                    items-center
-                    justify-center
-                  ">
-                    <FiTruck className="text-green-600" />
-                  </div>
+                  <FiTruck className="text-green-600" />
 
                   <div>
 
-                    <p className="
-                      font-semibold
-                      text-gray-800
-                    ">
+                    <p className="font-semibold text-gray-800">
                       Pay on Delivery
                     </p>
 
-                    <p className="
-                      text-xs
-                      text-gray-500
-                      mt-1
-                    ">
+                    <p className="text-xs text-gray-500 mt-1">
                       Pay the seller when your order arrives.
                     </p>
 
@@ -608,32 +591,32 @@ function Checkout({ cart = [], cartCount = 0 }) {
 
             </section>
 
+            {/* ================= ITEMS ================= */}
 
-            {/* ================= ORDER ITEMS ================= */}
-
-            <section className="
-              bg-white
-              rounded-2xl
-              border
-              border-gray-100
-              p-5
-              sm:p-6
-            ">
+            <section
+              className="
+                bg-white
+                rounded-2xl
+                border
+                border-gray-100
+                p-5
+                sm:p-6
+              "
+            >
 
               <div className="flex items-center justify-between">
 
                 <div>
 
-                  <h2 className="
-                    text-lg
-                    font-bold
-                    text-gray-800
-                  ">
+                  <h2 className="text-lg font-bold text-gray-800">
                     Your Items
                   </h2>
 
                   <p className="text-sm text-gray-500 mt-1">
-                    {cartCount} {cartCount === 1 ? "item" : "items"}
+                    {checkoutCount}{" "}
+                    {checkoutCount === 1
+                      ? "item"
+                      : "items"}
                   </p>
 
                 </div>
@@ -642,10 +625,9 @@ function Checkout({ cart = [], cartCount = 0 }) {
 
               </div>
 
-
               <div className="space-y-4 mt-6">
 
-                {cart.map((item) => (
+                {checkoutItems.map((item) => (
 
                   <div
                     key={item.id}
@@ -676,27 +658,15 @@ function Checkout({ cart = [], cartCount = 0 }) {
 
                     <div className="flex-1 min-w-0">
 
-                      <p className="
-                        font-semibold
-                        text-gray-800
-                        truncate
-                      ">
+                      <p className="font-semibold text-gray-800 truncate">
                         {item.name}
                       </p>
 
-                      <p className="
-                        text-xs
-                        text-gray-500
-                        mt-1
-                      ">
+                      <p className="text-xs text-gray-500 mt-1">
                         Quantity: {item.quantity}
                       </p>
 
-                      <p className="
-                        font-bold
-                        text-gray-900
-                        mt-2
-                      ">
+                      <p className="font-bold text-gray-900 mt-2">
                         {item.price}
                       </p>
 
@@ -712,41 +682,31 @@ function Checkout({ cart = [], cartCount = 0 }) {
 
           </div>
 
+          {/* ================= SUMMARY ================= */}
 
-          {/* ================================================= */}
-          {/* ORDER SUMMARY */}
-          {/* ================================================= */}
+          <div
+            className="
+              bg-white
+              rounded-2xl
+              border
+              border-gray-100
+              p-5
+              h-fit
+              xl:sticky
+              xl:top-24
+            "
+          >
 
-          <div className="
-            bg-white
-            rounded-2xl
-            border
-            border-gray-100
-            p-5
-            h-fit
-            xl:sticky
-            xl:top-24
-          ">
-
-            <h2 className="
-              text-xl
-              font-bold
-              text-gray-800
-            ">
+            <h2 className="text-xl font-bold text-gray-800">
               Order Summary
             </h2>
 
-
             <div className="space-y-4 mt-6">
 
-              <div className="
-                flex
-                justify-between
-                text-sm
-              ">
+              <div className="flex justify-between text-sm">
 
                 <span className="text-gray-500">
-                  Items ({cartCount})
+                  Items ({checkoutCount})
                 </span>
 
                 <span className="font-medium">
@@ -755,12 +715,7 @@ function Checkout({ cart = [], cartCount = 0 }) {
 
               </div>
 
-
-              <div className="
-                flex
-                justify-between
-                text-sm
-              ">
+              <div className="flex justify-between text-sm">
 
                 <span className="text-gray-500">
                   Delivery
@@ -774,38 +729,27 @@ function Checkout({ cart = [], cartCount = 0 }) {
 
             </div>
 
+            <div
+              className="
+                border-t
+                border-gray-100
+                mt-5
+                pt-5
+                flex
+                items-center
+                justify-between
+              "
+            >
 
-            {/* TOTAL */}
-
-            <div className="
-              border-t
-              border-gray-100
-              mt-5
-              pt-5
-              flex
-              items-center
-              justify-between
-            ">
-
-              <span className="
-                font-semibold
-                text-gray-800
-              ">
+              <span className="font-semibold text-gray-800">
                 Total
               </span>
 
-              <span className="
-                text-xl
-                font-bold
-                text-gray-900
-              ">
+              <span className="text-xl font-bold text-gray-900">
                 ₦{total.toLocaleString()}
               </span>
 
             </div>
-
-
-            {/* PLACE ORDER */}
 
             <button
               type="submit"
@@ -826,14 +770,7 @@ function Checkout({ cart = [], cartCount = 0 }) {
                 : "Place Order"}
             </button>
 
-
-            <p className="
-              text-xs
-              text-gray-400
-              text-center
-              mt-4
-              leading-5
-            ">
+            <p className="text-xs text-gray-400 text-center mt-4 leading-5">
               By placing your order, you agree to CampusMart's
               terms and conditions.
             </p>

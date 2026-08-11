@@ -8,18 +8,23 @@ import Cart from "./pages/customer/Cart";
 import Messages from "./pages/customer/Messages";
 import Chat from "./pages/customer/Chat";
 import Checkout from "./pages/customer/Checkout";
+import OrderSuccess from "./pages/customer/OrderSuccess";
 
 function App() {
   const [cart, setCart] = useState([]);
 
+  // ================= ORDERS =================
+
+  const [orders, setOrders] = useState([]);
+
   // ================= ADD TO CART =================
+
   const addToCart = (product, quantity = 1) => {
     setCart((currentCart) => {
       const existingProduct = currentCart.find(
         (item) => item.id === product.id
       );
 
-      // Product already exists
       if (existingProduct) {
         return currentCart.map((item) =>
           item.id === product.id
@@ -31,7 +36,6 @@ function App() {
         );
       }
 
-      // New product
       return [
         ...currentCart,
         {
@@ -42,27 +46,114 @@ function App() {
     });
   };
 
+  // ================= INCREASE =================
+
+  const increaseQuantity = (productId) => {
+    setCart((currentCart) =>
+      currentCart.map((item) =>
+        item.id === productId
+          ? {
+              ...item,
+              quantity: item.quantity + 1,
+            }
+          : item
+      )
+    );
+  };
+
+  // ================= DECREASE =================
+
+  const decreaseQuantity = (productId) => {
+    setCart((currentCart) =>
+      currentCart
+        .map((item) =>
+          item.id === productId
+            ? {
+                ...item,
+                quantity: Math.max(1, item.quantity - 1),
+              }
+            : item
+        )
+    );
+  };
+
+  // ================= REMOVE ONE PRODUCT =================
+
+  const removeFromCart = (productId) => {
+    setCart((currentCart) =>
+      currentCart.filter((item) => item.id !== productId)
+    );
+  };
+
+  // ================= REMOVE CHECKED OUT ITEMS =================
+
+  const removePurchasedItems = (purchasedItems) => {
+    const purchasedIds = purchasedItems.map((item) => item.id);
+
+    setCart((currentCart) =>
+      currentCart.filter(
+        (item) => !purchasedIds.includes(item.id)
+      )
+    );
+  };
+
   // ================= CART COUNT =================
+
   const cartCount = cart.reduce(
     (total, item) => total + item.quantity,
     0
   );
 
+  // ================= PLACE ORDER =================
+
+  const placeOrder = (orderData) => {
+    const newOrder = {
+      id: Date.now().toString().slice(-8),
+      ...orderData,
+      date: new Date().toLocaleDateString(),
+      status: "Placed",
+    };
+
+    setOrders((currentOrders) => [
+      ...currentOrders,
+      newOrder,
+    ]);
+
+    // Remove ONLY the products that were checked out
+    removePurchasedItems(orderData.items);
+
+    return newOrder;
+  };
+
   return (
     <Routes>
 
-      {/* Dashboard */}
+      {/* ================= DASHBOARD ================= */}
+
       <Route
         path="/"
         element={
           <Dashboard
             addToCart={addToCart}
             cartCount={cartCount}
+            orders={orders}
           />
         }
       />
 
-      {/* Browse Products */}
+      <Route
+        path="/dashboard"
+        element={
+          <Dashboard
+            addToCart={addToCart}
+            cartCount={cartCount}
+            orders={orders}
+          />
+        }
+      />
+
+      {/* ================= BROWSE ================= */}
+
       <Route
         path="/browse-products"
         element={
@@ -73,7 +164,8 @@ function App() {
         }
       />
 
-      {/* Product Details */}
+      {/* ================= PRODUCT DETAILS ================= */}
+
       <Route
         path="/products/:id"
         element={
@@ -84,57 +176,63 @@ function App() {
         }
       />
 
-      {/* Cart */}
+      {/* ================= CART ================= */}
+
       <Route
         path="/cart"
         element={
           <Cart
             cart={cart}
-            setCart={setCart}
+            cartCount={cartCount}
+            increaseQuantity={increaseQuantity}
+            decreaseQuantity={decreaseQuantity}
+            removeFromCart={removeFromCart}
+          />
+        }
+      />
+
+      {/* ================= MESSAGES ================= */}
+
+      <Route
+        path="/messages"
+        element={
+          <Messages
             cartCount={cartCount}
           />
         }
       />
 
+      <Route
+        path="/messages/:id"
+        element={
+          <Chat
+            cartCount={cartCount}
+          />
+        }
+      />
+
+      {/* ================= CHECKOUT ================= */}
 
       <Route
-  path="/dashboard"
-  element={
-    <Dashboard
-      cartCount={cartCount}
-      addToCart={addToCart}
-    />
-  }
-/>
+        path="/checkout"
+        element={
+          <Checkout
+            cart={cart}
+            cartCount={cartCount}
+            placeOrder={placeOrder}
+          />
+        }
+      />
 
-<Route
-  path="/messages"
-  element={
-    <Messages
-      cartCount={cartCount}
-    />
-  }
-/>
+      {/* ================= ORDER SUCCESS ================= */}
 
-<Route
-  path="/messages/:id"
-  element={
-    <Chat
-      cartCount={cartCount}
-    />
-  }
-/>
+      <Route
+        path="/order-success"
+        element={
+          <OrderSuccess />
+        }
+      />
 
-
-<Route
-  path="/checkout"
-  element={
-    <Checkout
-      cart={cart}
-      cartCount={cartCount}
-    />
-  }
-/>
     </Routes>
   );
 }
