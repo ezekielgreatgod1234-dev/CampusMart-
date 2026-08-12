@@ -9,9 +9,16 @@ import Messages from "./pages/customer/Messages";
 import Chat from "./pages/customer/Chat";
 import Checkout from "./pages/customer/Checkout";
 import OrderSuccess from "./pages/customer/OrderSuccess";
+import Wishlist from "./pages/customer/Wishlist";
 
 function App() {
+  // ================= CART =================
+
   const [cart, setCart] = useState([]);
+
+  // ================= WISHLIST =================
+
+  const [wishlist, setWishlist] = useState([]);
 
   // ================= ORDERS =================
 
@@ -46,7 +53,7 @@ function App() {
     });
   };
 
-  // ================= INCREASE =================
+  // ================= INCREASE QUANTITY =================
 
   const increaseQuantity = (productId) => {
     setCart((currentCart) =>
@@ -61,23 +68,22 @@ function App() {
     );
   };
 
-  // ================= DECREASE =================
+  // ================= DECREASE QUANTITY =================
 
   const decreaseQuantity = (productId) => {
     setCart((currentCart) =>
-      currentCart
-        .map((item) =>
-          item.id === productId
-            ? {
-                ...item,
-                quantity: Math.max(1, item.quantity - 1),
-              }
-            : item
-        )
+      currentCart.map((item) =>
+        item.id === productId
+          ? {
+              ...item,
+              quantity: Math.max(1, item.quantity - 1),
+            }
+          : item
+      )
     );
   };
 
-  // ================= REMOVE ONE PRODUCT =================
+  // ================= REMOVE FROM CART =================
 
   const removeFromCart = (productId) => {
     setCart((currentCart) =>
@@ -85,10 +91,12 @@ function App() {
     );
   };
 
-  // ================= REMOVE CHECKED OUT ITEMS =================
+  // ================= REMOVE PURCHASED ITEMS =================
 
   const removePurchasedItems = (purchasedItems) => {
-    const purchasedIds = purchasedItems.map((item) => item.id);
+    const purchasedIds = purchasedItems.map(
+      (item) => item.id
+    );
 
     setCart((currentCart) =>
       currentCart.filter(
@@ -119,10 +127,37 @@ function App() {
       newOrder,
     ]);
 
-    // Remove ONLY the products that were checked out
+    // Remove only purchased products from cart
     removePurchasedItems(orderData.items);
 
     return newOrder;
+  };
+
+  // ================= TOGGLE WISHLIST =================
+
+  const toggleWishlist = (productId) => {
+    setWishlist((currentWishlist) => {
+      if (currentWishlist.includes(productId)) {
+        return currentWishlist.filter(
+          (id) => id !== productId
+        );
+      }
+
+      return [
+        ...currentWishlist,
+        productId,
+      ];
+    });
+  };
+
+  // ================= REMOVE FROM WISHLIST =================
+
+  const removeFromWishlist = (productId) => {
+    setWishlist((currentWishlist) =>
+      currentWishlist.filter(
+        (id) => id !== productId
+      )
+    );
   };
 
   return (
@@ -137,6 +172,8 @@ function App() {
             addToCart={addToCart}
             cartCount={cartCount}
             orders={orders}
+            wishlist={wishlist}
+            toggleWishlist={toggleWishlist}
           />
         }
       />
@@ -148,11 +185,13 @@ function App() {
             addToCart={addToCart}
             cartCount={cartCount}
             orders={orders}
+            wishlist={wishlist}
+            toggleWishlist={toggleWishlist}
           />
         }
       />
 
-      {/* ================= BROWSE ================= */}
+      {/* ================= BROWSE PRODUCTS ================= */}
 
       <Route
         path="/browse-products"
@@ -160,6 +199,8 @@ function App() {
           <BrowseProducts
             addToCart={addToCart}
             cartCount={cartCount}
+            wishlist={wishlist}
+            toggleWishlist={toggleWishlist}
           />
         }
       />
@@ -172,6 +213,8 @@ function App() {
           <ProductDetails
             addToCart={addToCart}
             cartCount={cartCount}
+            wishlist={wishlist}
+            toggleWishlist={toggleWishlist}
           />
         }
       />
@@ -230,6 +273,20 @@ function App() {
         path="/order-success"
         element={
           <OrderSuccess />
+        }
+      />
+
+      {/* ================= WISHLIST ================= */}
+
+      <Route
+        path="/wishlist"
+        element={
+          <Wishlist
+            wishlist={wishlist}
+            removeFromWishlist={removeFromWishlist}
+            addToCart={addToCart}
+            cartCount={cartCount}
+          />
         }
       />
 

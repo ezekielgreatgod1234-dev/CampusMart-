@@ -15,18 +15,37 @@ import {
   FiCheck,
 } from "react-icons/fi";
 
-function ProductDetails({ addToCart, cartCount }) {
+function ProductDetails({
+  addToCart,
+  cartCount = 0,
+  wishlist = [],
+  toggleWishlist,
+}) {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  // Find product
+  // ==============================
+  // FIND PRODUCT
+  // ==============================
+
   const product = products.find(
     (item) => item.id === Number(id)
   );
 
+  // ==============================
+  // STATES
+  // ==============================
+
   const [quantity, setQuantity] = useState(1);
-  const [liked, setLiked] = useState(false);
   const [added, setAdded] = useState(false);
+
+  // ==============================
+  // WISHLIST STATUS
+  // ==============================
+
+  const isWishlisted = product
+    ? wishlist.includes(product.id)
+    : false;
 
   // ==============================
   // PRODUCT NOT FOUND
@@ -47,6 +66,7 @@ function ProductDetails({ addToCart, cartCount }) {
           </p>
 
           <button
+            type="button"
             onClick={() => navigate("/browse-products")}
             className="
               mt-5
@@ -69,12 +89,29 @@ function ProductDetails({ addToCart, cartCount }) {
   }
 
   // ==============================
+  // WISHLIST
+  // ==============================
+
+  const handleWishlist = () => {
+    if (!toggleWishlist) {
+      console.error(
+        "toggleWishlist function was not provided."
+      );
+      return;
+    }
+
+    toggleWishlist(product.id);
+  };
+
+  // ==============================
   // ADD TO CART
   // ==============================
 
   const handleAddToCart = () => {
     if (!addToCart) {
-      console.error("addToCart function was not provided.");
+      console.error(
+        "addToCart function was not provided."
+      );
       return;
     }
 
@@ -93,7 +130,9 @@ function ProductDetails({ addToCart, cartCount }) {
 
   const handleBuyNow = () => {
     if (!addToCart) {
-      console.error("addToCart function was not provided.");
+      console.error(
+        "addToCart function was not provided."
+      );
       return;
     }
 
@@ -110,6 +149,7 @@ function ProductDetails({ addToCart, cartCount }) {
         {/* ================= BACK BUTTON ================= */}
 
         <button
+          type="button"
           onClick={() => navigate("/browse-products")}
           className="
             flex
@@ -178,12 +218,17 @@ function ProductDetails({ addToCart, cartCount }) {
               </div>
 
 
-              {/* WISHLIST */}
+              {/* ================= WISHLIST BUTTON ================= */}
 
               <button
                 type="button"
-                onClick={() => setLiked(!liked)}
-                className="
+                onClick={handleWishlist}
+                aria-label={
+                  isWishlisted
+                    ? "Remove from wishlist"
+                    : "Add to wishlist"
+                }
+                className={`
                   absolute
                   top-4
                   right-4
@@ -192,20 +237,24 @@ function ProductDetails({ addToCart, cartCount }) {
                   sm:w-12
                   sm:h-12
                   rounded-full
-                  bg-white
                   shadow
                   flex
                   items-center
                   justify-center
                   transition
-                  hover:bg-gray-50
-                "
+
+                  ${
+                    isWishlisted
+                      ? "bg-red-50 hover:bg-red-100"
+                      : "bg-white hover:bg-gray-50"
+                  }
+                `}
               >
 
                 <FiHeart
                   size={21}
                   className={
-                    liked
+                    isWishlisted
                       ? "text-red-500 fill-red-500"
                       : "text-gray-600"
                   }
@@ -472,6 +521,7 @@ function ProductDetails({ addToCart, cartCount }) {
                     rounded-xl
                     font-semibold
                     transition
+
                     ${
                       added
                         ? "border-green-600 bg-green-50 text-green-600"
@@ -562,7 +612,7 @@ function ProductDetails({ addToCart, cartCount }) {
           </div>
 
 
-          {/* SAMPLE REVIEW */}
+          {/* ================= SAMPLE REVIEW ================= */}
 
           <div
             className="

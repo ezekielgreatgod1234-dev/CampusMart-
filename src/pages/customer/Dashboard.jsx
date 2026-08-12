@@ -12,64 +12,55 @@ import RecentMessages from "../../components/dashboard/rightSideBar/RecentMessag
 import FlashSales from "../../components/dashboard/rightSideBar/FlashSales";
 import CampusDeals from "../../components/dashboard/rightSideBar/CampusDeals";
 
-import {
-  
-  FiHelpCircle,
-  FiMessageCircle,
-  FiShield,
-} from "react-icons/fi";
+import { FiHelpCircle, FiMessageCircle, FiShield } from "react-icons/fi";
 
-function Dashboard({ cartCount = 0 }) {
+function Dashboard({
+  cartCount = 0,
+  addToCart,
+  wishlist = [],
+  toggleWishlist,
+}) {
   return (
     <CustomerLayout cartCount={cartCount}>
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-
         {/* =====================================================
             MAIN CONTENT
         ===================================================== */}
 
         <div className="xl:col-span-9 space-y-6">
-
           <Greeting />
 
           <HeroBanner />
 
-          <StatsCards cartCount={cartCount} />
+          <StatsCards cartCount={cartCount} wishlistCount={wishlist.length} />
 
           <Categories />
 
-          <RecommendedProducts />
-
-    
-
+          <RecommendedProducts
+            addToCart={addToCart}
+            wishlist={wishlist}
+            toggleWishlist={toggleWishlist}
+          />
         </div>
-
 
         {/* =====================================================
             RIGHT SIDEBAR
         ===================================================== */}
 
         <div className="xl:col-span-3 space-y-6">
-
           {/* ORDER SUMMARY */}
 
           <OrderSummary />
-
 
           {/* RECENT MESSAGES */}
 
           <RecentMessages />
 
-
           {/* FLASH SALES */}
 
           <FlashSales />
 
-
-                <CampusDeals />
-
-
-          
+          <CampusDeals />
 
           {/* =================================================
               CAMPUSMART PROTECTION
@@ -84,9 +75,7 @@ function Dashboard({ cartCount = 0 }) {
               p-5
             "
           >
-
             <div className="flex items-start gap-3">
-
               <div
                 className="
                   w-10
@@ -104,31 +93,24 @@ function Dashboard({ cartCount = 0 }) {
               </div>
 
               <div>
-
                 <h2 className="font-bold text-gray-800">
                   Shop with confidence
                 </h2>
 
                 <p className="text-xs text-gray-500 mt-1 leading-5">
-                  CampusMart helps students connect and trade
-                  safely around campus.
+                  CampusMart helps students connect and trade safely around
+                  campus.
                 </p>
-
               </div>
-
             </div>
-
           </div>
-
 
           {/* =================================================
               NEED HELP
           ================================================= */}
 
           <div className="bg-white rounded-2xl border border-gray-100 p-5">
-
             <div className="flex items-start gap-3">
-
               <div
                 className="
                   w-10
@@ -146,20 +128,13 @@ function Dashboard({ cartCount = 0 }) {
               </div>
 
               <div>
-
-                <h2 className="font-bold text-gray-800">
-                  Need Help?
-                </h2>
+                <h2 className="font-bold text-gray-800">Need Help?</h2>
 
                 <p className="text-xs text-gray-500 mt-1">
-                  We're here to help you with your CampusMart
-                  experience.
+                  We're here to help you with your CampusMart experience.
                 </p>
-
               </div>
-
             </div>
-
 
             <button
               className="
@@ -183,11 +158,8 @@ function Dashboard({ cartCount = 0 }) {
               <FiMessageCircle />
               Contact Support
             </button>
-
           </div>
-
         </div>
-
       </div>
     </CustomerLayout>
   );

@@ -1,7 +1,7 @@
 import {
   FiGrid,
   FiShoppingBag,
-  FiLayers,
+
   FiHeart,
   FiShoppingCart,
   FiPackage,
@@ -22,11 +22,7 @@ const sidebarMenu = [
   icon: FiShoppingBag,
   path: "/browse-products",
 },
-  {
-    name: "Categories",
-    icon: FiLayers,
-    path: "/categories",
-  },
+  
   {
     name: "Wishlist",
     icon: FiHeart,

@@ -12,14 +12,21 @@ import {
   FiStar,
 } from "react-icons/fi";
 
-function BrowseProducts({ cartCount = 0, addToCart }) {
-  const [searchParams, setSearchParams] = useSearchParams();
+function BrowseProducts({
+  cartCount = 0,
+  addToCart,
+  wishlist = [],
+  toggleWishlist,
+}) {
+  const [searchParams, setSearchParams] =
+    useSearchParams();
 
   // ================= STATES =================
 
   const [sortBy, setSortBy] = useState("Newest");
   const [filterOpen, setFilterOpen] = useState(false);
-  const [maxPrice, setMaxPrice] = useState(1000000);
+  const [maxPrice, setMaxPrice] =
+    useState(1000000);
   const [minRating, setMinRating] = useState(0);
 
   // ================= CATEGORIES =================
@@ -38,22 +45,24 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
 
   // ================= URL SEARCH =================
 
-  // Get search text from URL
-  const search = searchParams.get("search") || "";
+  const search =
+    searchParams.get("search") || "";
 
-  // Get category from URL
-  const urlCategory = searchParams.get("category");
+  const urlCategory =
+    searchParams.get("category");
 
-  const selectedCategory = categories.includes(urlCategory)
-    ? urlCategory
-    : "All";
+  const selectedCategory =
+    categories.includes(urlCategory)
+      ? urlCategory
+      : "All";
 
   // ================= SEARCH =================
 
   const handleSearchChange = (e) => {
     const value = e.target.value;
 
-    const params = new URLSearchParams(searchParams);
+    const params =
+      new URLSearchParams(searchParams);
 
     if (value.trim() === "") {
       params.delete("search");
@@ -67,7 +76,8 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
   // ================= CATEGORY =================
 
   const handleCategoryChange = (category) => {
-    const params = new URLSearchParams(searchParams);
+    const params =
+      new URLSearchParams(searchParams);
 
     if (category === "All") {
       params.delete("category");
@@ -80,63 +90,93 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
 
   // ================= FILTER PRODUCTS =================
 
-  let filteredProducts = products.filter((product) => {
-    const price = Number(
-      String(product.price).replace(/[₦,]/g, "")
-    );
+  let filteredProducts = products.filter(
+    (product) => {
+      const price = Number(
+        String(product.price).replace(
+          /[₦,]/g,
+          ""
+        )
+      );
 
-    const matchesCategory =
-      selectedCategory === "All" ||
-      product.category === selectedCategory;
+      const matchesCategory =
+        selectedCategory === "All" ||
+        product.category === selectedCategory;
 
-    const matchesSearch =
-      product.name
-        .toLowerCase()
-        .includes(search.toLowerCase());
+      const matchesSearch =
+        product.name
+          .toLowerCase()
+          .includes(
+            search.toLowerCase()
+          );
 
-    const matchesPrice =
-      price <= maxPrice;
+      const matchesPrice =
+        price <= maxPrice;
 
-    const matchesRating =
-      product.rating >= minRating;
+      const matchesRating =
+        product.rating >= minRating;
 
-    return (
-      matchesCategory &&
-      matchesSearch &&
-      matchesPrice &&
-      matchesRating
-    );
-  });
+      return (
+        matchesCategory &&
+        matchesSearch &&
+        matchesPrice &&
+        matchesRating
+      );
+    }
+  );
 
   // ================= SORT PRODUCTS =================
 
-  filteredProducts = [...filteredProducts].sort((a, b) => {
-    if (sortBy === "Lowest Price") {
-      return (
-        Number(String(a.price).replace(/[₦,]/g, "")) -
-        Number(String(b.price).replace(/[₦,]/g, ""))
-      );
-    }
+  filteredProducts =
+    [...filteredProducts].sort(
+      (a, b) => {
+        if (sortBy === "Lowest Price") {
+          return (
+            Number(
+              String(a.price).replace(
+                /[₦,]/g,
+                ""
+              )
+            ) -
+            Number(
+              String(b.price).replace(
+                /[₦,]/g,
+                ""
+              )
+            )
+          );
+        }
 
-    if (sortBy === "Highest Price") {
-      return (
-        Number(String(b.price).replace(/[₦,]/g, "")) -
-        Number(String(a.price).replace(/[₦,]/g, ""))
-      );
-    }
+        if (sortBy === "Highest Price") {
+          return (
+            Number(
+              String(b.price).replace(
+                /[₦,]/g,
+                ""
+              )
+            ) -
+            Number(
+              String(a.price).replace(
+                /[₦,]/g,
+                ""
+              )
+            )
+          );
+        }
 
-    if (sortBy === "Top Rated") {
-      return b.rating - a.rating;
-    }
+        if (sortBy === "Top Rated") {
+          return b.rating - a.rating;
+        }
 
-    // Newest
-    return b.id - a.id;
-  });
+        return b.id - a.id;
+      }
+    );
 
   // ================= CLEAR FILTERS =================
 
   const clearFilters = () => {
-    const params = new URLSearchParams();
+    const params =
+      new URLSearchParams();
 
     setSearchParams(params);
 
@@ -150,9 +190,9 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
 
       <div className="space-y-6">
 
-        {/* ================================================= */}
-        {/* HEADER */}
-        {/* ================================================= */}
+        {/* =====================================================
+            HEADER
+        ===================================================== */}
 
         <div
           className="
@@ -177,8 +217,7 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
 
           </div>
 
-
-          {/* ================= SEARCH ================= */}
+          {/* SEARCH */}
 
           <div className="relative w-full lg:w-80 xl:w-96">
 
@@ -218,10 +257,9 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
 
         </div>
 
-
-        {/* ================================================= */}
-        {/* SHOW ACTIVE SEARCH */}
-        {/* ================================================= */}
+        {/* =====================================================
+            ACTIVE SEARCH
+        ===================================================== */}
 
         {search && (
           <div className="bg-green-50 border border-green-100 rounded-xl px-4 py-3">
@@ -235,17 +273,18 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
               </span>
 
               {" "}— {filteredProducts.length} product
-              {filteredProducts.length !== 1 ? "s" : ""}
+              {filteredProducts.length !== 1
+                ? "s"
+                : ""}
 
             </p>
 
           </div>
         )}
 
-
-        {/* ================================================= */}
-        {/* CATEGORIES */}
-        {/* ================================================= */}
+        {/* =====================================================
+            CATEGORIES
+        ===================================================== */}
 
         <section
           className="
@@ -270,7 +309,6 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
 
           </div>
 
-
           <div
             className="
               flex
@@ -281,43 +319,47 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
             "
           >
 
-            {categories.map((category) => (
+            {categories.map(
+              (category) => (
 
-              <button
-                key={category}
-                type="button"
-                onClick={() =>
-                  handleCategoryChange(category)
-                }
-                className={`
-                  shrink-0
-                  px-4
-                  py-2.5
-                  rounded-xl
-                  text-sm
-                  font-medium
-                  transition
-
-                  ${
-                    selectedCategory === category
-                      ? "bg-green-600 text-white"
-                      : "bg-gray-100 text-gray-600 hover:bg-green-50 hover:text-green-600"
+                <button
+                  key={category}
+                  type="button"
+                  onClick={() =>
+                    handleCategoryChange(
+                      category
+                    )
                   }
-                `}
-              >
-                {category}
-              </button>
+                  className={`
+                    shrink-0
+                    px-4
+                    py-2.5
+                    rounded-xl
+                    text-sm
+                    font-medium
+                    transition
 
-            ))}
+                    ${
+                      selectedCategory ===
+                      category
+                        ? "bg-green-600 text-white"
+                        : "bg-gray-100 text-gray-600 hover:bg-green-50 hover:text-green-600"
+                    }
+                  `}
+                >
+                  {category}
+                </button>
+
+              )
+            )}
 
           </div>
 
         </section>
 
-
-        {/* ================================================= */}
-        {/* SORT + FILTER BAR */}
-        {/* ================================================= */}
+        {/* =====================================================
+            SORT + FILTER
+        ===================================================== */}
 
         <div
           className="
@@ -353,7 +395,6 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
 
           </div>
 
-
           <div className="flex items-center gap-3">
 
             {/* SORT */}
@@ -377,21 +418,19 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
             >
 
               <option>Newest</option>
-
               <option>Lowest Price</option>
-
               <option>Highest Price</option>
-
               <option>Top Rated</option>
 
             </select>
-
 
             {/* FILTER */}
 
             <button
               type="button"
-              onClick={() => setFilterOpen(true)}
+              onClick={() =>
+                setFilterOpen(true)
+              }
               className="
                 flex
                 items-center
@@ -420,10 +459,9 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
 
         </div>
 
-
-        {/* ================================================= */}
-        {/* PRODUCTS */}
-        {/* ================================================= */}
+        {/* =====================================================
+            PRODUCTS
+        ===================================================== */}
 
         {filteredProducts.length > 0 ? (
 
@@ -439,15 +477,21 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
             "
           >
 
-            {filteredProducts.map((product) => (
+            {filteredProducts.map(
+              (product) => (
 
-              <ProductCard
-                key={product.id}
-                product={product}
-                addToCart={addToCart}
-              />
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  addToCart={addToCart}
+                  wishlist={wishlist}
+                  toggleWishlist={
+                    toggleWishlist
+                  }
+                />
 
-            ))}
+              )
+            )}
 
           </section>
 
@@ -476,10 +520,12 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
                 justify-center
               "
             >
+
               <FiSearch
                 size={26}
                 className="text-gray-400"
               />
+
             </div>
 
             <h3 className="text-lg font-semibold text-gray-800 mt-4">
@@ -515,10 +561,9 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
 
       </div>
 
-
-      {/* ================================================= */}
-      {/* FILTER OVERLAY */}
-      {/* ================================================= */}
+      {/* =====================================================
+          FILTER OVERLAY
+      ===================================================== */}
 
       {filterOpen && (
 
@@ -532,9 +577,10 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
               inset-0
               bg-black/40
             "
-            onClick={() => setFilterOpen(false)}
+            onClick={() =>
+              setFilterOpen(false)
+            }
           />
-
 
           {/* PANEL */}
 
@@ -571,7 +617,9 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
 
               <button
                 type="button"
-                onClick={() => setFilterOpen(false)}
+                onClick={() =>
+                  setFilterOpen(false)
+                }
                 className="
                   w-10
                   h-10
@@ -590,7 +638,6 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
 
             </div>
 
-
             {/* CATEGORY */}
 
             <div className="mt-8">
@@ -601,42 +648,46 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
 
               <div className="space-y-3 mt-4">
 
-                {categories.map((category) => (
+                {categories.map(
+                  (category) => (
 
-                  <label
-                    key={category}
-                    className="
-                      flex
-                      items-center
-                      gap-3
-                      cursor-pointer
-                    "
-                  >
+                    <label
+                      key={category}
+                      className="
+                        flex
+                        items-center
+                        gap-3
+                        cursor-pointer
+                      "
+                    >
 
-                    <input
-                      type="radio"
-                      name="category"
-                      checked={
-                        selectedCategory === category
-                      }
-                      onChange={() =>
-                        handleCategoryChange(category)
-                      }
-                      className="accent-green-600"
-                    />
+                      <input
+                        type="radio"
+                        name="category"
+                        checked={
+                          selectedCategory ===
+                          category
+                        }
+                        onChange={() =>
+                          handleCategoryChange(
+                            category
+                          )
+                        }
+                        className="accent-green-600"
+                      />
 
-                    <span className="text-sm text-gray-600">
-                      {category}
-                    </span>
+                      <span className="text-sm text-gray-600">
+                        {category}
+                      </span>
 
-                  </label>
+                    </label>
 
-                ))}
+                  )
+                )}
 
               </div>
 
             </div>
-
 
             {/* PRICE */}
 
@@ -661,7 +712,9 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
                 step="5000"
                 value={maxPrice}
                 onChange={(e) =>
-                  setMaxPrice(Number(e.target.value))
+                  setMaxPrice(
+                    Number(e.target.value)
+                  )
                 }
                 className="
                   w-full
@@ -677,7 +730,6 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
 
             </div>
 
-
             {/* RATING */}
 
             <div className="mt-8">
@@ -688,55 +740,63 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
 
               <div className="space-y-3 mt-4">
 
-                {[4, 3, 2, 1].map((rating) => (
+                {[4, 3, 2, 1].map(
+                  (rating) => (
 
-                  <label
-                    key={rating}
-                    className="
-                      flex
-                      items-center
-                      gap-3
-                      cursor-pointer
-                    "
-                  >
+                    <label
+                      key={rating}
+                      className="
+                        flex
+                        items-center
+                        gap-3
+                        cursor-pointer
+                      "
+                    >
 
-                    <input
-                      type="radio"
-                      name="rating"
-                      checked={minRating === rating}
-                      onChange={() =>
-                        setMinRating(rating)
-                      }
-                      className="accent-green-600"
-                    />
+                      <input
+                        type="radio"
+                        name="rating"
+                        checked={
+                          minRating ===
+                          rating
+                        }
+                        onChange={() =>
+                          setMinRating(
+                            rating
+                          )
+                        }
+                        className="accent-green-600"
+                      />
 
-                    <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1">
 
-                      {Array.from({
-                        length: rating,
-                      }).map((_, index) => (
+                        {Array.from({
+                          length: rating,
+                        }).map(
+                          (_, index) => (
 
-                        <FiStar
-                          key={index}
-                          className="
-                            text-yellow-500
-                            fill-yellow-500
-                          "
-                          size={15}
-                        />
+                            <FiStar
+                              key={index}
+                              className="
+                                text-yellow-500
+                                fill-yellow-500
+                              "
+                              size={15}
+                            />
 
-                      ))}
+                          )
+                        )}
 
-                      <span className="text-sm text-gray-500 ml-1">
-                        & up
-                      </span>
+                        <span className="text-sm text-gray-500 ml-1">
+                          & up
+                        </span>
 
-                    </div>
+                      </div>
 
-                  </label>
+                    </label>
 
-                ))}
-
+                  )
+                )}
 
                 {/* ALL RATINGS */}
 
@@ -752,8 +812,12 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
                   <input
                     type="radio"
                     name="rating"
-                    checked={minRating === 0}
-                    onChange={() => setMinRating(0)}
+                    checked={
+                      minRating === 0
+                    }
+                    onChange={() =>
+                      setMinRating(0)
+                    }
                     className="accent-green-600"
                   />
 
@@ -766,7 +830,6 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
               </div>
 
             </div>
-
 
             {/* BUTTONS */}
 
@@ -791,7 +854,9 @@ function BrowseProducts({ cartCount = 0, addToCart }) {
 
               <button
                 type="button"
-                onClick={() => setFilterOpen(false)}
+                onClick={() =>
+                  setFilterOpen(false)
+                }
                 className="
                   flex-1
                   bg-green-600

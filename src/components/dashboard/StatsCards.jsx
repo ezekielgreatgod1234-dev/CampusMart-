@@ -7,13 +7,17 @@ import {
 
 import { useNavigate } from "react-router-dom";
 
-function StatsCards({ cartCount = 0 }) {
+function StatsCards({
+  cartCount = 0,
+  wishlistCount = 0,
+  ordersCount = 0,
+}) {
   const navigate = useNavigate();
 
   const stats = [
     {
       title: "Orders",
-      value: 12,
+      value: ordersCount,
       link: "View all orders",
       path: "/orders",
       icon: <FiShoppingBag />,
@@ -23,7 +27,7 @@ function StatsCards({ cartCount = 0 }) {
 
     {
       title: "Wishlist",
-      value: 8,
+      value: wishlistCount,
       link: "View wishlist",
       path: "/wishlist",
       icon: <FiHeart />,
@@ -54,7 +58,9 @@ function StatsCards({ cartCount = 0 }) {
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+
       {stats.map((item, index) => (
+
         <div
           key={index}
           className="
@@ -71,6 +77,7 @@ function StatsCards({ cartCount = 0 }) {
         >
 
           {/* ICON */}
+
           <div
             className={`
               w-11
@@ -90,22 +97,24 @@ function StatsCards({ cartCount = 0 }) {
             {item.icon}
           </div>
 
-
           {/* TITLE */}
+
           <h3 className="mt-4 text-gray-600 text-sm">
             {item.title}
           </h3>
 
-
           {/* VALUE */}
+
           <h2 className="text-2xl font-bold text-gray-900">
             {item.value}
           </h2>
 
-
           {/* LINK */}
+
           <button
-            onClick={() => navigate(item.path)}
+            onClick={() =>
+              navigate(item.path)
+            }
             className="
               mt-2
               text-sm
@@ -117,7 +126,9 @@ function StatsCards({ cartCount = 0 }) {
           </button>
 
         </div>
+
       ))}
+
     </div>
   );
 }

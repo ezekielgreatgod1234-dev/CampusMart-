@@ -8,10 +8,20 @@ import {
   FiCheck,
 } from "react-icons/fi";
 
-function ProductCard({ product, addToCart }) {
+function ProductCard({
+  product,
+  addToCart,
+  wishlist = [],
+  toggleWishlist,
+}) {
   const navigate = useNavigate();
 
   const [added, setAdded] = useState(false);
+
+  // Check whether this product is already in wishlist
+  const isWishlisted = wishlist.includes(product.id);
+
+  // ================= ADD TO CART =================
 
   const handleAddToCart = (e) => {
     e.stopPropagation();
@@ -25,6 +35,18 @@ function ProductCard({ product, addToCart }) {
     }, 2000);
   };
 
+  // ================= WISHLIST =================
+
+  const handleWishlist = (e) => {
+    e.stopPropagation();
+
+    if (toggleWishlist) {
+      toggleWishlist(product.id);
+    }
+  };
+
+  // ================= PRODUCT CLICK =================
+
   const handleProductClick = () => {
     navigate(`/products/${product.id}`);
   };
@@ -33,6 +55,7 @@ function ProductCard({ product, addToCart }) {
     <div className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-lg transition duration-300">
 
       {/* IMAGE */}
+
       <div className="relative bg-gray-100">
 
         <img
@@ -52,7 +75,8 @@ function ProductCard({ product, addToCart }) {
           "
         />
 
-        {/* Badge */}
+        {/* BADGE */}
+
         <span
           className="
             absolute
@@ -71,11 +95,12 @@ function ProductCard({ product, addToCart }) {
           New
         </span>
 
-        {/* Wishlist */}
+        {/* WISHLIST */}
+
         <button
           type="button"
-          onClick={(e) => e.stopPropagation()}
-          className="
+          onClick={handleWishlist}
+          className={`
             absolute
             top-3
             right-3
@@ -89,26 +114,40 @@ function ProductCard({ product, addToCart }) {
             flex
             items-center
             justify-center
-            text-gray-600
-            hover:text-red-500
-            hover:bg-red-50
             transition
-          "
+
+            ${
+              isWishlisted
+                ? "text-red-500 bg-red-50"
+                : "text-gray-600 hover:text-red-500 hover:bg-red-50"
+            }
+          `}
         >
-          <FiHeart />
+
+          <FiHeart
+            className={
+              isWishlisted
+                ? "fill-red-500"
+                : ""
+            }
+          />
+
         </button>
 
       </div>
 
       {/* CONTENT */}
+
       <div className="p-3 sm:p-4">
 
-        {/* Category */}
+        {/* CATEGORY */}
+
         <p className="text-xs sm:text-sm text-green-600 font-medium">
           {product.category}
         </p>
 
-        {/* Name */}
+        {/* NAME */}
+
         <h3
           onClick={handleProductClick}
           className="
@@ -125,15 +164,19 @@ function ProductCard({ product, addToCart }) {
           {product.name}
         </h3>
 
-        {/* Seller */}
+        {/* SELLER */}
+
         <p className="text-xs text-gray-400 mt-1">
           CampusMart Seller
         </p>
 
-        {/* Rating */}
+        {/* RATING */}
+
         <div className="flex items-center gap-1 mt-2">
 
-          <FiStar className="text-yellow-500 fill-yellow-500" />
+          <FiStar
+            className="text-yellow-500 fill-yellow-500"
+          />
 
           <span className="text-xs sm:text-sm text-gray-600">
             {product.rating}
@@ -146,9 +189,11 @@ function ProductCard({ product, addToCart }) {
         </div>
 
         {/* PRICE + CART */}
+
         <div className="flex items-center justify-between gap-2 mt-3">
 
-          {/* Price */}
+          {/* PRICE */}
+
           <div className="min-w-0">
 
             <p className="text-xs text-gray-400">
@@ -162,6 +207,7 @@ function ProductCard({ product, addToCart }) {
           </div>
 
           {/* ADD TO CART */}
+
           <button
             type="button"
             onClick={handleAddToCart}
@@ -180,6 +226,7 @@ function ProductCard({ product, addToCart }) {
               text-xs
               sm:text-sm
               font-medium
+
               ${
                 added
                   ? "bg-green-100 text-green-700"
