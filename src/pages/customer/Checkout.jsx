@@ -8,8 +8,8 @@ import {
   FiMapPin,
   FiCreditCard,
   FiTruck,
-  FiCheckCircle,
 } from "react-icons/fi";
+
 
 function Checkout({
   cart = [],
@@ -33,17 +33,18 @@ function Checkout({
     0
   );
 
-  const [paymentMethod, setPaymentMethod] =
-    useState("paystack");
+ const [paymentMethod, setPaymentMethod] =
+  useState("card");
 
-  const [formData, setFormData] = useState({
-    fullName: "",
-    phone: "",
-    address: "",
-    campus: "",
-    note: "",
-  });
+const [errorMessage, setErrorMessage] = useState("");
 
+const [formData, setFormData] = useState({
+  fullName: "",
+  phone: "",
+  address: "",
+  campus: "",
+  note: "",
+});
   // ================= TOTAL =================
 
   const cartTotal = checkoutItems.reduce(
@@ -75,47 +76,67 @@ function Checkout({
   // ================= PLACE ORDER =================
 
   const handlePlaceOrder = (e) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    if (
-      !formData.fullName.trim() ||
-      !formData.phone.trim() ||
-      !formData.address.trim() ||
-      !formData.campus.trim()
-    ) {
-      alert(
-        "Please fill in all required delivery information."
-      );
-      return;
-    }
+  if (!formData.fullName.trim()) {
+    setErrorMessage("Please enter your full name.");
+    return;
+  }
 
-    /*
-      For now Paystack is not connected yet.
-      We simulate a successful payment/order.
-    */
+  if (!formData.phone.trim()) {
+    setErrorMessage("Please enter your phone number.");
+    return;
+  }
 
-    const order = placeOrder({
-      items: checkoutItems,
-      total,
-      paymentMethod,
-      customer: formData,
-      type: checkoutType,
-    });
+  if (!formData.campus.trim()) {
+    setErrorMessage("Please enter your campus.");
+    return;
+  }
 
-    // Save the order temporarily so OrderSuccess can display it
-    sessionStorage.setItem(
-      "lastOrder",
-      JSON.stringify(order)
-    );
+  if (!formData.address.trim()) {
+    setErrorMessage("Please enter your delivery address.");
+    return;
+  }
 
-    navigate("/order-success", {
+  setErrorMessage("");
+
+  // ================= CARD PAYMENT =================
+
+  if (paymentMethod === "card") {
+    navigate("/payment", {
       state: {
-        order,
+        checkoutItems,
+        total,
+        formData,
+        checkoutType,
       },
-      replace: true,
     });
-  };
 
+    return;
+  }
+
+  // ================= PAY ON DELIVERY =================
+
+  const order = placeOrder({
+    items: checkoutItems,
+    total,
+    paymentMethod,
+    customer: formData,
+    type: checkoutType,
+  });
+
+  sessionStorage.setItem(
+    "lastOrder",
+    JSON.stringify(order)
+  );
+
+  navigate("/order-success", {
+    state: {
+      order,
+    },
+    replace: true,
+  });
+};
   // ================= NO ITEMS =================
 
   if (checkoutItems.length === 0) {
@@ -165,6 +186,48 @@ function Checkout({
         onSubmit={handlePlaceOrder}
         className="space-y-6"
       >
+
+        {errorMessage && (
+  <div
+    className="
+      bg-red-50
+      border
+      border-red-200
+      rounded-xl
+      p-4
+      flex
+      items-start
+      gap-3
+    "
+  >
+    <div
+      className="
+        w-8
+        h-8
+        rounded-full
+        bg-red-100
+        text-red-600
+        flex
+        items-center
+        justify-center
+        shrink-0
+        font-bold
+      "
+    >
+      !
+    </div>
+
+    <div>
+      <p className="font-semibold text-red-700">
+        Unable to place order
+      </p>
+
+      <p className="text-sm text-red-600 mt-1">
+        {errorMessage}
+      </p>
+    </div>
+  </div>
+)}
 
         {/* ================= HEADER ================= */}
 
@@ -445,241 +508,311 @@ function Checkout({
 
             {/* ================= PAYMENT ================= */}
 
-            <section
+<section
+  className="
+    bg-white
+    rounded-2xl
+    border
+    border-gray-100
+    p-5
+    sm:p-6
+  "
+>
+
+  {/* HEADER */}
+
+  <div className="flex items-center gap-3">
+
+    <div
+      className="
+        w-11
+        h-11
+        rounded-xl
+        bg-green-100
+        text-green-600
+        flex
+        items-center
+        justify-center
+      "
+    >
+      <FiCreditCard size={21} />
+    </div>
+
+    <div>
+
+      <h2 className="text-lg font-bold text-gray-800">
+        Payment Method
+      </h2>
+
+      <p className="text-sm text-gray-500">
+        Choose how you want to pay.
+      </p>
+
+    </div>
+
+  </div>
+
+
+  {/* PAYMENT OPTIONS */}
+
+  <div className="space-y-3 mt-6">
+
+    {/* ================= PAY WITH CARD ================= */}
+
+    <label
+      className={`
+        block
+        p-4
+        rounded-xl
+        border
+        cursor-pointer
+        transition
+        ${
+          paymentMethod === "card"
+            ? "border-green-500 bg-green-50"
+            : "border-gray-200 hover:border-green-300"
+        }
+      `}
+    >
+
+      <div className="flex items-center gap-4">
+
+        <input
+          type="radio"
+          name="payment"
+          value="card"
+          checked={paymentMethod === "card"}
+          onChange={(e) =>
+            setPaymentMethod(e.target.value)
+          }
+          className="accent-green-600"
+        />
+
+        <div
+          className="
+            w-10
+            h-10
+            rounded-lg
+            bg-white
+            border
+            border-gray-100
+            flex
+            items-center
+            justify-center
+            text-green-600
+            shrink-0
+          "
+        >
+          <FiCreditCard size={19} />
+        </div>
+
+        <div className="flex-1">
+
+          <div className="flex items-center justify-between gap-2">
+
+            <p className="font-semibold text-gray-800">
+              Pay with Card
+            </p>
+
+            <span
               className="
-                bg-white
-                rounded-2xl
-                border
-                border-gray-100
-                p-5
-                sm:p-6
+                text-[10px]
+                font-semibold
+                bg-green-100
+                text-green-700
+                px-2
+                py-1
+                rounded-full
               "
             >
+              SECURE
+            </span>
 
-              <div className="flex items-center gap-3">
+          </div>
 
-                <div
-                  className="
-                    w-11
-                    h-11
-                    rounded-xl
-                    bg-green-100
-                    text-green-600
-                    flex
-                    items-center
-                    justify-center
-                  "
-                >
-                  <FiCreditCard size={21} />
-                </div>
+          <p className="text-xs text-gray-500 mt-1">
+            Pay securely using your debit or credit card.
+          </p>
 
-                <div>
+        </div>
 
-                  <h2 className="text-lg font-bold text-gray-800">
-                    Payment Method
-                  </h2>
+      </div>
 
-                  <p className="text-sm text-gray-500">
-                    Choose how you want to pay.
-                  </p>
 
-                </div>
+      {/* CARD DETAILS PREVIEW */}
 
-              </div>
+      {paymentMethod === "card" && (
 
-              <div className="space-y-3 mt-6">
+        <div className="mt-4 ml-8 pl-4 border-l-2 border-green-200">
 
-                {/* PAYSTACK */}
+          <div className="flex flex-wrap items-center gap-2">
 
-                <label
-                  className={`
-                    flex
-                    items-center
-                    gap-4
-                    p-4
-                    rounded-xl
-                    border
-                    cursor-pointer
-                    transition
-                    ${
-                      paymentMethod === "paystack"
-                        ? "border-green-500 bg-green-50"
-                        : "border-gray-200 hover:border-green-300"
-                    }
-                  `}
-                >
-
-                  <input
-                    type="radio"
-                    name="payment"
-                    value="paystack"
-                    checked={
-                      paymentMethod === "paystack"
-                    }
-                    onChange={(e) =>
-                      setPaymentMethod(e.target.value)
-                    }
-                    className="accent-green-600"
-                  />
-
-                  <FiCreditCard className="text-green-600" />
-
-                  <div>
-
-                    <p className="font-semibold text-gray-800">
-                      Paystack
-                    </p>
-
-                    <p className="text-xs text-gray-500 mt-1">
-                      Card, bank transfer or USSD.
-                    </p>
-
-                  </div>
-
-                </label>
-
-                {/* CASH */}
-
-                <label
-                  className={`
-                    flex
-                    items-center
-                    gap-4
-                    p-4
-                    rounded-xl
-                    border
-                    cursor-pointer
-                    transition
-                    ${
-                      paymentMethod === "cash"
-                        ? "border-green-500 bg-green-50"
-                        : "border-gray-200 hover:border-green-300"
-                    }
-                  `}
-                >
-
-                  <input
-                    type="radio"
-                    name="payment"
-                    value="cash"
-                    checked={
-                      paymentMethod === "cash"
-                    }
-                    onChange={(e) =>
-                      setPaymentMethod(e.target.value)
-                    }
-                    className="accent-green-600"
-                  />
-
-                  <FiTruck className="text-green-600" />
-
-                  <div>
-
-                    <p className="font-semibold text-gray-800">
-                      Pay on Delivery
-                    </p>
-
-                    <p className="text-xs text-gray-500 mt-1">
-                      Pay the seller when your order arrives.
-                    </p>
-
-                  </div>
-
-                </label>
-
-              </div>
-
-            </section>
-
-            {/* ================= ITEMS ================= */}
-
-            <section
+            <span
               className="
+                px-3
+                py-1.5
                 bg-white
-                rounded-2xl
                 border
-                border-gray-100
-                p-5
-                sm:p-6
+                border-gray-200
+                rounded-lg
+                text-xs
+                font-medium
+                text-gray-600
               "
             >
+              💳 Debit Card
+            </span>
 
-              <div className="flex items-center justify-between">
+            <span
+              className="
+                px-3
+                py-1.5
+                bg-white
+                border
+                border-gray-200
+                rounded-lg
+                text-xs
+                font-medium
+                text-gray-600
+              "
+            >
+              🏦 Bank
+            </span>
 
-                <div>
+            <span
+              className="
+                px-3
+                py-1.5
+                bg-white
+                border
+                border-gray-200
+                rounded-lg
+                text-xs
+                font-medium
+                text-gray-600
+              "
+            >
+              USSD
+            </span>
 
-                  <h2 className="text-lg font-bold text-gray-800">
-                    Your Items
-                  </h2>
+          </div>
 
-                  <p className="text-sm text-gray-500 mt-1">
-                    {checkoutCount}{" "}
-                    {checkoutCount === 1
-                      ? "item"
-                      : "items"}
-                  </p>
+          <p className="text-[11px] text-gray-400 mt-3">
+            You will be redirected to a secure payment page to
+            complete your payment.
+          </p>
 
-                </div>
+        </div>
 
-                <FiCheckCircle className="text-green-600" />
+      )}
 
-              </div>
+    </label>
 
-              <div className="space-y-4 mt-6">
 
-                {checkoutItems.map((item) => (
+    {/* ================= PAY ON DELIVERY ================= */}
 
-                  <div
-                    key={item.id}
-                    className="
-                      flex
-                      items-center
-                      gap-4
-                      border-b
-                      border-gray-100
-                      pb-4
-                      last:border-0
-                      last:pb-0
-                    "
-                  >
+    <label
+      className={`
+        flex
+        items-center
+        gap-4
+        p-4
+        rounded-xl
+        border
+        cursor-pointer
+        transition
+        ${
+          paymentMethod === "cash"
+            ? "border-green-500 bg-green-50"
+            : "border-gray-200 hover:border-green-300"
+        }
+      `}
+    >
 
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      className="
-                        w-20
-                        h-20
-                        object-cover
-                        rounded-xl
-                        bg-gray-100
-                        shrink-0
-                      "
-                    />
+      <input
+        type="radio"
+        name="payment"
+        value="cash"
+        checked={paymentMethod === "cash"}
+        onChange={(e) =>
+          setPaymentMethod(e.target.value)
+        }
+        className="accent-green-600"
+      />
 
-                    <div className="flex-1 min-w-0">
+      <div
+        className="
+          w-10
+          h-10
+          rounded-lg
+          bg-white
+          border
+          border-gray-100
+          flex
+          items-center
+          justify-center
+          text-green-600
+          shrink-0
+        "
+      >
+        <FiTruck size={19} />
+      </div>
 
-                      <p className="font-semibold text-gray-800 truncate">
-                        {item.name}
-                      </p>
+      <div className="flex-1">
 
-                      <p className="text-xs text-gray-500 mt-1">
-                        Quantity: {item.quantity}
-                      </p>
+        <p className="font-semibold text-gray-800">
+          Pay on Delivery
+        </p>
 
-                      <p className="font-bold text-gray-900 mt-2">
-                        {item.price}
-                      </p>
+        <p className="text-xs text-gray-500 mt-1">
+          Pay the seller when your order arrives.
+        </p>
 
-                    </div>
+      </div>
 
-                  </div>
+    </label>
 
-                ))}
+  </div>
 
-              </div>
 
-            </section>
+  {/* SECURITY MESSAGE */}
 
+  <div
+    className="
+      mt-5
+      flex
+      items-center
+      gap-3
+      bg-gray-50
+      rounded-xl
+      p-3
+    "
+  >
+
+    <div
+      className="
+        w-8
+        h-8
+        rounded-full
+        bg-green-100
+        text-green-600
+        flex
+        items-center
+        justify-center
+        shrink-0
+      "
+    >
+      🔒
+    </div>
+
+    <p className="text-xs text-gray-500 leading-5">
+      Your payment information is securely processed.
+      CampusMart does not store your card details.
+    </p>
+
+  </div>
+
+</section>
           </div>
 
           {/* ================= SUMMARY ================= */}
@@ -752,24 +885,23 @@ function Checkout({
             </div>
 
             <button
-              type="submit"
-              className="
-                w-full
-                mt-6
-                bg-green-600
-                hover:bg-green-700
-                text-white
-                py-3.5
-                rounded-xl
-                font-semibold
-                transition
-              "
-            >
-              {paymentMethod === "paystack"
-                ? "Pay Now"
-                : "Place Order"}
-            </button>
-
+  type="submit"
+  className="
+    w-full
+    mt-6
+    bg-green-600
+    hover:bg-green-700
+    text-white
+    py-3.5
+    rounded-xl
+    font-semibold
+    transition
+  "
+>
+  {paymentMethod === "card"
+    ? "Pay Now"
+    : "Place Order"}
+</button>
             <p className="text-xs text-gray-400 text-center mt-4 leading-5">
               By placing your order, you agree to CampusMart's
               terms and conditions.

@@ -1,20 +1,25 @@
-import { FiClock, FiTruck, FiCheckCircle } from "react-icons/fi";
+import { useNavigate } from "react-router-dom";
 
-function OrderSummary() {
-  const orders = JSON.parse(
-    localStorage.getItem("campusmart_orders") || "[]"
-  );
+import {
+  FiClock,
+  FiCheckCircle,
+} from "react-icons/fi";
 
+function OrderSummary({ orders = [] }) {
+  const navigate = useNavigate();
+
+  // ================= ORDER STATUS =================
+
+  // Newly placed orders are treated as Pending
   const pendingOrders = orders.filter(
-    (order) => order.status === "Pending"
+    (order) =>
+      order.status === "Pending" ||
+      order.status === "Placed"
   );
 
+  // Orders that the seller has marked as delivered
   const deliveredOrders = orders.filter(
     (order) => order.status === "Delivered"
-  );
-
-  const shippingOrders = orders.filter(
-    (order) => order.status === "Shipping"
   );
 
   return (
@@ -28,13 +33,23 @@ function OrderSummary() {
       "
     >
 
+      {/* ================= HEADER ================= */}
+
       <div className="flex items-center justify-between">
 
         <h2 className="font-bold text-gray-800">
           Order Summary
         </h2>
 
-        <button className="text-xs text-green-600 hover:underline">
+        <button
+          onClick={() => navigate("/orders")}
+          className="
+            text-xs
+            text-green-600
+            hover:text-green-700
+            hover:underline
+          "
+        >
           View All
         </button>
 
@@ -43,7 +58,7 @@ function OrderSummary() {
 
       <div className="space-y-4 mt-5">
 
-        {/* PENDING */}
+        {/* ================= PENDING ================= */}
 
         <div className="flex items-center gap-3">
 
@@ -62,6 +77,7 @@ function OrderSummary() {
             <FiClock />
           </div>
 
+
           <div className="flex-1">
 
             <p className="text-xs text-gray-500">
@@ -77,55 +93,22 @@ function OrderSummary() {
 
           </div>
 
-          <button className="text-xs text-green-600">
-            View
-          </button>
 
-        </div>
-
-
-        {/* SHIPPING */}
-
-        <div className="flex items-center gap-3">
-
-          <div
+          <button
+            onClick={() => navigate("/orders")}
             className="
-              w-10
-              h-10
-              rounded-full
-              bg-blue-100
-              text-blue-600
-              flex
-              items-center
-              justify-center
+              text-xs
+              text-green-600
+              hover:text-green-700
             "
           >
-            <FiTruck />
-          </div>
-
-          <div className="flex-1">
-
-            <p className="text-xs text-gray-500">
-              Shipping
-            </p>
-
-            <p className="font-medium text-gray-800">
-              {shippingOrders.length}{" "}
-              {shippingOrders.length === 1
-                ? "Order"
-                : "Orders"}
-            </p>
-
-          </div>
-
-          <button className="text-xs text-green-600">
             View
           </button>
 
         </div>
 
 
-        {/* DELIVERED */}
+        {/* ================= DELIVERED ================= */}
 
         <div className="flex items-center gap-3">
 
@@ -144,6 +127,7 @@ function OrderSummary() {
             <FiCheckCircle />
           </div>
 
+
           <div className="flex-1">
 
             <p className="text-xs text-gray-500">
@@ -159,7 +143,15 @@ function OrderSummary() {
 
           </div>
 
-          <button className="text-xs text-green-600">
+
+          <button
+            onClick={() => navigate("/orders")}
+            className="
+              text-xs
+              text-green-600
+              hover:text-green-700
+            "
+          >
             View
           </button>
 

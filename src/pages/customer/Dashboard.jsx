@@ -9,7 +9,7 @@ import RecommendedProducts from "../../components/dashboard/RecommendedProducts"
 
 import OrderSummary from "../../components/dashboard/rightSideBar/OrderSummary";
 import RecentMessages from "../../components/dashboard/rightSideBar/RecentMessages";
-import FlashSales from "../../components/dashboard/rightSideBar/FlashSales";
+import CampusBenefits from "../../components/dashboard/rightSideBar/CampusBenefits";
 import CampusDeals from "../../components/dashboard/rightSideBar/CampusDeals";
 
 import { FiHelpCircle, FiMessageCircle, FiShield } from "react-icons/fi";
@@ -19,9 +19,16 @@ function Dashboard({
   addToCart,
   wishlist = [],
   toggleWishlist,
+  orders = [],
+  unreadMessages = 0,
+  messages = [],
 }) {
   return (
-    <CustomerLayout cartCount={cartCount}>
+    <CustomerLayout
+      cartCount={cartCount}
+      wishlist={wishlist}
+      unreadMessages={unreadMessages}
+    >
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
         {/* =====================================================
             MAIN CONTENT
@@ -32,7 +39,14 @@ function Dashboard({
 
           <HeroBanner />
 
-          <StatsCards cartCount={cartCount} wishlistCount={wishlist.length} />
+          {/* ================= STATS ================= */}
+
+          <StatsCards
+            cartCount={cartCount}
+            wishlistCount={wishlist.length}
+            ordersCount={orders.length}
+            unreadMessages={unreadMessages}
+          />
 
           <Categories />
 
@@ -48,17 +62,19 @@ function Dashboard({
         ===================================================== */}
 
         <div className="xl:col-span-3 space-y-6">
-          {/* ORDER SUMMARY */}
+          {/* ================= ORDER SUMMARY ================= */}
 
-          <OrderSummary />
+          <OrderSummary orders={orders} />
 
-          {/* RECENT MESSAGES */}
+          {/* ================= RECENT MESSAGES ================= */}
 
-          <RecentMessages />
+         <RecentMessages messages={messages} />
 
-          {/* FLASH SALES */}
+          {/* ================= CAMPUS BENEFITS ================= */}
 
-          <FlashSales />
+          <CampusBenefits />
+
+          {/* ================= CAMPUS DEALS ================= */}
 
           <CampusDeals />
 
@@ -109,7 +125,15 @@ function Dashboard({
               NEED HELP
           ================================================= */}
 
-          <div className="bg-white rounded-2xl border border-gray-100 p-5">
+          <div
+            className="
+              bg-white
+              rounded-2xl
+              border
+              border-gray-100
+              p-5
+            "
+          >
             <div className="flex items-start gap-3">
               <div
                 className="
@@ -137,6 +161,7 @@ function Dashboard({
             </div>
 
             <button
+              type="button"
               className="
                 w-full
                 mt-4

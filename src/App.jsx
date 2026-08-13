@@ -10,21 +10,40 @@ import Chat from "./pages/customer/Chat";
 import Checkout from "./pages/customer/Checkout";
 import OrderSuccess from "./pages/customer/OrderSuccess";
 import Wishlist from "./pages/customer/Wishlist";
+import Orders from "./pages/customer/Orders";
+import OrderDetails from "./pages/customer/OrderDetails";
+import Payment from "./pages/customer/Payment";
+
+import messagesData from "./data/messages";
 
 function App() {
-  // ================= CART =================
+  // =====================================================
+  // CART
+  // =====================================================
 
   const [cart, setCart] = useState([]);
 
-  // ================= WISHLIST =================
+  // =====================================================
+  // WISHLIST
+  // =====================================================
 
   const [wishlist, setWishlist] = useState([]);
 
-  // ================= ORDERS =================
+  // =====================================================
+  // ORDERS
+  // =====================================================
 
   const [orders, setOrders] = useState([]);
 
-  // ================= ADD TO CART =================
+  // =====================================================
+  // MESSAGES
+  // =====================================================
+
+  const [messages, setMessages] = useState(messagesData);
+
+  // =====================================================
+  // ADD TO CART
+  // =====================================================
 
   const addToCart = (product, quantity = 1) => {
     setCart((currentCart) => {
@@ -53,7 +72,9 @@ function App() {
     });
   };
 
-  // ================= INCREASE QUANTITY =================
+  // =====================================================
+  // INCREASE QUANTITY
+  // =====================================================
 
   const increaseQuantity = (productId) => {
     setCart((currentCart) =>
@@ -68,7 +89,9 @@ function App() {
     );
   };
 
-  // ================= DECREASE QUANTITY =================
+  // =====================================================
+  // DECREASE QUANTITY
+  // =====================================================
 
   const decreaseQuantity = (productId) => {
     setCart((currentCart) =>
@@ -83,7 +106,9 @@ function App() {
     );
   };
 
-  // ================= REMOVE FROM CART =================
+  // =====================================================
+  // REMOVE FROM CART
+  // =====================================================
 
   const removeFromCart = (productId) => {
     setCart((currentCart) =>
@@ -91,12 +116,12 @@ function App() {
     );
   };
 
-  // ================= REMOVE PURCHASED ITEMS =================
+  // =====================================================
+  // REMOVE PURCHASED ITEMS
+  // =====================================================
 
   const removePurchasedItems = (purchasedItems) => {
-    const purchasedIds = purchasedItems.map(
-      (item) => item.id
-    );
+    const purchasedIds = purchasedItems.map((item) => item.id);
 
     setCart((currentCart) =>
       currentCart.filter(
@@ -105,20 +130,40 @@ function App() {
     );
   };
 
-  // ================= CART COUNT =================
+  // =====================================================
+  // CART COUNT
+  // =====================================================
 
   const cartCount = cart.reduce(
     (total, item) => total + item.quantity,
     0
   );
 
-  // ================= PLACE ORDER =================
+  // =====================================================
+  // PLACE ORDER
+  // =====================================================
 
   const placeOrder = (orderData) => {
     const newOrder = {
       id: Date.now().toString().slice(-8),
-      ...orderData,
+
+      orderNumber: `CM-${Date.now().toString().slice(-8)}`,
+
+      items: orderData.items,
+      total: orderData.total,
+      paymentMethod: orderData.paymentMethod,
+      type: orderData.type,
+
+      fullName: orderData.customer?.fullName || "",
+      phone: orderData.customer?.phone || "",
+      campus: orderData.customer?.campus || "",
+      address: orderData.customer?.address || "",
+      note: orderData.customer?.note || "",
+
+      customer: orderData.customer,
+
       date: new Date().toLocaleDateString(),
+
       status: "Placed",
     };
 
@@ -127,13 +172,14 @@ function App() {
       newOrder,
     ]);
 
-    // Remove only purchased products from cart
     removePurchasedItems(orderData.items);
 
     return newOrder;
   };
 
-  // ================= TOGGLE WISHLIST =================
+  // =====================================================
+  // TOGGLE WISHLIST
+  // =====================================================
 
   const toggleWishlist = (productId) => {
     setWishlist((currentWishlist) => {
@@ -150,7 +196,9 @@ function App() {
     });
   };
 
-  // ================= REMOVE FROM WISHLIST =================
+  // =====================================================
+  // REMOVE FROM WISHLIST
+  // =====================================================
 
   const removeFromWishlist = (productId) => {
     setWishlist((currentWishlist) =>
@@ -160,10 +208,97 @@ function App() {
     );
   };
 
+  // =====================================================
+  // UNREAD MESSAGE COUNT
+  // =====================================================
+
+  const unreadMessages = messages.reduce(
+    (total, message) =>
+      total + (message.unread || 0),
+    0
+  );
+
+  // =====================================================
+  // MARK MESSAGE AS READ
+  // =====================================================
+
+  const markMessageAsRead = (messageId) => {
+    setMessages((currentMessages) =>
+      currentMessages.map((message) => {
+        if (message.id !== Number(messageId)) {
+          return message;
+        }
+
+        // Already read — don't create another state update
+        if (!message.unread) {
+          return message;
+        }
+
+        return {
+          ...message,
+          unread: 0,
+        };
+      })
+    );
+  };
+
+  // =====================================================
+  // SEND MESSAGE
+  // =====================================================
+
+  const sendMessage = (messageId, text) => {
+    const cleanText = text.trim();
+
+    if (!cleanText) return;
+
+    const newMessage = {
+      id: Date.now(),
+      sender: "me",
+      text: cleanText,
+      time: new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    };
+
+    setMessages((currentMessages) =>
+      currentMessages.map((message) => {
+        if (message.id !== Number(messageId)) {
+          return message;
+        }
+
+        return {
+          ...message,
+
+          // Add message to conversation
+          conversation: [
+            ...(message.conversation || []),
+            newMessage,
+          ],
+
+          // Update preview on Messages page
+          lastMessage: cleanText,
+
+          // Update conversation time
+          time: newMessage.time,
+
+          // Since YOU sent the message, it isn't unread
+          unread: 0,
+        };
+      })
+    );
+  };
+
+  // =====================================================
+  // ROUTES
+  // =====================================================
+
   return (
     <Routes>
 
-      {/* ================= DASHBOARD ================= */}
+      {/* ================================================= */}
+      {/* DASHBOARD */}
+      {/* ================================================= */}
 
       <Route
         path="/"
@@ -174,6 +309,8 @@ function App() {
             orders={orders}
             wishlist={wishlist}
             toggleWishlist={toggleWishlist}
+            unreadMessages={unreadMessages}
+            messages={messages}
           />
         }
       />
@@ -187,11 +324,15 @@ function App() {
             orders={orders}
             wishlist={wishlist}
             toggleWishlist={toggleWishlist}
+            unreadMessages={unreadMessages}
+            messages={messages}
           />
         }
       />
 
-      {/* ================= BROWSE PRODUCTS ================= */}
+      {/* ================================================= */}
+      {/* BROWSE PRODUCTS */}
+      {/* ================================================= */}
 
       <Route
         path="/browse-products"
@@ -205,7 +346,9 @@ function App() {
         }
       />
 
-      {/* ================= PRODUCT DETAILS ================= */}
+      {/* ================================================= */}
+      {/* PRODUCT DETAILS */}
+      {/* ================================================= */}
 
       <Route
         path="/products/:id"
@@ -219,7 +362,9 @@ function App() {
         }
       />
 
-      {/* ================= CART ================= */}
+      {/* ================================================= */}
+      {/* CART */}
+      {/* ================================================= */}
 
       <Route
         path="/cart"
@@ -234,27 +379,58 @@ function App() {
         }
       />
 
-      {/* ================= MESSAGES ================= */}
+      {/* ================================================= */}
+      {/* ORDERS */}
+      {/* ================================================= */}
+
+      <Route
+        path="/orders"
+        element={
+          <Orders
+            orders={orders}
+            cartCount={cartCount}
+          />
+        }
+      />
+
+      {/* ================================================= */}
+      {/* MESSAGES */}
+      {/* ================================================= */}
 
       <Route
         path="/messages"
         element={
           <Messages
             cartCount={cartCount}
+            wishlist={wishlist}
+            messages={messages}
+            unreadMessages={unreadMessages}
+            markMessageAsRead={markMessageAsRead}
           />
         }
       />
+
+      {/* ================================================= */}
+      {/* CHAT */}
+      {/* ================================================= */}
 
       <Route
         path="/messages/:id"
         element={
           <Chat
             cartCount={cartCount}
+            wishlist={wishlist}
+            messages={messages}
+            unreadMessages={unreadMessages}
+            markMessageAsRead={markMessageAsRead}
+            sendMessage={sendMessage}
           />
         }
       />
 
-      {/* ================= CHECKOUT ================= */}
+      {/* ================================================= */}
+      {/* CHECKOUT */}
+      {/* ================================================= */}
 
       <Route
         path="/checkout"
@@ -267,16 +443,18 @@ function App() {
         }
       />
 
-      {/* ================= ORDER SUCCESS ================= */}
+      {/* ================================================= */}
+      {/* ORDER SUCCESS */}
+      {/* ================================================= */}
 
       <Route
         path="/order-success"
-        element={
-          <OrderSuccess />
-        }
+        element={<OrderSuccess />}
       />
 
-      {/* ================= WISHLIST ================= */}
+      {/* ================================================= */}
+      {/* WISHLIST */}
+      {/* ================================================= */}
 
       <Route
         path="/wishlist"
@@ -285,6 +463,33 @@ function App() {
             wishlist={wishlist}
             removeFromWishlist={removeFromWishlist}
             addToCart={addToCart}
+            cartCount={cartCount}
+          />
+        }
+      />
+
+      {/* ================================================= */}
+      {/* ORDER DETAILS */}
+      {/* ================================================= */}
+
+      <Route
+        path="/orders/:id"
+        element={
+          <OrderDetails
+            orders={orders}
+            cartCount={cartCount}
+          />
+        }
+      />
+
+      {/* ================================================= */}
+      {/* PAYMENT */}
+      {/* ================================================= */}
+
+      <Route
+        path="/payment"
+        element={
+          <Payment
             cartCount={cartCount}
           />
         }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import CustomerLayout from "../../layouts/CustomerLayout";
@@ -10,76 +10,131 @@ import {
   FiPaperclip,
 } from "react-icons/fi";
 
-import messages from "../../data/messages";
-
-function Chat({ cartCount = 0 }) {
-
+function Chat({
+  cartCount = 0,
+  wishlist = [],
+  messages = [],
+  unreadMessages = 0,
+  markMessageAsRead,
+  sendMessage,
+}) {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  // Find the EXACT person clicked
+  // =====================================================
+  // FIND PERSON
+  // =====================================================
+
   const person = messages.find(
     (message) => message.id === Number(id)
   );
 
+  // =====================================================
+  // MESSAGE INPUT
+  // =====================================================
 
   const [messageText, setMessageText] = useState("");
 
+  // =====================================================
+  // MARK AS READ WHEN CHAT OPENS
+  // =====================================================
 
-  // If the ID doesn't exist
-  const [chatMessages, setChatMessages] = useState(
-  person?.conversation || []
-);
+  useEffect(() => {
+    if (person && person.unread > 0 && markMessageAsRead) {
+      markMessageAsRead(person.id);
+    }
+  }, [person?.id]);
 
-if (!person) {
-  return (
-    <CustomerLayout cartCount={cartCount}>
-      {/* not found UI */}
-    </CustomerLayout>
-  );
-}
+  // =====================================================
+  // PERSON NOT FOUND
+  // =====================================================
 
+  if (!person) {
+    return (
+      <CustomerLayout
+        cartCount={cartCount}
+        wishlist={wishlist}
+        unreadMessages={unreadMessages}
+      >
+        <div
+          className="
+            bg-white
+            rounded-2xl
+            border
+            border-gray-100
+            p-10
+            text-center
+          "
+        >
+          <h2 className="text-xl font-bold text-gray-800">
+            Conversation not found
+          </h2>
+
+          <p className="text-gray-500 mt-2">
+            The conversation you're looking for doesn't exist.
+          </p>
+
+          <button
+            type="button"
+            onClick={() => navigate("/messages")}
+            className="
+              mt-5
+              bg-green-600
+              hover:bg-green-700
+              text-white
+              px-5
+              py-2.5
+              rounded-xl
+              font-medium
+              transition
+            "
+          >
+            Back to Messages
+          </button>
+        </div>
+      </CustomerLayout>
+    );
+  }
+
+  // =====================================================
+  // CHAT MESSAGES
+  // =====================================================
+
+  const chatMessages = person.conversation || [];
+
+  // =====================================================
   // SEND MESSAGE
-  const sendMessage = () => {
+  // =====================================================
 
+  const handleSendMessage = () => {
     const text = messageText.trim();
 
     if (!text) return;
 
-    const newMessage = {
-      id: Date.now(),
-      sender: "me",
-      text: text,
-      time: new Date().toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    };
-
-    setChatMessages((previousMessages) => [
-      ...previousMessages,
-      newMessage,
-    ]);
+    if (sendMessage) {
+      sendMessage(person.id, text);
+    }
 
     setMessageText("");
   };
 
-
+  // =====================================================
   // ENTER TO SEND
+  // =====================================================
+
   const handleKeyDown = (e) => {
-
     if (e.key === "Enter" && !e.shiftKey) {
-
       e.preventDefault();
-
-      sendMessage();
-
+      handleSendMessage();
     }
   };
 
-
   return (
-    <CustomerLayout cartCount={cartCount}>
+    <CustomerLayout
+      cartCount={cartCount}
+      wishlist={wishlist}
+      unreadMessages={unreadMessages}
+    >
 
       <div
         className="
@@ -95,8 +150,9 @@ if (!person) {
         "
       >
 
-
-        {/* ================= CHAT HEADER ================= */}
+        {/* =====================================================
+            CHAT HEADER
+        ===================================================== */}
 
         <div
           className="
@@ -108,10 +164,12 @@ if (!person) {
             py-4
             border-b
             border-gray-100
+            bg-white
           "
         >
 
           {/* BACK */}
+
           <button
             type="button"
             onClick={() => navigate("/messages")}
@@ -123,14 +181,16 @@ if (!person) {
               flex
               items-center
               justify-center
+              text-gray-600
+              transition
             "
           >
-            <FiArrowLeft />
+            <FiArrowLeft size={19} />
           </button>
 
-
           {/* AVATAR */}
-          <div className="relative">
+
+          <div className="relative shrink-0">
 
             <div
               className="
@@ -146,7 +206,7 @@ if (!person) {
                 text-lg
               "
             >
-              {person.name.charAt(0)}
+              {person.name?.charAt(0)?.toUpperCase()}
             </div>
 
             {person.online && (
@@ -167,22 +227,28 @@ if (!person) {
 
           </div>
 
-
           {/* PERSON */}
+
           <div className="flex-1 min-w-0">
 
             <h2 className="font-bold text-gray-800 truncate">
               {person.name}
             </h2>
 
-            <p className="text-xs text-green-600">
+            <p
+              className={`text-xs ${
+                person.online
+                  ? "text-green-600"
+                  : "text-gray-400"
+              }`}
+            >
               {person.online ? "Online" : "Offline"}
             </p>
 
           </div>
 
-
           {/* MORE */}
+
           <button
             type="button"
             className="
@@ -193,15 +259,18 @@ if (!person) {
               flex
               items-center
               justify-center
+              text-gray-500
+              transition
             "
           >
-            <FiMoreVertical />
+            <FiMoreVertical size={19} />
           </button>
 
         </div>
 
-
-        {/* ================= CHAT BODY ================= */}
+        {/* =====================================================
+            CHAT BODY
+        ===================================================== */}
 
         <div
           className="
@@ -214,7 +283,9 @@ if (!person) {
           "
         >
 
-          <div className="text-center mb-4">
+          {/* CONVERSATION LABEL */}
+
+          <div className="text-center mb-5">
 
             <span
               className="
@@ -223,8 +294,10 @@ if (!person) {
                 text-gray-400
                 text-xs
                 px-3
-                py-1
+                py-1.5
                 rounded-full
+                border
+                border-gray-100
               "
             >
               Conversation with {person.name}
@@ -232,6 +305,23 @@ if (!person) {
 
           </div>
 
+          {/* NO MESSAGES */}
+
+          {chatMessages.length === 0 && (
+            <div className="text-center py-10">
+
+              <p className="text-sm text-gray-400">
+                No messages yet.
+              </p>
+
+              <p className="text-xs text-gray-400 mt-1">
+                Send a message to start the conversation.
+              </p>
+
+            </div>
+          )}
+
+          {/* MESSAGES */}
 
           {chatMessages.map((message) => (
 
@@ -262,7 +352,7 @@ if (!person) {
                 `}
               >
 
-                <p className="text-sm leading-5">
+                <p className="text-sm leading-5 break-words">
                   {message.text}
                 </p>
 
@@ -288,8 +378,9 @@ if (!person) {
 
         </div>
 
-
-        {/* ================= INPUT ================= */}
+        {/* =====================================================
+            INPUT
+        ===================================================== */}
 
         <div
           className="
@@ -304,6 +395,7 @@ if (!person) {
           <div className="flex items-center gap-2">
 
             {/* ATTACHMENT */}
+
             <button
               type="button"
               className="
@@ -316,13 +408,14 @@ if (!person) {
                 items-center
                 justify-center
                 shrink-0
+                transition
               "
             >
-              <FiPaperclip />
+              <FiPaperclip size={18} />
             </button>
 
-
             {/* INPUT */}
+
             <input
               type="text"
               value={messageText}
@@ -339,17 +432,21 @@ if (!person) {
                 py-3
                 text-sm
                 outline-none
+                border
+                border-transparent
                 focus:ring-2
                 focus:ring-green-100
+                focus:border-green-500
                 focus:bg-white
+                transition
               "
             />
 
-
             {/* SEND */}
+
             <button
               type="button"
-              onClick={sendMessage}
+              onClick={handleSendMessage}
               disabled={!messageText.trim()}
               className="
                 w-11
@@ -358,6 +455,7 @@ if (!person) {
                 bg-green-600
                 hover:bg-green-700
                 disabled:bg-gray-300
+                disabled:cursor-not-allowed
                 text-white
                 flex
                 items-center
@@ -366,7 +464,7 @@ if (!person) {
                 shrink-0
               "
             >
-              <FiSend />
+              <FiSend size={18} />
             </button>
 
           </div>

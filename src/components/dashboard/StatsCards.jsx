@@ -11,6 +11,7 @@ function StatsCards({
   cartCount = 0,
   wishlistCount = 0,
   ordersCount = 0,
+  unreadMessages = 0,
 }) {
   const navigate = useNavigate();
 
@@ -47,7 +48,7 @@ function StatsCards({
 
     {
       title: "Messages",
-      value: 4,
+      value: unreadMessages,
       link: "View messages",
       path: "/messages",
       icon: <FiMessageCircle />,
@@ -60,7 +61,6 @@ function StatsCards({
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
 
       {stats.map((item, index) => (
-
         <div
           key={index}
           className="
@@ -112,9 +112,8 @@ function StatsCards({
           {/* LINK */}
 
           <button
-            onClick={() =>
-              navigate(item.path)
-            }
+            type="button"
+            onClick={() => navigate(item.path)}
             className="
               mt-2
               text-sm
@@ -126,7 +125,6 @@ function StatsCards({
           </button>
 
         </div>
-
       ))}
 
     </div>

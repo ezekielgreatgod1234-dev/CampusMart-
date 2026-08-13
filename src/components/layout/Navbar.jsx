@@ -1,20 +1,34 @@
 import { useState } from "react";
+
 import {
   FiMenu,
   FiSearch,
-  FiBell,
   FiMessageCircle,
   FiUser,
   FiShoppingCart,
+  FiHeart,
 } from "react-icons/fi";
 
 import { useNavigate } from "react-router-dom";
 
-function Navbar({ setSidebarOpen, cartCount = 0 }) {
+
+
+function Navbar({
+  setSidebarOpen,
+  cartCount = 0,
+  wishlist = [],
+  unreadMessages = 0,
+}) {
   const navigate = useNavigate();
 
   // ================= SEARCH STATE =================
   const [search, setSearch] = useState("");
+
+  // ================= UNREAD MESSAGES =================
+ 
+
+  // ================= WISHLIST COUNT =================
+  const wishlistCount = wishlist.length;
 
   // ================= SEARCH FUNCTION =================
   const handleSearch = (e) => {
@@ -22,13 +36,11 @@ function Navbar({ setSidebarOpen, cartCount = 0 }) {
 
     const trimmedSearch = search.trim();
 
-    // If search is empty, just go to Browse Products
     if (!trimmedSearch) {
       navigate("/browse-products");
       return;
     }
 
-    // Send search to Browse Products
     navigate(
       `/browse-products?search=${encodeURIComponent(trimmedSearch)}`
     );
@@ -42,7 +54,7 @@ function Navbar({ setSidebarOpen, cartCount = 0 }) {
         {/* ================= LEFT ================= */}
         <div className="flex items-center gap-4 flex-1">
 
-          {/* Mobile Menu */}
+          {/* MOBILE MENU */}
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
@@ -109,6 +121,7 @@ function Navbar({ setSidebarOpen, cartCount = 0 }) {
         {/* ================= RIGHT ================= */}
         <div className="flex items-center gap-2 sm:gap-4">
 
+
           {/* ================= CART ================= */}
           <button
             type="button"
@@ -129,7 +142,7 @@ function Navbar({ setSidebarOpen, cartCount = 0 }) {
 
             <FiShoppingCart className="text-xl" />
 
-            {/* Cart Badge */}
+            {/* CART BADGE */}
             {cartCount > 0 && (
               <span
                 className="
@@ -156,11 +169,12 @@ function Navbar({ setSidebarOpen, cartCount = 0 }) {
           </button>
 
 
-          {/* ================= NOTIFICATIONS ================= */}
+          {/* ================= WISHLIST ================= */}
           <button
             type="button"
-            onClick={() => navigate("/notifications")}
+            onClick={() => navigate("/wishlist")}
             className="
+              relative
               w-11
               h-11
               rounded-full
@@ -170,9 +184,37 @@ function Navbar({ setSidebarOpen, cartCount = 0 }) {
               hover:bg-green-700
               transition
             "
-            title="Notifications"
+            title="Wishlist"
           >
-            <FiBell className="text-xl" />
+
+            <FiHeart className="text-xl" />
+
+            {/* WISHLIST BADGE */}
+            {wishlistCount > 0 && (
+              <span
+                className="
+                  absolute
+                  -top-1
+                  -right-1
+                  min-w-5
+                  h-5
+                  px-1
+                  rounded-full
+                  bg-red-500
+                  text-white
+                  text-xs
+                  font-bold
+                  flex
+                  items-center
+                  justify-center
+                  border-2
+                  border-green-800
+                "
+              >
+                {wishlistCount > 99 ? "99+" : wishlistCount}
+              </span>
+            )}
+
           </button>
 
 
@@ -181,6 +223,7 @@ function Navbar({ setSidebarOpen, cartCount = 0 }) {
             type="button"
             onClick={() => navigate("/messages")}
             className="
+              relative
               hidden
               sm:flex
               w-11
@@ -193,7 +236,37 @@ function Navbar({ setSidebarOpen, cartCount = 0 }) {
             "
             title="Messages"
           >
+
             <FiMessageCircle className="text-xl" />
+
+            {/* UNREAD MESSAGE BADGE */}
+            {unreadMessages > 0 && (
+              <span
+                className="
+                  absolute
+                  -top-1
+                  -right-1
+                  min-w-5
+                  h-5
+                  px-1
+                  rounded-full
+                  bg-red-500
+                  text-white
+                  text-xs
+                  font-bold
+                  flex
+                  items-center
+                  justify-center
+                  border-2
+                  border-green-800
+                "
+              >
+                {unreadMessages > 99
+                  ? "99+"
+                  : unreadMessages}
+              </span>
+            )}
+
           </button>
 
 

@@ -1,29 +1,43 @@
 import { useState } from "react";
+
 import Navbar from "../components/layout/Navbar";
 import Sidebar from "../components/layout/Sidebar";
 
-function CustomerLayout({ children, cartCount = 0 }) {
+function CustomerLayout({
+  children,
+  cartCount = 0,
+  wishlist = [],
+  unreadMessages = 0,
+}) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-gray-100">
 
-      {/* Sidebar */}
+      {/* ================= SIDEBAR ================= */}
+
       <Sidebar
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}
       />
 
-      {/* Main Area */}
+
+      {/* ================= MAIN AREA ================= */}
+
       <div className="lg:ml-72">
 
-        {/* Navbar */}
+        {/* ================= NAVBAR ================= */}
+
         <Navbar
           setSidebarOpen={setSidebarOpen}
           cartCount={cartCount}
+          wishlist={wishlist}
+          unreadMessages={unreadMessages}
         />
 
-        {/* Page Content */}
+
+        {/* ================= PAGE CONTENT ================= */}
+
         <main className="p-4 sm:p-6">
           {children}
         </main>
