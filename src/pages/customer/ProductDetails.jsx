@@ -13,6 +13,7 @@ import {
   FiPlus,
   FiUser,
   FiCheck,
+  FiMessageCircle,
 } from "react-icons/fi";
 
 function ProductDetails({
@@ -20,6 +21,7 @@ function ProductDetails({
   cartCount = 0,
   wishlist = [],
   toggleWishlist,
+  openSellerChat,
 }) {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -54,7 +56,6 @@ function ProductDetails({
   if (!product) {
     return (
       <CustomerLayout cartCount={cartCount}>
-
         <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">
 
           <h2 className="text-2xl font-bold text-gray-800">
@@ -83,7 +84,6 @@ function ProductDetails({
           </button>
 
         </div>
-
       </CustomerLayout>
     );
   }
@@ -97,6 +97,7 @@ function ProductDetails({
       console.error(
         "toggleWishlist function was not provided."
       );
+
       return;
     }
 
@@ -112,6 +113,7 @@ function ProductDetails({
       console.error(
         "addToCart function was not provided."
       );
+
       return;
     }
 
@@ -133,12 +135,29 @@ function ProductDetails({
       console.error(
         "addToCart function was not provided."
       );
+
       return;
     }
 
     addToCart(product, quantity);
 
     navigate("/cart");
+  };
+
+  // ==============================
+  // CHAT WITH SELLER
+  // ==============================
+
+  const handleChatWithSeller = () => {
+    if (!openSellerChat) {
+      console.error(
+        "openSellerChat function was not provided."
+      );
+
+      return;
+    }
+
+    openSellerChat(product);
   };
 
   return (
@@ -218,7 +237,7 @@ function ProductDetails({
               </div>
 
 
-              {/* ================= WISHLIST BUTTON ================= */}
+              {/* WISHLIST */}
 
               <button
                 type="button"
@@ -276,7 +295,7 @@ function ProductDetails({
               </span>
 
 
-              {/* PRODUCT NAME */}
+              {/* NAME */}
 
               <h1
                 className="
@@ -343,7 +362,7 @@ function ProductDetails({
               </div>
 
 
-              {/* SELLER */}
+              {/* ================= SELLER ================= */}
 
               <div
                 className="
@@ -366,25 +385,56 @@ function ProductDetails({
                     flex
                     items-center
                     justify-center
+                    shrink-0
                   "
                 >
                   <FiUser className="text-green-600" />
                 </div>
 
 
-                <div>
+                <div className="flex-1">
 
                   <p className="text-xs text-gray-400">
                     Sold by
                   </p>
 
                   <p className="font-semibold text-gray-800">
-                    CampusMart Seller
+                    {product.sellerName}
                   </p>
 
                 </div>
 
               </div>
+
+
+              {/* ================= CHAT WITH SELLER ================= */}
+
+              <button
+                type="button"
+                onClick={handleChatWithSeller}
+                className="
+                  w-full
+                  mt-3
+                  flex
+                  items-center
+                  justify-center
+                  gap-2
+                  border
+                  border-green-600
+                  text-green-600
+                  hover:bg-green-50
+                  py-3
+                  rounded-xl
+                  font-semibold
+                  transition
+                "
+              >
+
+                <FiMessageCircle size={18} />
+
+                Chat with Seller
+
+              </button>
 
 
               {/* DESCRIPTION */}
@@ -431,8 +481,6 @@ function ProductDetails({
                   "
                 >
 
-                  {/* MINUS */}
-
                   <button
                     type="button"
                     onClick={() =>
@@ -447,14 +495,10 @@ function ProductDetails({
                       items-center
                       justify-center
                       hover:bg-gray-50
-                      transition
                     "
                   >
                     <FiMinus />
                   </button>
-
-
-                  {/* QUANTITY */}
 
                   <span
                     className="
@@ -465,9 +509,6 @@ function ProductDetails({
                   >
                     {quantity}
                   </span>
-
-
-                  {/* PLUS */}
 
                   <button
                     type="button"
@@ -483,7 +524,6 @@ function ProductDetails({
                       items-center
                       justify-center
                       hover:bg-gray-50
-                      transition
                     "
                   >
                     <FiPlus />
@@ -611,8 +651,6 @@ function ProductDetails({
 
           </div>
 
-
-          {/* ================= SAMPLE REVIEW ================= */}
 
           <div
             className="

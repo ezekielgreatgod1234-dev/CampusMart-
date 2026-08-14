@@ -1,17 +1,37 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   FiMenu,
   FiSearch,
   FiMessageCircle,
-  FiUser,
   FiShoppingCart,
   FiHeart,
 } from "react-icons/fi";
 
 import { useNavigate } from "react-router-dom";
 
+const DEFAULT_PROFILE = {
+  fullName: "GreatGod",
+  role: "Customer",
+  profileImage: null,
+};
 
+function getProfile() {
+  try {
+    const savedProfile = localStorage.getItem("campusmart_profile");
+
+    if (savedProfile) {
+      return {
+        ...DEFAULT_PROFILE,
+        ...JSON.parse(savedProfile),
+      };
+    }
+  } catch (error) {
+    console.error("Could not load profile:", error);
+  }
+
+  return DEFAULT_PROFILE;
+}
 
 function Navbar({
   setSidebarOpen,
@@ -21,16 +41,38 @@ function Navbar({
 }) {
   const navigate = useNavigate();
 
-  // ================= SEARCH STATE =================
   const [search, setSearch] = useState("");
 
-  // ================= UNREAD MESSAGES =================
- 
+  const [profile, setProfile] = useState(getProfile);
 
-  // ================= WISHLIST COUNT =================
   const wishlistCount = wishlist.length;
 
-  // ================= SEARCH FUNCTION =================
+  // =====================================================
+  // LISTEN FOR PROFILE CHANGES
+  // =====================================================
+
+  useEffect(() => {
+    const updateProfile = () => {
+      setProfile(getProfile());
+    };
+
+    window.addEventListener(
+      "profileUpdated",
+      updateProfile
+    );
+
+    return () => {
+      window.removeEventListener(
+        "profileUpdated",
+        updateProfile
+      );
+    };
+  }, []);
+
+  // =====================================================
+  // SEARCH
+  // =====================================================
+
   const handleSearch = (e) => {
     e.preventDefault();
 
@@ -42,19 +84,40 @@ function Navbar({
     }
 
     navigate(
-      `/browse-products?search=${encodeURIComponent(trimmedSearch)}`
+      `/browse-products?search=${encodeURIComponent(
+        trimmedSearch
+      )}`
     );
   };
 
   return (
     <header className="bg-green-800 text-white">
 
-      <div className="h-20 px-4 sm:px-6 flex items-center justify-between gap-4">
+      <div
+        className="
+          h-20
+          px-4
+          sm:px-6
+          flex
+          items-center
+          justify-between
+          gap-4
+        "
+      >
 
-        {/* ================= LEFT ================= */}
-        <div className="flex items-center gap-4 flex-1">
+        {/* LEFT */}
 
-          {/* MOBILE MENU */}
+        <div
+          className="
+            flex
+            items-center
+            gap-4
+            flex-1
+          "
+        >
+
+          {/* MENU */}
+
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
@@ -67,17 +130,20 @@ function Navbar({
               items-center
               justify-center
               hover:bg-green-700
-              transition
             "
           >
             <FiMenu className="text-2xl" />
           </button>
 
+          {/* SEARCH */}
 
-          {/* ================= SEARCH ================= */}
           <form
             onSubmit={handleSearch}
-            className="relative flex-1 max-w-md"
+            className="
+              relative
+              flex-1
+              max-w-md
+            "
           >
 
             <FiSearch
@@ -93,7 +159,9 @@ function Navbar({
             <input
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) =>
+                setSearch(e.target.value)
+              }
               placeholder="Search products..."
               className="
                 w-full
@@ -109,7 +177,6 @@ function Navbar({
                 border-green-600
                 focus:ring-2
                 focus:ring-green-400
-                transition
               "
             />
 
@@ -117,12 +184,19 @@ function Navbar({
 
         </div>
 
+        {/* RIGHT */}
 
-        {/* ================= RIGHT ================= */}
-        <div className="flex items-center gap-2 sm:gap-4">
+        <div
+          className="
+            flex
+            items-center
+            gap-2
+            sm:gap-4
+          "
+        >
 
+          {/* CART */}
 
-          {/* ================= CART ================= */}
           <button
             type="button"
             onClick={() => navigate("/cart")}
@@ -135,14 +209,12 @@ function Navbar({
               items-center
               justify-center
               hover:bg-green-700
-              transition
             "
             title="Cart"
           >
 
             <FiShoppingCart className="text-xl" />
 
-            {/* CART BADGE */}
             {cartCount > 0 && (
               <span
                 className="
@@ -168,8 +240,8 @@ function Navbar({
 
           </button>
 
+          {/* WISHLIST */}
 
-          {/* ================= WISHLIST ================= */}
           <button
             type="button"
             onClick={() => navigate("/wishlist")}
@@ -182,14 +254,12 @@ function Navbar({
               items-center
               justify-center
               hover:bg-green-700
-              transition
             "
             title="Wishlist"
           >
 
             <FiHeart className="text-xl" />
 
-            {/* WISHLIST BADGE */}
             {wishlistCount > 0 && (
               <span
                 className="
@@ -207,18 +277,18 @@ function Navbar({
                   flex
                   items-center
                   justify-center
-                  border-2
-                  border-green-800
                 "
               >
-                {wishlistCount > 99 ? "99+" : wishlistCount}
+                {wishlistCount > 99
+                  ? "99+"
+                  : wishlistCount}
               </span>
             )}
 
           </button>
 
+          {/* MESSAGES */}
 
-          {/* ================= MESSAGES ================= */}
           <button
             type="button"
             onClick={() => navigate("/messages")}
@@ -232,14 +302,12 @@ function Navbar({
               items-center
               justify-center
               hover:bg-green-700
-              transition
             "
             title="Messages"
           >
 
             <FiMessageCircle className="text-xl" />
 
-            {/* UNREAD MESSAGE BADGE */}
             {unreadMessages > 0 && (
               <span
                 className="
@@ -257,8 +325,6 @@ function Navbar({
                   flex
                   items-center
                   justify-center
-                  border-2
-                  border-green-800
                 "
               >
                 {unreadMessages > 99
@@ -269,8 +335,8 @@ function Navbar({
 
           </button>
 
+          {/* PROFILE */}
 
-          {/* ================= USER ================= */}
           <button
             type="button"
             onClick={() => navigate("/profile")}
@@ -287,6 +353,8 @@ function Navbar({
             "
           >
 
+            {/* PROFILE IMAGE */}
+
             <div
               className="
                 w-9
@@ -297,19 +365,47 @@ function Navbar({
                 flex
                 items-center
                 justify-center
+                overflow-hidden
+                font-bold
               "
             >
-              <FiUser />
+
+              {profile.profileImage ? (
+                <img
+                  src={profile.profileImage}
+                  alt="Profile"
+                  className="
+                    w-full
+                    h-full
+                    object-cover
+                  "
+                />
+              ) : (
+                <span>
+                  {profile.fullName
+                    ?.charAt(0)
+                    ?.toUpperCase() || "G"}
+                </span>
+              )}
+
             </div>
 
-            <div className="hidden md:block text-left">
+            {/* NAME */}
+
+            <div
+              className="
+                hidden
+                md:block
+                text-left
+              "
+            >
 
               <h3 className="font-semibold text-sm">
-                GreatGod
+                {profile.fullName || "GreatGod"}
               </h3>
 
               <p className="text-xs text-green-200">
-                Customer
+                {profile.role || "Customer"}
               </p>
 
             </div>

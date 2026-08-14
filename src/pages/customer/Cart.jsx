@@ -6,6 +6,7 @@ import {
   FiPlus,
   FiTrash2,
   FiShoppingCart,
+  FiMessageCircle,
 } from "react-icons/fi";
 
 import CustomerLayout from "../../layouts/CustomerLayout";
@@ -16,6 +17,7 @@ function Cart({
   increaseQuantity,
   decreaseQuantity,
   removeFromCart,
+  openSellerChat,
 }) {
   const navigate = useNavigate();
 
@@ -38,6 +40,20 @@ function Cart({
         checkoutType: "single",
       },
     });
+  };
+
+  // ================= CHAT WITH SELLER =================
+
+  const handleChatWithSeller = (item) => {
+    if (!openSellerChat) {
+      console.error(
+        "openSellerChat function was not provided."
+      );
+
+      return;
+    }
+
+    openSellerChat(item);
   };
 
   // ================= BUY EVERYTHING =================
@@ -131,8 +147,10 @@ function Cart({
             "
           >
             <FiArrowLeft />
+
             Back to Products
           </button>
+
 
           <div className="mt-5">
 
@@ -149,12 +167,16 @@ function Cart({
 
             <p className="text-gray-500 mt-1">
               {cartCount}{" "}
-              {cartCount === 1 ? "item" : "items"} in your cart
+              {cartCount === 1
+                ? "item"
+                : "items"}{" "}
+              in your cart
             </p>
 
           </div>
 
         </div>
+
 
         {/* ================= CART CONTENT ================= */}
 
@@ -209,6 +231,7 @@ function Cart({
                     "
                   />
 
+
                   {/* INFORMATION */}
 
                   <div className="flex-1 min-w-0">
@@ -245,6 +268,18 @@ function Cart({
                     >
                       {item.price}
                     </p>
+
+
+                    {/* SELLER */}
+
+                    <p className="text-xs text-gray-400 mt-1">
+                      Sold by{" "}
+                      <span className="font-medium text-gray-500">
+                        {item.sellerName ||
+                          "CampusMart Seller"}
+                      </span>
+                    </p>
+
 
                     {/* QUANTITY */}
 
@@ -314,6 +349,7 @@ function Cart({
 
                       </div>
 
+
                       {/* REMOVE */}
 
                       <button
@@ -342,32 +378,79 @@ function Cart({
 
                 </div>
 
-                {/* ================= BUY THIS ITEM ================= */}
 
-                <button
-                  onClick={() => handleBuyItem(item)}
+                {/* ================= ACTION BUTTONS ================= */}
+
+                <div
                   className="
-                    w-full
+                    grid
+                    grid-cols-1
+                    sm:grid-cols-2
+                    gap-3
                     mt-4
-                    border
-                    border-green-600
-                    text-green-600
-                    hover:bg-green-50
-                    py-2.5
-                    rounded-xl
-                    text-sm
-                    font-semibold
-                    transition
                   "
                 >
-                  Buy This Item
-                </button>
+
+                  {/* CHAT SELLER */}
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleChatWithSeller(item)
+                    }
+                    className="
+                      w-full
+                      flex
+                      items-center
+                      justify-center
+                      gap-2
+                      border
+                      border-green-600
+                      text-green-600
+                      hover:bg-green-50
+                      py-2.5
+                      rounded-xl
+                      text-sm
+                      font-semibold
+                      transition
+                    "
+                  >
+                    <FiMessageCircle size={16} />
+
+                    Chat with Seller
+                  </button>
+
+
+                  {/* BUY THIS ITEM */}
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleBuyItem(item)
+                    }
+                    className="
+                      w-full
+                      bg-green-600
+                      hover:bg-green-700
+                      text-white
+                      py-2.5
+                      rounded-xl
+                      text-sm
+                      font-semibold
+                      transition
+                    "
+                  >
+                    Buy This Item
+                  </button>
+
+                </div>
 
               </div>
 
             ))}
 
           </div>
+
 
           {/* ================= ORDER SUMMARY ================= */}
 
@@ -394,6 +477,7 @@ function Cart({
               Order Summary
             </h2>
 
+
             <div className="space-y-4 mt-6">
 
               <div
@@ -414,6 +498,7 @@ function Cart({
 
               </div>
 
+
               <div
                 className="
                   flex
@@ -433,6 +518,7 @@ function Cart({
               </div>
 
             </div>
+
 
             {/* TOTAL */}
 
@@ -464,6 +550,7 @@ function Cart({
 
             </div>
 
+
             {/* CHECKOUT ALL */}
 
             <button
@@ -483,8 +570,11 @@ function Cart({
               Checkout All
             </button>
 
+
             <button
-              onClick={() => navigate("/browse-products")}
+              onClick={() =>
+                navigate("/browse-products")
+              }
               className="
                 w-full
                 mt-3

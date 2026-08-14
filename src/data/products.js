@@ -6,6 +6,9 @@ const products = [
     price: "₦450,000",
     rating: 4.8,
     image: "https://picsum.photos/300/300?random=1",
+
+    sellerId: "seller-001",
+    sellerName: "Daniel Okoro",
   },
 
   {
@@ -15,6 +18,9 @@ const products = [
     price: "₦85,000",
     rating: 4.7,
     image: "https://picsum.photos/300/300?random=2",
+
+    sellerId: "seller-002",
+    sellerName: "Sarah Williams",
   },
 
   {
@@ -24,6 +30,9 @@ const products = [
     price: "₦650,000",
     rating: 4.9,
     image: "https://picsum.photos/300/300?random=3",
+
+    sellerId: "seller-003",
+    sellerName: "Michael Johnson",
   },
 
   {
@@ -33,6 +42,9 @@ const products = [
     price: "₦75,000",
     rating: 4.6,
     image: "https://picsum.photos/300/300?random=4",
+
+    sellerId: "seller-004",
+    sellerName: "Blessing Chukwu",
   },
 
   {
@@ -42,6 +54,9 @@ const products = [
     price: "₦580,000",
     rating: 4.8,
     image: "https://picsum.photos/300/300?random=5",
+
+    sellerId: "seller-005",
+    sellerName: "David Emmanuel",
   },
 
   {
@@ -51,6 +66,9 @@ const products = [
     price: "₦25,000",
     rating: 4.5,
     image: "https://picsum.photos/300/300?random=6",
+
+    sellerId: "seller-006",
+    sellerName: "Campus Fashion Store",
   },
 
   {
@@ -60,6 +78,9 @@ const products = [
     price: "₦18,000",
     rating: 4.4,
     image: "https://picsum.photos/300/300?random=7",
+
+    sellerId: "seller-007",
+    sellerName: "Engineering Books Hub",
   },
 
   {
@@ -69,6 +90,9 @@ const products = [
     price: "₦45,000",
     rating: 4.6,
     image: "https://picsum.photos/300/300?random=8",
+
+    sellerId: "seller-008",
+    sellerName: "Campus Gadgets",
   },
 
   {
@@ -78,6 +102,9 @@ const products = [
     price: "₦520,000",
     rating: 4.7,
     image: "https://picsum.photos/300/300?random=9",
+
+    sellerId: "seller-009",
+    sellerName: "Tech Campus Store",
   },
 
   {
@@ -87,6 +114,9 @@ const products = [
     price: "₦8,000",
     rating: 4.3,
     image: "https://picsum.photos/300/300?random=10",
+
+    sellerId: "seller-010",
+    sellerName: "Campus Kitchen",
   },
 
   {
@@ -96,6 +126,9 @@ const products = [
     price: "₦55,000",
     rating: 4.5,
     image: "https://picsum.photos/300/300?random=11",
+
+    sellerId: "seller-011",
+    sellerName: "Smart Gadgets",
   },
 
   {
@@ -105,6 +138,9 @@ const products = [
     price: "₦35,000",
     rating: 4.6,
     image: "https://picsum.photos/300/300?random=12",
+
+    sellerId: "seller-012",
+    sellerName: "Campus Gifts",
   },
 ];
 

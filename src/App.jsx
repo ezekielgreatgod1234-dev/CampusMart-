@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, useNavigate } from "react-router-dom";
 
 import Dashboard from "./pages/customer/Dashboard";
 import BrowseProducts from "./pages/customer/BrowseProducts";
@@ -13,33 +13,43 @@ import Wishlist from "./pages/customer/Wishlist";
 import Orders from "./pages/customer/Orders";
 import OrderDetails from "./pages/customer/OrderDetails";
 import Payment from "./pages/customer/Payment";
+import Profile from "./pages/customer/Profile";
 
 import messagesData from "./data/messages";
 
 function App() {
+  const navigate = useNavigate();
+
+  // =====================================================
+  // PROFILE
+  // =====================================================
+
+  const [profile, setProfile] = useState({
+    fullName: "GreatGod",
+    email: "user@example.com",
+    phone: "08012345678",
+    campus: "Abia State University",
+    address: "Uturu, Abia State",
+    profileImage: null,
+    role: "Customer",
+  });
+
+  // =====================================================
+  // UPDATE PROFILE
+  // =====================================================
+
+  const updateProfile = (updates) => {
+    setProfile((currentProfile) => ({
+      ...currentProfile,
+      ...updates,
+    }));
+  };
+
   // =====================================================
   // CART
   // =====================================================
 
   const [cart, setCart] = useState([]);
-
-  // =====================================================
-  // WISHLIST
-  // =====================================================
-
-  const [wishlist, setWishlist] = useState([]);
-
-  // =====================================================
-  // ORDERS
-  // =====================================================
-
-  const [orders, setOrders] = useState([]);
-
-  // =====================================================
-  // MESSAGES
-  // =====================================================
-
-  const [messages, setMessages] = useState(messagesData);
 
   // =====================================================
   // ADD TO CART
@@ -73,7 +83,7 @@ function App() {
   };
 
   // =====================================================
-  // INCREASE QUANTITY
+  // INCREASE CART QUANTITY
   // =====================================================
 
   const increaseQuantity = (productId) => {
@@ -90,7 +100,7 @@ function App() {
   };
 
   // =====================================================
-  // DECREASE QUANTITY
+  // DECREASE CART QUANTITY
   // =====================================================
 
   const decreaseQuantity = (productId) => {
@@ -112,7 +122,9 @@ function App() {
 
   const removeFromCart = (productId) => {
     setCart((currentCart) =>
-      currentCart.filter((item) => item.id !== productId)
+      currentCart.filter(
+        (item) => item.id !== productId
+      )
     );
   };
 
@@ -121,7 +133,9 @@ function App() {
   // =====================================================
 
   const removePurchasedItems = (purchasedItems) => {
-    const purchasedIds = purchasedItems.map((item) => item.id);
+    const purchasedIds = purchasedItems.map(
+      (item) => item.id
+    );
 
     setCart((currentCart) =>
       currentCart.filter(
@@ -140,42 +154,10 @@ function App() {
   );
 
   // =====================================================
-  // PLACE ORDER
+  // WISHLIST
   // =====================================================
 
-  const placeOrder = (orderData) => {
-    const newOrder = {
-      id: Date.now().toString().slice(-8),
-
-      orderNumber: `CM-${Date.now().toString().slice(-8)}`,
-
-      items: orderData.items,
-      total: orderData.total,
-      paymentMethod: orderData.paymentMethod,
-      type: orderData.type,
-
-      fullName: orderData.customer?.fullName || "",
-      phone: orderData.customer?.phone || "",
-      campus: orderData.customer?.campus || "",
-      address: orderData.customer?.address || "",
-      note: orderData.customer?.note || "",
-
-      customer: orderData.customer,
-
-      date: new Date().toLocaleDateString(),
-
-      status: "Placed",
-    };
-
-    setOrders((currentOrders) => [
-      ...currentOrders,
-      newOrder,
-    ]);
-
-    removePurchasedItems(orderData.items);
-
-    return newOrder;
-  };
+  const [wishlist, setWishlist] = useState([]);
 
   // =====================================================
   // TOGGLE WISHLIST
@@ -209,6 +191,71 @@ function App() {
   };
 
   // =====================================================
+  // ORDERS
+  // =====================================================
+
+  const [orders, setOrders] = useState([]);
+
+  // =====================================================
+  // PLACE ORDER
+  // =====================================================
+
+  const placeOrder = (orderData) => {
+    const newOrder = {
+      id: Date.now().toString().slice(-8),
+
+      orderNumber: `CM-${Date.now()
+        .toString()
+        .slice(-8)}`,
+
+      items: orderData.items,
+
+      total: orderData.total,
+
+      paymentMethod: orderData.paymentMethod,
+
+      type: orderData.type,
+
+      fullName:
+        orderData.customer?.fullName || "",
+
+      phone:
+        orderData.customer?.phone || "",
+
+      campus:
+        orderData.customer?.campus || "",
+
+      address:
+        orderData.customer?.address || "",
+
+      note:
+        orderData.customer?.note || "",
+
+      customer: orderData.customer,
+
+      date: new Date().toLocaleDateString(),
+
+      status: "Placed",
+    };
+
+    setOrders((currentOrders) => [
+      ...currentOrders,
+      newOrder,
+    ]);
+
+    removePurchasedItems(orderData.items);
+
+    return newOrder;
+  };
+
+  // =====================================================
+  // MESSAGES
+  // =====================================================
+
+  const [messages, setMessages] =
+    useState(messagesData);
+
+  // =====================================================
   // UNREAD MESSAGE COUNT
   // =====================================================
 
@@ -226,11 +273,6 @@ function App() {
     setMessages((currentMessages) =>
       currentMessages.map((message) => {
         if (message.id !== Number(messageId)) {
-          return message;
-        }
-
-        // Already read — don't create another state update
-        if (!message.unread) {
           return message;
         }
 
@@ -253,8 +295,11 @@ function App() {
 
     const newMessage = {
       id: Date.now(),
+
       sender: "me",
+
       text: cleanText,
+
       time: new Date().toLocaleTimeString([], {
         hour: "2-digit",
         minute: "2-digit",
@@ -270,22 +315,75 @@ function App() {
         return {
           ...message,
 
-          // Add message to conversation
           conversation: [
             ...(message.conversation || []),
             newMessage,
           ],
 
-          // Update preview on Messages page
           lastMessage: cleanText,
 
-          // Update conversation time
           time: newMessage.time,
 
-          // Since YOU sent the message, it isn't unread
           unread: 0,
         };
       })
+    );
+  };
+
+  // =====================================================
+  // OPEN SELLER CHAT
+  // =====================================================
+
+  const openSellerChat = (product) => {
+    if (!product) return;
+
+    const existingConversation = messages.find(
+      (message) =>
+        message.sellerId === product.sellerId
+    );
+
+    if (existingConversation) {
+      navigate(
+        `/messages/${existingConversation.id}`
+      );
+
+      return;
+    }
+
+    const newConversationId = Date.now();
+
+    const newConversation = {
+      id: newConversationId,
+
+      sellerId: product.sellerId,
+
+      name:
+        product.sellerName ||
+        "CampusMart Seller",
+
+      productId: product.id,
+
+      productName: product.name,
+
+      lastMessage:
+        `You can ask the seller about ${product.name}.`,
+
+      time: "Now",
+
+      unread: 0,
+
+      online: true,
+
+      conversation: [],
+    };
+
+    setMessages((currentMessages) => [
+      newConversation,
+      ...currentMessages,
+    ]);
+
+    navigate(
+      `/messages/${newConversationId}`
     );
   };
 
@@ -296,9 +394,9 @@ function App() {
   return (
     <Routes>
 
-      {/* ================================================= */}
-      {/* DASHBOARD */}
-      {/* ================================================= */}
+      {/* =================================================
+          DASHBOARD
+      ================================================= */}
 
       <Route
         path="/"
@@ -311,6 +409,7 @@ function App() {
             toggleWishlist={toggleWishlist}
             unreadMessages={unreadMessages}
             messages={messages}
+            profile={profile}
           />
         }
       />
@@ -326,13 +425,14 @@ function App() {
             toggleWishlist={toggleWishlist}
             unreadMessages={unreadMessages}
             messages={messages}
+            profile={profile}
           />
         }
       />
 
-      {/* ================================================= */}
-      {/* BROWSE PRODUCTS */}
-      {/* ================================================= */}
+      {/* =================================================
+          BROWSE PRODUCTS
+      ================================================= */}
 
       <Route
         path="/browse-products"
@@ -342,13 +442,14 @@ function App() {
             cartCount={cartCount}
             wishlist={wishlist}
             toggleWishlist={toggleWishlist}
+            profile={profile}
           />
         }
       />
 
-      {/* ================================================= */}
-      {/* PRODUCT DETAILS */}
-      {/* ================================================= */}
+      {/* =================================================
+          PRODUCT DETAILS
+      ================================================= */}
 
       <Route
         path="/products/:id"
@@ -358,13 +459,15 @@ function App() {
             cartCount={cartCount}
             wishlist={wishlist}
             toggleWishlist={toggleWishlist}
+            openSellerChat={openSellerChat}
+            profile={profile}
           />
         }
       />
 
-      {/* ================================================= */}
-      {/* CART */}
-      {/* ================================================= */}
+      {/* =================================================
+          CART
+      ================================================= */}
 
       <Route
         path="/cart"
@@ -375,13 +478,15 @@ function App() {
             increaseQuantity={increaseQuantity}
             decreaseQuantity={decreaseQuantity}
             removeFromCart={removeFromCart}
+            openSellerChat={openSellerChat}
+            profile={profile}
           />
         }
       />
 
-      {/* ================================================= */}
-      {/* ORDERS */}
-      {/* ================================================= */}
+      {/* =================================================
+          ORDERS
+      ================================================= */}
 
       <Route
         path="/orders"
@@ -389,13 +494,14 @@ function App() {
           <Orders
             orders={orders}
             cartCount={cartCount}
+            profile={profile}
           />
         }
       />
 
-      {/* ================================================= */}
-      {/* MESSAGES */}
-      {/* ================================================= */}
+      {/* =================================================
+          MESSAGES
+      ================================================= */}
 
       <Route
         path="/messages"
@@ -406,13 +512,14 @@ function App() {
             messages={messages}
             unreadMessages={unreadMessages}
             markMessageAsRead={markMessageAsRead}
+            profile={profile}
           />
         }
       />
 
-      {/* ================================================= */}
-      {/* CHAT */}
-      {/* ================================================= */}
+      {/* =================================================
+          CHAT
+      ================================================= */}
 
       <Route
         path="/messages/:id"
@@ -424,13 +531,14 @@ function App() {
             unreadMessages={unreadMessages}
             markMessageAsRead={markMessageAsRead}
             sendMessage={sendMessage}
+            profile={profile}
           />
         }
       />
 
-      {/* ================================================= */}
-      {/* CHECKOUT */}
-      {/* ================================================= */}
+      {/* =================================================
+          CHECKOUT
+      ================================================= */}
 
       <Route
         path="/checkout"
@@ -439,22 +547,27 @@ function App() {
             cart={cart}
             cartCount={cartCount}
             placeOrder={placeOrder}
+            profile={profile}
           />
         }
       />
 
-      {/* ================================================= */}
-      {/* ORDER SUCCESS */}
-      {/* ================================================= */}
+      {/* =================================================
+          ORDER SUCCESS
+      ================================================= */}
 
       <Route
         path="/order-success"
-        element={<OrderSuccess />}
+        element={
+          <OrderSuccess
+            profile={profile}
+          />
+        }
       />
 
-      {/* ================================================= */}
-      {/* WISHLIST */}
-      {/* ================================================= */}
+      {/* =================================================
+          WISHLIST
+      ================================================= */}
 
       <Route
         path="/wishlist"
@@ -464,13 +577,14 @@ function App() {
             removeFromWishlist={removeFromWishlist}
             addToCart={addToCart}
             cartCount={cartCount}
+            profile={profile}
           />
         }
       />
 
-      {/* ================================================= */}
-      {/* ORDER DETAILS */}
-      {/* ================================================= */}
+      {/* =================================================
+          ORDER DETAILS
+      ================================================= */}
 
       <Route
         path="/orders/:id"
@@ -478,19 +592,38 @@ function App() {
           <OrderDetails
             orders={orders}
             cartCount={cartCount}
+            profile={profile}
           />
         }
       />
 
-      {/* ================================================= */}
-      {/* PAYMENT */}
-      {/* ================================================= */}
+      {/* =================================================
+          PAYMENT
+      ================================================= */}
 
       <Route
         path="/payment"
         element={
           <Payment
             cartCount={cartCount}
+            profile={profile}
+          />
+        }
+      />
+
+      {/* =================================================
+          PROFILE
+      ================================================= */}
+
+      <Route
+        path="/profile"
+        element={
+          <Profile
+            profile={profile}
+            updateProfile={updateProfile}
+            cartCount={cartCount}
+            wishlist={wishlist}
+            unreadMessages={unreadMessages}
           />
         }
       />
