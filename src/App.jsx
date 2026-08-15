@@ -16,6 +16,10 @@ import Payment from "./pages/customer/Payment";
 import Profile from "./pages/customer/Profile";
 
 import messagesData from "./data/messages";
+import Settings from "./pages/customer/Settings";
+import Logout from "./pages/customer/Logout";
+
+import Login from "./pages/customer/Login";
 
 function App() {
   const navigate = useNavigate();
@@ -628,6 +632,40 @@ function App() {
         }
       />
 
+     {/* =================================================
+    SETTINGS
+================================================= */}
+
+{/* =================================================
+    SETTINGS
+================================================= */}
+
+<Route
+  path="/settings"
+  element={
+    <Settings
+      profile={profile}
+      updateProfile={updateProfile}
+      cartCount={cartCount}
+      wishlist={wishlist}
+      unreadMessages={unreadMessages}
+    />
+  }
+/>
+
+
+<Route
+  path="/logout"
+  element={
+    <Logout
+      cartCount={cartCount}
+      wishlist={wishlist}
+      unreadMessages={unreadMessages}
+    />
+  }
+/>
+
+<Route path="/login" element={<Login />} />
     </Routes>
   );
 }

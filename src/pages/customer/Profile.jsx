@@ -42,11 +42,7 @@ function getSavedProfile() {
   return DEFAULT_PROFILE;
 }
 
-function Profile({
-  cartCount = 0,
-  wishlist = [],
-  unreadMessages = 0,
-}) {
+function Profile({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
   const navigate = useNavigate();
 
   // =====================================================
@@ -114,7 +110,7 @@ function Profile({
 
       localStorage.setItem(
         "campusmart_profile",
-        JSON.stringify(updatedProfile)
+        JSON.stringify(updatedProfile),
       );
 
       // Tell Navbar and other components
@@ -158,10 +154,7 @@ function Profile({
 
     setProfile(updatedProfile);
 
-    localStorage.setItem(
-      "campusmart_profile",
-      JSON.stringify(updatedProfile)
-    );
+    localStorage.setItem("campusmart_profile", JSON.stringify(updatedProfile));
 
     window.dispatchEvent(new Event("profileUpdated"));
 
@@ -184,13 +177,11 @@ function Profile({
       unreadMessages={unreadMessages}
     >
       <div className="space-y-6">
-
         {/* =================================================
             HEADER
         ================================================= */}
 
         <div>
-
           <button
             type="button"
             onClick={() => navigate("/dashboard")}
@@ -209,7 +200,6 @@ function Profile({
           </button>
 
           <div className="mt-5">
-
             <h1
               className="
                 text-2xl
@@ -224,9 +214,7 @@ function Profile({
             <p className="text-gray-500 mt-1">
               Manage your personal information and account details.
             </p>
-
           </div>
-
         </div>
 
         {/* =================================================
@@ -241,7 +229,6 @@ function Profile({
             gap-6
           "
         >
-
           {/* =================================================
               PROFILE CARD
           ================================================= */}
@@ -256,13 +243,10 @@ function Profile({
               h-fit
             "
           >
-
             <div className="flex flex-col items-center text-center">
-
               {/* AVATAR */}
 
               <div className="relative">
-
                 <div
                   className="
                     w-28
@@ -281,7 +265,6 @@ function Profile({
                     overflow-hidden
                   "
                 >
-
                   {profile.profileImage ? (
                     <img
                       src={profile.profileImage}
@@ -293,11 +276,8 @@ function Profile({
                       "
                     />
                   ) : (
-                    profile.fullName
-                      ?.charAt(0)
-                      ?.toUpperCase() || "G"
+                    profile.fullName?.charAt(0)?.toUpperCase() || "G"
                   )}
-
                 </div>
 
                 {/* CAMERA BUTTON */}
@@ -330,11 +310,9 @@ function Profile({
                   ref={fileInputRef}
                   type="file"
                   accept="image/*"
-                  capture="user"
                   onChange={handleProfileImage}
                   className="hidden"
                 />
-
               </div>
 
               {/* NAME */}
@@ -352,9 +330,7 @@ function Profile({
 
               {/* ROLE */}
 
-              <p className="text-sm text-gray-500 mt-1">
-                {profile.role}
-              </p>
+              <p className="text-sm text-gray-500 mt-1">{profile.role}</p>
 
               {/* STATUS */}
 
@@ -381,7 +357,6 @@ function Profile({
                     bg-green-500
                   "
                 />
-
                 Active Account
               </div>
 
@@ -400,9 +375,7 @@ function Profile({
               >
                 Change Profile Picture
               </button>
-
             </div>
-
           </div>
 
           {/* =================================================
@@ -420,7 +393,6 @@ function Profile({
               sm:p-6
             "
           >
-
             {/* HEADER */}
 
             <div
@@ -432,9 +404,7 @@ function Profile({
                 mb-6
               "
             >
-
               <div>
-
                 <h2
                   className="
                     text-xl
@@ -448,7 +418,6 @@ function Profile({
                 <p className="text-sm text-gray-500 mt-1">
                   Your account information
                 </p>
-
               </div>
 
               {!editing && (
@@ -472,12 +441,9 @@ function Profile({
                 >
                   <FiEdit3 size={16} />
 
-                  <span className="hidden sm:inline">
-                    Edit Profile
-                  </span>
+                  <span className="hidden sm:inline">Edit Profile</span>
                 </button>
               )}
-
             </div>
 
             {/* FORM */}
@@ -490,11 +456,9 @@ function Profile({
                 gap-5
               "
             >
-
               {/* FULL NAME */}
 
               <div>
-
                 <label
                   className="
                     block
@@ -508,7 +472,6 @@ function Profile({
                 </label>
 
                 <div className="relative">
-
                   <FiUser
                     className="
                       absolute
@@ -540,15 +503,12 @@ function Profile({
                       focus:border-green-500
                     "
                   />
-
                 </div>
-
               </div>
 
               {/* EMAIL */}
 
               <div>
-
                 <label
                   className="
                     block
@@ -562,7 +522,6 @@ function Profile({
                 </label>
 
                 <div className="relative">
-
                   <FiMail
                     className="
                       absolute
@@ -594,15 +553,12 @@ function Profile({
                       focus:border-green-500
                     "
                   />
-
                 </div>
-
               </div>
 
               {/* PHONE */}
 
               <div>
-
                 <label
                   className="
                     block
@@ -616,7 +572,6 @@ function Profile({
                 </label>
 
                 <div className="relative">
-
                   <FiPhone
                     className="
                       absolute
@@ -648,15 +603,12 @@ function Profile({
                       focus:border-green-500
                     "
                   />
-
                 </div>
-
               </div>
 
               {/* CAMPUS */}
 
               <div>
-
                 <label
                   className="
                     block
@@ -670,7 +622,6 @@ function Profile({
                 </label>
 
                 <div className="relative">
-
                   <FiMapPin
                     className="
                       absolute
@@ -702,15 +653,12 @@ function Profile({
                       focus:border-green-500
                     "
                   />
-
                 </div>
-
               </div>
 
               {/* ADDRESS */}
 
               <div className="sm:col-span-2">
-
                 <label
                   className="
                     block
@@ -724,7 +672,6 @@ function Profile({
                 </label>
 
                 <div className="relative">
-
                   <FiMapPin
                     className="
                       absolute
@@ -756,11 +703,8 @@ function Profile({
                       focus:border-green-500
                     "
                   />
-
                 </div>
-
               </div>
-
             </div>
 
             {/* SAVE / CANCEL */}
@@ -779,7 +723,6 @@ function Profile({
                   border-gray-100
                 "
               >
-
                 <button
                   type="button"
                   onClick={handleCancel}
@@ -820,14 +763,10 @@ function Profile({
                   <FiSave size={16} />
                   Save Changes
                 </button>
-
               </div>
             )}
-
           </div>
-
         </div>
-
       </div>
     </CustomerLayout>
   );
