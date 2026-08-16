@@ -11,6 +11,8 @@ import {
   FiEyeOff,
   FiUserPlus,
   FiCheck,
+  FiShoppingBag,
+  FiBriefcase,
 } from "react-icons/fi";
 
 function Register() {
@@ -28,10 +30,17 @@ function Register() {
   const [confirmPassword, setConfirmPassword] = useState("");
 
   /* =========================================================
+     ROLE
+  ========================================================= */
+
+  const [role, setRole] = useState("");
+
+  /* =========================================================
      PASSWORD VISIBILITY
   ========================================================= */
 
   const [showPassword, setShowPassword] = useState(false);
+
   const [showConfirmPassword, setShowConfirmPassword] =
     useState(false);
 
@@ -84,6 +93,11 @@ function Register() {
       return;
     }
 
+    if (!role) {
+      setError("Please select whether you are a buyer or seller.");
+      return;
+    }
+
     if (!password) {
       setError("Please create a password.");
       return;
@@ -130,10 +144,10 @@ function Register() {
 
     setTimeout(() => {
       /*
-        This is currently frontend/demo registration.
+        Frontend/demo registration.
 
-        When your backend is ready, replace this section
-        with your real registration API request.
+        Later, replace this section with your real
+        backend registration request.
       */
 
       const newAccount = {
@@ -142,7 +156,9 @@ function Register() {
         phone: cleanPhone,
         campus: cleanCampus,
         profileImage: null,
-        role: "Customer",
+
+        // Buyer or Seller
+        role: role,
       };
 
       /* ===================================================
@@ -155,13 +171,20 @@ function Register() {
       );
 
       /* ===================================================
+         SAVE ROLE
+      =================================================== */
+
+      localStorage.setItem(
+        "campusmart_role",
+        role
+      );
+
+      /* ===================================================
          SAVE DEMO PASSWORD
 
          NOTE:
-         This is only for the frontend demo.
-
          Do NOT store real passwords in localStorage
-         when you connect a real backend.
+         when you connect your backend.
       =================================================== */
 
       localStorage.setItem(
@@ -186,12 +209,29 @@ function Register() {
       );
 
       /* ===================================================
-         GO TO LOGIN
+         BUYER
       =================================================== */
 
-      navigate("/login", {
-        replace: true,
-      });
+      if (role === "Buyer") {
+        navigate("/dashboard", {
+          replace: true,
+        });
+
+        return;
+      }
+
+      /* ===================================================
+         SELLER
+      =================================================== */
+
+      if (role === "Seller") {
+        navigate("/seller-dashboard", {
+          replace: true,
+        });
+
+        return;
+      }
+
     }, 700);
   };
 
@@ -204,8 +244,18 @@ function Register() {
   };
 
   return (
-    <div className="register-page min-h-screen bg-gray-50 flex items-center justify-center px-4 py-10">
-
+    <div
+      className="
+        register-page
+        min-h-screen
+        bg-gray-50
+        flex
+        items-center
+        justify-center
+        px-4
+        py-10
+      "
+    >
       <div className="w-full max-w-lg">
 
         {/* =================================================
@@ -250,7 +300,8 @@ function Register() {
               text-gray-500
             "
           >
-            Join CampusMart and start shopping on campus.
+            Join CampusMart and start shopping or selling
+            on campus.
           </p>
 
         </div>
@@ -365,7 +416,15 @@ function Register() {
               EMAIL + PHONE
           ================================================= */}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-5">
+          <div
+            className="
+              grid
+              grid-cols-1
+              sm:grid-cols-2
+              gap-4
+              mt-5
+            "
+          >
 
             {/* EMAIL */}
 
@@ -543,6 +602,216 @@ function Register() {
                   transition
                 "
               />
+
+            </div>
+
+          </div>
+
+          {/* =================================================
+              ROLE
+          ================================================= */}
+
+          <div className="mt-5">
+
+            <label
+              className="
+                block
+                text-sm
+                font-medium
+                text-gray-700
+                mb-2
+              "
+            >
+              Account Type
+            </label>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+              {/* =================================================
+                  BUYER
+              ================================================= */}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setRole("Buyer");
+                  setError("");
+                }}
+                className={`
+                  relative
+                  w-full
+                  p-4
+                  rounded-xl
+                  border
+                  text-left
+                  transition
+                  ${
+                    role === "Buyer"
+                      ? "border-green-500 bg-green-50"
+                      : "border-gray-200 bg-gray-50 hover:border-green-300"
+                  }
+                `}
+              >
+
+                <div className="flex items-center gap-3">
+
+                  <div
+                    className={`
+                      w-11
+                      h-11
+                      rounded-xl
+                      flex
+                      items-center
+                      justify-center
+                      ${
+                        role === "Buyer"
+                          ? "bg-green-600 text-white"
+                          : "bg-white text-gray-500"
+                      }
+                    `}
+                  >
+                    <FiShoppingBag size={20} />
+                  </div>
+
+                  <div>
+
+                    <p
+                      className="
+                        font-semibold
+                        text-gray-800
+                      "
+                    >
+                      Buyer
+                    </p>
+
+                    <p
+                      className="
+                        text-xs
+                        text-gray-500
+                        mt-1
+                      "
+                    >
+                      Shop products on campus
+                    </p>
+
+                  </div>
+
+                </div>
+
+                {role === "Buyer" && (
+                  <div
+                    className="
+                      absolute
+                      top-3
+                      right-3
+                      w-5
+                      h-5
+                      rounded-full
+                      bg-green-600
+                      text-white
+                      flex
+                      items-center
+                      justify-center
+                    "
+                  >
+                    <FiCheck size={13} />
+                  </div>
+                )}
+
+              </button>
+
+              {/* =================================================
+                  SELLER
+              ================================================= */}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setRole("Seller");
+                  setError("");
+                }}
+                className={`
+                  relative
+                  w-full
+                  p-4
+                  rounded-xl
+                  border
+                  text-left
+                  transition
+                  ${
+                    role === "Seller"
+                      ? "border-green-500 bg-green-50"
+                      : "border-gray-200 bg-gray-50 hover:border-green-300"
+                  }
+                `}
+              >
+
+                <div className="flex items-center gap-3">
+
+                  <div
+                    className={`
+                      w-11
+                      h-11
+                      rounded-xl
+                      flex
+                      items-center
+                      justify-center
+                      ${
+                        role === "Seller"
+                          ? "bg-green-600 text-white"
+                          : "bg-white text-gray-500"
+                      }
+                    `}
+                  >
+                    <FiBriefcase size={20} />
+                  </div>
+
+                  <div>
+
+                    <p
+                      className="
+                        font-semibold
+                        text-gray-800
+                      "
+                    >
+                      Seller
+                    </p>
+
+                    <p
+                      className="
+                        text-xs
+                        text-gray-500
+                        mt-1
+                      "
+                    >
+                      Sell products on campus
+                    </p>
+
+                  </div>
+
+                </div>
+
+                {role === "Seller" && (
+                  <div
+                    className="
+                      absolute
+                      top-3
+                      right-3
+                      w-5
+                      h-5
+                      rounded-full
+                      bg-green-600
+                      text-white
+                      flex
+                      items-center
+                      justify-center
+                    "
+                  >
+                    <FiCheck size={13} />
+                  </div>
+                )}
+
+              </button>
 
             </div>
 
@@ -799,10 +1068,22 @@ function Register() {
               LOGIN
           ================================================= */}
 
-          <div className="mt-6 pt-6 border-t border-gray-100">
+          <div
+            className="
+              mt-6
+              pt-6
+              border-t
+              border-gray-100
+            "
+          >
 
-            <p className="text-center text-sm text-gray-500">
-
+            <p
+              className="
+                text-center
+                text-sm
+                text-gray-500
+              "
+            >
               Already have a CampusMart account?
 
               <button
@@ -842,7 +1123,6 @@ function Register() {
         </p>
 
       </div>
-
     </div>
   );
 }
