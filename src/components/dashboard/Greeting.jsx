@@ -1,8 +1,11 @@
-function Greeting() {
+function Greeting({ profile }) {
+  const firstName =
+    profile?.fullName?.trim()?.split(" ")[0] || "there";
+
   return (
     <div>
       <h1 className="text-3xl font-bold text-gray-800">
-        Welcome back, GreatGod! 👋
+        Welcome back, {firstName}! 👋
       </h1>
 
       <p className="text-gray-500 mt-2">

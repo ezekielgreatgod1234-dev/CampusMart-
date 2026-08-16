@@ -15,13 +15,14 @@ import CampusDeals from "../../components/dashboard/rightSideBar/CampusDeals";
 import { FiHelpCircle, FiMessageCircle, FiShield } from "react-icons/fi";
 
 function Dashboard({
-  cartCount = 0,
   addToCart,
-  wishlist = [],
+  cartCount,
+  orders,
+  wishlist,
   toggleWishlist,
-  orders = [],
-  unreadMessages = 0,
-  messages = [],
+  unreadMessages,
+  messages,
+  profile,
 }) {
   return (
     <CustomerLayout
@@ -35,7 +36,7 @@ function Dashboard({
         ===================================================== */}
 
         <div className="xl:col-span-9 space-y-6">
-          <Greeting />
+          <Greeting profile={profile} />
 
           <HeroBanner />
 
