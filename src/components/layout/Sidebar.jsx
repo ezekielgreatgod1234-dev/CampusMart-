@@ -95,15 +95,15 @@ function Sidebar({ sidebarOpen, setSidebarOpen }) {
         <div className="m-4 bg-white rounded-2xl p-4 text-green-700">
 
           <h3 className="font-bold text-lg">
-            🎁 Invite Friends
+            🎁 Paid Promotions
           </h3>
 
           <p className="text-sm mt-2">
-            Invite your friends and earn exciting rewards.
+            Take advantage of our paid promotional opportunities and grow your business.
           </p>
 
           <button className="mt-4 w-full bg-green-700 text-white py-2 rounded-lg hover:bg-green-800 transition">
-            Invite Now
+            Pay for promotion
           </button>
 
         </div>

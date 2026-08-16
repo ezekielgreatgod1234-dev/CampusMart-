@@ -15,7 +15,7 @@ const sidebarMenu = [
   {
     name: "Dashboard",
     icon: FiGrid,
-    path: "/",
+    path: "/dashboard",
   },
   {
   name: "Browse Products",

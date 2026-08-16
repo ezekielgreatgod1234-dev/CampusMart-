@@ -20,6 +20,8 @@ import Settings from "./pages/customer/Settings";
 import Logout from "./pages/customer/Logout";
 
 import Login from "./pages/customer/Login";
+import Landing from "./pages/customer/Landing";
+import Register from "./pages/customer/Register";
 
 function App() {
   const navigate = useNavigate();
@@ -402,22 +404,7 @@ function App() {
           DASHBOARD
       ================================================= */}
 
-      <Route
-        path="/"
-        element={
-          <Dashboard
-            addToCart={addToCart}
-            cartCount={cartCount}
-            orders={orders}
-            wishlist={wishlist}
-            toggleWishlist={toggleWishlist}
-            unreadMessages={unreadMessages}
-            messages={messages}
-            profile={profile}
-          />
-        }
-      />
-
+      
       <Route
         path="/dashboard"
         element={
@@ -666,6 +653,18 @@ function App() {
 />
 
 <Route path="/login" element={<Login />} />
+
+
+<Route
+  path="/"
+  element={
+    <div className="landing-page">
+      <Landing />
+    </div>
+  }
+/>
+
+<Route path="/register" element={<Register />} />
     </Routes>
   );
 }
