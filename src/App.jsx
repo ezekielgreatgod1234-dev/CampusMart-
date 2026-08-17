@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   Routes,
@@ -11,6 +11,7 @@ import { useAuth } from "./context/AuthContext";
 
 import {
   doc,
+  getDoc,
   setDoc,
   onSnapshot,
   serverTimestamp,
@@ -57,14 +58,13 @@ import messagesData from "./data/messages";
 // =========================================================
 
 const emptyProfile = {
-  id: "",
   fullName: "",
   email: "",
   phone: "",
   campus: "",
   address: "",
   profileImage: null,
-  role: "buyer",
+  role: "",
 };
 
 // =========================================================
@@ -167,7 +167,7 @@ function CustomerRoute({
   profile,
 }) {
   const role = String(
-    profile?.role || "buyer"
+    profile?.role || ""
   )
     .trim()
     .toLowerCase();
@@ -278,17 +278,11 @@ function App() {
   const navigate = useNavigate();
 
   // =======================================================
-  // AUTH CONTEXT
-  //
-  // IMPORTANT:
-  //
-  // AuthContext is now the ONLY place responsible for
-  // loading the user's profile.
+  // AUTH
   // =======================================================
 
   const {
     firebaseUser,
-    profile: authProfile,
     profileLoading,
   } = useAuth();
 
@@ -296,65 +290,225 @@ function App() {
   // PROFILE
   // =======================================================
 
-  const profile = {
-    ...emptyProfile,
-    ...(authProfile || {}),
-  };
+  const [profile, setProfile] =
+    useState(emptyProfile);
+
+  const [profileFetching, setProfileFetching] =
+    useState(false);
 
   // =======================================================
   // CUSTOMER DATA
   // =======================================================
 
-  const [cart, setCart] = useState([]);
+  const [cart, setCart] =
+    useState([]);
 
-  const [wishlist, setWishlist] = useState([]);
+  const [wishlist, setWishlist] =
+    useState([]);
 
-  const [orders, setOrders] = useState([]);
+  const [orders, setOrders] =
+    useState([]);
 
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] =
+    useState([]);
 
   // =======================================================
-  // CUSTOMER DATA UID
-  //
-  // This identifies which user's customerData is currently
-  // loaded into React.
+  // CURRENT CUSTOMER UID
   // =======================================================
 
   const [customerDataUid, setCustomerDataUid] =
     useState(null);
 
   // =======================================================
-  // CUSTOMER DATA LOADING
-  // =======================================================
-
-  const [customerDataLoading, setCustomerDataLoading] =
-    useState(false);
-
-  // =======================================================
-  // CUSTOMER DATA ERROR
-  // =======================================================
-
-  const [customerDataError, setCustomerDataError] =
-    useState(false);
-
-  // =======================================================
-  // LOAD CUSTOMER DATA
+  // IMPORTANT:
   //
-  // Firestore:
+  // Stores the last customer data that came from Firestore
+  // or was successfully saved.
   //
-  // users/{UID}/customerData/main
+  // This prevents:
   //
+  // Firestore -> React -> Firestore -> React -> Firestore
+  //
+  // infinite loops.
+  // =======================================================
+
+  const lastCustomerDataRef =
+    useRef(null);
+
+  // =======================================================
+  // PROFILE LOADING
   // =======================================================
 
   useEffect(() => {
-    // -------------------------------------------------------
-    // No authenticated user
-    // -------------------------------------------------------
+    let cancelled = false;
+
+    async function loadUserProfile() {
+      if (!firebaseUser) {
+        if (!cancelled) {
+          setProfile(emptyProfile);
+          setProfileFetching(false);
+        }
+
+        return;
+      }
+
+      setProfileFetching(true);
+
+      try {
+        const userRef = doc(
+          db,
+          "users",
+          firebaseUser.uid
+        );
+
+        const userSnapshot =
+          await getDoc(userRef);
+
+        if (cancelled) {
+          return;
+        }
+
+        // =================================================
+        // PROFILE EXISTS
+        // =================================================
+
+        if (userSnapshot.exists()) {
+          const userData =
+            userSnapshot.data();
+
+          setProfile({
+            fullName:
+              userData.fullName ??
+              firebaseUser.displayName ??
+              "",
+
+            email:
+              userData.email ??
+              firebaseUser.email ??
+              "",
+
+            phone:
+              userData.phone ??
+              "",
+
+            campus:
+              userData.campus ??
+              "",
+
+            address:
+              userData.address ??
+              "",
+
+            profileImage:
+              userData.profileImage ??
+              null,
+
+            role:
+              userData.role ??
+              "buyer",
+          });
+
+          return;
+        }
+
+        // =================================================
+        // FIRST TIME USER
+        // =================================================
+
+        const newProfile = {
+          fullName:
+            firebaseUser.displayName ??
+            "",
+
+          email:
+            firebaseUser.email ??
+            "",
+
+          phone: "",
+
+          campus: "",
+
+          address: "",
+
+          profileImage: null,
+
+          role: "buyer",
+        };
+
+        setProfile(newProfile);
+
+        await setDoc(
+          userRef,
+          {
+            ...newProfile,
+
+            uid:
+              firebaseUser.uid,
+
+            createdAt:
+              serverTimestamp(),
+
+            updatedAt:
+              serverTimestamp(),
+          },
+          {
+            merge: true,
+          }
+        );
+      } catch (error) {
+        console.error(
+          "Error loading user profile:",
+          error
+        );
+
+        if (!cancelled) {
+          setProfile({
+            fullName:
+              firebaseUser.displayName ??
+              "",
+
+            email:
+              firebaseUser.email ??
+              "",
+
+            phone: "",
+
+            campus: "",
+
+            address: "",
+
+            profileImage: null,
+
+            role: "buyer",
+          });
+        }
+      } finally {
+        if (!cancelled) {
+          setProfileFetching(false);
+        }
+      }
+    }
+
+    loadUserProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [firebaseUser]);
+
+  // =======================================================
+  // CUSTOMER DATA LISTENER
+  // =======================================================
+
+  useEffect(() => {
+    // -----------------------------------------------------
+    // NO USER
+    // -----------------------------------------------------
 
     if (!firebaseUser) {
       setCustomerDataUid(null);
-      setCustomerDataLoading(false);
-      setCustomerDataError(false);
+
+      lastCustomerDataRef.current = null;
 
       setCart([]);
       setWishlist([]);
@@ -364,21 +518,24 @@ function App() {
       return undefined;
     }
 
-    const currentUid = firebaseUser.uid;
+    const currentUid =
+      firebaseUser.uid;
 
-    // -------------------------------------------------------
-    // IMPORTANT
+    // -----------------------------------------------------
+    // VERY IMPORTANT
     //
-    // Reset loading state for the NEW account.
-    // -------------------------------------------------------
+    // When a new account logs in, immediately mark the
+    // previous user's data as unloaded.
+    // -----------------------------------------------------
 
-    setCustomerDataLoading(true);
-    setCustomerDataError(false);
     setCustomerDataUid(null);
 
-    // -------------------------------------------------------
-    // Firestore reference
-    // -------------------------------------------------------
+    lastCustomerDataRef.current = null;
+
+    setCart([]);
+    setWishlist([]);
+    setOrders([]);
+    setMessages([]);
 
     const customerDataRef = doc(
       db,
@@ -390,125 +547,138 @@ function App() {
 
     let cancelled = false;
 
-    // -------------------------------------------------------
-    // Safety timeout
-    //
-    // If Firestore takes too long, we still allow the app
-    // to open instead of leaving CampusMart spinning forever.
-    // -------------------------------------------------------
+    const unsubscribe =
+      onSnapshot(
+        customerDataRef,
 
-    const loadingTimeout = setTimeout(() => {
-      if (cancelled) {
-        return;
-      }
-
-      console.warn(
-        "Customer data loading timed out. Opening CampusMart with empty local state."
-      );
-
-      setCart([]);
-      setWishlist([]);
-      setOrders([]);
-      setMessages(messagesData);
-
-      setCustomerDataUid(currentUid);
-      setCustomerDataLoading(false);
-      setCustomerDataError(true);
-    }, 8000);
-
-    // -------------------------------------------------------
-    // Firestore listener
-    // -------------------------------------------------------
-
-    const unsubscribe = onSnapshot(
-      customerDataRef,
-
-      async (snapshot) => {
-        if (cancelled) {
-          return;
-        }
-
-        try {
-          // =================================================
-          // DOCUMENT EXISTS
-          // =================================================
-
-          if (snapshot.exists()) {
-            const data = snapshot.data();
-
-            setCart(
-              Array.isArray(data.cart)
-                ? data.cart
-                : []
-            );
-
-            setWishlist(
-              Array.isArray(data.wishlist)
-                ? data.wishlist
-                : []
-            );
-
-            setOrders(
-              Array.isArray(data.orders)
-                ? data.orders
-                : []
-            );
-
-            setMessages(
-              Array.isArray(data.messages)
-                ? data.messages
-                : messagesData
-            );
-
-            setCustomerDataUid(currentUid);
-            setCustomerDataLoading(false);
-
-            clearTimeout(loadingTimeout);
-
+        async (snapshot) => {
+          if (cancelled) {
             return;
           }
 
-          // =================================================
-          // FIRST TIME USER
-          // =================================================
-
-          const initialCustomerData = {
-            cart: [],
-            wishlist: [],
-            orders: [],
-            messages: messagesData,
-          };
-
-          // -------------------------------------------------
-          // Immediately show the initial data.
-          // -------------------------------------------------
-
-          setCart([]);
-          setWishlist([]);
-          setOrders([]);
-          setMessages(messagesData);
-
-          // -------------------------------------------------
-          // Mark this UID as ready BEFORE the Firestore
-          // write so the app doesn't remain blocked forever.
-          // -------------------------------------------------
-
-          setCustomerDataUid(currentUid);
-          setCustomerDataLoading(false);
-
-          clearTimeout(loadingTimeout);
-
-          // -------------------------------------------------
-          // Create Firestore customer document.
-          // -------------------------------------------------
-
           try {
+            // =================================================
+            // DOCUMENT EXISTS
+            // =================================================
+
+            if (snapshot.exists()) {
+              const data =
+                snapshot.data();
+
+              const firestoreData = {
+                cart: Array.isArray(data.cart)
+                  ? data.cart
+                  : [],
+
+                wishlist:
+                  Array.isArray(
+                    data.wishlist
+                  )
+                    ? data.wishlist
+                    : [],
+
+                orders:
+                  Array.isArray(data.orders)
+                    ? data.orders
+                    : [],
+
+                messages:
+                  Array.isArray(
+                    data.messages
+                  )
+                    ? data.messages
+                    : messagesData,
+              };
+
+              // -------------------------------------------------
+              // Store exactly what Firestore gave us.
+              //
+              // The save effect will compare against this and
+              // will NOT immediately write it back.
+              // -------------------------------------------------
+
+              lastCustomerDataRef.current =
+                JSON.stringify(
+                  firestoreData
+                );
+
+              setCart(
+                firestoreData.cart
+              );
+
+              setWishlist(
+                firestoreData.wishlist
+              );
+
+              setOrders(
+                firestoreData.orders
+              );
+
+              setMessages(
+                firestoreData.messages
+              );
+
+              setCustomerDataUid(
+                currentUid
+              );
+
+              return;
+            }
+
+            // =================================================
+            // FIRST TIME USER
+            // =================================================
+
+            const initialCustomerData = {
+              cart: [],
+
+              wishlist: [],
+
+              orders: [],
+
+              messages: messagesData,
+            };
+
+            // -------------------------------------------------
+            // IMPORTANT:
+            //
+            // Mark this as already known before writing it.
+            // This prevents the listener + save effect from
+            // fighting each other.
+            // -------------------------------------------------
+
+            lastCustomerDataRef.current =
+              JSON.stringify(
+                initialCustomerData
+              );
+
+            setCart(
+              initialCustomerData.cart
+            );
+
+            setWishlist(
+              initialCustomerData.wishlist
+            );
+
+            setOrders(
+              initialCustomerData.orders
+            );
+
+            setMessages(
+              initialCustomerData.messages
+            );
+
+            // -------------------------------------------------
+            // Create Firestore document.
+            // -------------------------------------------------
+
             await setDoc(
               customerDataRef,
               {
                 ...initialCustomerData,
 
-                uid: currentUid,
+                uid:
+                  currentUid,
 
                 createdAt:
                   serverTimestamp(),
@@ -520,79 +690,87 @@ function App() {
                 merge: true,
               }
             );
+
+            if (!cancelled) {
+              setCustomerDataUid(
+                currentUid
+              );
+            }
           } catch (error) {
             console.error(
-              "Error creating customer data:",
+              "Customer data listener error:",
               error
             );
 
             if (!cancelled) {
-              setCustomerDataError(true);
+              const fallbackData = {
+                cart: [],
+
+                wishlist: [],
+
+                orders: [],
+
+                messages: messagesData,
+              };
+
+              lastCustomerDataRef.current =
+                JSON.stringify(
+                  fallbackData
+                );
+
+              setCart([]);
+              setWishlist([]);
+              setOrders([]);
+              setMessages(messagesData);
+
+              setCustomerDataUid(
+                currentUid
+              );
             }
           }
-        } catch (error) {
+        },
+
+        (error) => {
           console.error(
-            "Error processing customer data:",
+            "Customer data Firestore error:",
             error
           );
 
           if (!cancelled) {
+            const fallbackData = {
+              cart: [],
+
+              wishlist: [],
+
+              orders: [],
+
+              messages: messagesData,
+            };
+
+            lastCustomerDataRef.current =
+              JSON.stringify(
+                fallbackData
+              );
+
             setCart([]);
             setWishlist([]);
             setOrders([]);
             setMessages(messagesData);
 
-            setCustomerDataUid(currentUid);
-            setCustomerDataLoading(false);
-            setCustomerDataError(true);
+            // -------------------------------------------------
+            // Allow the application to continue instead of
+            // hanging forever when Firestore has an error.
+            // -------------------------------------------------
 
-            clearTimeout(loadingTimeout);
+            setCustomerDataUid(
+              currentUid
+            );
           }
         }
-      },
-
-      // =====================================================
-      // FIRESTORE LISTENER ERROR
-      // =====================================================
-
-      (error) => {
-        console.error(
-          "Customer data listener error:",
-          error
-        );
-
-        if (cancelled) {
-          return;
-        }
-
-        setCart([]);
-        setWishlist([]);
-        setOrders([]);
-        setMessages(messagesData);
-
-        // IMPORTANT:
-        //
-        // Allow the application to continue even if the
-        // customerData document cannot be read.
-        //
-
-        setCustomerDataUid(currentUid);
-        setCustomerDataLoading(false);
-        setCustomerDataError(true);
-
-        clearTimeout(loadingTimeout);
-      }
-    );
-
-    // =====================================================
-    // CLEANUP
-    // =====================================================
+      );
 
     return () => {
       cancelled = true;
-
-      clearTimeout(loadingTimeout);
-
       unsubscribe();
     };
   }, [firebaseUser]);
@@ -600,7 +778,12 @@ function App() {
   // =======================================================
   // SAVE CUSTOMER DATA
   //
-  // Only save after the CURRENT user's data has been loaded.
+  // FIXED VERSION
+  //
+  // Only saves when the actual data has changed.
+  //
+  // Firestore listener updates do NOT trigger an endless
+  // save loop anymore.
   // =======================================================
 
   useEffect(() => {
@@ -618,6 +801,30 @@ function App() {
     const currentUid =
       firebaseUser.uid;
 
+    const currentCustomerData = {
+      cart,
+      wishlist,
+      orders,
+      messages,
+    };
+
+    const currentDataString =
+      JSON.stringify(
+        currentCustomerData
+      );
+
+    // -----------------------------------------------------
+    // If this is exactly what Firestore already gave us,
+    // DO NOT write it again.
+    // -----------------------------------------------------
+
+    if (
+      lastCustomerDataRef.current ===
+      currentDataString
+    ) {
+      return;
+    }
+
     const customerDataRef = doc(
       db,
       "users",
@@ -628,16 +835,19 @@ function App() {
 
     let cancelled = false;
 
-    const saveData = async () => {
+    async function saveData() {
       try {
         await setDoc(
           customerDataRef,
           {
             cart,
+
             wishlist,
+
             orders,
+
             messages,
-            uid: currentUid,
+
             updatedAt:
               serverTimestamp(),
           },
@@ -645,15 +855,22 @@ function App() {
             merge: true,
           }
         );
-      } catch (error) {
+
         if (!cancelled) {
-          console.error(
-            "Error saving customer data:",
-            error
-          );
+          // -------------------------------------------------
+          // Remember what we just saved.
+          // -------------------------------------------------
+
+          lastCustomerDataRef.current =
+            currentDataString;
         }
+      } catch (error) {
+        console.error(
+          "Error saving customer data:",
+          error
+        );
       }
-    };
+    }
 
     saveData();
 
@@ -671,13 +888,6 @@ function App() {
 
   // =======================================================
   // UPDATE PROFILE
-  //
-  // AuthContext owns the profile itself.
-  //
-  // If your AuthContext currently exposes updateProfile,
-  // this function can use it.
-  //
-  // For compatibility, we also update Firestore directly.
   // =======================================================
 
   const updateProfile = async (
@@ -689,6 +899,14 @@ function App() {
 
     const currentUid =
       firebaseUser.uid;
+
+    const newProfile = {
+      ...profile,
+      ...updates,
+    };
+
+    // Update UI immediately.
+    setProfile(newProfile);
 
     try {
       const userRef = doc(
@@ -706,8 +924,7 @@ function App() {
             currentUid,
 
           email:
-            updates.email ||
-            profile.email ||
+            newProfile.email ||
             firebaseUser.email ||
             "",
 
@@ -1248,34 +1465,23 @@ function App() {
   };
 
   // =======================================================
-  // GLOBAL AUTH LOADING
+  // INITIAL LOADING
   // =======================================================
 
-  if (profileLoading) {
-    return (
-      <LoadingScreen
-        text="Checking your account..."
-      />
+  const customerDataLoading =
+    Boolean(
+      firebaseUser &&
+      customerDataUid !==
+        firebaseUser.uid
     );
-  }
-
-  // =======================================================
-  // CUSTOMER DATA LOADING
-  //
-  // We ONLY wait for customer data while Firebase has
-  // actually authenticated a user.
-  //
-  // The customer data hook has an 8-second safety timeout.
-  // =======================================================
 
   if (
-    firebaseUser &&
+    profileLoading ||
+    profileFetching ||
     customerDataLoading
   ) {
     return (
-      <LoadingScreen
-        text="Loading your CampusMart account..."
-      />
+      <LoadingScreen />
     );
   }
 

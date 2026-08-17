@@ -512,7 +512,7 @@ function Landing() {
               <div className="absolute inset-0 bg-gradient-to-r from-[#f5fff8] via-transparent to-transparent z-10 pointer-events-none" />
 
               <img
-                src="/public/3stud.png"
+                src="/3stud.png"
                 alt="Three students using CampusMart"
                 className="absolute right-0 bottom-0 w-full h-[92%] object-cover object-top"
               />
@@ -524,7 +524,7 @@ function Landing() {
             <div className="lg:hidden w-full mt-2 pb-10">
 
               <img
-                src="/public/3stud.png"
+                src="/3stud.png"
                 alt="Three students using CampusMart"
                 className="w-full max-h-[330px] object-cover object-top rounded-3xl"
               />
