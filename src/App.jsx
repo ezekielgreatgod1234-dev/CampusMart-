@@ -3,13 +3,20 @@ import { useEffect, useState } from "react";
 import {
   Routes,
   Route,
-  useNavigate,
   Navigate,
+  useNavigate,
 } from "react-router-dom";
 
 import { useAuth } from "./context/AuthContext";
 
-import { doc, getDoc } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  setDoc,
+  onSnapshot,
+  serverTimestamp,
+} from "firebase/firestore";
+
 import { db } from "./context/firebase";
 
 // =========================================================
@@ -64,7 +71,9 @@ const emptyProfile = {
 // LOADING SCREEN
 // =========================================================
 
-function LoadingScreen({ text = "Loading CampusMart..." }) {
+function LoadingScreen({
+  text = "Loading CampusMart...",
+}) {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-5">
       <div className="text-center">
@@ -89,42 +98,31 @@ function LoadingScreen({ text = "Loading CampusMart..." }) {
   );
 }
 
-
-
 // =========================================================
 // GUEST ROUTE
 // =========================================================
 
 function GuestRoute({ children }) {
-  const { firebaseUser, profileLoading } = useAuth();
+  const {
+    firebaseUser,
+    profileLoading,
+  } = useAuth();
 
   if (profileLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-5">
-        <div className="text-center">
-          <div
-            className="
-              w-12
-              h-12
-              mx-auto
-              rounded-full
-              border-4
-              border-green-100
-              border-t-green-600
-              animate-spin
-            "
-          />
-
-          <p className="mt-5 text-sm font-medium text-gray-600">
-            Checking your account...
-          </p>
-        </div>
-      </div>
+      <LoadingScreen
+        text="Checking your account..."
+      />
     );
   }
 
   if (firebaseUser) {
-    return <Navigate to="/dashboard" replace />;
+    return (
+      <Navigate
+        to="/dashboard"
+        replace
+      />
+    );
   }
 
   return children;
@@ -135,47 +133,29 @@ function GuestRoute({ children }) {
 // =========================================================
 
 function ProtectedRoute({ children }) {
-  const { firebaseUser, profileLoading } = useAuth();
+  const {
+    firebaseUser,
+    profileLoading,
+  } = useAuth();
 
-  // Firebase authentication is still loading
   if (profileLoading) {
     return (
-      <LoadingScreen text="Checking your account..." />
+      <LoadingScreen
+        text="Checking your account..."
+      />
     );
   }
 
-  // User is not authenticated
   if (!firebaseUser) {
-    return <Navigate to="/login" replace />;
-  }
-
-  return children;
-}
-
-// =========================================================
-// ROLE REDIRECT
-// =========================================================
-
-function AuthenticatedRedirect({ profile }) {
-  const role = String(profile?.role || "")
-    .trim()
-    .toLowerCase();
-
-  if (role === "seller") {
     return (
       <Navigate
-        to="/seller-dashboard"
+        to="/login"
         replace
       />
     );
   }
 
-  return (
-    <Navigate
-      to="/dashboard"
-      replace
-    />
-  );
+  return children;
 }
 
 // =========================================================
@@ -186,7 +166,9 @@ function CustomerRoute({
   children,
   profile,
 }) {
-  const role = String(profile?.role || "")
+  const role = String(
+    profile?.role || ""
+  )
     .trim()
     .toLowerCase();
 
@@ -210,7 +192,9 @@ function SellerRoute({
   children,
   profile,
 }) {
-  const role = String(profile?.role || "")
+  const role = String(
+    profile?.role || ""
+  )
     .trim()
     .toLowerCase();
 
@@ -281,7 +265,6 @@ function SellerDashboardComingSoon() {
         >
           Back to CampusMart
         </button>
-
       </div>
     </div>
   );
@@ -295,7 +278,7 @@ function App() {
   const navigate = useNavigate();
 
   // =======================================================
-  // FIREBASE AUTH
+  // AUTH
   // =======================================================
 
   const {
@@ -314,21 +297,56 @@ function App() {
     useState(false);
 
   // =======================================================
-  // LOAD FIRESTORE USER PROFILE
+  // CUSTOMER DATA
+  // =======================================================
+
+  const [cart, setCart] =
+    useState([]);
+
+  const [wishlist, setWishlist] =
+    useState([]);
+
+  const [orders, setOrders] =
+    useState([]);
+
+  const [messages, setMessages] =
+    useState([]);
+
+  // =======================================================
+  // IMPORTANT
+  //
+  // This stores the UID whose customer data is currently
+  // loaded into React state.
+  //
+  // This prevents User A's old state from being saved into
+  // User B's Firestore document during account switching.
+  // =======================================================
+
+  const [customerDataUid, setCustomerDataUid] =
+    useState(null);
+
+  // =======================================================
+  // PROFILE LOADING
   // =======================================================
 
   useEffect(() => {
-    const loadUserProfile = async () => {
-      // No authenticated user
+    let cancelled = false;
+
+    async function loadUserProfile() {
+      // -----------------------------------------------
+      // NO USER
+      //
+      // We do NOT call setState synchronously here.
+      // This avoids the React cascading-render warning.
+      // -----------------------------------------------
+
       if (!firebaseUser) {
-        setProfile(emptyProfile);
-        setProfileFetching(false);
         return;
       }
 
-      try {
-        setProfileFetching(true);
+      setProfileFetching(true);
 
+      try {
         const userRef = doc(
           db,
           "users",
@@ -338,107 +356,480 @@ function App() {
         const userSnapshot =
           await getDoc(userRef);
 
+        if (cancelled) {
+          return;
+        }
+
+        // =================================================
+        // PROFILE EXISTS
+        // =================================================
+
         if (userSnapshot.exists()) {
           const userData =
             userSnapshot.data();
 
           setProfile({
             fullName:
-              userData.fullName ||
-              firebaseUser.displayName ||
+              userData.fullName ??
+              firebaseUser.displayName ??
               "",
 
             email:
-              userData.email ||
-              firebaseUser.email ||
+              userData.email ??
+              firebaseUser.email ??
               "",
 
             phone:
-              userData.phone ||
+              userData.phone ??
               "",
 
             campus:
-              userData.campus ||
+              userData.campus ??
               "",
 
             address:
-              userData.address ||
+              userData.address ??
               "",
 
             profileImage:
-              userData.profileImage ||
+              userData.profileImage ??
               null,
 
             role:
-              userData.role ||
+              userData.role ??
               "",
           });
-        } else {
-          // Firebase account exists but
-          // Firestore profile does not exist yet
-          setProfile({
-            fullName:
-              firebaseUser.displayName ||
-              "",
 
-            email:
-              firebaseUser.email ||
-              "",
-
-            phone: "",
-            campus: "",
-            address: "",
-            profileImage: null,
-            role: "",
-          });
+          return;
         }
+
+        // =================================================
+        // FIRST TIME USER
+        // =================================================
+
+        const newProfile = {
+          fullName:
+            firebaseUser.displayName ??
+            "",
+
+          email:
+            firebaseUser.email ??
+            "",
+
+          phone: "",
+
+          campus: "",
+
+          address: "",
+
+          profileImage: null,
+
+          role: "",
+        };
+
+        setProfile(newProfile);
+
+        await setDoc(
+          userRef,
+          {
+            ...newProfile,
+
+            uid:
+              firebaseUser.uid,
+
+            createdAt:
+              serverTimestamp(),
+
+            updatedAt:
+              serverTimestamp(),
+          },
+          {
+            merge: true,
+          }
+        );
       } catch (error) {
         console.error(
           "Error loading user profile:",
           error
         );
 
-        // Keep Firebase account information
-        // even if Firestore fails
-        setProfile({
-          fullName:
-            firebaseUser.displayName ||
-            "",
+        if (!cancelled) {
+          setProfile({
+            fullName:
+              firebaseUser.displayName ??
+              "",
 
-          email:
-            firebaseUser.email ||
-            "",
+            email:
+              firebaseUser.email ??
+              "",
 
-          phone: "",
-          campus: "",
-          address: "",
-          profileImage: null,
-          role: "",
-        });
+            phone: "",
+
+            campus: "",
+
+            address: "",
+
+            profileImage: null,
+
+            role: "",
+          });
+        }
       } finally {
-        setProfileFetching(false);
+        if (!cancelled) {
+          setProfileFetching(false);
+        }
       }
-    };
+    }
 
     loadUserProfile();
+
+    return () => {
+      cancelled = true;
+    };
   }, [firebaseUser]);
 
   // =======================================================
+  // CUSTOMER DATA LISTENER
+  //
+  // FIRESTORE:
+  //
+  // users/{UID}/customerData/main
+  //
+  // The UID is ALWAYS taken from the currently authenticated
+  // Firebase user.
+  // =======================================================
+
+  useEffect(() => {
+    if (!firebaseUser) {
+      // Do not call setState here.
+      //
+      // Protected routes disappear automatically because
+      // ProtectedRoute sees that firebaseUser is null.
+      //
+      // Most importantly, we don't save old data anywhere.
+      return undefined;
+    }
+
+    const currentUid =
+      firebaseUser.uid;
+
+    const customerDataRef = doc(
+      db,
+      "users",
+      currentUid,
+      "customerData",
+      "main"
+    );
+
+    let cancelled = false;
+
+    const unsubscribe =
+      onSnapshot(
+        customerDataRef,
+
+        async (snapshot) => {
+          if (cancelled) {
+            return;
+          }
+
+          try {
+            // =================================================
+            // DOCUMENT EXISTS
+            // =================================================
+
+            if (snapshot.exists()) {
+              const data =
+                snapshot.data();
+
+              setCart(
+                Array.isArray(data.cart)
+                  ? data.cart
+                  : []
+              );
+
+              setWishlist(
+                Array.isArray(
+                  data.wishlist
+                )
+                  ? data.wishlist
+                  : []
+              );
+
+              setOrders(
+                Array.isArray(data.orders)
+                  ? data.orders
+                  : []
+              );
+
+              setMessages(
+                Array.isArray(
+                  data.messages
+                )
+                  ? data.messages
+                  : messagesData
+              );
+
+              // Mark THIS UID as loaded.
+              setCustomerDataUid(
+                currentUid
+              );
+
+              return;
+            }
+
+            // =================================================
+            // FIRST TIME USER
+            // =================================================
+
+            const initialCustomerData = {
+              cart: [],
+
+              wishlist: [],
+
+              orders: [],
+
+              messages: messagesData,
+            };
+
+            setCart(
+              initialCustomerData.cart
+            );
+
+            setWishlist(
+              initialCustomerData.wishlist
+            );
+
+            setOrders(
+              initialCustomerData.orders
+            );
+
+            setMessages(
+              initialCustomerData.messages
+            );
+
+            // Create the document for THIS user only.
+            await setDoc(
+              customerDataRef,
+              {
+                ...initialCustomerData,
+
+                uid:
+                  currentUid,
+
+                createdAt:
+                  serverTimestamp(),
+
+                updatedAt:
+                  serverTimestamp(),
+              },
+              {
+                merge: true,
+              }
+            );
+
+            if (!cancelled) {
+              setCustomerDataUid(
+                currentUid
+              );
+            }
+          } catch (error) {
+            console.error(
+              "Error loading customer data:",
+              error
+            );
+
+            if (!cancelled) {
+              setCart([]);
+
+              setWishlist([]);
+
+              setOrders([]);
+
+              setMessages(
+                messagesData
+              );
+
+              // Even if the document cannot be created,
+              // mark this UID as the one being displayed.
+              setCustomerDataUid(
+                currentUid
+              );
+            }
+          }
+        },
+
+        (error) => {
+          console.error(
+            "Customer data listener error:",
+            error
+          );
+
+          if (!cancelled) {
+            setCart([]);
+
+            setWishlist([]);
+
+            setOrders([]);
+
+            setMessages(
+              messagesData
+            );
+
+            setCustomerDataUid(
+              currentUid
+            );
+          }
+        }
+      );
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [firebaseUser]);
+
+  // =======================================================
+  // SAVE CUSTOMER DATA
+  //
+  // VERY IMPORTANT:
+  //
+  // We only save if customerDataUid === firebaseUser.uid.
+  //
+  // Therefore:
+  //
+  // User A -> logs out
+  // User B -> logs in
+  //
+  // User A's old React state cannot be written into
+  // User B's Firestore document.
+  // =======================================================
+
+  useEffect(() => {
+    if (!firebaseUser) {
+      return;
+    }
+
+    // -----------------------------------------------
+    // Do NOT save until the current user's document
+    // has actually been loaded.
+    // -----------------------------------------------
+
+    if (
+      customerDataUid !==
+      firebaseUser.uid
+    ) {
+      return;
+    }
+
+    const currentUid =
+      firebaseUser.uid;
+
+    const customerDataRef = doc(
+      db,
+      "users",
+      currentUid,
+      "customerData",
+      "main"
+    );
+
+    const saveData = async () => {
+      try {
+        await setDoc(
+          customerDataRef,
+          {
+            cart,
+
+            wishlist,
+
+            orders,
+
+            messages,
+
+            updatedAt:
+              serverTimestamp(),
+          },
+          {
+            merge: true,
+          }
+        );
+      } catch (error) {
+        console.error(
+          "Error saving customer data:",
+          error
+        );
+      }
+    };
+
+    saveData();
+  }, [
+    firebaseUser,
+    customerDataUid,
+    cart,
+    wishlist,
+    orders,
+    messages,
+  ]);
+
+  // =======================================================
   // UPDATE PROFILE
+  //
+  // PROFILE LOCATION:
+  //
+  // users/{UID}
   // =======================================================
 
-  const updateProfile = (updates) => {
-    setProfile((currentProfile) => ({
-      ...currentProfile,
+  const updateProfile = async (
+    updates
+  ) => {
+    if (!firebaseUser) {
+      return;
+    }
+
+    const currentUid =
+      firebaseUser.uid;
+
+    const newProfile = {
+      ...profile,
       ...updates,
-    }));
+    };
+
+    // Update UI immediately.
+    setProfile(newProfile);
+
+    try {
+      const userRef = doc(
+        db,
+        "users",
+        currentUid
+      );
+
+      await setDoc(
+        userRef,
+        {
+          ...updates,
+
+          uid:
+            currentUid,
+
+          email:
+            newProfile.email ||
+            firebaseUser.email ||
+            "",
+
+          updatedAt:
+            serverTimestamp(),
+        },
+        {
+          merge: true,
+        }
+      );
+    } catch (error) {
+      console.error(
+        "Error updating profile:",
+        error
+      );
+    }
   };
-
-  // =======================================================
-  // CART
-  // =======================================================
-
-  const [cart, setCart] = useState([]);
 
   // =======================================================
   // ADD TO CART
@@ -448,7 +839,10 @@ function App() {
     product,
     quantity = 1
   ) => {
-    if (!product) {
+    if (
+      !product ||
+      !firebaseUser
+    ) {
       return;
     }
 
@@ -465,9 +859,14 @@ function App() {
             item.id === product.id
               ? {
                   ...item,
+
                   quantity:
-                    item.quantity +
-                    quantity,
+                    Number(
+                      item.quantity || 0
+                    ) +
+                    Number(
+                      quantity || 0
+                    ),
                 }
               : item
         );
@@ -475,9 +874,12 @@ function App() {
 
       return [
         ...currentCart,
+
         {
           ...product,
-          quantity,
+
+          quantity:
+            Number(quantity) || 1,
         },
       ];
     });
@@ -490,15 +892,23 @@ function App() {
   const increaseQuantity = (
     productId
   ) => {
+    if (!firebaseUser) {
+      return;
+    }
+
     setCart((currentCart) =>
-      currentCart.map((item) =>
-        item.id === productId
-          ? {
-              ...item,
-              quantity:
-                item.quantity + 1,
-            }
-          : item
+      currentCart.map(
+        (item) =>
+          item.id === productId
+            ? {
+                ...item,
+
+                quantity:
+                  Number(
+                    item.quantity || 0
+                  ) + 1,
+              }
+            : item
       )
     );
   };
@@ -510,17 +920,26 @@ function App() {
   const decreaseQuantity = (
     productId
   ) => {
+    if (!firebaseUser) {
+      return;
+    }
+
     setCart((currentCart) =>
-      currentCart.map((item) =>
-        item.id === productId
-          ? {
-              ...item,
-              quantity: Math.max(
-                1,
-                item.quantity - 1
-              ),
-            }
-          : item
+      currentCart.map(
+        (item) =>
+          item.id === productId
+            ? {
+                ...item,
+
+                quantity:
+                  Math.max(
+                    1,
+                    Number(
+                      item.quantity || 1
+                    ) - 1
+                  ),
+              }
+            : item
       )
     );
   };
@@ -532,6 +951,10 @@ function App() {
   const removeFromCart = (
     productId
   ) => {
+    if (!firebaseUser) {
+      return;
+    }
+
     setCart((currentCart) =>
       currentCart.filter(
         (item) =>
@@ -547,7 +970,12 @@ function App() {
   const removePurchasedItems = (
     purchasedItems
   ) => {
-    if (!Array.isArray(purchasedItems)) {
+    if (
+      !firebaseUser ||
+      !Array.isArray(
+        purchasedItems
+      )
+    ) {
       return;
     }
 
@@ -570,19 +998,15 @@ function App() {
   // CART COUNT
   // =======================================================
 
-  const cartCount = cart.reduce(
-    (total, item) =>
-      total +
-      Number(item.quantity || 0),
-    0
-  );
-
-  // =======================================================
-  // WISHLIST
-  // =======================================================
-
-  const [wishlist, setWishlist] =
-    useState([]);
+  const cartCount =
+    cart.reduce(
+      (total, item) =>
+        total +
+        Number(
+          item.quantity || 0
+        ),
+      0
+    );
 
   // =======================================================
   // TOGGLE WISHLIST
@@ -591,6 +1015,10 @@ function App() {
   const toggleWishlist = (
     productId
   ) => {
+    if (!firebaseUser) {
+      return;
+    }
+
     setWishlist(
       (currentWishlist) => {
         if (
@@ -619,6 +1047,10 @@ function App() {
   const removeFromWishlist = (
     productId
   ) => {
+    if (!firebaseUser) {
+      return;
+    }
+
     setWishlist(
       (currentWishlist) =>
         currentWishlist.filter(
@@ -629,20 +1061,16 @@ function App() {
   };
 
   // =======================================================
-  // ORDERS
-  // =======================================================
-
-  const [orders, setOrders] =
-    useState([]);
-
-  // =======================================================
   // PLACE ORDER
   // =======================================================
 
   const placeOrder = (
     orderData
   ) => {
-    if (!orderData) {
+    if (
+      !orderData ||
+      !firebaseUser
+    ) {
       return null;
     }
 
@@ -650,9 +1078,10 @@ function App() {
       Date.now();
 
     const newOrder = {
-      id: timestamp
-        .toString()
-        .slice(-8),
+      id:
+        timestamp
+          .toString()
+          .slice(-8),
 
       orderNumber:
         `CM-${timestamp
@@ -670,7 +1099,8 @@ function App() {
         "",
 
       type:
-        orderData.type || "",
+        orderData.type ||
+        "",
 
       fullName:
         orderData.customer
@@ -696,10 +1126,12 @@ function App() {
         orderData.customer || {},
 
       date:
-        new Date().toLocaleDateString(),
+        new Date()
+          .toLocaleDateString(),
 
       createdAt:
-        new Date().toISOString(),
+        new Date()
+          .toISOString(),
 
       status:
         "Placed",
@@ -718,13 +1150,6 @@ function App() {
 
     return newOrder;
   };
-
-  // =======================================================
-  // MESSAGES
-  // =======================================================
-
-  const [messages, setMessages] =
-    useState(messagesData);
 
   // =======================================================
   // UNREAD MESSAGE COUNT
@@ -747,6 +1172,10 @@ function App() {
   const markMessageAsRead = (
     messageId
   ) => {
+    if (!firebaseUser) {
+      return;
+    }
+
     setMessages(
       (currentMessages) =>
         currentMessages.map(
@@ -760,6 +1189,7 @@ function App() {
 
             return {
               ...message,
+
               unread: 0,
             };
           }
@@ -775,6 +1205,10 @@ function App() {
     messageId,
     text
   ) => {
+    if (!firebaseUser) {
+      return;
+    }
+
     const cleanText =
       String(text || "").trim();
 
@@ -783,20 +1217,27 @@ function App() {
     }
 
     const newMessage = {
-      id: Date.now(),
+      id:
+        Date.now(),
 
-      sender: "me",
+      sender:
+        "me",
 
-      text: cleanText,
+      text:
+        cleanText,
 
       time:
-        new Date().toLocaleTimeString(
-          [],
-          {
-            hour: "2-digit",
-            minute: "2-digit",
-          }
-        ),
+        new Date()
+          .toLocaleTimeString(
+            [],
+            {
+              hour:
+                "2-digit",
+
+              minute:
+                "2-digit",
+            }
+          ),
     };
 
     setMessages(
@@ -816,6 +1257,7 @@ function App() {
               conversation: [
                 ...(message.conversation ||
                   []),
+
                 newMessage,
               ],
 
@@ -825,7 +1267,8 @@ function App() {
               time:
                 newMessage.time,
 
-              unread: 0,
+              unread:
+                0,
             };
           }
         )
@@ -839,7 +1282,10 @@ function App() {
   const openSellerChat = (
     product
   ) => {
-    if (!product) {
+    if (
+      !product ||
+      !firebaseUser
+    ) {
       return;
     }
 
@@ -862,7 +1308,8 @@ function App() {
       Date.now();
 
     const newConversation = {
-      id: newConversationId,
+      id:
+        newConversationId,
 
       sellerId:
         product.sellerId,
@@ -880,13 +1327,17 @@ function App() {
       lastMessage:
         `You can ask the seller about ${product.name}.`,
 
-      time: "Now",
+      time:
+        "Now",
 
-      unread: 0,
+      unread:
+        0,
 
-      online: true,
+      online:
+        true,
 
-      conversation: [],
+      conversation:
+        [],
     };
 
     setMessages(
@@ -902,12 +1353,27 @@ function App() {
   };
 
   // =======================================================
-  // INITIAL FIREBASE LOADING
+  // INITIAL LOADING
+  //
+  // Notice:
+  //
+  // customerDataUid !== firebaseUser.uid
+  //
+  // means we have NOT loaded the current user's Firestore
+  // data yet.
   // =======================================================
+
+  const customerDataLoading =
+    Boolean(
+      firebaseUser &&
+      customerDataUid !==
+        firebaseUser.uid
+    );
 
   if (
     profileLoading ||
-    profileFetching
+    profileFetching ||
+    customerDataLoading
   ) {
     return (
       <LoadingScreen />
@@ -927,7 +1393,9 @@ function App() {
 
       <Route
         path="/"
-        element={<Landing />}
+        element={
+          <Landing />
+        }
       />
 
       {/* =================================================
@@ -937,13 +1405,9 @@ function App() {
       <Route
         path="/login"
         element={
-          firebaseUser ? (
-            <AuthenticatedRedirect
-              profile={profile}
-            />
-          ) : (
+          <GuestRoute>
             <Login />
-          )
+          </GuestRoute>
         }
       />
 
@@ -954,18 +1418,14 @@ function App() {
       <Route
         path="/register"
         element={
-          firebaseUser ? (
-            <AuthenticatedRedirect
-              profile={profile}
-            />
-          ) : (
+          <GuestRoute>
             <Register />
-          )
+          </GuestRoute>
         }
       />
 
       {/* =================================================
-          CUSTOMER DASHBOARD
+          DASHBOARD
       ================================================= */}
 
       <Route
@@ -976,18 +1436,37 @@ function App() {
               profile={profile}
             >
               <Dashboard
-                addToCart={addToCart}
-                cartCount={cartCount}
-                orders={orders}
-                wishlist={wishlist}
+                addToCart={
+                  addToCart
+                }
+
+                cartCount={
+                  cartCount
+                }
+
+                orders={
+                  orders
+                }
+
+                wishlist={
+                  wishlist
+                }
+
                 toggleWishlist={
                   toggleWishlist
                 }
+
                 unreadMessages={
                   unreadMessages
                 }
-                messages={messages}
-                profile={profile}
+
+                messages={
+                  messages
+                }
+
+                profile={
+                  profile
+                }
               />
             </CustomerRoute>
           </ProtectedRoute>
@@ -1006,13 +1485,25 @@ function App() {
               profile={profile}
             >
               <BrowseProducts
-                addToCart={addToCart}
-                cartCount={cartCount}
-                wishlist={wishlist}
+                addToCart={
+                  addToCart
+                }
+
+                cartCount={
+                  cartCount
+                }
+
+                wishlist={
+                  wishlist
+                }
+
                 toggleWishlist={
                   toggleWishlist
                 }
-                profile={profile}
+
+                profile={
+                  profile
+                }
               />
             </CustomerRoute>
           </ProtectedRoute>
@@ -1031,16 +1522,29 @@ function App() {
               profile={profile}
             >
               <ProductDetails
-                addToCart={addToCart}
-                cartCount={cartCount}
-                wishlist={wishlist}
+                addToCart={
+                  addToCart
+                }
+
+                cartCount={
+                  cartCount
+                }
+
+                wishlist={
+                  wishlist
+                }
+
                 toggleWishlist={
                   toggleWishlist
                 }
+
                 openSellerChat={
                   openSellerChat
                 }
-                profile={profile}
+
+                profile={
+                  profile
+                }
               />
             </CustomerRoute>
           </ProtectedRoute>
@@ -1059,21 +1563,33 @@ function App() {
               profile={profile}
             >
               <Cart
-                cart={cart}
-                cartCount={cartCount}
+                cart={
+                  cart
+                }
+
+                cartCount={
+                  cartCount
+                }
+
                 increaseQuantity={
                   increaseQuantity
                 }
+
                 decreaseQuantity={
                   decreaseQuantity
                 }
+
                 removeFromCart={
                   removeFromCart
                 }
+
                 openSellerChat={
                   openSellerChat
                 }
-                profile={profile}
+
+                profile={
+                  profile
+                }
               />
             </CustomerRoute>
           </ProtectedRoute>
@@ -1092,9 +1608,17 @@ function App() {
               profile={profile}
             >
               <Orders
-                orders={orders}
-                cartCount={cartCount}
-                profile={profile}
+                orders={
+                  orders
+                }
+
+                cartCount={
+                  cartCount
+                }
+
+                profile={
+                  profile
+                }
               />
             </CustomerRoute>
           </ProtectedRoute>
@@ -1113,9 +1637,17 @@ function App() {
               profile={profile}
             >
               <OrderDetails
-                orders={orders}
-                cartCount={cartCount}
-                profile={profile}
+                orders={
+                  orders
+                }
+
+                cartCount={
+                  cartCount
+                }
+
+                profile={
+                  profile
+                }
               />
             </CustomerRoute>
           </ProtectedRoute>
@@ -1134,16 +1666,29 @@ function App() {
               profile={profile}
             >
               <Messages
-                cartCount={cartCount}
-                wishlist={wishlist}
-                messages={messages}
+                cartCount={
+                  cartCount
+                }
+
+                wishlist={
+                  wishlist
+                }
+
+                messages={
+                  messages
+                }
+
                 unreadMessages={
                   unreadMessages
                 }
+
                 markMessageAsRead={
                   markMessageAsRead
                 }
-                profile={profile}
+
+                profile={
+                  profile
+                }
               />
             </CustomerRoute>
           </ProtectedRoute>
@@ -1162,19 +1707,33 @@ function App() {
               profile={profile}
             >
               <Chat
-                cartCount={cartCount}
-                wishlist={wishlist}
-                messages={messages}
+                cartCount={
+                  cartCount
+                }
+
+                wishlist={
+                  wishlist
+                }
+
+                messages={
+                  messages
+                }
+
                 unreadMessages={
                   unreadMessages
                 }
+
                 markMessageAsRead={
                   markMessageAsRead
                 }
+
                 sendMessage={
                   sendMessage
                 }
-                profile={profile}
+
+                profile={
+                  profile
+                }
               />
             </CustomerRoute>
           </ProtectedRoute>
@@ -1193,10 +1752,21 @@ function App() {
               profile={profile}
             >
               <Checkout
-                cart={cart}
-                cartCount={cartCount}
-                placeOrder={placeOrder}
-                profile={profile}
+                cart={
+                  cart
+                }
+
+                cartCount={
+                  cartCount
+                }
+
+                placeOrder={
+                  placeOrder
+                }
+
+                profile={
+                  profile
+                }
               />
             </CustomerRoute>
           </ProtectedRoute>
@@ -1215,7 +1785,9 @@ function App() {
               profile={profile}
             >
               <OrderSuccess
-                profile={profile}
+                profile={
+                  profile
+                }
               />
             </CustomerRoute>
           </ProtectedRoute>
@@ -1234,13 +1806,25 @@ function App() {
               profile={profile}
             >
               <Wishlist
-                wishlist={wishlist}
+                wishlist={
+                  wishlist
+                }
+
                 removeFromWishlist={
                   removeFromWishlist
                 }
-                addToCart={addToCart}
-                cartCount={cartCount}
-                profile={profile}
+
+                addToCart={
+                  addToCart
+                }
+
+                cartCount={
+                  cartCount
+                }
+
+                profile={
+                  profile
+                }
               />
             </CustomerRoute>
           </ProtectedRoute>
@@ -1259,8 +1843,13 @@ function App() {
               profile={profile}
             >
               <Payment
-                cartCount={cartCount}
-                profile={profile}
+                cartCount={
+                  cartCount
+                }
+
+                profile={
+                  profile
+                }
               />
             </CustomerRoute>
           </ProtectedRoute>
@@ -1279,12 +1868,22 @@ function App() {
               profile={profile}
             >
               <Profile
-                profile={profile}
+                profile={
+                  profile
+                }
+
                 updateProfile={
                   updateProfile
                 }
-                cartCount={cartCount}
-                wishlist={wishlist}
+
+                cartCount={
+                  cartCount
+                }
+
+                wishlist={
+                  wishlist
+                }
+
                 unreadMessages={
                   unreadMessages
                 }
@@ -1306,12 +1905,22 @@ function App() {
               profile={profile}
             >
               <Settings
-                profile={profile}
+                profile={
+                  profile
+                }
+
                 updateProfile={
                   updateProfile
                 }
-                cartCount={cartCount}
-                wishlist={wishlist}
+
+                cartCount={
+                  cartCount
+                }
+
+                wishlist={
+                  wishlist
+                }
+
                 unreadMessages={
                   unreadMessages
                 }
@@ -1330,8 +1939,14 @@ function App() {
         element={
           <ProtectedRoute>
             <Logout
-              cartCount={cartCount}
-              wishlist={wishlist}
+              cartCount={
+                cartCount
+              }
+
+              wishlist={
+                wishlist
+              }
+
               unreadMessages={
                 unreadMessages
               }
@@ -1349,7 +1964,9 @@ function App() {
         element={
           <ProtectedRoute>
             <SellerRoute
-              profile={profile}
+              profile={
+                profile
+              }
             >
               <SellerDashboardComingSoon />
             </SellerRoute>
@@ -1370,26 +1987,7 @@ function App() {
           />
         }
       />
-<Route
-  path="/login"
-  element={
-    <GuestRoute>
-      <Login />
-    </GuestRoute>
-  }
-/>
 
-
-
-
-<Route
-  path="/register"
-  element={
-    <GuestRoute>
-      <Register />
-    </GuestRoute>
-  }
-/>
     </Routes>
   );
 }

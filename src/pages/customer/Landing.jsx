@@ -1,1823 +1,575 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import {
   FiArrowRight,
-  FiShoppingBag,
-  FiUsers,
+  FiSearch,
+  FiShoppingCart,
   FiShield,
-  FiCheckCircle,
+  FiTag,
+  FiMessageSquare,
   FiBookOpen,
   FiMonitor,
-  FiTag,
   FiHome,
-  FiHeart,
-  FiMessageCircle,
-  FiMenu,
-  FiX,
+  FiBriefcase,
+  FiActivity,
+  FiGrid,
   FiUserPlus,
-  FiStar,
-  FiPackage,
-  FiSearch,
+  FiShoppingBag,
+  FiMessageCircle,
+  FiCheckCircle,
+  FiHeart,
   FiMapPin,
-  FiShoppingCart,
+  FiMail,
+  FiPhone,
+  FiMap,
+  FiInstagram,
+  FiTwitter,
+  FiFacebook,
+  FiMusic,
 } from "react-icons/fi";
 
 function Landing() {
   const navigate = useNavigate();
 
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [selectedCategory, setSelectedCategory] =
-    useState("All");
+  // =========================================================
+  // NAVIGATION
+  // =========================================================
 
-  /* =========================================================
-     NAVIGATION
-  ========================================================= */
+  const goToBrowse = () => {
+    navigate("/browse-products");
+  };
 
   const goToRegister = () => {
-    setMobileMenuOpen(false);
     navigate("/register");
   };
 
-  const goToLogin = () => {
-    setMobileMenuOpen(false);
-    navigate("/login");
-  };
-
-  /*
-    IMPORTANT:
-
-    We are NOT navigating to /marketplace anymore.
-
-    Marketplace buttons simply scroll to the hardcoded
-    marketplace section on this landing page.
-  */
-  const goToMarketplace = () => {
-    setMobileMenuOpen(false);
-
-    const element =
-      document.getElementById("marketplace");
-
-    if (element) {
-      element.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }
-  };
-
-  /* =========================================================
-     SCROLL
-  ========================================================= */
-
-  const scrollToSection = (id) => {
-    setMobileMenuOpen(false);
-
-    const element = document.getElementById(id);
-
-    if (element) {
-      element.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }
-  };
-
-  /* =========================================================
-     HARD CODED CATEGORIES
-  ========================================================= */
+  // =========================================================
+  // CATEGORIES
+  // =========================================================
 
   const categories = [
     {
-      name: "Books",
-      icon: FiBookOpen,
-      description: "Textbooks & study materials",
+      name: "Books & Notes",
+      count: "234+ items",
+      icon: <FiBookOpen size={32} />,
+      image:
+        "https://images.unsplash.com/photo-1495446815901-a7297e633e8d?auto=format&fit=crop&w=600&q=85",
     },
     {
       name: "Electronics",
-      icon: FiMonitor,
-      description: "Phones, laptops & gadgets",
+      count: "189+ items",
+      icon: <FiMonitor size={32} />,
+      image:
+        "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=600&q=85",
+    },
+    {
+      name: "Furniture",
+      count: "156+ items",
+      icon: <FiHome size={32} />,
+      image:
+        "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=600&q=85",
     },
     {
       name: "Fashion",
-      icon: FiTag,
-      description: "Clothes, shoes & style",
+      count: "312+ items",
+      icon: <FiBriefcase size={32} />,
+      image:
+        "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=600&q=85",
     },
     {
-      name: "Campus Living",
-      icon: FiHome,
-      description: "Hostel & everyday items",
+      name: "Sports",
+      count: "98+ items",
+      icon: <FiActivity size={32} />,
+      image:
+        "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&w=600&q=85",
     },
     {
-      name: "Accessories",
-      icon: FiStar,
-      description: "Useful student accessories",
-    },
-    {
-      name: "Student Essentials",
-      icon: FiPackage,
-      description: "Everything students need",
+      name: "Others",
+      count: "120+ items",
+      icon: <FiGrid size={32} />,
+      image:
+        "https://images.unsplash.com/photo-1513364776144-60967b0f800f?auto=format&fit=crop&w=600&q=85",
     },
   ];
 
-  /* =========================================================
-     HARD CODED MARKETPLACE PRODUCTS
-  ========================================================= */
+  // =========================================================
+  // PRODUCTS
+  // =========================================================
 
   const products = [
     {
-      id: 1,
-      name: "Engineering Mathematics Textbook",
-      category: "Books",
-      price: "₦8,500",
-      seller: "David",
-      location: "Main Campus",
-      condition: "Used - Good",
-      icon: FiBookOpen,
+      name: "MacBook Air M2",
+      location: "UNN, Enugu",
+      price: "₦650,000",
+      badge: "FEATURED",
+      image:
+        "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=700&q=85",
     },
-
     {
-      id: 2,
-      name: "Introduction to Economics",
-      category: "Books",
-      price: "₦5,000",
-      seller: "Michael",
-      location: "Main Campus",
-      condition: "Used - Very Good",
-      icon: FiBookOpen,
+      name: "Nike Air Force 1",
+      location: "UNILAG, Lagos",
+      price: "₦35,000",
+      badge: "NEW",
+      image:
+        "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=700&q=85",
     },
-
     {
-      id: 3,
-      name: "Scientific Calculator",
-      category: "Electronics",
-      price: "₦12,000",
-      seller: "Chisom",
-      location: "Science Block",
-      condition: "Used - Good",
-      icon: FiMonitor,
+      name: "Herschel Backpack",
+      location: "ABSU, Uturu",
+      price: "₦18,000",
+      badge: "FEATURED",
+      image:
+        "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=700&q=85",
     },
-
     {
-      id: 4,
-      name: "Wireless Headphones",
-      category: "Electronics",
-      price: "₦18,500",
-      seller: "Daniel",
-      location: "Main Campus",
-      condition: "New",
-      icon: FiMonitor,
+      name: "Engineering Maths Book",
+      location: "OAU, Ile-Ife",
+      price: "₦4,500",
+      badge: "NEW",
+      image:
+        "https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&w=700&q=85",
     },
-
     {
-      id: 5,
-      name: "HP Laptop",
-      category: "Electronics",
-      price: "₦250,000",
-      seller: "Samuel",
-      location: "Engineering Campus",
-      condition: "Used - Very Good",
-      icon: FiMonitor,
+      name: "JBL Headphones",
+      location: "UDUS, Sokoto",
+      price: "₦28,000",
+      badge: "FEATURED",
+      image:
+        "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=700&q=85",
     },
-
     {
-      id: 6,
-      name: "Classic Campus Sneakers",
-      category: "Fashion",
-      price: "₦22,000",
-      seller: "Grace",
-      location: "Student Village",
-      condition: "New",
-      icon: FiTag,
-    },
-
-    {
-      id: 7,
-      name: "Oversized Hoodie",
-      category: "Fashion",
-      price: "₦15,000",
-      seller: "Precious",
-      location: "Main Campus",
-      condition: "New",
-      icon: FiTag,
-    },
-
-    {
-      id: 8,
-      name: "Campus Backpack",
-      category: "Accessories",
-      price: "₦14,000",
-      seller: "John",
-      location: "Main Campus",
-      condition: "Used - Good",
-      icon: FiPackage,
-    },
-
-    {
-      id: 9,
-      name: "Student Wrist Watch",
-      category: "Accessories",
-      price: "₦9,500",
-      seller: "Blessing",
-      location: "Student Village",
-      condition: "New",
-      icon: FiStar,
-    },
-
-    {
-      id: 10,
-      name: "Hostel Reading Lamp",
-      category: "Campus Living",
-      price: "₦7,000",
-      seller: "Emeka",
-      location: "Hostel Area",
-      condition: "New",
-      icon: FiHome,
-    },
-
-    {
-      id: 11,
-      name: "Mini Electric Fan",
-      category: "Campus Living",
-      price: "₦13,500",
-      seller: "Victor",
-      location: "Main Campus",
-      condition: "Used - Good",
-      icon: FiHome,
-    },
-
-    {
-      id: 12,
-      name: "Student Care Package",
-      category: "Student Essentials",
-      price: "₦10,000",
-      seller: "Sarah",
-      location: "Main Campus",
-      condition: "New",
-      icon: FiPackage,
+      name: "Foldable Study Lamp",
+      location: "FUTO, Owerri",
+      price: "₦6,000",
+      badge: "NEW",
+      image:
+        "https://images.unsplash.com/photo-1507473885765-e6ed057f782c?auto=format&fit=crop&w=700&q=85",
     },
   ];
 
-  /* =========================================================
-     FILTER PRODUCTS
-  ========================================================= */
+  // =========================================================
+  // WHY CAMPUSMART
+  // =========================================================
 
-  const filteredProducts =
-    selectedCategory === "All"
-      ? products
-      : products.filter(
-          (product) =>
-            product.category === selectedCategory
-        );
+  const benefits = [
+    {
+      icon: <FiShield size={28} />,
+      title: "Safe & Trusted",
+      text: "Verified student community to ensure safe transactions.",
+    },
+    {
+      icon: <FiTag size={28} />,
+      title: "Affordable Deals",
+      text: "Find budget-friendly items from fellow students.",
+    },
+    {
+      icon: <FiMessageSquare size={28} />,
+      title: "Easy Communication",
+      text: "Chat directly with buyers and sellers in real-time.",
+    },
+    {
+      icon: <FiBookOpen size={28} />,
+      title: "Campus Focused",
+      text: "Exclusively for university and polytechnic students.",
+    },
+  ];
+
+  // =========================================================
+  // HOW IT WORKS
+  // =========================================================
+
+  const steps = [
+    {
+      number: "1",
+      icon: <FiUserPlus size={32} />,
+      title: "Create Account",
+      text: "Sign up using your school email or phone number.",
+    },
+    {
+      number: "2",
+      icon: <FiShoppingBag size={32} />,
+      title: "List or Browse",
+      text: "List your item for sale or browse items on campus.",
+    },
+    {
+      number: "3",
+      icon: <FiMessageCircle size={32} />,
+      title: "Chat & Connect",
+      text: "Message the seller or buyer directly in the app.",
+    },
+    {
+      number: "4",
+      icon: <FiCheckCircle size={32} />,
+      title: "Meet & Complete",
+      text: "Meet safely on campus and complete your transaction.",
+    },
+  ];
+
+  // =========================================================
+  // TESTIMONIALS
+  // =========================================================
+
+  const testimonials = [
+    {
+      name: "David Okafor",
+      school: "UNN, Enugu",
+      image: "https://i.pravatar.cc/150?img=12",
+      text: "I sold my laptop within a day! CampusMart is super safe and easy to use.",
+    },
+    {
+      name: "Precious Nnamani",
+      school: "ABSU, Uturu",
+      image: "https://i.pravatar.cc/150?img=47",
+      text: "Found all my textbooks for the semester at affordable prices.",
+    },
+    {
+      name: "Ibrahim Musa",
+      school: "Bayero University, Kano",
+      image: "https://i.pravatar.cc/150?img=11",
+      text: "The best marketplace for students. Highly recommend!",
+    },
+  ];
+
+  // =========================================================
+  // HERO FEATURES
+  // =========================================================
+
+  const heroFeatures = [
+    {
+      icon: <FiShield size={29} />,
+      title: "Safe & Secure",
+      text: "Verified campus community for safe transactions",
+    },
+    {
+      icon: <FiTag size={29} />,
+      title: "Great Deals",
+      text: "Find affordable items from fellow students",
+    },
+    {
+      icon: <FiMessageSquare size={29} />,
+      title: "Easy Communication",
+      text: "Chat directly with buyers and sellers",
+    },
+    {
+      icon: <FiActivity size={29} />,
+      title: "Campus Focused",
+      text: "Built exclusively for university students",
+    },
+  ];
+
+  // =========================================================
+  // STATS
+  // =========================================================
+
+  const stats = [
+    {
+      number: "5,000+",
+      label: "Active Students",
+      icon: <FiUserPlus size={25} />,
+    },
+    {
+      number: "2,500+",
+      label: "Products Listed",
+      icon: <FiShoppingCart size={25} />,
+    },
+    {
+      number: "98%",
+      label: "Positive Reviews",
+      icon: <FiMessageCircle size={25} />,
+    },
+    {
+      number: "50+",
+      label: "Campuses Connected",
+      icon: <FiMap size={25} />,
+    },
+  ];
+
+  // =========================================================
+  // RENDER
+  // =========================================================
 
   return (
-    <div className="min-h-screen bg-white text-gray-900">
+    <div className="min-h-screen bg-white text-gray-900 overflow-x-hidden">
 
       {/* =====================================================
           NAVBAR
       ===================================================== */}
 
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-gray-100">
+      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-gray-100">
+        <div className="max-w-[1400px] mx-auto px-5 sm:px-8 lg:px-10">
+          <div className="h-[78px] flex items-center justify-between">
 
-        <div className="max-w-7xl mx-auto px-5 sm:px-8 lg:px-10">
+            {/* LOGO */}
 
-          <div className="h-20 flex items-center justify-between">
-
-            {/* BRAND */}
-
-            <button
-              type="button"
-              onClick={() =>
-                window.scrollTo({
-                  top: 0,
-                  behavior: "smooth",
-                })
-              }
-              className="flex items-center gap-3"
+            <Link
+              to="/"
+              className="flex items-center gap-2.5 shrink-0"
             >
-
-              <div
-                className="
-                  w-11
-                  h-11
-                  rounded-xl
-                  bg-green-600
-                  text-white
-                  flex
-                  items-center
-                  justify-center
-                  shadow-sm
-                "
-              >
-                <FiShoppingBag size={23} />
+              <div className="w-11 h-11 rounded-xl bg-green-600 text-white flex items-center justify-center shadow-sm">
+                <FiShoppingCart size={23} />
               </div>
 
-              <div className="text-left">
-
-                <div className="text-xl sm:text-2xl font-bold tracking-tight">
-                  Campus<span className="text-green-600">Mart</span>
-                </div>
-
-                <div className="hidden sm:block text-[11px] text-gray-500 -mt-1">
-                  Your Campus Marketplace
-                </div>
-
+              <div className="text-xl sm:text-2xl font-extrabold tracking-tight">
+                Campus
+                <span className="text-green-600">Mart</span>
               </div>
+            </Link>
 
-            </button>
+            {/* DESKTOP NAV */}
 
-            {/* DESKTOP NAVIGATION */}
+            <nav className="hidden lg:flex items-center gap-9">
 
-            <nav className="hidden lg:flex items-center gap-8">
-
-              <button
-                type="button"
-                onClick={() =>
-                  window.scrollTo({
-                    top: 0,
-                    behavior: "smooth",
-                  })
-                }
-                className="
-                  text-sm
-                  font-medium
-                  text-green-600
-                  hover:text-green-700
-                  transition
-                "
+              <a
+                href="#home"
+                className="text-sm font-semibold text-green-600 border-b-2 border-green-600 py-7"
               >
                 Home
-              </button>
-
-              {/* MARKETPLACE NOW SCROLLS */}
+              </a>
 
               <button
-                type="button"
-                onClick={goToMarketplace}
-                className="
-                  text-sm
-                  font-medium
-                  text-gray-600
-                  hover:text-green-600
-                  transition
-                "
+                onClick={goToBrowse}
+                className="text-sm font-medium text-gray-700 hover:text-green-600 transition"
               >
-                Marketplace
+                Browse Products
               </button>
 
-              <button
-                type="button"
-                onClick={() =>
-                  scrollToSection("categories")
-                }
-                className="
-                  text-sm
-                  font-medium
-                  text-gray-600
-                  hover:text-green-600
-                  transition
-                "
+              <a
+                href="#how-it-works"
+                className="text-sm font-medium text-gray-700 hover:text-green-600 transition"
               >
-                Categories
-              </button>
+                How it Works
+              </a>
 
-              <button
-                type="button"
-                onClick={() =>
-                  scrollToSection("how-it-works")
-                }
-                className="
-                  text-sm
-                  font-medium
-                  text-gray-600
-                  hover:text-green-600
-                  transition
-                "
+              <a
+                href="#about"
+                className="text-sm font-medium text-gray-700 hover:text-green-600 transition"
               >
-                How it works
-              </button>
+                About Us
+              </a>
 
-              <button
-                type="button"
-                onClick={() =>
-                  scrollToSection("about")
-                }
-                className="
-                  text-sm
-                  font-medium
-                  text-gray-600
-                  hover:text-green-600
-                  transition
-                "
+              <a
+                href="#contact"
+                className="text-sm font-medium text-gray-700 hover:text-green-600 transition"
               >
-                About
-              </button>
+                Contact
+              </a>
 
             </nav>
 
-            {/* DESKTOP ACTIONS */}
+            {/* RIGHT SIDE */}
 
-            <div className="hidden sm:flex items-center gap-3">
+            <div className="flex items-center gap-3">
 
-              <button
-                type="button"
-                onClick={goToLogin}
-                className="
-                  px-5
-                  py-2.5
-                  rounded-xl
-                  border
-                  border-gray-200
-                  text-gray-700
-                  text-sm
-                  font-semibold
-                  hover:border-green-500
-                  hover:text-green-600
-                  transition
-                "
-              >
-                Log in
-              </button>
+              {/* SEARCH */}
 
-              <button
-                type="button"
-                onClick={goToRegister}
-                className="
-                  px-5
-                  py-2.5
-                  rounded-xl
-                  bg-green-600
-                  text-white
-                  text-sm
-                  font-semibold
-                  hover:bg-green-700
-                  transition
-                  shadow-sm
-                "
-              >
-                Create account
-              </button>
+              <div className="hidden md:flex items-center w-[240px] xl:w-[280px] h-11 rounded-full border border-gray-200 bg-white px-4">
+                <FiSearch
+                  size={18}
+                  className="text-gray-400"
+                />
 
-            </div>
-
-            {/* MOBILE MENU */}
-
-            <button
-              type="button"
-              onClick={() =>
-                setMobileMenuOpen(
-                  (current) => !current
-                )
-              }
-              className="
-                lg:hidden
-                w-10
-                h-10
-                rounded-xl
-                border
-                border-gray-200
-                flex
-                items-center
-                justify-center
-                text-gray-700
-              "
-            >
-              {mobileMenuOpen ? (
-                <FiX size={21} />
-              ) : (
-                <FiMenu size={21} />
-              )}
-            </button>
-
-          </div>
-
-          {/* MOBILE MENU */}
-
-          {mobileMenuOpen && (
-            <div className="lg:hidden pb-5">
-
-              <div className="border-t border-gray-100 pt-4 space-y-1">
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-
-                    window.scrollTo({
-                      top: 0,
-                      behavior: "smooth",
-                    });
-                  }}
-                  className="
-                    w-full
-                    text-left
-                    px-4
-                    py-3
-                    rounded-xl
-                    text-sm
-                    font-medium
-                    text-green-600
-                    hover:bg-green-50
-                  "
-                >
-                  Home
-                </button>
-
-                <button
-                  type="button"
-                  onClick={goToMarketplace}
-                  className="
-                    w-full
-                    text-left
-                    px-4
-                    py-3
-                    rounded-xl
-                    text-sm
-                    font-medium
-                    text-gray-600
-                    hover:bg-gray-50
-                  "
-                >
-                  Marketplace
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    scrollToSection("categories")
-                  }
-                  className="
-                    w-full
-                    text-left
-                    px-4
-                    py-3
-                    rounded-xl
-                    text-sm
-                    font-medium
-                    text-gray-600
-                    hover:bg-gray-50
-                  "
-                >
-                  Categories
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    scrollToSection("how-it-works")
-                  }
-                  className="
-                    w-full
-                    text-left
-                    px-4
-                    py-3
-                    rounded-xl
-                    text-sm
-                    font-medium
-                    text-gray-600
-                    hover:bg-gray-50
-                  "
-                >
-                  How it works
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    scrollToSection("about")
-                  }
-                  className="
-                    w-full
-                    text-left
-                    px-4
-                    py-3
-                    rounded-xl
-                    text-sm
-                    font-medium
-                    text-gray-600
-                    hover:bg-gray-50
-                  "
-                >
-                  About CampusMart
-                </button>
-
-                <div className="pt-3 flex flex-col gap-2">
-
-                  <button
-                    type="button"
-                    onClick={goToLogin}
-                    className="
-                      w-full
-                      py-3
-                      rounded-xl
-                      border
-                      border-gray-200
-                      text-gray-700
-                      font-semibold
-                      text-sm
-                    "
-                  >
-                    Log in
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={goToRegister}
-                    className="
-                      w-full
-                      py-3
-                      rounded-xl
-                      bg-green-600
-                      text-white
-                      font-semibold
-                      text-sm
-                    "
-                  >
-                    Create account
-                  </button>
-
-                </div>
-
+                <input
+                  type="text"
+                  placeholder="Search products..."
+                  className="w-full ml-3 text-sm outline-none bg-transparent placeholder:text-gray-400"
+                />
               </div>
 
+              {/* CART */}
+
+              <button
+                type="button"
+                onClick={() => navigate("/cart")}
+                className="hidden sm:flex w-11 h-11 items-center justify-center rounded-full hover:bg-gray-50 transition"
+              >
+                <FiShoppingCart size={21} />
+              </button>
+
+              {/* LOGIN */}
+
+              <Link
+                to="/login"
+                className="h-11 px-6 rounded-xl bg-green-600 text-white flex items-center justify-center text-sm font-semibold hover:bg-green-700 transition shadow-sm"
+              >
+                Login
+              </Link>
+
             </div>
-          )}
 
+          </div>
         </div>
-
       </header>
 
       {/* =====================================================
           HERO
       ===================================================== */}
 
-      <section className="relative overflow-hidden">
+      <section
+        id="home"
+        className="relative overflow-hidden bg-gradient-to-br from-[#f5fff8] via-white to-[#f0fff5]"
+      >
 
-        <div
-          className="
-            absolute
-            top-0
-            right-0
-            w-[500px]
-            h-[500px]
-            bg-green-50
-            rounded-full
-            blur-3xl
-            opacity-70
-            pointer-events-none
-          "
-        />
+        <div className="max-w-[1400px] mx-auto px-5 sm:px-8 lg:px-10">
 
-        <div
-          className="
-            absolute
-            bottom-0
-            left-0
-            w-[300px]
-            h-[300px]
-            bg-green-50
-            rounded-full
-            blur-3xl
-            opacity-60
-            pointer-events-none
-          "
-        />
+          <div className="relative min-h-[560px] lg:min-h-[600px] flex items-center">
 
-        <div
-          className="
-            max-w-7xl
-            mx-auto
-            px-5
-            sm:px-8
-            lg:px-10
-            py-20
-            sm:py-24
-            lg:py-28
-          "
-        >
+            {/* LEFT CONTENT */}
 
-          <div
-            className="
-              grid
-              lg:grid-cols-2
-              gap-14
-              lg:gap-20
-              items-center
-            "
-          >
+            <div className="relative z-20 w-full lg:w-[53%] py-16 lg:py-20">
 
-            {/* HERO TEXT */}
+              {/* BADGE */}
 
-            <div className="relative z-10">
+              <div className="inline-flex items-center gap-2 rounded-full bg-green-50 border border-green-100 px-4 py-2 text-sm font-semibold text-green-700">
 
-              <div
-                className="
-                  inline-flex
-                  items-center
-                  gap-2
-                  px-4
-                  py-2
-                  rounded-full
-                  bg-green-50
-                  border
-                  border-green-100
-                  text-green-700
-                  text-sm
-                  font-medium
-                "
-              >
-                <span className="w-2 h-2 rounded-full bg-green-500" />
+                <span className="w-5 h-5 rounded-full bg-green-600 text-white flex items-center justify-center text-[11px]">
+                  ★
+                </span>
 
-                Built for campus communities
+                The #1 Marketplace for Students
+
               </div>
 
-              <h1
-                className="
-                  mt-7
-                  text-4xl
-                  sm:text-5xl
-                  lg:text-6xl
-                  font-bold
-                  leading-[1.08]
-                  tracking-tight
-                  text-gray-900
-                "
-              >
-                Your campus.
-                <br />
+              {/* HEADING */}
 
-                Your community.
+              <h1 className="mt-7 text-[44px] sm:text-[56px] lg:text-[64px] xl:text-[70px] leading-[0.98] font-black tracking-[-0.045em]">
+
+                Buy, Sell, Connect.
+
                 <br />
 
                 <span className="text-green-600">
-                  Your marketplace.
+                  All on Campus.
                 </span>
+
               </h1>
 
-              <p
-                className="
-                  mt-7
-                  max-w-xl
-                  text-base
-                  sm:text-lg
-                  leading-8
-                  text-gray-600
-                "
-              >
-                CampusMart brings students together in one
-                trusted marketplace where you can buy, sell,
-                discover and connect with people within your
-                campus community.
+              {/* DESCRIPTION */}
+
+              <p className="mt-7 max-w-[590px] text-base sm:text-lg leading-8 text-gray-600">
+                CampusMart makes it easy for students to buy and sell
+                items within their campus community.
               </p>
 
-              {/* HERO BUTTONS */}
+              {/* BUTTONS */}
 
-              <div
-                className="
-                  mt-9
-                  flex
-                  flex-col
-                  sm:flex-row
-                  gap-3
-                "
-              >
+              <div className="mt-8 flex flex-wrap gap-4">
+
+                <button
+                  type="button"
+                  onClick={goToBrowse}
+                  className="h-12 px-6 rounded-xl bg-green-600 text-white font-semibold flex items-center gap-3 hover:bg-green-700 transition shadow-sm"
+                >
+                  Browse Products
+                  <FiArrowRight size={19} />
+                </button>
 
                 <button
                   type="button"
                   onClick={goToRegister}
-                  className="
-                    inline-flex
-                    items-center
-                    justify-center
-                    gap-2
-                    px-7
-                    py-3.5
-                    rounded-xl
-                    bg-green-600
-                    text-white
-                    font-semibold
-                    text-sm
-                    hover:bg-green-700
-                    transition
-                    shadow-sm
-                  "
+                  className="h-12 px-6 rounded-xl bg-white border border-gray-200 text-gray-800 font-semibold flex items-center gap-3 hover:border-green-300 hover:text-green-700 transition"
                 >
-                  Explore CampusMart
-                  <FiArrowRight size={18} />
+                  Sell an Item
+                  <FiTag size={18} />
                 </button>
-
-                
 
               </div>
 
-              {/* TRUST */}
+              {/* USERS */}
 
-              <div
-                className="
-                  mt-10
-                  flex
-                  flex-wrap
-                  gap-x-7
-                  gap-y-3
-                "
-              >
+              <div className="mt-8 flex items-center gap-4">
 
-                <div className="flex items-center gap-2">
+                <div className="flex -space-x-3">
 
-                  <FiCheckCircle
-                    className="text-green-600"
-                    size={18}
-                  />
-
-                  <span className="text-sm text-gray-600">
-                    Student-focused
-                  </span>
+                  {[1, 2, 3, 4, 5].map((item) => (
+                    <img
+                      key={item}
+                      src={`https://i.pravatar.cc/80?img=${item + 10}`}
+                      alt=""
+                      className="w-9 h-9 rounded-full border-2 border-white object-cover"
+                    />
+                  ))}
 
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div>
+                  <p className="font-bold text-gray-900 text-sm">
+                    Join 5,000+ students
+                  </p>
 
-                  <FiShield
-                    className="text-green-600"
-                    size={18}
-                  />
-
-                  <span className="text-sm text-gray-600">
-                    Community-first
-                  </span>
-
-                </div>
-
-                <div className="flex items-center gap-2">
-
-                  <FiUsers
-                    className="text-green-600"
-                    size={18}
-                  />
-
-                  <span className="text-sm text-gray-600">
-                    Built for students
-                  </span>
-
+                  <p className="text-sm text-gray-500">
+                    already using CampusMart
+                  </p>
                 </div>
 
               </div>
 
             </div>
 
-            {/* HERO VISUAL */}
+            {/* HERO IMAGE DESKTOP */}
 
-            <div className="relative">
+            <div className="hidden lg:block absolute right-[-80px] xl:right-[-40px] top-0 w-[58%] h-full">
 
-              <div
-                className="
-                  relative
-                  min-h-[430px]
-                  sm:min-h-[500px]
-                  rounded-[2rem]
-                  bg-gradient-to-br
-                  from-green-50
-                  via-white
-                  to-green-100
-                  border
-                  border-green-100
-                  overflow-hidden
-                  flex
-                  items-center
-                  justify-center
-                "
-              >
+              <div className="absolute inset-0 bg-gradient-to-r from-[#f5fff8] via-transparent to-transparent z-10 pointer-events-none" />
 
+              <img
+                src="/public/3stud.png"
+                alt="Three students using CampusMart"
+                className="absolute right-0 bottom-0 w-full h-[92%] object-cover object-top"
+              />
+
+            </div>
+
+            {/* HERO IMAGE MOBILE */}
+
+            <div className="lg:hidden w-full mt-2 pb-10">
+
+              <img
+                src="/public/3stud.png"
+                alt="Three students using CampusMart"
+                className="w-full max-h-[330px] object-cover object-top rounded-3xl"
+              />
+
+            </div>
+
+          </div>
+        </div>
+
+        {/* HERO FEATURE BAR */}
+
+        <div className="relative z-30 max-w-[1250px] mx-auto px-5 sm:px-8 lg:px-0 pb-7">
+
+          <div className="rounded-2xl bg-green-600 text-white shadow-xl overflow-hidden">
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+
+              {heroFeatures.map((item, index) => (
                 <div
-                  className="
-                    absolute
-                    w-72
-                    h-72
-                    sm:w-96
-                    sm:h-96
-                    rounded-full
-                    bg-green-200/60
-                  "
-                />
-
-                <div
-                  className="
-                    absolute
-                    w-52
-                    h-52
-                    sm:w-72
-                    sm:h-72
-                    rounded-full
-                    bg-white/70
-                  "
-                />
-
-                <div
-                  className="
-                    relative
-                    z-10
-                    w-[280px]
-                    sm:w-[350px]
-                    bg-white
-                    rounded-3xl
-                    border
-                    border-gray-100
-                    shadow-2xl
-                    p-5
-                    sm:p-6
-                  "
+                  key={item.title}
+                  className={`flex items-center gap-4 px-6 py-6 ${
+                    index !== 3
+                      ? "lg:border-r lg:border-white/20"
+                      : ""
+                  }`}
                 >
 
-                  <div className="flex items-center justify-between">
-
-                    <div className="flex items-center gap-3">
-
-                      <div
-                        className="
-                          w-11
-                          h-11
-                          rounded-xl
-                          bg-green-600
-                          text-white
-                          flex
-                          items-center
-                          justify-center
-                        "
-                      >
-                        <FiShoppingBag size={22} />
-                      </div>
-
-                      <div>
-
-                        <p className="font-bold text-gray-900">
-                          CampusMart
-                        </p>
-
-                        <p className="text-xs text-gray-400">
-                          Campus marketplace
-                        </p>
-
-                      </div>
-
-                    </div>
-
-                    <div
-                      className="
-                        w-9
-                        h-9
-                        rounded-full
-                        bg-green-50
-                        text-green-600
-                        flex
-                        items-center
-                        justify-center
-                      "
-                    >
-                      <FiHeart size={17} />
-                    </div>
-
-                  </div>
-
-                  {/* MOCK CATEGORIES */}
-
-                  <div className="mt-6 grid grid-cols-2 gap-3">
-
-                    {categories.slice(0, 4).map(
-                      (category) => {
-                        const Icon = category.icon;
-
-                        return (
-                          <div
-                            key={category.name}
-                            className="
-                              rounded-2xl
-                              bg-gray-50
-                              p-4
-                              border
-                              border-gray-100
-                            "
-                          >
-
-                            <div
-                              className="
-                                h-24
-                                rounded-xl
-                                bg-green-100
-                                flex
-                                items-center
-                                justify-center
-                                text-green-600
-                              "
-                            >
-                              <Icon size={42} />
-                            </div>
-
-                            <p
-                              className="
-                                mt-3
-                                text-sm
-                                font-semibold
-                                text-gray-800
-                              "
-                            >
-                              {category.name}
-                            </p>
-
-                            <p
-                              className="
-                                mt-1
-                                text-xs
-                                text-gray-400
-                              "
-                            >
-                              {category.description}
-                            </p>
-
-                          </div>
-                        );
-                      }
-                    )}
-
-                  </div>
-
-                </div>
-
-                {/* FLOATING CARD */}
-
-                <div
-                  className="
-                    absolute
-                    z-20
-                    bottom-7
-                    -left-2
-                    sm:left-5
-                    bg-white
-                    rounded-2xl
-                    shadow-xl
-                    border
-                    border-gray-100
-                    p-4
-                    flex
-                    items-center
-                    gap-3
-                  "
-                >
-
-                  <div
-                    className="
-                      w-10
-                      h-10
-                      rounded-full
-                      bg-green-100
-                      text-green-600
-                      flex
-                      items-center
-                      justify-center
-                    "
-                  >
-                    <FiUsers size={19} />
+                  <div className="w-14 h-14 rounded-full border-2 border-white/70 flex items-center justify-center shrink-0">
+                    {item.icon}
                   </div>
 
                   <div>
 
-                    <p
-                      className="
-                        text-sm
-                        font-bold
-                        text-gray-800
-                      "
-                    >
-                      One campus community
-                    </p>
-
-                    <p
-                      className="
-                        text-xs
-                        text-gray-400
-                        mt-0.5
-                      "
-                    >
-                      Buy, sell & connect
-                    </p>
-
-                  </div>
-
-                </div>
-
-              </div>
-
-            </div>
-
-          </div>
-
-        </div>
-
-      </section>
-
-      {/* =====================================================
-          HARD CODED MARKETPLACE
-      ===================================================== */}
-
-      <section
-        id="marketplace"
-        className="py-20 sm:py-24 bg-gray-50"
-      >
-
-        <div
-          className="
-            max-w-7xl
-            mx-auto
-            px-5
-            sm:px-8
-            lg:px-10
-          "
-        >
-
-          {/* HEADER */}
-
-          <div
-            className="
-              flex
-              flex-col
-              lg:flex-row
-              lg:items-end
-              lg:justify-between
-              gap-6
-            "
-          >
-
-            <div>
-
-              <span
-                className="
-                  text-sm
-                  font-semibold
-                  text-green-600
-                  uppercase
-                  tracking-wider
-                "
-              >
-                Campus Marketplace
-              </span>
-
-              <h2
-                className="
-                  mt-2
-                  text-3xl
-                  sm:text-4xl
-                  font-bold
-                  text-gray-900
-                "
-              >
-                Discover what students are selling
-              </h2>
-
-              <p
-                className="
-                  mt-4
-                  max-w-2xl
-                  text-sm
-                  sm:text-base
-                  leading-7
-                  text-gray-500
-                "
-              >
-                Browse popular items from students around
-                your campus. These products are currently
-                displayed as sample marketplace listings.
-              </p>
-
-            </div>
-
-            {/* SEARCH VISUAL */}
-
-            <div
-              className="
-                flex
-                items-center
-                gap-3
-                bg-white
-                border
-                border-gray-200
-                rounded-xl
-                px-4
-                py-3
-                w-full
-                lg:w-80
-              "
-            >
-
-              <FiSearch
-                className="text-gray-400"
-                size={18}
-              />
-
-              <span className="text-sm text-gray-400">
-                Search products...
-              </span>
-
-            </div>
-
-          </div>
-
-          {/* CATEGORY FILTERS */}
-
-          <div
-            className="
-              mt-10
-              flex
-              gap-2
-              overflow-x-auto
-              pb-2
-            "
-          >
-
-            <button
-              type="button"
-              onClick={() =>
-                setSelectedCategory("All")
-              }
-              className={`
-                shrink-0
-                px-5
-                py-2.5
-                rounded-xl
-                text-sm
-                font-semibold
-                transition
-                ${
-                  selectedCategory === "All"
-                    ? "bg-green-600 text-white"
-                    : "bg-white text-gray-600 border border-gray-200 hover:border-green-300 hover:text-green-600"
-                }
-              `}
-            >
-              All Products
-            </button>
-
-            {categories.map((category) => (
-              <button
-                key={category.name}
-                type="button"
-                onClick={() =>
-                  setSelectedCategory(
-                    category.name
-                  )
-                }
-                className={`
-                  shrink-0
-                  px-5
-                  py-2.5
-                  rounded-xl
-                  text-sm
-                  font-semibold
-                  transition
-                  ${
-                    selectedCategory ===
-                    category.name
-                      ? "bg-green-600 text-white"
-                      : "bg-white text-gray-600 border border-gray-200 hover:border-green-300 hover:text-green-600"
-                  }
-                `}
-              >
-                {category.name}
-              </button>
-            ))}
-
-          </div>
-
-          {/* PRODUCTS */}
-
-          <div
-            className="
-              mt-8
-              grid
-              sm:grid-cols-2
-              lg:grid-cols-3
-              xl:grid-cols-4
-              gap-5
-            "
-          >
-
-            {filteredProducts.map((product) => {
-              const ProductIcon = product.icon;
-
-              return (
-                <div
-                  key={product.id}
-                  className="
-                    group
-                    bg-white
-                    rounded-2xl
-                    border
-                    border-gray-100
-                    overflow-hidden
-                    shadow-sm
-                    hover:shadow-md
-                    hover:-translate-y-1
-                    transition
-                  "
-                >
-
-                  {/* PRODUCT IMAGE PLACEHOLDER */}
-
-                  <div
-                    className="
-                      h-48
-                      bg-green-50
-                      flex
-                      items-center
-                      justify-center
-                      text-green-600
-                      relative
-                    "
-                  >
-
-                    <ProductIcon size={58} />
-
-                    <div
-                      className="
-                        absolute
-                        top-3
-                        left-3
-                        px-3
-                        py-1.5
-                        rounded-full
-                        bg-white
-                        text-xs
-                        font-medium
-                        text-gray-600
-                        shadow-sm
-                      "
-                    >
-                      {product.condition}
-                    </div>
-
-                    <button
-                      type="button"
-                      className="
-                        absolute
-                        top-3
-                        right-3
-                        w-9
-                        h-9
-                        rounded-full
-                        bg-white
-                        text-gray-400
-                        flex
-                        items-center
-                        justify-center
-                        shadow-sm
-                        hover:text-red-500
-                        transition
-                      "
-                    >
-                      <FiHeart size={17} />
-                    </button>
-
-                  </div>
-
-                  {/* PRODUCT INFO */}
-
-                  <div className="p-5">
-
-                    <p
-                      className="
-                        text-xs
-                        font-medium
-                        text-green-600
-                      "
-                    >
-                      {product.category}
-                    </p>
-
-                    <h3
-                      className="
-                        mt-2
-                        font-bold
-                        text-gray-900
-                        line-clamp-2
-                      "
-                    >
-                      {product.name}
+                    <h3 className="font-bold text-sm sm:text-base">
+                      {item.title}
                     </h3>
 
-                    <div
-                      className="
-                        mt-4
-                        flex
-                        items-center
-                        justify-between
-                      "
-                    >
-
-                      <p
-                        className="
-                          text-lg
-                          font-bold
-                          text-gray-900
-                        "
-                      >
-                        {product.price}
-                      </p>
-
-                      <button
-                        type="button"
-                        onClick={goToRegister}
-                        className="
-                          w-9
-                          h-9
-                          rounded-xl
-                          bg-green-50
-                          text-green-600
-                          flex
-                          items-center
-                          justify-center
-                          hover:bg-green-600
-                          hover:text-white
-                          transition
-                        "
-                        title="Create account to buy"
-                      >
-                        <FiShoppingCart size={17} />
-                      </button>
-
-                    </div>
-
-                    <div
-                      className="
-                        mt-4
-                        pt-4
-                        border-t
-                        border-gray-100
-                        flex
-                        flex-col
-                        gap-2
-                      "
-                    >
-
-                      <div
-                        className="
-                          flex
-                          items-center
-                          gap-2
-                          text-xs
-                          text-gray-500
-                        "
-                      >
-                        <FiUserPlus size={13} />
-
-                        Sold by {product.seller}
-                      </div>
-
-                      <div
-                        className="
-                          flex
-                          items-center
-                          gap-2
-                          text-xs
-                          text-gray-500
-                        "
-                      >
-                        <FiMapPin size={13} />
-
-                        {product.location}
-                      </div>
-
-                    </div>
+                    <p className="mt-1 text-xs sm:text-sm text-green-50 leading-5">
+                      {item.text}
+                    </p>
 
                   </div>
 
                 </div>
-              );
-            })}
-
-          </div>
-
-          {/* MARKETPLACE NOTE */}
-
-          <div
-            className="
-              mt-10
-              bg-white
-              border
-              border-green-100
-              rounded-2xl
-              p-6
-              flex
-              flex-col
-              sm:flex-row
-              sm:items-center
-              sm:justify-between
-              gap-5
-            "
-          >
-
-            <div className="flex items-center gap-4">
-
-              <div
-                className="
-                  w-12
-                  h-12
-                  rounded-xl
-                  bg-green-50
-                  text-green-600
-                  flex
-                  items-center
-                  justify-center
-                  shrink-0
-                "
-              >
-                <FiShoppingBag size={22} />
-              </div>
-
-              <div>
-
-                <h3
-                  className="
-                    font-bold
-                    text-gray-900
-                  "
-                >
-                  Want to buy or sell on CampusMart?
-                </h3>
-
-                <p
-                  className="
-                    mt-1
-                    text-sm
-                    text-gray-500
-                  "
-                >
-                  Create an account to participate in
-                  the campus marketplace.
-                </p>
-
-              </div>
-
-            </div>
-
-            <button
-              type="button"
-              onClick={goToRegister}
-              className="
-                inline-flex
-                items-center
-                justify-center
-                gap-2
-                px-6
-                py-3
-                rounded-xl
-                bg-green-600
-                text-white
-                text-sm
-                font-semibold
-                hover:bg-green-700
-                transition
-                shrink-0
-              "
-            >
-              Join CampusMart
-              <FiArrowRight size={17} />
-            </button>
-
-          </div>
-
-        </div>
-
-      </section>
-
-      {/* =====================================================
-          ABOUT
-      ===================================================== */}
-
-      <section
-        id="about"
-        className="py-20 sm:py-24"
-      >
-
-        <div
-          className="
-            max-w-7xl
-            mx-auto
-            px-5
-            sm:px-8
-            lg:px-10
-          "
-        >
-
-          <div
-            className="
-              max-w-3xl
-              mx-auto
-              text-center
-            "
-          >
-
-            <span
-              className="
-                text-sm
-                font-semibold
-                text-green-600
-                uppercase
-                tracking-wider
-              "
-            >
-              About CampusMart
-            </span>
-
-            <h2
-              className="
-                mt-3
-                text-3xl
-                sm:text-4xl
-                font-bold
-                tracking-tight
-                text-gray-900
-              "
-            >
-              Made for campus life
-            </h2>
-
-            <p
-              className="
-                mt-5
-                text-base
-                sm:text-lg
-                leading-8
-                text-gray-600
-              "
-            >
-              CampusMart is designed to make buying and
-              selling within a campus community easier,
-              more convenient and more connected.
-            </p>
-
-          </div>
-
-          <div
-            className="
-              mt-14
-              grid
-              sm:grid-cols-2
-              lg:grid-cols-3
-              gap-5
-            "
-          >
-
-            {/* CARD 1 */}
-
-            <div
-              className="
-                bg-gray-50
-                rounded-2xl
-                border
-                border-gray-100
-                p-7
-              "
-            >
-
-              <div
-                className="
-                  w-12
-                  h-12
-                  rounded-xl
-                  bg-green-50
-                  text-green-600
-                  flex
-                  items-center
-                  justify-center
-                "
-              >
-                <FiUsers size={23} />
-              </div>
-
-              <h3
-                className="
-                  mt-5
-                  text-lg
-                  font-bold
-                  text-gray-900
-                "
-              >
-                Built around students
-              </h3>
-
-              <p
-                className="
-                  mt-2
-                  text-sm
-                  leading-6
-                  text-gray-500
-                "
-              >
-                CampusMart puts students and their everyday
-                campus needs at the heart of the experience.
-              </p>
-
-            </div>
-
-            {/* CARD 2 */}
-
-            <div
-              className="
-                bg-gray-50
-                rounded-2xl
-                border
-                border-gray-100
-                p-7
-              "
-            >
-
-              <div
-                className="
-                  w-12
-                  h-12
-                  rounded-xl
-                  bg-green-50
-                  text-green-600
-                  flex
-                  items-center
-                  justify-center
-                "
-              >
-                <FiShoppingBag size={23} />
-              </div>
-
-              <h3
-                className="
-                  mt-5
-                  text-lg
-                  font-bold
-                  text-gray-900
-                "
-              >
-                Everything in one place
-              </h3>
-
-              <p
-                className="
-                  mt-2
-                  text-sm
-                  leading-6
-                  text-gray-500
-                "
-              >
-                Discover useful products and services from
-                people within your campus community.
-              </p>
-
-            </div>
-
-            {/* CARD 3 */}
-
-            <div
-              className="
-                bg-gray-50
-                rounded-2xl
-                border
-                border-gray-100
-                p-7
-              "
-            >
-
-              <div
-                className="
-                  w-12
-                  h-12
-                  rounded-xl
-                  bg-green-50
-                  text-green-600
-                  flex
-                  items-center
-                  justify-center
-                "
-              >
-                <FiMessageCircle size={23} />
-              </div>
-
-              <h3
-                className="
-                  mt-5
-                  text-lg
-                  font-bold
-                  text-gray-900
-                "
-              >
-                Connect with your community
-              </h3>
-
-              <p
-                className="
-                  mt-2
-                  text-sm
-                  leading-6
-                  text-gray-500
-                "
-              >
-                Make buying and selling feel more personal
-                by connecting with fellow students.
-              </p>
+              ))}
 
             </div>
 
@@ -1831,176 +583,283 @@ function Landing() {
           CATEGORIES
       ===================================================== */}
 
-      <section
-        id="categories"
-        className="py-20 sm:py-24 bg-gray-50"
-      >
+      <section className="py-16 sm:py-20">
 
-        <div
-          className="
-            max-w-7xl
-            mx-auto
-            px-5
-            sm:px-8
-            lg:px-10
-          "
-        >
+        <div className="max-w-[1250px] mx-auto px-5 sm:px-8">
 
-          <div
-            className="
-              flex
-              flex-col
-              sm:flex-row
-              sm:items-end
-              sm:justify-between
-              gap-5
-            "
-          >
+          <div className="text-center">
 
-            <div>
-
-              <span
-                className="
-                  text-sm
-                  font-semibold
-                  text-green-600
-                  uppercase
-                  tracking-wider
-                "
-              >
-                Explore
+            <h2 className="text-3xl sm:text-4xl font-black">
+              Shop by{" "}
+              <span className="text-green-600">
+                Category
               </span>
+            </h2>
 
-              <h2
-                className="
-                  mt-2
-                  text-3xl
-                  sm:text-4xl
-                  font-bold
-                  text-gray-900
-                "
-              >
-                Something for every student
-              </h2>
-
-            </div>
-
-            <p
-              className="
-                max-w-md
-                text-sm
-                leading-6
-                text-gray-500
-              "
-            >
-              From study essentials to everyday campus
-              needs, CampusMart brings useful categories
-              together.
+            <p className="mt-3 text-gray-500">
+              Find exactly what you need
             </p>
 
           </div>
 
-          <div
-            className="
-              mt-12
-              grid
-              grid-cols-2
-              md:grid-cols-3
-              lg:grid-cols-6
-              gap-4
-            "
-          >
+          <div className="mt-10 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
 
-            {categories.map((category) => {
-              const Icon = category.icon;
+            {categories.map((category) => (
+              <button
+                key={category.name}
+                type="button"
+                onClick={goToBrowse}
+                className="group bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition overflow-hidden text-left"
+              >
 
-              return (
-                <button
-                  key={category.name}
-                  type="button"
-                  onClick={() => {
-                    setSelectedCategory(
-                      category.name
-                    );
+                <div className="h-[135px] bg-gray-50 overflow-hidden">
 
-                    setTimeout(() => {
-                      scrollToSection(
-                        "marketplace"
-                      );
-                    }, 50);
-                  }}
-                  className="
-                    group
-                    p-5
-                    min-h-[165px]
-                    rounded-2xl
-                    border
-                    border-gray-100
-                    bg-white
-                    hover:border-green-200
-                    hover:bg-green-50/50
-                    transition
-                    text-left
-                  "
+                  <img
+                    src={category.image}
+                    alt={category.name}
+                    className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                  />
+
+                </div>
+
+                <div className="p-4 text-center">
+
+                  <h3 className="font-bold text-sm text-gray-900">
+                    {category.name}
+                  </h3>
+
+                  <p className="mt-1 text-xs text-gray-500">
+                    {category.count}{" "}
+                    <span className="text-green-600">
+                      →
+                    </span>
+                  </p>
+
+                </div>
+
+              </button>
+            ))}
+
+          </div>
+
+        </div>
+
+      </section>
+
+      {/* =====================================================
+          STATS
+      ===================================================== */}
+
+      <section className="pb-16">
+
+        <div className="max-w-[1250px] mx-auto px-5 sm:px-8">
+
+          <div className="rounded-2xl bg-[#f1faf4] border border-green-50">
+
+            <div className="grid grid-cols-2 lg:grid-cols-4">
+
+              {stats.map((stat, index) => (
+                <div
+                  key={stat.label}
+                  className={`flex items-center gap-4 px-6 py-6 ${
+                    index < 3
+                      ? "lg:border-r border-green-100"
+                      : ""
+                  }`}
                 >
 
-                  <div
-                    className="
-                      w-12
-                      h-12
-                      rounded-xl
-                      bg-green-50
-                      text-green-600
-                      flex
-                      items-center
-                      justify-center
-                      group-hover:bg-green-600
-                      group-hover:text-white
-                      transition
-                    "
-                  >
-                    <Icon size={22} />
+                  <div className="w-12 h-12 rounded-full bg-white border border-green-100 text-green-600 flex items-center justify-center shrink-0">
+                    {stat.icon}
                   </div>
 
-                  <p
-                    className="
-                      mt-5
-                      text-sm
-                      font-semibold
-                      text-gray-800
-                    "
-                  >
-                    {category.name}
-                  </p>
+                  <div>
 
-                  <p
-                    className="
-                      mt-1
-                      text-xs
-                      text-gray-400
-                      leading-5
-                    "
-                  >
-                    {category.description}
-                  </p>
+                    <p className="text-xl font-black">
+                      {stat.number}
+                    </p>
 
-                  <div
-                    className="
-                      mt-2
-                      flex
-                      items-center
-                      gap-1
-                      text-xs
-                      text-green-600
-                    "
-                  >
-                    View products
-                    <FiArrowRight size={12} />
+                    <p className="text-sm text-gray-600">
+                      {stat.label}
+                    </p>
+
                   </div>
 
-                </button>
-              );
-            })}
+                </div>
+              ))}
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </section>
+
+      {/* =====================================================
+          WHY STUDENTS LOVE CAMPUSMART
+      ===================================================== */}
+
+      <section
+        id="about"
+        className="py-16 sm:py-20 bg-gray-50/60"
+      >
+
+        <div className="max-w-[1250px] mx-auto px-5 sm:px-8">
+
+          <div className="text-center">
+
+            <h2 className="text-3xl sm:text-4xl font-black">
+              Why Students Love{" "}
+              <span className="text-green-600">
+                CampusMart
+              </span>
+            </h2>
+
+            <p className="mt-3 text-gray-500">
+              Built for students. By students.
+            </p>
+
+          </div>
+
+          <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+
+            {benefits.map((benefit) => (
+              <div
+                key={benefit.title}
+                className="bg-white rounded-2xl border border-gray-100 p-7 text-center shadow-sm hover:shadow-md transition"
+              >
+
+                <div className="mx-auto w-16 h-16 rounded-full bg-green-50 text-green-600 flex items-center justify-center">
+                  {benefit.icon}
+                </div>
+
+                <h3 className="mt-5 font-bold text-lg">
+                  {benefit.title}
+                </h3>
+
+                <p className="mt-3 text-sm text-gray-500 leading-6">
+                  {benefit.text}
+                </p>
+
+              </div>
+            ))}
+
+          </div>
+
+        </div>
+
+      </section>
+
+      {/* =====================================================
+          POPULAR PRODUCTS
+      ===================================================== */}
+
+      <section className="py-16 sm:py-20">
+
+        <div className="max-w-[1250px] mx-auto px-5 sm:px-8">
+
+          <div className="flex items-center justify-between gap-5">
+
+            <h2 className="text-2xl sm:text-3xl font-black">
+              Popular{" "}
+              <span className="text-green-600">
+                Right Now
+              </span>
+            </h2>
+
+            <button
+              onClick={goToBrowse}
+              className="hidden sm:flex items-center gap-2 text-sm font-semibold text-green-700 hover:text-green-800"
+            >
+              View all products
+              <FiArrowRight />
+            </button>
+
+          </div>
+
+          <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+
+            {products.map((product) => (
+              <div
+                key={product.name}
+                className="group rounded-xl border border-gray-100 bg-white overflow-hidden shadow-sm hover:shadow-md transition"
+              >
+
+                {/* IMAGE */}
+
+                <div className="relative h-[180px] bg-gray-100 overflow-hidden">
+
+                  <img
+                    src={product.image}
+                    alt={product.name}
+                    className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                  />
+
+                  <span className="absolute top-3 left-3 px-2 py-1 rounded-md bg-green-600 text-white text-[9px] font-bold">
+                    {product.badge}
+                  </span>
+
+                </div>
+
+                {/* CONTENT */}
+
+                <div className="p-4">
+
+                  <h3 className="font-bold text-sm truncate">
+                    {product.name}
+                  </h3>
+
+                  <div className="flex items-center gap-1 mt-2 text-xs text-gray-500">
+
+                    <FiMapPin size={12} />
+
+                    <span className="truncate">
+                      {product.location}
+                    </span>
+
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between gap-2">
+
+                    <span className="font-black text-green-600 text-sm">
+                      {product.price}
+                    </span>
+
+                    <button
+                      type="button"
+                      className="text-gray-400 hover:text-red-500 transition"
+                    >
+                      <FiHeart size={18} />
+                    </button>
+
+                  </div>
+
+                </div>
+
+              </div>
+            ))}
+
+          </div>
+
+          {/* MOBILE VIEW ALL */}
+
+          <button
+            onClick={goToBrowse}
+            className="sm:hidden mt-7 w-full h-12 rounded-xl border border-green-200 text-green-700 font-semibold flex items-center justify-center gap-2"
+          >
+            View all products
+            <FiArrowRight />
+          </button>
+
+          {/* DOTS */}
+
+          <div className="flex justify-center gap-2 mt-7">
+
+            <span className="w-2.5 h-2.5 rounded-full bg-green-600" />
+            <span className="w-2.5 h-2.5 rounded-full bg-gray-200" />
+            <span className="w-2.5 h-2.5 rounded-full bg-gray-200" />
+            <span className="w-2.5 h-2.5 rounded-full bg-gray-200" />
+            <span className="w-2.5 h-2.5 rounded-full bg-gray-200" />
 
           </div>
 
@@ -2014,246 +873,63 @@ function Landing() {
 
       <section
         id="how-it-works"
-        className="py-20 sm:py-24"
+        className="py-16 sm:py-20 bg-gray-50/60"
       >
 
-        <div
-          className="
-            max-w-7xl
-            mx-auto
-            px-5
-            sm:px-8
-            lg:px-10
-          "
-        >
+        <div className="max-w-[1250px] mx-auto px-5 sm:px-8">
 
-          <div className="text-center max-w-2xl mx-auto">
+          <div className="text-center">
 
-            <span
-              className="
-                text-sm
-                font-semibold
-                text-green-600
-                uppercase
-                tracking-wider
-              "
-            >
-              Simple process
-            </span>
-
-            <h2
-              className="
-                mt-3
-                text-3xl
-                sm:text-4xl
-                font-bold
-                text-gray-900
-              "
-            >
-              How CampusMart works
+            <h2 className="text-3xl sm:text-4xl font-black">
+              How{" "}
+              <span className="text-green-600">
+                CampusMart
+              </span>{" "}
+              Works
             </h2>
 
-            <p
-              className="
-                mt-4
-                text-gray-600
-                leading-7
-              "
-            >
-              Getting started is simple. Join your campus
-              community and start participating.
+            <p className="mt-3 text-gray-500">
+              Buy or sell in just a few simple steps
             </p>
 
           </div>
 
-          <div
-            className="
-              mt-14
-              grid
-              md:grid-cols-3
-              gap-8
-            "
-          >
+          <div className="mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 lg:gap-5">
 
-            {/* STEP 1 */}
-
-            <div className="relative text-center">
-
+            {steps.map((step, index) => (
               <div
-                className="
-                  mx-auto
-                  w-16
-                  h-16
-                  rounded-2xl
-                  bg-green-600
-                  text-white
-                  flex
-                  items-center
-                  justify-center
-                  shadow-sm
-                "
+                key={step.title}
+                className="relative text-center"
               >
-                <FiUserPlus size={27} />
+
+                {/* CONNECTOR */}
+
+                {index !== steps.length - 1 && (
+                  <div className="hidden lg:block absolute top-10 left-[65%] w-[70%] border-t-2 border-dashed border-green-200" />
+                )}
+
+                {/* NUMBER + ICON */}
+
+                <div className="relative mx-auto w-20 h-20 rounded-full bg-green-50 text-green-600 flex items-center justify-center">
+
+                  {step.icon}
+
+                  <span className="absolute -top-1 -left-2 w-7 h-7 rounded-full bg-green-600 text-white text-xs font-bold flex items-center justify-center border-4 border-white">
+                    {step.number}
+                  </span>
+
+                </div>
+
+                <h3 className="mt-6 font-bold text-lg">
+                  {step.title}
+                </h3>
+
+                <p className="mt-3 text-sm text-gray-500 leading-6 max-w-[230px] mx-auto">
+                  {step.text}
+                </p>
+
               </div>
-
-              <span
-                className="
-                  inline-block
-                  mt-6
-                  text-xs
-                  font-bold
-                  text-green-600
-                "
-              >
-                STEP 01
-              </span>
-
-              <h3
-                className="
-                  mt-2
-                  text-lg
-                  font-bold
-                  text-gray-900
-                "
-              >
-                Create your account
-              </h3>
-
-              <p
-                className="
-                  mt-2
-                  text-sm
-                  leading-6
-                  text-gray-500
-                  max-w-xs
-                  mx-auto
-                "
-              >
-                Join CampusMart and become part of your
-                campus marketplace.
-              </p>
-
-            </div>
-
-            {/* STEP 2 */}
-
-            <div className="relative text-center">
-
-              <div
-                className="
-                  mx-auto
-                  w-16
-                  h-16
-                  rounded-2xl
-                  bg-green-600
-                  text-white
-                  flex
-                  items-center
-                  justify-center
-                  shadow-sm
-                "
-              >
-                <FiShoppingBag size={27} />
-              </div>
-
-              <span
-                className="
-                  inline-block
-                  mt-6
-                  text-xs
-                  font-bold
-                  text-green-600
-                "
-              >
-                STEP 02
-              </span>
-
-              <h3
-                className="
-                  mt-2
-                  text-lg
-                  font-bold
-                  text-gray-900
-                "
-              >
-                Buy or sell
-              </h3>
-
-              <p
-                className="
-                  mt-2
-                  text-sm
-                  leading-6
-                  text-gray-500
-                  max-w-xs
-                  mx-auto
-                "
-              >
-                Discover things you need or share products
-                you no longer need.
-              </p>
-
-            </div>
-
-            {/* STEP 3 */}
-
-            <div className="text-center">
-
-              <div
-                className="
-                  mx-auto
-                  w-16
-                  h-16
-                  rounded-2xl
-                  bg-green-600
-                  text-white
-                  flex
-                  items-center
-                  justify-center
-                  shadow-sm
-                "
-              >
-                <FiMessageCircle size={27} />
-              </div>
-
-              <span
-                className="
-                  inline-block
-                  mt-6
-                  text-xs
-                  font-bold
-                  text-green-600
-                "
-              >
-                STEP 03
-              </span>
-
-              <h3
-                className="
-                  mt-2
-                  text-lg
-                  font-bold
-                  text-gray-900
-                "
-              >
-                Connect and trade
-              </h3>
-
-              <p
-                className="
-                  mt-2
-                  text-sm
-                  leading-6
-                  text-gray-500
-                  max-w-xs
-                  mx-auto
-                "
-              >
-                Connect with other students and make
-                campus trading easier.
-              </p>
-
-            </div>
+            ))}
 
           </div>
 
@@ -2262,207 +938,65 @@ function Landing() {
       </section>
 
       {/* =====================================================
-          BENEFITS
+          TESTIMONIALS
       ===================================================== */}
 
-      <section className="py-20 sm:py-24 bg-gray-50">
+      <section className="py-16 sm:py-20">
 
-        <div
-          className="
-            max-w-7xl
-            mx-auto
-            px-5
-            sm:px-8
-            lg:px-10
-          "
-        >
+        <div className="max-w-[1250px] mx-auto px-5 sm:px-8">
 
-          <div
-            className="
-              grid
-              lg:grid-cols-2
-              gap-14
-              items-center
-            "
-          >
+          <div className="text-center">
 
-            {/* LEFT */}
+            <h2 className="text-3xl sm:text-4xl font-black">
+              What{" "}
+              <span className="text-green-600">
+                Students
+              </span>{" "}
+              Are Saying
+            </h2>
 
-            <div>
+          </div>
 
-              <span
-                className="
-                  text-sm
-                  font-semibold
-                  text-green-600
-                  uppercase
-                  tracking-wider
-                "
+          <div className="mt-10 grid grid-cols-1 md:grid-cols-3 gap-5">
+
+            {testimonials.map((testimonial) => (
+              <div
+                key={testimonial.name}
+                className="rounded-2xl border border-gray-100 bg-white shadow-sm p-6"
               >
-                Why CampusMart
-              </span>
 
-              <h2
-                className="
-                  mt-3
-                  text-3xl
-                  sm:text-4xl
-                  font-bold
-                  leading-tight
-                  text-gray-900
-                "
-              >
-                More than a marketplace.
+                <div className="text-green-600 text-3xl font-black leading-none">
+                  “
+                </div>
 
-                <span className="text-green-600">
-                  {" "}It's a campus community.
-                </span>
-              </h2>
+                <div className="flex gap-1 mt-1 text-green-600">
 
-              <p
-                className="
-                  mt-5
-                  text-gray-600
-                  leading-7
-                  max-w-xl
-                "
-              >
-                CampusMart is designed around the way
-                students actually live, study, move and
-                connect on campus.
-              </p>
-
-              <div className="mt-8 space-y-5">
-
-                <div className="flex gap-4">
-
-                  <div
-                    className="
-                      w-11
-                      h-11
-                      rounded-xl
-                      bg-green-50
-                      text-green-600
-                      flex
-                      items-center
-                      justify-center
-                      shrink-0
-                    "
-                  >
-                    <FiShield size={20} />
-                  </div>
-
-                  <div>
-
-                    <h3
-                      className="
-                        font-bold
-                        text-gray-900
-                      "
-                    >
-                      Community-focused
-                    </h3>
-
-                    <p
-                      className="
-                        mt-1
-                        text-sm
-                        leading-6
-                        text-gray-500
-                      "
-                    >
-                      Designed to encourage meaningful
-                      connections within your campus.
-                    </p>
-
-                  </div>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <span key={star}>★</span>
+                  ))}
 
                 </div>
 
-                <div className="flex gap-4">
+                <p className="mt-4 text-sm text-gray-600 leading-6">
+                  {testimonial.text}
+                </p>
 
-                  <div
-                    className="
-                      w-11
-                      h-11
-                      rounded-xl
-                      bg-green-50
-                      text-green-600
-                      flex
-                      items-center
-                      justify-center
-                      shrink-0
-                    "
-                  >
-                    <FiTag size={20} />
-                  </div>
+                <div className="mt-6 flex items-center gap-3">
+
+                  <img
+                    src={testimonial.image}
+                    alt={testimonial.name}
+                    className="w-11 h-11 rounded-full object-cover"
+                  />
 
                   <div>
 
-                    <h3
-                      className="
-                        font-bold
-                        text-gray-900
-                      "
-                    >
-                      Easy to participate
-                    </h3>
-
-                    <p
-                      className="
-                        mt-1
-                        text-sm
-                        leading-6
-                        text-gray-500
-                      "
-                    >
-                      Buy what you need or give your
-                      unused items a new home.
+                    <p className="font-bold text-sm">
+                      {testimonial.name}
                     </p>
 
-                  </div>
-
-                </div>
-
-                <div className="flex gap-4">
-
-                  <div
-                    className="
-                      w-11
-                      h-11
-                      rounded-xl
-                      bg-green-50
-                      text-green-600
-                      flex
-                      items-center
-                      justify-center
-                      shrink-0
-                    "
-                  >
-                    <FiHeart size={20} />
-                  </div>
-
-                  <div>
-
-                    <h3
-                      className="
-                        font-bold
-                        text-gray-900
-                      "
-                    >
-                      Made for campus life
-                    </h3>
-
-                    <p
-                      className="
-                        mt-1
-                        text-sm
-                        leading-6
-                        text-gray-500
-                      "
-                    >
-                      Built around the products, people
-                      and experiences students care about.
+                    <p className="text-xs text-gray-500 mt-1">
+                      {testimonial.school}
                     </p>
 
                   </div>
@@ -2470,212 +1004,7 @@ function Landing() {
                 </div>
 
               </div>
-
-            </div>
-
-            {/* RIGHT */}
-
-            <div
-              className="
-                relative
-                rounded-[2rem]
-                bg-white
-                border
-                border-gray-100
-                p-6
-                sm:p-10
-                overflow-hidden
-                shadow-sm
-              "
-            >
-
-              <div
-                className="
-                  absolute
-                  -right-20
-                  -top-20
-                  w-60
-                  h-60
-                  rounded-full
-                  bg-green-100
-                "
-              />
-
-              <div
-                className="
-                  relative
-                  z-10
-                  space-y-4
-                "
-              >
-
-                <div
-                  className="
-                    bg-gray-50
-                    rounded-2xl
-                    p-5
-                    border
-                    border-gray-100
-                  "
-                >
-
-                  <div className="flex items-center gap-4">
-
-                    <div
-                      className="
-                        w-12
-                        h-12
-                        rounded-xl
-                        bg-green-100
-                        text-green-600
-                        flex
-                        items-center
-                        justify-center
-                      "
-                    >
-                      <FiBookOpen size={23} />
-                    </div>
-
-                    <div>
-
-                      <p
-                        className="
-                          font-bold
-                          text-gray-900
-                        "
-                      >
-                        Study smarter
-                      </p>
-
-                      <p
-                        className="
-                          mt-1
-                          text-sm
-                          text-gray-500
-                        "
-                      >
-                        Find useful student essentials.
-                      </p>
-
-                    </div>
-
-                  </div>
-
-                </div>
-
-                <div
-                  className="
-                    bg-gray-50
-                    rounded-2xl
-                    p-5
-                    border
-                    border-gray-100
-                    ml-8
-                  "
-                >
-
-                  <div className="flex items-center gap-4">
-
-                    <div
-                      className="
-                        w-12
-                        h-12
-                        rounded-xl
-                        bg-green-100
-                        text-green-600
-                        flex
-                        items-center
-                        justify-center
-                      "
-                    >
-                      <FiUsers size={23} />
-                    </div>
-
-                    <div>
-
-                      <p
-                        className="
-                          font-bold
-                          text-gray-900
-                        "
-                      >
-                        Meet your community
-                      </p>
-
-                      <p
-                        className="
-                          mt-1
-                          text-sm
-                          text-gray-500
-                        "
-                      >
-                        Connect with fellow students.
-                      </p>
-
-                    </div>
-
-                  </div>
-
-                </div>
-
-                <div
-                  className="
-                    bg-gray-50
-                    rounded-2xl
-                    p-5
-                    border
-                    border-gray-100
-                    mr-8
-                  "
-                >
-
-                  <div className="flex items-center gap-4">
-
-                    <div
-                      className="
-                        w-12
-                        h-12
-                        rounded-xl
-                        bg-green-100
-                        text-green-600
-                        flex
-                        items-center
-                        justify-center
-                      "
-                    >
-                      <FiPackage size={23} />
-                    </div>
-
-                    <div>
-
-                      <p
-                        className="
-                          font-bold
-                          text-gray-900
-                        "
-                      >
-                        Give items another life
-                      </p>
-
-                      <p
-                        className="
-                          mt-1
-                          text-sm
-                          text-gray-500
-                        "
-                      >
-                        Sell what you no longer need.
-                      </p>
-
-                    </div>
-
-                  </div>
-
-                </div>
-
-              </div>
-
-            </div>
+            ))}
 
           </div>
 
@@ -2687,163 +1016,107 @@ function Landing() {
           CTA
       ===================================================== */}
 
-      <section className="py-20 sm:py-24">
+      <section className="pb-10">
 
-        <div
-          className="
-            max-w-7xl
-            mx-auto
-            px-5
-            sm:px-8
-            lg:px-10
-          "
-        >
+        <div className="max-w-[1250px] mx-auto px-5 sm:px-8">
 
-          <div
-            className="
-              relative
-              overflow-hidden
-              rounded-[2rem]
-              bg-green-600
-              px-7
-              py-14
-              sm:px-12
-              sm:py-16
-              text-center
-            "
-          >
+          <div className="relative overflow-hidden rounded-2xl bg-green-700 text-white">
 
-            <div
-              className="
-                absolute
-                -top-24
-                -right-24
-                w-64
-                h-64
-                rounded-full
-                bg-green-500
-              "
-            />
+            <div className="relative z-20 px-7 sm:px-10 py-10 sm:py-12 max-w-[700px]">
 
-            <div
-              className="
-                absolute
-                -bottom-28
-                -left-20
-                w-60
-                h-60
-                rounded-full
-                bg-green-700/50
-              "
-            />
-
-            <div className="relative z-10">
-
-              <div
-                className="
-                  mx-auto
-                  w-14
-                  h-14
-                  rounded-2xl
-                  bg-white/15
-                  text-white
-                  flex
-                  items-center
-                  justify-center
-                "
-              >
-                <FiShoppingBag size={27} />
-              </div>
-
-              <h2
-                className="
-                  mt-6
-                  text-3xl
-                  sm:text-4xl
-                  font-bold
-                  text-white
-                "
-              >
-                Ready to join your campus marketplace?
+              <h2 className="text-3xl sm:text-4xl font-black">
+                Ready to Buy or Sell?
               </h2>
 
-              <p
-                className="
-                  mt-4
-                  max-w-2xl
-                  mx-auto
-                  text-sm
-                  sm:text-base
-                  leading-7
-                  text-green-50
-                "
-              >
-                Create your CampusMart account and become
-                part of a simpler way for students to buy,
-                sell and connect.
+              <p className="mt-4 text-green-50 leading-7 max-w-[520px]">
+                Join thousands of students already using CampusMart
+                to make campus life easier.
               </p>
 
-              <div
-                className="
-                  mt-8
-                  flex
-                  flex-col
-                  sm:flex-row
-                  justify-center
-                  gap-3
-                "
-              >
+              <div className="mt-7 flex flex-wrap gap-3">
 
                 <button
-                  type="button"
                   onClick={goToRegister}
-                  className="
-                    inline-flex
-                    items-center
-                    justify-center
-                    gap-2
-                    px-7
-                    py-3.5
-                    rounded-xl
-                    bg-white
-                    text-green-700
-                    font-semibold
-                    text-sm
-                    hover:bg-green-50
-                    transition
-                  "
+                  className="h-11 px-5 rounded-xl bg-white text-green-700 font-bold text-sm flex items-center gap-2 hover:bg-green-50 transition"
                 >
-                  Create your account
-                  <FiArrowRight size={17} />
+                  Get Started Now
+                  <FiArrowRight />
                 </button>
 
                 <button
-                  type="button"
-                  onClick={goToLogin}
-                  className="
-                    inline-flex
-                    items-center
-                    justify-center
-                    gap-2
-                    px-7
-                    py-3.5
-                    rounded-xl
-                    bg-green-700
-                    text-white
-                    font-semibold
-                    text-sm
-                    hover:bg-green-800
-                    border
-                    border-green-500
-                    transition
-                  "
+                  onClick={goToBrowse}
+                  className="h-11 px-5 rounded-xl border border-white/60 text-white font-bold text-sm hover:bg-white/10 transition"
                 >
-                  I already have an account
+                  Browse Products
                 </button>
 
               </div>
 
             </div>
+
+            <img
+              src="/images/campusmart-three-students.png"
+              alt=""
+              className="hidden sm:block absolute right-0 bottom-0 h-full w-[45%] object-cover object-top opacity-95"
+            />
+
+            <div className="absolute inset-y-0 right-0 w-[55%] bg-gradient-to-r from-green-700 via-green-700/50 to-transparent pointer-events-none" />
+
+          </div>
+
+        </div>
+
+      </section>
+
+      {/* =====================================================
+          NEWSLETTER
+      ===================================================== */}
+
+      <section className="pb-10">
+
+        <div className="max-w-[1250px] mx-auto px-5 sm:px-8">
+
+          <div className="rounded-2xl bg-[#eff9f2] px-6 sm:px-10 py-7 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+
+            <div className="flex items-center gap-4">
+
+              <div className="w-12 h-12 rounded-full bg-green-600 text-white flex items-center justify-center shrink-0">
+                <FiMail size={23} />
+              </div>
+
+              <div>
+
+                <h3 className="font-bold">
+                  Stay in the Loop
+                </h3>
+
+                <p className="text-sm text-gray-500 mt-1">
+                  Get updates on new products, tips and exclusive offers.
+                </p>
+
+              </div>
+
+            </div>
+
+            <form
+              onSubmit={(e) => e.preventDefault()}
+              className="flex flex-col sm:flex-row w-full lg:w-auto gap-2"
+            >
+
+              <input
+                type="email"
+                placeholder="Enter your school email"
+                className="h-12 flex-1 lg:w-[320px] rounded-xl border border-gray-200 bg-white px-4 text-sm outline-none focus:border-green-500"
+              />
+
+              <button
+                type="submit"
+                className="h-12 px-6 rounded-xl bg-green-600 text-white font-semibold text-sm hover:bg-green-700 transition"
+              >
+                Subscribe
+              </button>
+
+            </form>
 
           </div>
 
@@ -2856,242 +1129,273 @@ function Landing() {
       ===================================================== */}
 
       <footer
-        className="
-          border-t
-          border-gray-100
-          bg-white
-        "
+        id="contact"
+        className="bg-[#00261d] text-white"
       >
 
-        <div
-          className="
-            max-w-7xl
-            mx-auto
-            px-5
-            sm:px-8
-            lg:px-10
-            py-12
-          "
-        >
+        <div className="max-w-[1250px] mx-auto px-5 sm:px-8 py-14">
 
-          <div
-            className="
-              grid
-              sm:grid-cols-2
-              lg:grid-cols-4
-              gap-10
-            "
-          >
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-10">
 
             {/* BRAND */}
 
             <div className="lg:col-span-2">
 
-              <div className="flex items-center gap-3">
-
-                <div
-                  className="
-                    w-11
-                    h-11
-                    rounded-xl
-                    bg-green-600
-                    text-white
-                    flex
-                    items-center
-                    justify-center
-                  "
-                >
-                  <FiShoppingBag size={22} />
-                </div>
-
-                <div>
-
-                  <p
-                    className="
-                      text-xl
-                      font-bold
-                      text-gray-900
-                    "
-                  >
-                    Campus
-                    <span className="text-green-600">
-                      Mart
-                    </span>
-                  </p>
-
-                  <p
-                    className="
-                      text-xs
-                      text-gray-400
-                    "
-                  >
-                    Your Campus Marketplace
-                  </p>
-
-                </div>
-
-              </div>
-
-              <p
-                className="
-                  mt-5
-                  max-w-md
-                  text-sm
-                  leading-6
-                  text-gray-500
-                "
+              <Link
+                to="/"
+                className="inline-flex items-center gap-3"
               >
-                A marketplace built to help students buy,
-                sell and connect within their campus
-                community.
+
+                <div className="w-11 h-11 rounded-xl bg-green-600 flex items-center justify-center">
+                  <FiShoppingCart size={23} />
+                </div>
+
+                <span className="text-2xl font-black">
+                  Campus
+                  <span className="text-green-400">
+                    Mart
+                  </span>
+                </span>
+
+              </Link>
+
+              <p className="mt-5 text-sm leading-6 text-gray-300 max-w-[330px]">
+                The #1 marketplace for students to buy, sell and
+                connect within their campus community.
               </p>
 
-            </div>
+              {/* SOCIALS */}
 
-            {/* PLATFORM */}
+              <div className="mt-6 flex gap-3">
 
-            <div>
-
-              <h3
-                className="
-                  text-sm
-                  font-bold
-                  text-gray-900
-                "
-              >
-                Platform
-              </h3>
-
-              <div className="mt-4 space-y-3">
-
-                <button
-                  type="button"
-                  onClick={goToMarketplace}
-                  className="
-                    block
-                    text-sm
-                    text-gray-500
-                    hover:text-green-600
-                  "
+                <a
+                  href="#"
+                  onClick={(e) => e.preventDefault()}
+                  className="w-9 h-9 rounded-full border border-white/30 flex items-center justify-center hover:bg-green-600 hover:border-green-600 transition"
+                  aria-label="Facebook"
                 >
-                  Marketplace
-                </button>
+                  <FiFacebook />
+                </a>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    scrollToSection("categories")
-                  }
-                  className="
-                    block
-                    text-sm
-                    text-gray-500
-                    hover:text-green-600
-                  "
+                <a
+                  href="#"
+                  onClick={(e) => e.preventDefault()}
+                  className="w-9 h-9 rounded-full border border-white/30 flex items-center justify-center hover:bg-green-600 hover:border-green-600 transition"
+                  aria-label="Twitter"
                 >
-                  Categories
-                </button>
+                  <FiTwitter />
+                </a>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    scrollToSection("how-it-works")
-                  }
-                  className="
-                    block
-                    text-sm
-                    text-gray-500
-                    hover:text-green-600
-                  "
+                <a
+                  href="#"
+                  onClick={(e) => e.preventDefault()}
+                  className="w-9 h-9 rounded-full border border-white/30 flex items-center justify-center hover:bg-green-600 hover:border-green-600 transition"
+                  aria-label="Instagram"
                 >
-                  How it works
-                </button>
+                  <FiInstagram />
+                </a>
+
+                <a
+                  href="#"
+                  onClick={(e) => e.preventDefault()}
+                  className="w-9 h-9 rounded-full border border-white/30 flex items-center justify-center hover:bg-green-600 hover:border-green-600 transition"
+                  aria-label="Music"
+                >
+                  <FiMusic />
+                </a>
 
               </div>
 
             </div>
 
-            {/* ACCOUNT */}
+            {/* MARKETPLACE */}
 
             <div>
 
-              <h3
-                className="
-                  text-sm
-                  font-bold
-                  text-gray-900
-                "
-              >
-                Account
+              <h3 className="font-bold mb-5">
+                Marketplace
               </h3>
 
-              <div className="mt-4 space-y-3">
+              <ul className="space-y-3 text-sm text-gray-300">
 
-                <button
-                  type="button"
-                  onClick={goToLogin}
-                  className="
-                    block
-                    text-sm
-                    text-gray-500
-                    hover:text-green-600
-                  "
-                >
-                  Log in
-                </button>
+                <li>
+                  <button
+                    onClick={goToBrowse}
+                    className="hover:text-green-400"
+                  >
+                    Browse Products
+                  </button>
+                </li>
 
-                <button
-                  type="button"
-                  onClick={goToRegister}
-                  className="
-                    block
-                    text-sm
-                    text-gray-500
-                    hover:text-green-600
-                  "
-                >
-                  Create account
-                </button>
+                <li>
+                  <button
+                    onClick={goToBrowse}
+                    className="hover:text-green-400"
+                  >
+                    All Categories
+                  </button>
+                </li>
 
-              </div>
+                <li>
+                  <a
+                    href="#how-it-works"
+                    className="hover:text-green-400"
+                  >
+                    How It Works
+                  </a>
+                </li>
+
+                <li>
+                  <button
+                    onClick={goToRegister}
+                    className="hover:text-green-400"
+                  >
+                    Sell an Item
+                  </button>
+                </li>
+
+              </ul>
+
+            </div>
+
+            {/* COMPANY */}
+
+            <div>
+
+              <h3 className="font-bold mb-5">
+                Company
+              </h3>
+
+              <ul className="space-y-3 text-sm text-gray-300">
+
+                <li>
+                  <a
+                    href="#about"
+                    className="hover:text-green-400"
+                  >
+                    About Us
+                  </a>
+                </li>
+
+                <li>
+                  <a
+                    href="#contact"
+                    className="hover:text-green-400"
+                  >
+                    Contact Us
+                  </a>
+                </li>
+
+                <li>
+                  <a
+                    href="#"
+                    onClick={(e) => e.preventDefault()}
+                    className="hover:text-green-400"
+                  >
+                    Safety Tips
+                  </a>
+                </li>
+
+                <li>
+                  <a
+                    href="#"
+                    onClick={(e) => e.preventDefault()}
+                    className="hover:text-green-400"
+                  >
+                    Terms of Service
+                  </a>
+                </li>
+
+              </ul>
+
+            </div>
+
+            {/* SUPPORT */}
+
+            <div>
+
+              <h3 className="font-bold mb-5">
+                Support
+              </h3>
+
+              <ul className="space-y-3 text-sm text-gray-300">
+
+                <li>
+                  <a
+                    href="#"
+                    onClick={(e) => e.preventDefault()}
+                    className="hover:text-green-400"
+                  >
+                    Help Center
+                  </a>
+                </li>
+
+                <li>
+                  <a
+                    href="#"
+                    onClick={(e) => e.preventDefault()}
+                    className="hover:text-green-400"
+                  >
+                    FAQ
+                  </a>
+                </li>
+
+                <li>
+                  <a
+                    href="#"
+                    onClick={(e) => e.preventDefault()}
+                    className="hover:text-green-400"
+                  >
+                    Report a Problem
+                  </a>
+                </li>
+
+                <li>
+                  <a
+                    href="#"
+                    onClick={(e) => e.preventDefault()}
+                    className="hover:text-green-400"
+                  >
+                    Privacy Policy
+                  </a>
+                </li>
+
+              </ul>
 
             </div>
 
           </div>
 
-          <div
-            className="
-              mt-10
-              pt-6
-              border-t
-              border-gray-100
-              flex
-              flex-col
-              sm:flex-row
-              items-center
-              justify-between
-              gap-3
-            "
-          >
+          {/* CONTACT */}
 
-            <p
-              className="
-                text-xs
-                text-gray-400
-              "
-            >
-              © {new Date().getFullYear()} CampusMart.
-              All rights reserved.
-            </p>
+          <div className="mt-12 pt-8 border-t border-white/10">
 
-            <p
-              className="
-                text-xs
-                text-gray-400
-              "
-            >
-              Built for students, by students.
-            </p>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+
+              <div className="flex flex-wrap gap-5 text-sm text-gray-300">
+
+                <span className="flex items-center gap-2">
+                  <FiPhone className="text-green-400" />
+                  +234 816 123 4567
+                </span>
+
+                <span className="flex items-center gap-2">
+                  <FiMail className="text-green-400" />
+                  support@campusmart.com
+                </span>
+
+                <span className="flex items-center gap-2">
+                  <FiMapPin className="text-green-400" />
+                  Nigeria
+                </span>
+
+              </div>
+
+              <p className="text-sm text-gray-400">
+                © 2025 CampusMart. All rights reserved.
+              </p>
+
+            </div>
 
           </div>
 

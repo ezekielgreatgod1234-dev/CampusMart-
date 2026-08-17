@@ -1,6 +1,11 @@
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { useNavigate } from "react-router-dom";
 
+import { useAuth } from "../../context/AuthContext";
 import CustomerLayout from "../../layouts/CustomerLayout";
 
 import {
@@ -24,6 +29,50 @@ import {
 } from "react-icons/fi";
 
 /* =========================================================
+   THEME STORAGE
+========================================================= */
+
+const getThemeForUser = (userId) => {
+  if (!userId) {
+    return "light";
+  }
+
+  return (
+    localStorage.getItem(
+      `campusmart_theme_${userId}`
+    ) || "light"
+  );
+};
+
+/* =========================================================
+   THEME SUBSCRIPTION
+========================================================= */
+
+const subscribeToTheme = (callback) => {
+  window.addEventListener(
+    "campusmart-theme-change",
+    callback
+  );
+
+  window.addEventListener(
+    "storage",
+    callback
+  );
+
+  return () => {
+    window.removeEventListener(
+      "campusmart-theme-change",
+      callback
+    );
+
+    window.removeEventListener(
+      "storage",
+      callback
+    );
+  };
+};
+
+/* =========================================================
    SETTINGS
 ========================================================= */
 
@@ -35,10 +84,47 @@ function Settings({
   const navigate = useNavigate();
 
   /* =======================================================
+     FIREBASE USER
+  ======================================================= */
+
+  const { user } = useAuth();
+
+  const userId = user?.uid || null;
+
+  /* =======================================================
+     ACCOUNT-SPECIFIC THEME KEY
+
+     Example:
+
+     campusmart_theme_UID_A
+     campusmart_theme_UID_B
+  ======================================================= */
+
+  const themeStorageKey = userId
+    ? `campusmart_theme_${userId}`
+    : null;
+
+  /* =======================================================
+     ACCOUNT-SPECIFIC THEME
+
+     useSyncExternalStore avoids calling setState()
+     directly inside useEffect.
+  ======================================================= */
+
+  const theme = useSyncExternalStore(
+    subscribeToTheme,
+
+    () => getThemeForUser(userId),
+
+    () => "light"
+  );
+
+  /* =======================================================
      ACTIVE SECTION
   ======================================================= */
 
-  const [activeSection, setActiveSection] = useState("personal");
+  const [activeSection, setActiveSection] =
+    useState("personal");
 
   /* =======================================================
      PROFILE
@@ -46,125 +132,205 @@ function Settings({
 
   const getProfile = () => {
     try {
-      const savedProfile = localStorage.getItem("campusmart_profile");
+      const savedProfile =
+        localStorage.getItem(
+          `campusmart_profile_${userId}`
+        );
 
       if (savedProfile) {
         return JSON.parse(savedProfile);
       }
+
+      const oldProfile =
+        localStorage.getItem(
+          "campusmart_profile"
+        );
+
+      if (oldProfile) {
+        return JSON.parse(oldProfile);
+      }
     } catch (error) {
-      console.error("Could not load profile:", error);
+      console.error(
+        "Could not load profile:",
+        error
+      );
     }
 
     return {
-      fullName: "GreatGod",
-      email: "user@example.com",
+      fullName: user?.displayName || "GreatGod",
+      email:
+        user?.email ||
+        "user@example.com",
       phone: "08012345678",
       campus: "Abia State University",
       address: "Uturu, Abia State",
     };
   };
 
-  const [profile, setProfile] = useState(getProfile);
+  const [profile, setProfile] =
+    useState(getProfile);
 
   /* =======================================================
      PERSONAL INFORMATION
   ======================================================= */
 
-  const [personalForm, setPersonalForm] = useState({
-    fullName: profile.fullName || "",
-    email: profile.email || "",
-    phone: profile.phone || "",
-    campus: profile.campus || "",
-  });
+  const [personalForm, setPersonalForm] =
+    useState({
+      fullName:
+        profile.fullName || "",
+      email:
+        profile.email ||
+        user?.email ||
+        "",
+      phone:
+        profile.phone || "",
+      campus:
+        profile.campus || "",
+    });
 
-  const [personalSaved, setPersonalSaved] = useState(false);
+  const [personalSaved, setPersonalSaved] =
+    useState(false);
 
   /* =======================================================
      PASSWORD
   ======================================================= */
 
-  const [passwordForm, setPasswordForm] = useState({
-    currentPassword: "",
-    newPassword: "",
-    confirmPassword: "",
-  });
+  const [passwordForm, setPasswordForm] =
+    useState({
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    });
 
-  const [passwordMessage, setPasswordMessage] = useState("");
+  const [passwordMessage, setPasswordMessage] =
+    useState("");
 
   /* =======================================================
      PRIVACY
   ======================================================= */
 
-  const [profileVisibility, setProfileVisibility] = useState(() => {
-    return (
-      localStorage.getItem("campusmart_profile_visibility") ||
-      "campus"
-    );
-  });
+  const [profileVisibility, setProfileVisibility] =
+    useState(() => {
+      if (!userId) {
+        return "campus";
+      }
+
+      return (
+        localStorage.getItem(
+          `campusmart_profile_visibility_${userId}`
+        ) || "campus"
+      );
+    });
 
   /* =======================================================
      TWO FACTOR
   ======================================================= */
 
-  const [twoFactor, setTwoFactor] = useState(() => {
-    return localStorage.getItem("campusmart_two_factor") === "true";
-  });
+  const [twoFactor, setTwoFactor] =
+    useState(() => {
+      if (!userId) {
+        return false;
+      }
+
+      return (
+        localStorage.getItem(
+          `campusmart_two_factor_${userId}`
+        ) === "true"
+      );
+    });
 
   /* =======================================================
-     THEME
+     APPLY DARK MODE TO DOCUMENT
+
+     This effect only synchronizes React state
+     with the DOM. It does not call setState().
   ======================================================= */
 
-  const [theme, setTheme] = useState(() => {
-    return localStorage.getItem("campusmart_theme") || "light";
-  });
-
   useEffect(() => {
-    const root = document.documentElement;
+    const root =
+      document.documentElement;
 
-    root.classList.toggle("dark", theme === "dark");
+    if (theme === "dark") {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
 
-    localStorage.setItem("campusmart_theme", theme);
-  }, [theme]);
+    if (themeStorageKey) {
+      localStorage.setItem(
+        themeStorageKey,
+        theme
+      );
+    }
+  }, [
+    theme,
+    themeStorageKey,
+  ]);
 
   /* =======================================================
      CONTACT FORM
   ======================================================= */
 
-  const [contactForm, setContactForm] = useState({
-    subject: "",
-    message: "",
-  });
+  const [contactForm, setContactForm] =
+    useState({
+      subject: "",
+      message: "",
+    });
 
-  const [contactSent, setContactSent] = useState(false);
+  const [contactSent, setContactSent] =
+    useState(false);
 
-  // FIX: contactError must be inside Settings
-  const [contactError, setContactError] = useState("");
+  const [contactError, setContactError] =
+    useState("");
 
   /* =======================================================
      PASSWORD STRENGTH
   ======================================================= */
 
-  const getPasswordStrength = (password) => {
-    if (!password) return "";
+  const getPasswordStrength = (
+    password
+  ) => {
+    if (!password) {
+      return "";
+    }
 
     let score = 0;
 
-    if (password.length >= 8) score++;
-    if (/[A-Z]/.test(password)) score++;
-    if (/[a-z]/.test(password)) score++;
-    if (/[0-9]/.test(password)) score++;
-    if (/[^A-Za-z0-9]/.test(password)) score++;
+    if (password.length >= 8) {
+      score++;
+    }
 
-    if (score <= 2) return "Not strong enough";
-    if (score <= 4) return "Strong";
+    if (/[A-Z]/.test(password)) {
+      score++;
+    }
+
+    if (/[a-z]/.test(password)) {
+      score++;
+    }
+
+    if (/[0-9]/.test(password)) {
+      score++;
+    }
+
+    if (/[^A-Za-z0-9]/.test(password)) {
+      score++;
+    }
+
+    if (score <= 2) {
+      return "Not strong enough";
+    }
+
+    if (score <= 4) {
+      return "Strong";
+    }
 
     return "Very strong";
   };
 
-  // FIX: passwordForm is now available here
-  const passwordStrength = getPasswordStrength(
-    passwordForm.newPassword
-  );
+  const passwordStrength =
+    getPasswordStrength(
+      passwordForm.newPassword
+    );
 
   /* =======================================================
      MENU
@@ -173,6 +339,7 @@ function Settings({
   const menuSections = [
     {
       title: "Account",
+
       items: [
         {
           id: "personal",
@@ -189,6 +356,7 @@ function Settings({
 
     {
       title: "Privacy & Security",
+
       items: [
         {
           id: "visibility",
@@ -197,7 +365,8 @@ function Settings({
         },
         {
           id: "two-factor",
-          label: "Two-Factor Authentication",
+          label:
+            "Two-Factor Authentication",
           icon: FiShield,
         },
       ],
@@ -205,10 +374,12 @@ function Settings({
 
     {
       title: "Appearance",
+
       items: [
         {
           id: "appearance",
-          label: "Light & Dark Mode",
+          label:
+            "Light & Dark Mode",
           icon: FiSun,
         },
       ],
@@ -216,6 +387,7 @@ function Settings({
 
     {
       title: "Support",
+
       items: [
         {
           id: "help",
@@ -229,7 +401,8 @@ function Settings({
         },
         {
           id: "contact",
-          label: "Contact CampusMart",
+          label:
+            "Contact CampusMart",
           icon: FiMail,
         },
       ],
@@ -237,16 +410,21 @@ function Settings({
   ];
 
   /* =======================================================
-     PERSONAL INFORMATION CHANGE
+     PERSONAL INFORMATION
   ======================================================= */
 
   const handlePersonalChange = (e) => {
-    const { name, value } = e.target;
+    const {
+      name,
+      value,
+    } = e.target;
 
-    setPersonalForm((current) => ({
-      ...current,
-      [name]: value,
-    }));
+    setPersonalForm(
+      (current) => ({
+        ...current,
+        [name]: value,
+      })
+    );
 
     setPersonalSaved(false);
   };
@@ -263,12 +441,18 @@ function Settings({
 
     setProfile(updatedProfile);
 
+    const storageKey = userId
+      ? `campusmart_profile_${userId}`
+      : "campusmart_profile";
+
     localStorage.setItem(
-      "campusmart_profile",
+      storageKey,
       JSON.stringify(updatedProfile)
     );
 
-    window.dispatchEvent(new Event("profileUpdated"));
+    window.dispatchEvent(
+      new Event("profileUpdated")
+    );
 
     setPersonalSaved(true);
 
@@ -282,12 +466,17 @@ function Settings({
   ======================================================= */
 
   const handlePasswordChange = (e) => {
-    const { name, value } = e.target;
+    const {
+      name,
+      value,
+    } = e.target;
 
-    setPasswordForm((current) => ({
-      ...current,
-      [name]: value,
-    }));
+    setPasswordForm(
+      (current) => ({
+        ...current,
+        [name]: value,
+      })
+    );
 
     setPasswordMessage("");
   };
@@ -298,14 +487,20 @@ function Settings({
       !passwordForm.newPassword ||
       !passwordForm.confirmPassword
     ) {
-      setPasswordMessage("Please fill in all password fields.");
+      setPasswordMessage(
+        "Please fill in all password fields."
+      );
+
       return;
     }
 
-    if (passwordForm.newPassword.length < 8) {
+    if (
+      passwordForm.newPassword.length < 8
+    ) {
       setPasswordMessage(
         "Your new password must contain at least 8 characters."
       );
+
       return;
     }
 
@@ -316,12 +511,18 @@ function Settings({
       setPasswordMessage(
         "New password and confirmation password do not match."
       );
+
       return;
     }
 
     /*
-      Replace this with your real API request
-      when your backend is ready.
+      IMPORTANT:
+
+      This UI validation is ready.
+
+      Replace this section with Firebase
+      updatePassword() when connecting the
+      password form to Firebase Authentication.
     */
 
     setPasswordMessage("success");
@@ -341,11 +542,17 @@ function Settings({
      PROFILE VISIBILITY
   ======================================================= */
 
-  const handleVisibilityChange = (value) => {
+  const handleVisibilityChange = (
+    value
+  ) => {
     setProfileVisibility(value);
 
+    const key = userId
+      ? `campusmart_profile_visibility_${userId}`
+      : "campusmart_profile_visibility";
+
     localStorage.setItem(
-      "campusmart_profile_visibility",
+      key,
       value
     );
   };
@@ -355,12 +562,17 @@ function Settings({
   ======================================================= */
 
   const handleTwoFactor = () => {
-    const newValue = !twoFactor;
+    const newValue =
+      !twoFactor;
 
     setTwoFactor(newValue);
 
+    const key = userId
+      ? `campusmart_two_factor_${userId}`
+      : "campusmart_two_factor";
+
     localStorage.setItem(
-      "campusmart_two_factor",
+      key,
       String(newValue)
     );
   };
@@ -369,8 +581,23 @@ function Settings({
      THEME
   ======================================================= */
 
-  const handleTheme = (selectedTheme) => {
-    setTheme(selectedTheme);
+  const handleTheme = (
+    selectedTheme
+  ) => {
+    if (!userId) {
+      return;
+    }
+
+    localStorage.setItem(
+      `campusmart_theme_${userId}`,
+      selectedTheme
+    );
+
+    window.dispatchEvent(
+      new Event(
+        "campusmart-theme-change"
+      )
+    );
   };
 
   /* =======================================================
@@ -378,12 +605,17 @@ function Settings({
   ======================================================= */
 
   const handleContactChange = (e) => {
-    const { name, value } = e.target;
+    const {
+      name,
+      value,
+    } = e.target;
 
-    setContactForm((current) => ({
-      ...current,
-      [name]: value,
-    }));
+    setContactForm(
+      (current) => ({
+        ...current,
+        [name]: value,
+      })
+    );
 
     setContactSent(false);
     setContactError("");
@@ -394,12 +626,18 @@ function Settings({
     setContactSent(false);
 
     if (!contactForm.subject.trim()) {
-      setContactError("Please enter a subject.");
+      setContactError(
+        "Please enter a subject."
+      );
+
       return;
     }
 
     if (!contactForm.message.trim()) {
-      setContactError("Please enter your message.");
+      setContactError(
+        "Please enter your message."
+      );
+
       return;
     }
 
@@ -419,7 +657,9 @@ function Settings({
     <CustomerLayout
       cartCount={cartCount}
       wishlist={wishlist}
-      unreadMessages={unreadMessages}
+      unreadMessages={
+        unreadMessages
+      }
     >
       <div className="space-y-6">
 
@@ -430,19 +670,25 @@ function Settings({
         <div>
           <button
             type="button"
-            onClick={() => navigate("/dashboard")}
+            onClick={() =>
+              navigate("/dashboard")
+            }
             className="
               flex
               items-center
               gap-2
               text-gray-500
+              dark:text-gray-400
               hover:text-green-600
+              dark:hover:text-green-400
               transition
             "
           >
             <FiArrowLeft size={18} />
 
-            <span>Back to Dashboard</span>
+            <span>
+              Back to Dashboard
+            </span>
           </button>
 
           <div className="mt-5">
@@ -452,13 +698,22 @@ function Settings({
                 sm:text-3xl
                 font-bold
                 text-gray-800
+                dark:text-white
               "
             >
               Settings
             </h1>
 
-            <p className="mt-1 text-gray-500">
-              Manage your CampusMart account, privacy and preferences.
+            <p
+              className="
+                mt-1
+                text-gray-500
+                dark:text-gray-400
+              "
+            >
+              Manage your CampusMart
+              account, privacy and
+              preferences.
             </p>
           </div>
         </div>
@@ -483,11 +738,14 @@ function Settings({
           <div
             className="
               bg-white
+              dark:bg-gray-900
               rounded-2xl
               border
               border-gray-100
+              dark:border-gray-800
               p-4
               h-fit
+              shadow-sm
             "
           >
 
@@ -502,6 +760,7 @@ function Settings({
                 pb-4
                 border-b
                 border-gray-100
+                dark:border-gray-800
               "
             >
               <div
@@ -510,7 +769,9 @@ function Settings({
                   h-10
                   rounded-xl
                   bg-green-50
+                  dark:bg-green-900/30
                   text-green-600
+                  dark:text-green-400
                   flex
                   items-center
                   justify-center
@@ -520,11 +781,23 @@ function Settings({
               </div>
 
               <div>
-                <h2 className="font-bold text-gray-800">
+                <h2
+                  className="
+                    font-bold
+                    text-gray-800
+                    dark:text-white
+                  "
+                >
                   Settings
                 </h2>
 
-                <p className="text-xs text-gray-500">
+                <p
+                  className="
+                    text-xs
+                    text-gray-500
+                    dark:text-gray-400
+                  "
+                >
                   Account preferences
                 </p>
               </div>
@@ -534,103 +807,115 @@ function Settings({
 
             <div className="mt-4 space-y-5">
 
-              {menuSections.map((section) => (
-                <div key={section.title}>
-
-                  <p
-                    className="
-                      px-3
-                      mb-2
-                      text-[11px]
-                      font-semibold
-                      uppercase
-                      tracking-wider
-                      text-gray-400
-                    "
+              {menuSections.map(
+                (section) => (
+                  <div
+                    key={section.title}
                   >
-                    {section.title}
-                  </p>
+                    <p
+                      className="
+                        px-3
+                        mb-2
+                        text-[11px]
+                        font-semibold
+                        uppercase
+                        tracking-wider
+                        text-gray-400
+                        dark:text-gray-500
+                      "
+                    >
+                      {section.title}
+                    </p>
 
-                  <div className="space-y-1">
+                    <div className="space-y-1">
 
-                    {section.items.map((item) => {
-                      const Icon = item.icon;
+                      {section.items.map(
+                        (item) => {
+                          const Icon =
+                            item.icon;
 
-                      const active =
-                        activeSection === item.id;
+                          const active =
+                            activeSection ===
+                            item.id;
 
-                      return (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() =>
-                            setActiveSection(item.id)
-                          }
-                          className={`
-                            w-full
-                            flex
-                            items-center
-                            justify-between
-                            gap-3
-                            px-3
-                            py-3
-                            rounded-xl
-                            text-left
-                            transition
-                            ${
-                              active
-                                ? "bg-green-50 text-green-600"
-                                : "text-gray-600 hover:bg-gray-50 hover:text-green-600"
-                            }
-                          `}
-                        >
-
-                          <div className="flex items-center gap-3">
-
-                            <div
+                          return (
+                            <button
+                              key={item.id}
+                              type="button"
+                              onClick={() =>
+                                setActiveSection(
+                                  item.id
+                                )
+                              }
                               className={`
-                                w-9
-                                h-9
-                                rounded-lg
+                                w-full
                                 flex
                                 items-center
-                                justify-center
+                                justify-between
+                                gap-3
+                                px-3
+                                py-3
+                                rounded-xl
+                                text-left
+                                transition
                                 ${
                                   active
-                                    ? "bg-white text-green-600"
-                                    : "bg-gray-50 text-gray-400"
+                                    ? "bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400"
+                                    : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-green-600 dark:hover:text-green-400"
                                 }
                               `}
                             >
-                              <Icon size={17} />
-                            </div>
 
-                            <span
-                              className={`
-                                text-sm
-                                ${
-                                  active
-                                    ? "font-semibold"
-                                    : "font-medium"
-                                }
-                              `}
-                            >
-                              {item.label}
-                            </span>
+                              <div className="flex items-center gap-3">
 
-                          </div>
+                                <div
+                                  className={`
+                                    w-9
+                                    h-9
+                                    rounded-lg
+                                    flex
+                                    items-center
+                                    justify-center
+                                    ${
+                                      active
+                                        ? "bg-white dark:bg-gray-800 text-green-600 dark:text-green-400"
+                                        : "bg-gray-50 dark:bg-gray-800 text-gray-400"
+                                    }
+                                  `}
+                                >
+                                  <Icon size={17} />
+                                </div>
 
-                          {active && (
-                            <FiChevronRight size={16} />
-                          )}
+                                <span
+                                  className={`
+                                    text-sm
+                                    ${
+                                      active
+                                        ? "font-semibold"
+                                        : "font-medium"
+                                    }
+                                  `}
+                                >
+                                  {item.label}
+                                </span>
 
-                        </button>
-                      );
-                    })}
+                              </div>
 
+                              {active && (
+                                <FiChevronRight
+                                  size={16}
+                                />
+                              )}
+
+                            </button>
+                          );
+                        }
+                      )}
+
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              )}
 
             </div>
           </div>
@@ -643,19 +928,23 @@ function Settings({
             className="
               lg:col-span-2
               bg-white
+              dark:bg-gray-900
               rounded-2xl
               border
               border-gray-100
+              dark:border-gray-800
               p-5
               sm:p-6
+              shadow-sm
             "
           >
 
             {/* =================================================
-                PERSONAL INFORMATION
+                PERSONAL
             ================================================= */}
 
-            {activeSection === "personal" && (
+            {activeSection ===
+              "personal" && (
               <section>
 
                 <SettingsHeader
@@ -683,8 +972,12 @@ function Settings({
                   <SettingsInput
                     label="Full Name"
                     name="fullName"
-                    value={personalForm.fullName}
-                    onChange={handlePersonalChange}
+                    value={
+                      personalForm.fullName
+                    }
+                    onChange={
+                      handlePersonalChange
+                    }
                     icon={FiUser}
                   />
 
@@ -692,8 +985,12 @@ function Settings({
                     label="Email Address"
                     name="email"
                     type="email"
-                    value={personalForm.email}
-                    onChange={handlePersonalChange}
+                    value={
+                      personalForm.email
+                    }
+                    onChange={
+                      handlePersonalChange
+                    }
                     icon={FiMail}
                   />
 
@@ -701,16 +998,24 @@ function Settings({
                     label="Phone Number"
                     name="phone"
                     type="tel"
-                    value={personalForm.phone}
-                    onChange={handlePersonalChange}
+                    value={
+                      personalForm.phone
+                    }
+                    onChange={
+                      handlePersonalChange
+                    }
                     icon={FiUser}
                   />
 
                   <SettingsInput
                     label="Campus"
                     name="campus"
-                    value={personalForm.campus}
-                    onChange={handlePersonalChange}
+                    value={
+                      personalForm.campus
+                    }
+                    onChange={
+                      handlePersonalChange
+                    }
                     icon={FiEye}
                   />
 
@@ -722,13 +1027,16 @@ function Settings({
                     pt-5
                     border-t
                     border-gray-100
+                    dark:border-gray-800
                     flex
                     justify-end
                   "
                 >
                   <button
                     type="button"
-                    onClick={handlePersonalSave}
+                    onClick={
+                      handlePersonalSave
+                    }
                     className="
                       flex
                       items-center
@@ -755,10 +1063,11 @@ function Settings({
             )}
 
             {/* =================================================
-                CHANGE PASSWORD
+                PASSWORD
             ================================================= */}
 
-            {activeSection === "password" && (
+            {activeSection ===
+              "password" && (
               <section>
 
                 <SettingsHeader
@@ -772,30 +1081,36 @@ function Settings({
                   <PasswordField
                     label="Current Password"
                     name="currentPassword"
-                    value={passwordForm.currentPassword}
-                    onChange={handlePasswordChange}
+                    value={
+                      passwordForm.currentPassword
+                    }
+                    onChange={
+                      handlePasswordChange
+                    }
                     placeholder="Enter your current password"
                   />
 
                   <PasswordField
                     label="New Password"
                     name="newPassword"
-                    value={passwordForm.newPassword}
-                    onChange={handlePasswordChange}
+                    value={
+                      passwordForm.newPassword
+                    }
+                    onChange={
+                      handlePasswordChange
+                    }
                     placeholder="Enter your new password"
                   />
-
-                  {/* =================================================
-                      PASSWORD STRENGTH
-                  ================================================= */}
 
                   {passwordForm.newPassword && (
                     <div className="mt-2">
                       <p
                         className={`text-xs font-semibold ${
-                          passwordStrength === "Very strong"
+                          passwordStrength ===
+                          "Very strong"
                             ? "text-green-600"
-                            : passwordStrength === "Strong"
+                            : passwordStrength ===
+                              "Strong"
                             ? "text-yellow-600"
                             : "text-red-500"
                         }`}
@@ -808,31 +1123,47 @@ function Settings({
                   <PasswordField
                     label="Confirm New Password"
                     name="confirmPassword"
-                    value={passwordForm.confirmPassword}
-                    onChange={handlePasswordChange}
+                    value={
+                      passwordForm.confirmPassword
+                    }
+                    onChange={
+                      handlePasswordChange
+                    }
                     placeholder="Confirm your new password"
                   />
-
-                  {/* PASSWORD REQUIREMENTS */}
 
                   <div
                     className="
                       rounded-xl
                       bg-gray-50
+                      dark:bg-gray-800
                       border
                       border-gray-100
+                      dark:border-gray-700
                       p-4
                     "
                   >
                     <div className="flex items-center gap-2">
+
                       <FiKey
-                        className="text-green-600"
+                        className="
+                          text-green-600
+                          dark:text-green-400
+                        "
                         size={16}
                       />
 
-                      <p className="text-sm font-semibold text-gray-700">
+                      <p
+                        className="
+                          text-sm
+                          font-semibold
+                          text-gray-700
+                          dark:text-gray-200
+                        "
+                      >
                         Password requirements
                       </p>
+
                     </div>
 
                     <div
@@ -844,55 +1175,64 @@ function Settings({
                         gap-2
                       "
                     >
+
                       <PasswordRequirement
                         checked={
-                          passwordForm.newPassword.length >= 8
+                          passwordForm
+                            .newPassword
+                            .length >= 8
                         }
                         text="At least 8 characters"
                       />
 
                       <PasswordRequirement
-                        checked={
-                          /[A-Z]/.test(
-                            passwordForm.newPassword
-                          )
-                        }
+                        checked={/[A-Z]/.test(
+                          passwordForm.newPassword
+                        )}
                         text="One uppercase letter"
                       />
 
                       <PasswordRequirement
-                        checked={
-                          /[0-9]/.test(
-                            passwordForm.newPassword
-                          )
-                        }
+                        checked={/[0-9]/.test(
+                          passwordForm.newPassword
+                        )}
                         text="One number"
                       />
 
                       <PasswordRequirement
                         checked={
-                          passwordForm.newPassword.length > 0 &&
-                          passwordForm.newPassword ===
-                            passwordForm.confirmPassword
+                          passwordForm
+                            .newPassword
+                            .length > 0 &&
+                          passwordForm
+                            .newPassword ===
+                            passwordForm
+                              .confirmPassword
                         }
                         text="Passwords match"
                       />
+
                     </div>
                   </div>
 
-                  {passwordMessage === "success" ? (
+                  {passwordMessage ===
+                  "success" ? (
                     <SuccessMessage
                       message="Your password has been updated successfully."
                     />
                   ) : passwordMessage ? (
                     <ErrorMessage
-                      message={passwordMessage}
+                      message={
+                        passwordMessage
+                      }
                     />
                   ) : null}
 
                   <button
                     type="button"
-                    onClick={handlePasswordUpdate}
+                    onClick={
+                      handlePasswordUpdate
+                    }
                     className="
                       flex
                       items-center
@@ -920,10 +1260,11 @@ function Settings({
             )}
 
             {/* =================================================
-                PROFILE VISIBILITY
+                VISIBILITY
             ================================================= */}
 
-            {activeSection === "visibility" && (
+            {activeSection ===
+              "visibility" && (
               <section>
 
                 <SettingsHeader
@@ -935,9 +1276,14 @@ function Settings({
                 <div className="mt-6 space-y-3">
 
                   <VisibilityCard
-                    active={profileVisibility === "public"}
+                    active={
+                      profileVisibility ===
+                      "public"
+                    }
                     onClick={() =>
-                      handleVisibilityChange("public")
+                      handleVisibilityChange(
+                        "public"
+                      )
                     }
                     title="Everyone"
                     description="Anyone on CampusMart can view your profile."
@@ -945,9 +1291,14 @@ function Settings({
                   />
 
                   <VisibilityCard
-                    active={profileVisibility === "campus"}
+                    active={
+                      profileVisibility ===
+                      "campus"
+                    }
                     onClick={() =>
-                      handleVisibilityChange("campus")
+                      handleVisibilityChange(
+                        "campus"
+                      )
                     }
                     title="Campus Only"
                     description="Only students and users from your campus can view your profile."
@@ -955,9 +1306,14 @@ function Settings({
                   />
 
                   <VisibilityCard
-                    active={profileVisibility === "private"}
+                    active={
+                      profileVisibility ===
+                      "private"
+                    }
                     onClick={() =>
-                      handleVisibilityChange("private")
+                      handleVisibilityChange(
+                        "private"
+                      )
                     }
                     title="Private"
                     description="Your profile will only be visible to you."
@@ -971,21 +1327,37 @@ function Settings({
                     mt-5
                     rounded-xl
                     bg-green-50
+                    dark:bg-green-900/20
                     border
                     border-green-100
+                    dark:border-green-900/40
                     p-4
                     flex
                     gap-3
                   "
                 >
                   <FiShield
-                    className="text-green-600 mt-0.5 shrink-0"
+                    className="
+                      text-green-600
+                      dark:text-green-400
+                      mt-0.5
+                      shrink-0
+                    "
                     size={18}
                   />
 
-                  <p className="text-xs leading-5 text-gray-600">
-                    You can change your profile visibility at any
-                    time. Your account information remains protected.
+                  <p
+                    className="
+                      text-xs
+                      leading-5
+                      text-gray-600
+                      dark:text-gray-300
+                    "
+                  >
+                    You can change your profile
+                    visibility at any time. Your
+                    account information remains
+                    protected.
                   </p>
                 </div>
 
@@ -996,7 +1368,8 @@ function Settings({
                 TWO FACTOR
             ================================================= */}
 
-            {activeSection === "two-factor" && (
+            {activeSection ===
+              "two-factor" && (
               <section>
 
                 <SettingsHeader
@@ -1012,7 +1385,9 @@ function Settings({
                       rounded-2xl
                       border
                       border-gray-100
+                      dark:border-gray-700
                       bg-gray-50
+                      dark:bg-gray-800
                       p-5
                       sm:p-6
                     "
@@ -1037,7 +1412,9 @@ function Settings({
                             h-12
                             rounded-xl
                             bg-green-100
+                            dark:bg-green-900/30
                             text-green-600
+                            dark:text-green-400
                             flex
                             items-center
                             justify-center
@@ -1048,13 +1425,28 @@ function Settings({
                         </div>
 
                         <div>
-                          <h3 className="font-semibold text-gray-800">
+                          <h3
+                            className="
+                              font-semibold
+                              text-gray-800
+                              dark:text-white
+                            "
+                          >
                             Two-Factor Authentication
                           </h3>
 
-                          <p className="mt-1 text-sm text-gray-500 leading-6">
-                            Require an additional verification code
-                            whenever you sign in to your account.
+                          <p
+                            className="
+                              mt-1
+                              text-sm
+                              text-gray-500
+                              dark:text-gray-400
+                              leading-6
+                            "
+                          >
+                            Require an additional
+                            verification code whenever
+                            you sign in to your account.
                           </p>
 
                           <div
@@ -1070,11 +1462,12 @@ function Settings({
                               font-medium
                               ${
                                 twoFactor
-                                  ? "bg-green-100 text-green-600"
-                                  : "bg-gray-200 text-gray-500"
+                                  ? "bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400"
+                                  : "bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
                               }
                             `}
                           >
+
                             <span
                               className={`
                                 w-2
@@ -1091,14 +1484,19 @@ function Settings({
                             {twoFactor
                               ? "Protection Enabled"
                               : "Protection Disabled"}
+
                           </div>
                         </div>
 
                       </div>
 
                       <Toggle
-                        enabled={twoFactor}
-                        onClick={handleTwoFactor}
+                        enabled={
+                          twoFactor
+                        }
+                        onClick={
+                          handleTwoFactor
+                        }
                       />
 
                     </div>
@@ -1114,7 +1512,8 @@ function Settings({
                 APPEARANCE
             ================================================= */}
 
-            {activeSection === "appearance" && (
+            {activeSection ===
+              "appearance" && (
               <section>
 
                 <SettingsHeader
@@ -1134,19 +1533,31 @@ function Settings({
                 >
 
                   <ThemeCard
-                    active={theme === "light"}
+                    active={
+                      theme === "light"
+                    }
                     icon={FiSun}
                     title="Light Mode"
                     description="Use the clean and bright CampusMart appearance."
-                    onClick={() => handleTheme("light")}
+                    onClick={() =>
+                      handleTheme(
+                        "light"
+                      )
+                    }
                   />
 
                   <ThemeCard
-                    active={theme === "dark"}
+                    active={
+                      theme === "dark"
+                    }
                     icon={FiMoon}
                     title="Dark Mode"
                     description="Use a darker appearance that's easier on your eyes."
-                    onClick={() => handleTheme("dark")}
+                    onClick={() =>
+                      handleTheme(
+                        "dark"
+                      )
+                    }
                   />
 
                 </div>
@@ -1156,18 +1567,46 @@ function Settings({
                     mt-6
                     rounded-xl
                     bg-gray-50
+                    dark:bg-gray-800
                     border
                     border-gray-100
+                    dark:border-gray-700
                     p-4
                   "
                 >
-                  <p className="text-sm text-gray-600">
+                  <p
+                    className="
+                      text-sm
+                      text-gray-600
+                      dark:text-gray-300
+                    "
+                  >
                     Current theme:
-                    <span className="ml-1 font-semibold text-gray-800">
+
+                    <span
+                      className="
+                        ml-1
+                        font-semibold
+                        text-gray-800
+                        dark:text-white
+                      "
+                    >
                       {theme === "light"
                         ? "Light Mode"
                         : "Dark Mode"}
                     </span>
+                  </p>
+
+                  <p
+                    className="
+                      mt-1
+                      text-xs
+                      text-gray-500
+                      dark:text-gray-400
+                    "
+                  >
+                    Your theme is saved separately
+                    for this account.
                   </p>
                 </div>
 
@@ -1178,7 +1617,8 @@ function Settings({
                 HELP
             ================================================= */}
 
-            {activeSection === "help" && (
+            {activeSection ===
+              "help" && (
               <section>
 
                 <SettingsHeader
@@ -1201,14 +1641,22 @@ function Settings({
                     icon={FiMessageCircle}
                     title="Frequently Asked Questions"
                     description="Find answers to common CampusMart questions."
-                    onClick={() => setActiveSection("faq")}
+                    onClick={() =>
+                      setActiveSection(
+                        "faq"
+                      )
+                    }
                   />
 
                   <SupportCard
                     icon={FiMail}
                     title="Contact Support"
                     description="Send a message to the CampusMart support team."
-                    onClick={() => setActiveSection("contact")}
+                    onClick={() =>
+                      setActiveSection(
+                        "contact"
+                      )
+                    }
                   />
 
                 </div>
@@ -1218,24 +1666,45 @@ function Settings({
                     mt-5
                     rounded-2xl
                     bg-green-50
+                    dark:bg-green-900/20
                     border
                     border-green-100
+                    dark:border-green-900/40
                     p-6
                   "
                 >
-                  <h3 className="font-bold text-gray-800">
+                  <h3
+                    className="
+                      font-bold
+                      text-gray-800
+                      dark:text-white
+                    "
+                  >
                     We're here to help.
                   </h3>
 
-                  <p className="mt-2 text-sm text-gray-600 leading-6">
-                    If you're having trouble with an order, payment,
-                    account or seller, our support team can help you
-                    resolve the issue.
+                  <p
+                    className="
+                      mt-2
+                      text-sm
+                      text-gray-600
+                      dark:text-gray-300
+                      leading-6
+                    "
+                  >
+                    If you're having trouble with
+                    an order, payment, account or
+                    seller, our support team can help
+                    you resolve the issue.
                   </p>
 
                   <button
                     type="button"
-                    onClick={() => setActiveSection("contact")}
+                    onClick={() =>
+                      setActiveSection(
+                        "contact"
+                      )
+                    }
                     className="
                       mt-5
                       flex
@@ -1252,6 +1721,7 @@ function Settings({
                     "
                   >
                     <FiMail size={16} />
+
                     Contact Support
                   </button>
                 </div>
@@ -1263,7 +1733,8 @@ function Settings({
                 FAQ
             ================================================= */}
 
-            {activeSection === "faq" && (
+            {activeSection ===
+              "faq" && (
               <section>
 
                 <SettingsHeader
@@ -1313,7 +1784,8 @@ function Settings({
                 CONTACT
             ================================================= */}
 
-            {activeSection === "contact" && (
+            {activeSection ===
+              "contact" && (
               <section>
 
                 <SettingsHeader
@@ -1328,9 +1800,14 @@ function Settings({
                   />
                 )}
 
-                {/* FIX: contactError JSX is now inside component */}
                 {contactError && (
-                  <p className="mt-3 text-sm text-red-500">
+                  <p
+                    className="
+                      mt-3
+                      text-sm
+                      text-red-500
+                    "
+                  >
                     {contactError}
                   </p>
                 )}
@@ -1345,6 +1822,7 @@ function Settings({
                         text-sm
                         font-medium
                         text-gray-700
+                        dark:text-gray-300
                         mb-2
                       "
                     >
@@ -1354,8 +1832,12 @@ function Settings({
                     <input
                       type="text"
                       name="subject"
-                      value={contactForm.subject}
-                      onChange={handleContactChange}
+                      value={
+                        contactForm.subject
+                      }
+                      onChange={
+                        handleContactChange
+                      }
                       placeholder="What can we help you with?"
                       className="
                         w-full
@@ -1364,10 +1846,16 @@ function Settings({
                         rounded-xl
                         border
                         border-gray-200
+                        dark:border-gray-700
                         bg-gray-50
+                        dark:bg-gray-800
                         text-sm
+                        text-gray-800
+                        dark:text-white
+                        placeholder-gray-400
                         outline-none
                         focus:bg-white
+                        dark:focus:bg-gray-800
                         focus:border-green-500
                         transition
                       "
@@ -1383,6 +1871,7 @@ function Settings({
                         text-sm
                         font-medium
                         text-gray-700
+                        dark:text-gray-300
                         mb-2
                       "
                     >
@@ -1392,8 +1881,12 @@ function Settings({
                     <textarea
                       rows={6}
                       name="message"
-                      value={contactForm.message}
-                      onChange={handleContactChange}
+                      value={
+                        contactForm.message
+                      }
+                      onChange={
+                        handleContactChange
+                      }
                       placeholder="Write your message..."
                       className="
                         w-full
@@ -1402,11 +1895,17 @@ function Settings({
                         rounded-xl
                         border
                         border-gray-200
+                        dark:border-gray-700
                         bg-gray-50
+                        dark:bg-gray-800
                         text-sm
+                        text-gray-800
+                        dark:text-white
+                        placeholder-gray-400
                         outline-none
                         resize-none
                         focus:bg-white
+                        dark:focus:bg-gray-800
                         focus:border-green-500
                         transition
                       "
@@ -1423,7 +1922,9 @@ function Settings({
                   >
                     <button
                       type="button"
-                      onClick={handleContactSubmit}
+                      onClick={
+                        handleContactSubmit
+                      }
                       className="
                         flex
                         items-center
@@ -1475,6 +1976,7 @@ const SettingsHeader = ({
         pb-5
         border-b
         border-gray-100
+        dark:border-gray-800
       "
     >
       <div
@@ -1483,7 +1985,9 @@ const SettingsHeader = ({
           h-11
           rounded-xl
           bg-green-50
+          dark:bg-green-900/30
           text-green-600
+          dark:text-green-400
           flex
           items-center
           justify-center
@@ -1500,12 +2004,20 @@ const SettingsHeader = ({
             sm:text-2xl
             font-bold
             text-gray-800
+            dark:text-white
           "
         >
           {title}
         </h2>
 
-        <p className="mt-1 text-sm text-gray-500">
+        <p
+          className="
+            mt-1
+            text-sm
+            text-gray-500
+            dark:text-gray-400
+          "
+        >
           {description}
         </p>
       </div>
@@ -1533,6 +2045,7 @@ const SettingsInput = ({
           text-sm
           font-medium
           text-gray-700
+          dark:text-gray-300
           mb-2
         "
       >
@@ -1565,11 +2078,15 @@ const SettingsInput = ({
             rounded-xl
             border
             border-gray-200
+            dark:border-gray-700
             bg-gray-50
+            dark:bg-gray-800
             text-sm
             text-gray-700
+            dark:text-white
             outline-none
             focus:bg-white
+            dark:focus:bg-gray-800
             focus:border-green-500
             transition
           "
@@ -1591,17 +2108,33 @@ const PasswordField = ({
   onChange,
   placeholder,
 }) => {
-  const [show, setShow] = useState(false);
+  const [show, setShow] =
+    useState(false);
 
   return (
     <div>
-      <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+
+      <label
+        className="
+          mb-2
+          block
+          text-sm
+          font-medium
+          text-gray-700
+          dark:text-gray-300
+        "
+      >
         {label}
       </label>
 
       <div className="relative">
+
         <input
-          type={show ? "text" : "password"}
+          type={
+            show
+              ? "text"
+              : "password"
+          }
           name={name}
           value={value}
           onChange={onChange}
@@ -1620,6 +2153,7 @@ const PasswordField = ({
             text-sm
             text-gray-800
             dark:text-white
+            placeholder-gray-400
             outline-none
             focus:border-green-500
           "
@@ -1627,7 +2161,9 @@ const PasswordField = ({
 
         <button
           type="button"
-          onClick={() => setShow(!show)}
+          onClick={() =>
+            setShow(!show)
+          }
           className="
             absolute
             right-3
@@ -1637,8 +2173,13 @@ const PasswordField = ({
             hover:text-green-600
           "
         >
-          {show ? <FiEyeOff /> : <FiEye />}
+          {show ? (
+            <FiEyeOff />
+          ) : (
+            <FiEye />
+          )}
         </button>
+
       </div>
     </div>
   );
@@ -1671,8 +2212,8 @@ const PasswordRequirement = ({
           justify-center
           ${
             checked
-              ? "bg-green-100 text-green-600"
-              : "bg-gray-200 text-gray-400"
+              ? "bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400"
+              : "bg-gray-200 dark:bg-gray-700 text-gray-400"
           }
         `}
       >
@@ -1682,8 +2223,8 @@ const PasswordRequirement = ({
       <span
         className={
           checked
-            ? "text-green-600"
-            : "text-gray-500"
+            ? "text-green-600 dark:text-green-400"
+            : "text-gray-500 dark:text-gray-400"
         }
       >
         {text}
@@ -1720,8 +2261,8 @@ const VisibilityCard = ({
         transition
         ${
           active
-            ? "border-green-500 bg-green-50"
-            : "border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50"
+            ? "border-green-500 bg-green-50 dark:bg-green-900/20"
+            : "border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 hover:border-gray-200 dark:hover:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
         }
       `}
     >
@@ -1739,8 +2280,8 @@ const VisibilityCard = ({
             shrink-0
             ${
               active
-                ? "bg-white text-green-600"
-                : "bg-gray-50 text-gray-400"
+                ? "bg-white dark:bg-gray-800 text-green-600 dark:text-green-400"
+                : "bg-gray-50 dark:bg-gray-800 text-gray-400"
             }
           `}
         >
@@ -1749,11 +2290,26 @@ const VisibilityCard = ({
 
         <div>
 
-          <h3 className="text-sm font-semibold text-gray-800">
+          <h3
+            className="
+              text-sm
+              font-semibold
+              text-gray-800
+              dark:text-white
+            "
+          >
             {title}
           </h3>
 
-          <p className="mt-1 text-xs leading-5 text-gray-500">
+          <p
+            className="
+              mt-1
+              text-xs
+              leading-5
+              text-gray-500
+              dark:text-gray-400
+            "
+          >
             {description}
           </p>
 
@@ -1774,7 +2330,7 @@ const VisibilityCard = ({
           ${
             active
               ? "border-green-600 bg-green-600"
-              : "border-gray-300"
+              : "border-gray-300 dark:border-gray-600"
           }
         `}
       >
@@ -1813,7 +2369,7 @@ const Toggle = ({
         ${
           enabled
             ? "bg-green-600"
-            : "bg-gray-300"
+            : "bg-gray-300 dark:bg-gray-600"
         }
       `}
     >
@@ -1862,8 +2418,8 @@ const ThemeCard = ({
         transition
         ${
           active
-            ? "border-green-500 bg-green-50"
-            : "border-gray-100 hover:border-gray-200 hover:bg-gray-50"
+            ? "border-green-500 bg-green-50 dark:bg-green-900/20"
+            : "border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 hover:border-gray-200 dark:hover:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
         }
       `}
     >
@@ -1886,8 +2442,8 @@ const ThemeCard = ({
             justify-center
             ${
               active
-                ? "bg-white text-green-600"
-                : "bg-gray-100 text-gray-500"
+                ? "bg-white dark:bg-gray-800 text-green-600 dark:text-green-400"
+                : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400"
             }
           `}
         >
@@ -1906,7 +2462,7 @@ const ThemeCard = ({
             ${
               active
                 ? "border-green-600 bg-green-600"
-                : "border-gray-300"
+                : "border-gray-300 dark:border-gray-600"
             }
           `}
         >
@@ -1920,11 +2476,27 @@ const ThemeCard = ({
 
       </div>
 
-      <h3 className="mt-5 text-sm font-bold text-gray-800">
+      <h3
+        className="
+          mt-5
+          text-sm
+          font-bold
+          text-gray-800
+          dark:text-white
+        "
+      >
         {title}
       </h3>
 
-      <p className="mt-1 text-xs leading-5 text-gray-500">
+      <p
+        className="
+          mt-1
+          text-xs
+          leading-5
+          text-gray-500
+          dark:text-gray-400
+        "
+      >
         {description}
       </p>
 
@@ -1951,9 +2523,14 @@ const SupportCard = ({
         rounded-2xl
         border
         border-gray-100
+        dark:border-gray-800
         text-left
+        bg-white
+        dark:bg-gray-900
         hover:border-green-200
+        dark:hover:border-green-800
         hover:bg-green-50
+        dark:hover:bg-green-900/20
         transition
       "
     >
@@ -1964,7 +2541,9 @@ const SupportCard = ({
           h-11
           rounded-xl
           bg-green-50
+          dark:bg-green-900/30
           text-green-600
+          dark:text-green-400
           flex
           items-center
           justify-center
@@ -1973,11 +2552,27 @@ const SupportCard = ({
         <Icon size={20} />
       </div>
 
-      <h3 className="mt-4 text-sm font-bold text-gray-800">
+      <h3
+        className="
+          mt-4
+          text-sm
+          font-bold
+          text-gray-800
+          dark:text-white
+        "
+      >
         {title}
       </h3>
 
-      <p className="mt-1 text-xs leading-5 text-gray-500">
+      <p
+        className="
+          mt-1
+          text-xs
+          leading-5
+          text-gray-500
+          dark:text-gray-400
+        "
+      >
         {description}
       </p>
 
@@ -1990,6 +2585,7 @@ const SupportCard = ({
           text-xs
           font-semibold
           text-green-600
+          dark:text-green-400
         "
       >
         Open
@@ -2016,7 +2612,9 @@ const FAQ = ({
         rounded-2xl
         border
         border-gray-100
+        dark:border-gray-800
         bg-white
+        dark:bg-gray-900
         overflow-hidden
       "
     >
@@ -2033,10 +2631,13 @@ const FAQ = ({
           text-sm
           font-semibold
           text-gray-800
+          dark:text-white
         "
       >
 
-        <span>{question}</span>
+        <span>
+          {question}
+        </span>
 
         <FiChevronRight
           size={18}
@@ -2057,6 +2658,7 @@ const FAQ = ({
           text-sm
           leading-6
           text-gray-500
+          dark:text-gray-400
         "
       >
         {answer}
@@ -2083,17 +2685,22 @@ const SuccessMessage = ({
         rounded-xl
         border
         border-green-100
+        dark:border-green-900/40
         bg-green-50
+        dark:bg-green-900/20
         p-4
       "
     >
+
       <div
         className="
           w-7
           h-7
           rounded-full
           bg-green-100
+          dark:bg-green-900/40
           text-green-600
+          dark:text-green-400
           flex
           items-center
           justify-center
@@ -2103,9 +2710,16 @@ const SuccessMessage = ({
         <FiCheck size={15} />
       </div>
 
-      <p className="text-sm text-green-700">
+      <p
+        className="
+          text-sm
+          text-green-700
+          dark:text-green-400
+        "
+      >
         {message}
       </p>
+
     </div>
   );
 };
@@ -2126,20 +2740,38 @@ const ErrorMessage = ({
         rounded-xl
         border
         border-red-100
+        dark:border-red-900/40
         bg-red-50
+        dark:bg-red-900/20
         p-4
       "
     >
+
       <FiAlertCircle
-        className="text-red-500 mt-0.5 shrink-0"
+        className="
+          text-red-500
+          mt-0.5
+          shrink-0
+        "
         size={18}
       />
 
-      <p className="text-sm text-red-600">
+      <p
+        className="
+          text-sm
+          text-red-600
+          dark:text-red-400
+        "
+      >
         {message}
       </p>
+
     </div>
   );
 };
+
+/* =========================================================
+   EXPORT
+========================================================= */
 
 export default Settings;

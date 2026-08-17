@@ -10,28 +10,16 @@ import {
 
 import { useNavigate } from "react-router-dom";
 
+import { doc, onSnapshot } from "firebase/firestore";
+
+import { useAuth } from "../../context/AuthContext";
+import { db } from "../../context/firebase";
+
 const DEFAULT_PROFILE = {
   fullName: "GreatGod",
   role: "Customer",
   profileImage: null,
 };
-
-function getProfile() {
-  try {
-    const savedProfile = localStorage.getItem("campusmart_profile");
-
-    if (savedProfile) {
-      return {
-        ...DEFAULT_PROFILE,
-        ...JSON.parse(savedProfile),
-      };
-    }
-  } catch (error) {
-    console.error("Could not load profile:", error);
-  }
-
-  return DEFAULT_PROFILE;
-}
 
 function Navbar({
   setSidebarOpen,
@@ -41,33 +29,92 @@ function Navbar({
 }) {
   const navigate = useNavigate();
 
+  const { firebaseUser } = useAuth();
+
   const [search, setSearch] = useState("");
 
-  const [profile, setProfile] = useState(getProfile);
+  const [profile, setProfile] = useState(DEFAULT_PROFILE);
 
   const wishlistCount = wishlist.length;
 
   // =====================================================
-  // LISTEN FOR PROFILE CHANGES
+  // LOAD CURRENT USER PROFILE
   // =====================================================
 
   useEffect(() => {
-    const updateProfile = () => {
-      setProfile(getProfile());
-    };
+    // Do NOT call setProfile() directly here.
+    //
+    // If there is no logged-in user, simply stop.
+    // The initial state is already DEFAULT_PROFILE.
 
-    window.addEventListener(
-      "profileUpdated",
-      updateProfile
+    if (!firebaseUser?.uid) {
+      return undefined;
+    }
+
+    // Each user gets their OWN Firestore document:
+    //
+    // users/
+    //    USER_A_UID
+    //
+    //    USER_B_UID
+    //
+    // This prevents User A from seeing User B's profile.
+
+    const profileRef = doc(
+      db,
+      "users",
+      firebaseUser.uid
+    );
+
+    const unsubscribe = onSnapshot(
+      profileRef,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+
+          setProfile({
+            ...DEFAULT_PROFILE,
+            ...data,
+
+            // Always use Firebase auth email if available
+            // when the Firestore email is missing.
+            email:
+              data.email ||
+              firebaseUser.email ||
+              "",
+          });
+
+          return;
+        }
+
+        // If the user document does not exist,
+        // create a profile from Firebase Auth data
+        // in memory only.
+        setProfile({
+          ...DEFAULT_PROFILE,
+          fullName:
+            firebaseUser.displayName ||
+            DEFAULT_PROFILE.fullName,
+          email:
+            firebaseUser.email ||
+            "",
+          profileImage:
+            firebaseUser.photoURL ||
+            null,
+        });
+      },
+      (error) => {
+        console.error(
+          "Could not load profile:",
+          error
+        );
+      }
     );
 
     return () => {
-      window.removeEventListener(
-        "profileUpdated",
-        updateProfile
-      );
+      unsubscribe();
     };
-  }, []);
+  }, [firebaseUser?.uid, firebaseUser?.email, firebaseUser?.displayName, firebaseUser?.photoURL]);
 
   // =====================================================
   // SEARCH
@@ -90,9 +137,12 @@ function Navbar({
     );
   };
 
+  // =====================================================
+  // RENDER
+  // =====================================================
+
   return (
     <header className="bg-green-800 text-white">
-
       <div
         className="
           h-20
@@ -104,8 +154,9 @@ function Navbar({
           gap-4
         "
       >
-
-        {/* LEFT */}
+        {/* =================================================
+            LEFT
+        ================================================= */}
 
         <div
           className="
@@ -115,7 +166,6 @@ function Navbar({
             flex-1
           "
         >
-
           {/* MENU */}
 
           <button
@@ -145,7 +195,6 @@ function Navbar({
               max-w-md
             "
           >
-
             <FiSearch
               className="
                 absolute
@@ -179,12 +228,12 @@ function Navbar({
                 focus:ring-green-400
               "
             />
-
           </form>
-
         </div>
 
-        {/* RIGHT */}
+        {/* =================================================
+            RIGHT
+        ================================================= */}
 
         <div
           className="
@@ -194,8 +243,9 @@ function Navbar({
             sm:gap-4
           "
         >
-
-          {/* CART */}
+          {/* =================================================
+              CART
+          ================================================= */}
 
           <button
             type="button"
@@ -212,7 +262,6 @@ function Navbar({
             "
             title="Cart"
           >
-
             <FiShoppingCart className="text-xl" />
 
             {cartCount > 0 && (
@@ -234,13 +283,16 @@ function Navbar({
                   justify-center
                 "
               >
-                {cartCount > 99 ? "99+" : cartCount}
+                {cartCount > 99
+                  ? "99+"
+                  : cartCount}
               </span>
             )}
-
           </button>
 
-          {/* WISHLIST */}
+          {/* =================================================
+              WISHLIST
+          ================================================= */}
 
           <button
             type="button"
@@ -257,7 +309,6 @@ function Navbar({
             "
             title="Wishlist"
           >
-
             <FiHeart className="text-xl" />
 
             {wishlistCount > 0 && (
@@ -284,10 +335,11 @@ function Navbar({
                   : wishlistCount}
               </span>
             )}
-
           </button>
 
-          {/* MESSAGES */}
+          {/* =================================================
+              MESSAGES
+          ================================================= */}
 
           <button
             type="button"
@@ -305,7 +357,6 @@ function Navbar({
             "
             title="Messages"
           >
-
             <FiMessageCircle className="text-xl" />
 
             {unreadMessages > 0 && (
@@ -332,10 +383,11 @@ function Navbar({
                   : unreadMessages}
               </span>
             )}
-
           </button>
 
-          {/* PROFILE */}
+          {/* =================================================
+              PROFILE
+          ================================================= */}
 
           <button
             type="button"
@@ -352,7 +404,6 @@ function Navbar({
               transition
             "
           >
-
             {/* PROFILE IMAGE */}
 
             <div
@@ -369,7 +420,6 @@ function Navbar({
                 font-bold
               "
             >
-
               {profile.profileImage ? (
                 <img
                   src={profile.profileImage}
@@ -387,7 +437,6 @@ function Navbar({
                     ?.toUpperCase() || "G"}
                 </span>
               )}
-
             </div>
 
             {/* NAME */}
@@ -399,7 +448,6 @@ function Navbar({
                 text-left
               "
             >
-
               <h3 className="font-semibold text-sm">
                 {profile.fullName || "GreatGod"}
               </h3>
@@ -407,15 +455,10 @@ function Navbar({
               <p className="text-xs text-green-200">
                 {profile.role || "Customer"}
               </p>
-
             </div>
-
           </button>
-
         </div>
-
       </div>
-
     </header>
   );
 }

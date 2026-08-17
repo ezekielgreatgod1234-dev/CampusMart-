@@ -15,63 +15,80 @@ import {
   FiCamera,
 } from "react-icons/fi";
 
+// =========================================================
+// DEFAULT PROFILE
+// =========================================================
+
 const DEFAULT_PROFILE = {
-  fullName: "GreatGod",
-  email: "user@example.com",
-  phone: "08012345678",
-  campus: "Abia State University",
-  address: "Uturu, Abia State",
+  fullName: "",
+  email: "",
+  phone: "",
+  campus: "",
+  address: "",
   profileImage: null,
-  role: "Customer",
+  role: "",
 };
 
-function getSavedProfile() {
-  try {
-    const savedProfile = localStorage.getItem("campusmart_profile");
+// =========================================================
+// PROFILE
+// =========================================================
 
-    if (savedProfile) {
-      return {
-        ...DEFAULT_PROFILE,
-        ...JSON.parse(savedProfile),
-      };
-    }
-  } catch (error) {
-    console.error("Could not load profile:", error);
-  }
+function Profile({
+  profile: profileFromApp,
+  updateProfile,
 
-  return DEFAULT_PROFILE;
-}
-
-function Profile({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
+  cartCount = 0,
+  wishlist = [],
+  unreadMessages = 0,
+}) {
   const navigate = useNavigate();
 
-  // =====================================================
-  // PROFILE
-  // =====================================================
+  // =======================================================
+  // PROFILE FROM APP
+  //
+  // IMPORTANT:
+  //
+  // Profile.jsx does NOT use localStorage.
+  //
+  // App.jsx should load the profile using:
+  //
+  // users/{firebaseUser.uid}
+  //
+  // This keeps User A and User B completely separate.
+  // =======================================================
 
-  const [profile, setProfile] = useState(getSavedProfile);
+  const profile = {
+    ...DEFAULT_PROFILE,
+    ...(profileFromApp || {}),
+  };
 
-  // =====================================================
+  // =======================================================
   // EDIT MODE
-  // =====================================================
+  // =======================================================
 
   const [editing, setEditing] = useState(false);
 
-  // =====================================================
+  // =======================================================
   // FORM DATA
-  // =====================================================
+  // =======================================================
 
   const [formData, setFormData] = useState(profile);
 
-  // =====================================================
+  // =======================================================
+  // SAVING
+  // =======================================================
+
+  const [saving, setSaving] = useState(false);
+
+  // =======================================================
   // FILE INPUT
-  // =====================================================
+  // =======================================================
 
   const fileInputRef = useRef(null);
 
-  // =====================================================
+  // =======================================================
   // INPUT CHANGE
-  // =====================================================
+  // =======================================================
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -82,93 +99,236 @@ function Profile({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
     }));
   };
 
-  // =====================================================
+  // =======================================================
+  // OPEN IMAGE SELECTOR
+  // =======================================================
+
+  const handleCameraClick = () => {
+    if (saving) {
+      return;
+    }
+
+    fileInputRef.current?.click();
+  };
+
+  // =======================================================
   // CHANGE PROFILE PICTURE
-  // =====================================================
+  //
+  // IMPORTANT:
+  //
+  // No localStorage.
+  //
+  // updateProfile() is responsible for saving the image
+  // to the currently logged-in Firebase user's document.
+  //
+  // users/{firebaseUser.uid}
+  // =======================================================
 
   const handleProfileImage = (e) => {
     const file = e.target.files?.[0];
 
-    if (!file) return;
+    if (!file) {
+      return;
+    }
+
+    // -----------------------------------------------
+    // Check image type
+    // -----------------------------------------------
 
     if (!file.type.startsWith("image/")) {
       alert("Please select an image file.");
+
+      e.target.value = "";
+      return;
+    }
+
+    // -----------------------------------------------
+    // Keep Firestore document reasonably small
+    // -----------------------------------------------
+
+    if (file.size > 700 * 1024) {
+      alert(
+        "Please choose a profile image smaller than 700 KB.",
+      );
+
+      e.target.value = "";
       return;
     }
 
     const reader = new FileReader();
 
-    reader.onload = () => {
-      const imageUrl = reader.result;
+    reader.onload = async () => {
+      try {
+        const imageUrl = reader.result;
 
-      const updatedProfile = {
-        ...profile,
-        profileImage: imageUrl,
-      };
+        if (!imageUrl) {
+          return;
+        }
 
-      setProfile(updatedProfile);
+        if (typeof updateProfile !== "function") {
+          console.error(
+            "updateProfile was not provided to Profile.jsx",
+          );
 
-      localStorage.setItem(
-        "campusmart_profile",
-        JSON.stringify(updatedProfile),
-      );
+          alert(
+            "Profile update function is not available.",
+          );
 
-      // Tell Navbar and other components
-      // that the profile has changed.
-      window.dispatchEvent(new Event("profileUpdated"));
+          return;
+        }
+
+        setSaving(true);
+
+        // ---------------------------------------------
+        // Save through App.jsx
+        //
+        // App.jsx must save to:
+        //
+        // users/{firebaseUser.uid}
+        // ---------------------------------------------
+
+        await updateProfile({
+          profileImage: imageUrl,
+        });
+
+        // ---------------------------------------------
+        // Tell other components that profile changed.
+        //
+        // Navbar can listen for this event.
+        // ---------------------------------------------
+
+        window.dispatchEvent(
+          new Event("profileUpdated"),
+        );
+      } catch (error) {
+        console.error(
+          "Error updating profile picture:",
+          error,
+        );
+
+        alert(
+          "Could not update your profile picture. Please try again.",
+        );
+      } finally {
+        setSaving(false);
+      }
+    };
+
+    reader.onerror = () => {
+      alert("Could not read the selected image.");
+
+      setSaving(false);
     };
 
     reader.readAsDataURL(file);
+
+    // Allow the same image to be selected again.
+    e.target.value = "";
   };
 
-  // =====================================================
-  // OPEN IMAGE SELECTOR
-  // =====================================================
-
-  const handleCameraClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  // =====================================================
+  // =======================================================
   // EDIT PROFILE
-  // =====================================================
+  // =======================================================
 
   const handleEdit = () => {
-    setFormData(profile);
+    // Copy the latest profile into the form.
+    setFormData({
+      ...DEFAULT_PROFILE,
+      ...profile,
+    });
+
     setEditing(true);
   };
 
-  // =====================================================
+  // =======================================================
   // SAVE PROFILE
-  // =====================================================
+  // =======================================================
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (typeof updateProfile !== "function") {
+      console.error(
+        "updateProfile was not provided to Profile.jsx",
+      );
+
+      alert(
+        "Profile update function is not available.",
+      );
+
+      return;
+    }
+
+    // -----------------------------------------------
+    // Only save editable fields.
+    //
+    // Do not overwrite profileImage or role here.
+    // -----------------------------------------------
+
     const updatedProfile = {
-      ...profile,
-      fullName: formData.fullName,
-      email: formData.email,
-      phone: formData.phone,
-      campus: formData.campus,
-      address: formData.address,
+      fullName: formData.fullName?.trim() || "",
+      email: formData.email?.trim() || "",
+      phone: formData.phone?.trim() || "",
+      campus: formData.campus?.trim() || "",
+      address: formData.address?.trim() || "",
     };
 
-    setProfile(updatedProfile);
+    try {
+      setSaving(true);
 
-    localStorage.setItem("campusmart_profile", JSON.stringify(updatedProfile));
+      // ---------------------------------------------
+      // App.jsx saves this to the logged-in user's
+      // Firebase document:
+      //
+      // users/{firebaseUser.uid}
+      // ---------------------------------------------
 
-    window.dispatchEvent(new Event("profileUpdated"));
+      await updateProfile(updatedProfile);
 
-    setEditing(false);
+      // ---------------------------------------------
+      // Notify Navbar and other components.
+      // ---------------------------------------------
+
+      window.dispatchEvent(
+        new Event("profileUpdated"),
+      );
+
+      setEditing(false);
+    } catch (error) {
+      console.error(
+        "Error saving profile:",
+        error,
+      );
+
+      alert(
+        "Could not save your profile. Please try again.",
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
-  // =====================================================
+  // =======================================================
   // CANCEL
-  // =====================================================
+  // =======================================================
 
   const handleCancel = () => {
-    setFormData(profile);
+    setFormData({
+      ...DEFAULT_PROFILE,
+      ...profile,
+    });
+
     setEditing(false);
   };
+
+  // =======================================================
+  // ROLE
+  // =======================================================
+
+  const roleText =
+    String(profile.role || "").trim() || "Customer";
+
+  // =======================================================
+  // RENDER
+  // =======================================================
 
   return (
     <CustomerLayout
@@ -177,6 +337,7 @@ function Profile({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
       unreadMessages={unreadMessages}
     >
       <div className="space-y-6">
+
         {/* =================================================
             HEADER
         ================================================= */}
@@ -196,7 +357,9 @@ function Profile({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
           >
             <FiArrowLeft size={18} />
 
-            <span>Back to Dashboard</span>
+            <span>
+              Back to Dashboard
+            </span>
           </button>
 
           <div className="mt-5">
@@ -212,7 +375,8 @@ function Profile({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
             </h1>
 
             <p className="text-gray-500 mt-1">
-              Manage your personal information and account details.
+              Manage your personal information and account
+              details.
             </p>
           </div>
         </div>
@@ -229,6 +393,7 @@ function Profile({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
             gap-6
           "
         >
+
           {/* =================================================
               PROFILE CARD
           ================================================= */}
@@ -244,9 +409,13 @@ function Profile({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
             "
           >
             <div className="flex flex-col items-center text-center">
-              {/* AVATAR */}
+
+              {/* =================================================
+                  AVATAR
+              ================================================= */}
 
               <div className="relative">
+
                 <div
                   className="
                     w-28
@@ -276,7 +445,11 @@ function Profile({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
                       "
                     />
                   ) : (
-                    profile.fullName?.charAt(0)?.toUpperCase() || "G"
+                    <span>
+                      {profile.fullName
+                        ?.charAt(0)
+                        ?.toUpperCase() || "G"}
+                    </span>
                   )}
                 </div>
 
@@ -285,6 +458,7 @@ function Profile({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
                 <button
                   type="button"
                   onClick={handleCameraClick}
+                  disabled={saving}
                   className="
                     absolute
                     bottom-1
@@ -294,6 +468,8 @@ function Profile({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
                     rounded-full
                     bg-green-600
                     hover:bg-green-700
+                    disabled:bg-green-400
+                    disabled:cursor-not-allowed
                     text-white
                     flex
                     items-center
@@ -302,6 +478,7 @@ function Profile({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
                     border-white
                     transition
                   "
+                  title="Change profile picture"
                 >
                   <FiCamera size={15} />
                 </button>
@@ -315,7 +492,9 @@ function Profile({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
                 />
               </div>
 
-              {/* NAME */}
+              {/* =================================================
+                  NAME
+              ================================================= */}
 
               <h2
                 className="
@@ -325,14 +504,35 @@ function Profile({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
                   mt-4
                 "
               >
-                {profile.fullName}
+                {profile.fullName || "Your Name"}
               </h2>
 
-              {/* ROLE */}
+              {/* =================================================
+                  EMAIL
+              ================================================= */}
 
-              <p className="text-sm text-gray-500 mt-1">{profile.role}</p>
+              <p
+                className="
+                  text-sm
+                  text-gray-500
+                  mt-1
+                  break-all
+                "
+              >
+                {profile.email || "No email"}
+              </p>
 
-              {/* STATUS */}
+              {/* =================================================
+                  ROLE
+              ================================================= */}
+
+              <p className="text-sm text-gray-500 mt-1">
+                {roleText}
+              </p>
+
+              {/* =================================================
+                  STATUS
+              ================================================= */}
 
               <div
                 className="
@@ -357,24 +557,32 @@ function Profile({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
                     bg-green-500
                   "
                 />
+
                 Active Account
               </div>
 
-              {/* CHANGE PHOTO */}
+              {/* =================================================
+                  CHANGE PHOTO
+              ================================================= */}
 
               <button
                 type="button"
                 onClick={handleCameraClick}
+                disabled={saving}
                 className="
                   mt-4
                   text-sm
                   text-green-600
                   hover:text-green-700
+                  disabled:text-green-400
                   font-medium
                 "
               >
-                Change Profile Picture
+                {saving
+                  ? "Saving..."
+                  : "Change Profile Picture"}
               </button>
+
             </div>
           </div>
 
@@ -393,6 +601,7 @@ function Profile({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
               sm:p-6
             "
           >
+
             {/* HEADER */}
 
             <div
@@ -424,6 +633,7 @@ function Profile({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
                 <button
                   type="button"
                   onClick={handleEdit}
+                  disabled={saving}
                   className="
                     flex
                     items-center
@@ -435,13 +645,16 @@ function Profile({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
                     border-green-600
                     text-green-600
                     hover:bg-green-50
+                    disabled:opacity-50
                     text-sm
                     font-medium
                   "
                 >
                   <FiEdit3 size={16} />
 
-                  <span className="hidden sm:inline">Edit Profile</span>
+                  <span className="hidden sm:inline">
+                    Edit Profile
+                  </span>
                 </button>
               )}
             </div>
@@ -456,7 +669,10 @@ function Profile({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
                 gap-5
               "
             >
-              {/* FULL NAME */}
+
+              {/* =================================================
+                  FULL NAME
+              ================================================= */}
 
               <div>
                 <label
@@ -487,7 +703,7 @@ function Profile({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
                     name="fullName"
                     value={formData.fullName || ""}
                     onChange={handleChange}
-                    disabled={!editing}
+                    disabled={!editing || saving}
                     className="
                       w-full
                       pl-10
@@ -501,12 +717,15 @@ function Profile({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
                       outline-none
                       focus:bg-white
                       focus:border-green-500
+                      disabled:cursor-not-allowed
                     "
                   />
                 </div>
               </div>
 
-              {/* EMAIL */}
+              {/* =================================================
+                  EMAIL
+              ================================================= */}
 
               <div>
                 <label
@@ -537,7 +756,7 @@ function Profile({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
                     name="email"
                     value={formData.email || ""}
                     onChange={handleChange}
-                    disabled={!editing}
+                    disabled={!editing || saving}
                     className="
                       w-full
                       pl-10
@@ -551,12 +770,15 @@ function Profile({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
                       outline-none
                       focus:bg-white
                       focus:border-green-500
+                      disabled:cursor-not-allowed
                     "
                   />
                 </div>
               </div>
 
-              {/* PHONE */}
+              {/* =================================================
+                  PHONE
+              ================================================= */}
 
               <div>
                 <label
@@ -587,7 +809,7 @@ function Profile({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
                     name="phone"
                     value={formData.phone || ""}
                     onChange={handleChange}
-                    disabled={!editing}
+                    disabled={!editing || saving}
                     className="
                       w-full
                       pl-10
@@ -601,12 +823,15 @@ function Profile({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
                       outline-none
                       focus:bg-white
                       focus:border-green-500
+                      disabled:cursor-not-allowed
                     "
                   />
                 </div>
               </div>
 
-              {/* CAMPUS */}
+              {/* =================================================
+                  CAMPUS
+              ================================================= */}
 
               <div>
                 <label
@@ -637,7 +862,7 @@ function Profile({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
                     name="campus"
                     value={formData.campus || ""}
                     onChange={handleChange}
-                    disabled={!editing}
+                    disabled={!editing || saving}
                     className="
                       w-full
                       pl-10
@@ -651,12 +876,15 @@ function Profile({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
                       outline-none
                       focus:bg-white
                       focus:border-green-500
+                      disabled:cursor-not-allowed
                     "
                   />
                 </div>
               </div>
 
-              {/* ADDRESS */}
+              {/* =================================================
+                  ADDRESS
+              ================================================= */}
 
               <div className="sm:col-span-2">
                 <label
@@ -685,7 +913,7 @@ function Profile({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
                     name="address"
                     value={formData.address || ""}
                     onChange={handleChange}
-                    disabled={!editing}
+                    disabled={!editing || saving}
                     rows={3}
                     className="
                       w-full
@@ -701,13 +929,17 @@ function Profile({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
                       resize-none
                       focus:bg-white
                       focus:border-green-500
+                      disabled:cursor-not-allowed
                     "
                   />
                 </div>
               </div>
+
             </div>
 
-            {/* SAVE / CANCEL */}
+            {/* =================================================
+                SAVE / CANCEL
+            ================================================= */}
 
             {editing && (
               <div
@@ -723,9 +955,13 @@ function Profile({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
                   border-gray-100
                 "
               >
+
+                {/* CANCEL */}
+
                 <button
                   type="button"
                   onClick={handleCancel}
+                  disabled={saving}
                   className="
                     flex
                     items-center
@@ -738,15 +974,20 @@ function Profile({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
                     border-gray-200
                     text-gray-600
                     hover:bg-gray-50
+                    disabled:opacity-50
                   "
                 >
                   <FiX size={16} />
+
                   Cancel
                 </button>
+
+                {/* SAVE */}
 
                 <button
                   type="button"
                   onClick={handleSave}
+                  disabled={saving}
                   className="
                     flex
                     items-center
@@ -757,14 +998,20 @@ function Profile({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
                     rounded-xl
                     bg-green-600
                     hover:bg-green-700
+                    disabled:bg-green-400
                     text-white
                   "
                 >
                   <FiSave size={16} />
-                  Save Changes
+
+                  {saving
+                    ? "Saving..."
+                    : "Save Changes"}
                 </button>
+
               </div>
             )}
+
           </div>
         </div>
       </div>
