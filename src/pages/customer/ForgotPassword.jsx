@@ -176,7 +176,7 @@ function ForgotPassword() {
                 text-gray-500
               "
             >
-              No worries. Enter the email address
+              Enter your email address
               associated with your CampusMart account
               and we'll send you a link to reset your
               password.
