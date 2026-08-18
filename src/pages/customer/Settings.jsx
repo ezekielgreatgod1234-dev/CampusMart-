@@ -1,54 +1,87 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+
+import CustomerLayout from "../../layouts/CustomerLayout";
+
 import {
+  FiArrowLeft,
   FiUser,
   FiLock,
-  FiEye,
   FiShield,
-  FiSun,
+  FiEye,
   FiMoon,
+  FiSun,
   FiHelpCircle,
   FiMessageCircle,
   FiMail,
-  FiCheckCircle,
-  FiAlertCircle,
-  FiSave,
   FiChevronRight,
+  FiCheck,
+  FiSave,
+  FiAlertCircle,
+  FiSend,
+  FiKey,
+  FiEyeOff,
 } from "react-icons/fi";
 
-import { useAuth } from "../../context/AuthContext";
+/* =========================================================
+   SETTINGS
+========================================================= */
 
-function Settings() {
-  const { firebaseUser, profileLoading } = useAuth();
+function Settings({
+  cartCount = 0,
+  wishlist = [],
+  unreadMessages = 0,
+}) {
+  const navigate = useNavigate();
 
-  // =========================================================
-  // ACTIVE SECTION
-  // =========================================================
+  /* =======================================================
+     ACTIVE SECTION
+  ======================================================= */
 
   const [activeSection, setActiveSection] = useState("personal");
 
-  // =========================================================
-  // PROFILE
-  // =========================================================
+  /* =======================================================
+     PROFILE
+  ======================================================= */
 
-  const [profile, setProfile] = useState({
-    fullName: "",
-    email: "",
-    phone: "",
-    campus: "",
-  });
+  const getProfile = () => {
+    try {
+      const savedProfile = localStorage.getItem("campusmart_profile");
+
+      if (savedProfile) {
+        return JSON.parse(savedProfile);
+      }
+    } catch (error) {
+      console.error("Could not load profile:", error);
+    }
+
+    return {
+      fullName: "GreatGod",
+      email: "user@example.com",
+      phone: "08012345678",
+      campus: "Abia State University",
+      address: "Uturu, Abia State",
+    };
+  };
+
+  const [profile, setProfile] = useState(getProfile);
+
+  /* =======================================================
+     PERSONAL INFORMATION
+  ======================================================= */
 
   const [personalForm, setPersonalForm] = useState({
-    fullName: "",
-    email: "",
-    phone: "",
-    campus: "",
+    fullName: profile.fullName || "",
+    email: profile.email || "",
+    phone: profile.phone || "",
+    campus: profile.campus || "",
   });
 
   const [personalSaved, setPersonalSaved] = useState(false);
 
-  // =========================================================
-  // PASSWORD
-  // =========================================================
+  /* =======================================================
+     PASSWORD
+  ======================================================= */
 
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: "",
@@ -56,30 +89,72 @@ function Settings() {
     confirmPassword: "",
   });
 
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
   const [passwordMessage, setPasswordMessage] = useState("");
 
-  // =========================================================
-  // PRIVACY
-  // =========================================================
+  /* =======================================================
+     PRIVACY
+  ======================================================= */
 
-  const [profileVisibility, setProfileVisibility] = useState("campus");
-  const [twoFactor, setTwoFactor] = useState(false);
+  const [profileVisibility, setProfileVisibility] = useState(() => {
+    return (
+      localStorage.getItem("campusmart_profile_visibility") ||
+      "campus"
+    );
+  });
 
-  // =========================================================
-  // THEME
-  // =========================================================
+  /* =======================================================
+     TWO FACTOR
+  ======================================================= */
+
+  const [twoFactor, setTwoFactor] = useState(() => {
+    return localStorage.getItem("campusmart_two_factor") === "true";
+  });
+
+  /* =======================================================
+     THEME
+  ======================================================= */
 
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem("campusmart_theme") || "light";
   });
 
-  // =========================================================
-  // CONTACT
-  // =========================================================
+  /*
+    Apply the theme globally.
+
+    This is important because the screenshot showed that
+    different parts of the page were receiving different
+    theme styles.
+
+    We explicitly control:
+    - html.dark
+    - color-scheme
+    - body background
+    - body text color
+  */
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const body = document.body;
+
+    const isDark = theme === "dark";
+
+    root.classList.toggle("dark", isDark);
+    root.style.colorScheme = isDark ? "dark" : "light";
+
+    body.style.backgroundColor = isDark
+      ? "#080d18"
+      : "#f8fafc";
+
+    body.style.color = isDark
+      ? "#f8fafc"
+      : "#111827";
+
+    localStorage.setItem("campusmart_theme", theme);
+  }, [theme]);
+
+  /* =======================================================
+     CONTACT FORM
+  ======================================================= */
 
   const [contactForm, setContactForm] = useState({
     subject: "",
@@ -89,69 +164,104 @@ function Settings() {
   const [contactSent, setContactSent] = useState(false);
   const [contactError, setContactError] = useState("");
 
-  // =========================================================
-  // LOAD SAVED DATA
-  // =========================================================
+  /* =======================================================
+     PASSWORD STRENGTH
+  ======================================================= */
 
-  useEffect(() => {
-    try {
-      const savedProfile = localStorage.getItem("campusmart_profile");
+  const getPasswordStrength = (password) => {
+    if (!password) return "";
 
-      if (savedProfile) {
-        const parsedProfile = JSON.parse(savedProfile);
+    let score = 0;
 
-        const safeProfile = {
-          fullName: parsedProfile?.fullName || "",
-          email: parsedProfile?.email || "",
-          phone: parsedProfile?.phone || "",
-          campus: parsedProfile?.campus || "",
-        };
+    if (password.length >= 8) score++;
+    if (/[A-Z]/.test(password)) score++;
+    if (/[a-z]/.test(password)) score++;
+    if (/[0-9]/.test(password)) score++;
+    if (/[^A-Za-z0-9]/.test(password)) score++;
 
-        setProfile(safeProfile);
-        setPersonalForm(safeProfile);
-      }
-    } catch (error) {
-      console.error("Failed to load profile:", error);
-    }
+    if (score <= 2) return "Not strong enough";
+    if (score <= 4) return "Strong";
 
-    const savedVisibility = localStorage.getItem(
-      "campusmart_profile_visibility"
-    );
+    return "Very strong";
+  };
 
-    if (savedVisibility) {
-      setProfileVisibility(savedVisibility);
-    }
+  const passwordStrength = getPasswordStrength(
+    passwordForm.newPassword
+  );
 
-    const savedTwoFactor = localStorage.getItem("campusmart_two_factor");
+  /* =======================================================
+     MENU
+  ======================================================= */
 
-    if (savedTwoFactor) {
-      setTwoFactor(savedTwoFactor === "true");
-    }
-  }, []);
+  const menuSections = [
+    {
+      title: "Account",
+      items: [
+        {
+          id: "personal",
+          label: "Personal Information",
+          icon: FiUser,
+        },
+        {
+          id: "password",
+          label: "Change Password",
+          icon: FiLock,
+        },
+      ],
+    },
 
-  // =========================================================
-  // THEME
-  // =========================================================
+    {
+      title: "Privacy & Security",
+      items: [
+        {
+          id: "visibility",
+          label: "Profile Visibility",
+          icon: FiEye,
+        },
+        {
+          id: "two-factor",
+          label: "Two-Factor Authentication",
+          icon: FiShield,
+        },
+      ],
+    },
 
-  useEffect(() => {
-    const root = document.documentElement;
+    {
+      title: "Appearance",
+      items: [
+        {
+          id: "appearance",
+          label: "Light & Dark Mode",
+          icon: FiSun,
+        },
+      ],
+    },
 
-    if (theme === "dark") {
-      root.classList.add("dark");
-    } else {
-      root.classList.remove("dark");
-    }
+    {
+      title: "Support",
+      items: [
+        {
+          id: "help",
+          label: "Help",
+          icon: FiHelpCircle,
+        },
+        {
+          id: "faq",
+          label: "FAQ",
+          icon: FiMessageCircle,
+        },
+        {
+          id: "contact",
+          label: "Contact CampusMart",
+          icon: FiMail,
+        },
+      ],
+    },
+  ];
 
-    localStorage.setItem("campusmart_theme", theme);
-
-    // Force browser controls to use the correct color scheme.
-    document.documentElement.style.colorScheme =
-      theme === "dark" ? "dark" : "light";
-  }, [theme]);
-
-  // =========================================================
-  // FORM HANDLERS
-  // =========================================================
+  /* =======================================================
+     PERSONAL INFORMATION CHANGE
+  ======================================================= */
 
   const handlePersonalChange = (e) => {
     const { name, value } = e.target;
@@ -164,13 +274,11 @@ function Settings() {
     setPersonalSaved(false);
   };
 
-  // =========================================================
-  // SAVE PERSONAL INFORMATION
-  // =========================================================
+  /* =======================================================
+     SAVE PERSONAL INFORMATION
+  ======================================================= */
 
-  const handlePersonalSave = (e) => {
-    e.preventDefault();
-
+  const handlePersonalSave = () => {
     const updatedProfile = {
       ...profile,
       ...personalForm,
@@ -192,9 +300,9 @@ function Settings() {
     }, 3000);
   };
 
-  // =========================================================
-  // PASSWORD HANDLERS
-  // =========================================================
+  /* =======================================================
+     PASSWORD CHANGE
+  ======================================================= */
 
   const handlePasswordChange = (e) => {
     const { name, value } = e.target;
@@ -207,33 +315,41 @@ function Settings() {
     setPasswordMessage("");
   };
 
-  const handlePasswordUpdate = (e) => {
-    e.preventDefault();
-
-    const {
-      currentPassword,
-      newPassword,
-      confirmPassword,
-    } = passwordForm;
-
-    if (!currentPassword || !newPassword || !confirmPassword) {
-      setPasswordMessage("Please fill in all password fields.");
-      return;
-    }
-
-    if (newPassword.length < 8) {
+  const handlePasswordUpdate = () => {
+    if (
+      !passwordForm.currentPassword ||
+      !passwordForm.newPassword ||
+      !passwordForm.confirmPassword
+    ) {
       setPasswordMessage(
-        "Your new password must be at least 8 characters long."
+        "Please fill in all password fields."
       );
       return;
     }
 
-    if (newPassword !== confirmPassword) {
-      setPasswordMessage("The new passwords do not match.");
+    if (passwordForm.newPassword.length < 8) {
+      setPasswordMessage(
+        "Your new password must contain at least 8 characters."
+      );
       return;
     }
 
-    setPasswordMessage("Password updated successfully.");
+    if (
+      passwordForm.newPassword !==
+      passwordForm.confirmPassword
+    ) {
+      setPasswordMessage(
+        "New password and confirmation password do not match."
+      );
+      return;
+    }
+
+    /*
+      Replace this with your real API/Firebase request
+      when your backend password update is ready.
+    */
+
+    setPasswordMessage("success");
 
     setPasswordForm({
       currentPassword: "",
@@ -241,72 +357,16 @@ function Settings() {
       confirmPassword: "",
     });
 
-    setShowCurrentPassword(false);
-    setShowNewPassword(false);
-    setShowConfirmPassword(false);
+    setTimeout(() => {
+      setPasswordMessage("");
+    }, 4000);
   };
 
-  // =========================================================
-  // PASSWORD STRENGTH
-  // =========================================================
+  /* =======================================================
+     PROFILE VISIBILITY
+  ======================================================= */
 
-  const passwordStrength = useMemo(() => {
-    const password = passwordForm.newPassword;
-
-    if (!password) {
-      return {
-        label: "",
-        percentage: 0,
-        level: 0,
-      };
-    }
-
-    let score = 0;
-
-    if (password.length >= 8) score++;
-    if (/[A-Z]/.test(password)) score++;
-    if (/[a-z]/.test(password)) score++;
-    if (/[0-9]/.test(password)) score++;
-    if (/[^A-Za-z0-9]/.test(password)) score++;
-
-    if (score <= 2) {
-      return {
-        label: "Not strong enough",
-        percentage: 35,
-        level: 1,
-      };
-    }
-
-    if (score === 3) {
-      return {
-        label: "Good",
-        percentage: 60,
-        level: 2,
-      };
-    }
-
-    if (score === 4) {
-      return {
-        label: "Strong",
-        percentage: 80,
-        level: 3,
-      };
-    }
-
-    return {
-      label: "Very strong",
-      percentage: 100,
-      level: 4,
-    };
-  }, [passwordForm.newPassword]);
-
-  // =========================================================
-  // PRIVACY
-  // =========================================================
-
-  const handleVisibilityChange = (e) => {
-    const value = e.target.value;
-
+  const handleVisibilityChange = (value) => {
     setProfileVisibility(value);
 
     localStorage.setItem(
@@ -314,6 +374,10 @@ function Settings() {
       value
     );
   };
+
+  /* =======================================================
+     TWO FACTOR
+  ======================================================= */
 
   const handleTwoFactor = () => {
     const newValue = !twoFactor;
@@ -326,17 +390,17 @@ function Settings() {
     );
   };
 
-  // =========================================================
-  // THEME
-  // =========================================================
+  /* =======================================================
+     THEME
+  ======================================================= */
 
   const handleTheme = (selectedTheme) => {
     setTheme(selectedTheme);
   };
 
-  // =========================================================
-  // CONTACT
-  // =========================================================
+  /* =======================================================
+     CONTACT
+  ======================================================= */
 
   const handleContactChange = (e) => {
     const { name, value } = e.target;
@@ -346,12 +410,13 @@ function Settings() {
       [name]: value,
     }));
 
-    setContactError("");
     setContactSent(false);
+    setContactError("");
   };
 
-  const handleContactSubmit = (e) => {
-    e.preventDefault();
+  const handleContactSubmit = () => {
+    setContactError("");
+    setContactSent(false);
 
     if (!contactForm.subject.trim()) {
       setContactError("Please enter a subject.");
@@ -363,1310 +428,2134 @@ function Settings() {
       return;
     }
 
-    setContactError("");
     setContactSent(true);
 
     setContactForm({
       subject: "",
       message: "",
     });
-
-    setTimeout(() => {
-      setContactSent(false);
-    }, 4000);
   };
 
-  // =========================================================
-  // MENU
-  // =========================================================
+  /* =======================================================
+     RENDER
+  ======================================================= */
 
-  const menuSections = [
-    {
-      title: "Account",
-      items: [
-        {
-          id: "personal",
-          label: "Personal Information",
-          description: "Update your personal details",
-          icon: FiUser,
-        },
-        {
-          id: "password",
-          label: "Change Password",
-          description: "Update your account password",
-          icon: FiLock,
-        },
-      ],
-    },
-    {
-      title: "Privacy & Security",
-      items: [
-        {
-          id: "visibility",
-          label: "Profile Visibility",
-          description: "Control who can see your profile",
-          icon: FiEye,
-        },
-        {
-          id: "two-factor",
-          label: "Two-Factor Authentication",
-          description: "Add extra security to your account",
-          icon: FiShield,
-        },
-      ],
-    },
-    {
-      title: "Appearance",
-      items: [
-        {
-          id: "appearance",
-          label: "Light & Dark Mode",
-          description: "Choose your preferred theme",
-          icon: theme === "dark" ? FiMoon : FiSun,
-        },
-      ],
-    },
-    {
-      title: "Support",
-      items: [
-        {
-          id: "help",
-          label: "Help",
-          description: "Get help using CampusMart",
-          icon: FiHelpCircle,
-        },
-        {
-          id: "faq",
-          label: "FAQ",
-          description: "Frequently asked questions",
-          icon: FiMessageCircle,
-        },
-        {
-          id: "contact",
-          label: "Contact CampusMart",
-          description: "Send us a message",
-          icon: FiMail,
-        },
-      ],
-    },
-  ];
+  return (
+    <CustomerLayout
+      cartCount={cartCount}
+      wishlist={wishlist}
+      unreadMessages={unreadMessages}
+    >
+      {/* =================================================
+          MAIN SETTINGS WRAPPER
+      ================================================= */}
 
-  // =========================================================
-  // COMMON INPUT CLASS
-  // =========================================================
-
-  const inputClass =
-    "w-full h-12 rounded-xl border px-4 text-sm outline-none transition " +
-    "bg-white text-gray-900 border-gray-200 " +
-    "focus:border-green-500 focus:ring-2 focus:ring-green-500/10 " +
-    "dark:bg-[#111827] dark:text-white dark:border-[#334155] " +
-    "dark:placeholder:text-gray-500 dark:focus:border-green-500";
-
-  // =========================================================
-  // LOADING
-  // =========================================================
-
-  if (profileLoading) {
-    return (
       <div
         className="
           min-h-screen
-          bg-white text-gray-900
-          dark:bg-[#0f172a] dark:text-white
-          flex items-center justify-center
+          -m-4
+          sm:-m-6
+          lg:-m-8
+          p-4
+          sm:p-6
+          lg:p-8
+          bg-gray-50
+          dark:bg-[#080d18]
+          text-gray-900
+          dark:text-gray-100
+          transition-colors
+          duration-200
         "
       >
-        <div className="text-center">
-          <div className="w-10 h-10 mx-auto rounded-full border-4 border-green-100 border-t-green-600 animate-spin" />
+        <div className="space-y-6 max-w-[1500px] mx-auto">
 
-          <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
-            Loading settings...
-          </p>
-        </div>
-      </div>
-    );
-  }
+          {/* =================================================
+              HEADER
+          ================================================= */}
 
-  // =========================================================
-  // PAGE
-  // =========================================================
-
-  return (
-    <div
-      className="
-        min-h-screen w-full
-        bg-white text-gray-900
-        dark:bg-[#0f172a] dark:text-white
-        transition-colors duration-200
-      "
-    >
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-7">
-        {/* =====================================================
-            HEADER
-        ===================================================== */}
-
-        <div className="mb-6">
-          <div className="flex items-center gap-3">
-            <div
+          <div>
+            <button
+              type="button"
+              onClick={() => navigate("/dashboard")}
               className="
-                w-11 h-11 rounded-xl
-                bg-green-50 text-green-600
-                dark:bg-green-500/10 dark:text-green-400
-                flex items-center justify-center
+                flex
+                items-center
+                gap-2
+                text-gray-500
+                dark:text-gray-400
+                hover:text-green-600
+                dark:hover:text-green-400
+                transition
               "
             >
-              <FiShield size={22} />
-            </div>
+              <FiArrowLeft size={18} />
 
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">
+              <span>Back to Dashboard</span>
+            </button>
+
+            <div className="mt-5">
+              <h1
+                className="
+                  text-2xl
+                  sm:text-3xl
+                  font-bold
+                  text-gray-900
+                  dark:text-white
+                "
+              >
                 Settings
               </h1>
 
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Manage your CampusMart account and preferences.
+              <p
+                className="
+                  mt-1
+                  text-gray-500
+                  dark:text-gray-400
+                "
+              >
+                Manage your CampusMart account, privacy and preferences.
               </p>
             </div>
           </div>
-        </div>
 
-        {/* =====================================================
-            MOBILE SECTION SELECTOR
-        ===================================================== */}
+          {/* =================================================
+              SETTINGS LAYOUT
+          ================================================= */}
 
-        <div className="lg:hidden mb-5">
-          <select
-            value={activeSection}
-            onChange={(e) => setActiveSection(e.target.value)}
-            className={inputClass}
-          >
-            {menuSections.flatMap((section) =>
-              section.items.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))
-            )}
-          </select>
-        </div>
-
-        {/* =====================================================
-            MAIN LAYOUT
-        ===================================================== */}
-
-        <div className="grid grid-cols-1 lg:grid-cols-[290px_minmax(0,1fr)] gap-6">
-          {/* ===================================================
-              SIDEBAR
-          =================================================== */}
-
-          <aside
+          <div
             className="
-              hidden lg:block
-              rounded-2xl border
-              bg-white border-gray-100
-              dark:bg-[#182230] dark:border-[#273548]
-              overflow-hidden
-              h-fit
-              transition-colors duration-200
+              grid
+              grid-cols-1
+              lg:grid-cols-3
+              gap-6
             "
           >
+
+            {/* =================================================
+                SETTINGS MENU
+            ================================================= */}
+
             <div
               className="
-                px-5 py-5
-                border-b
+                bg-white
+                dark:bg-[#101827]
+                rounded-2xl
+                border
                 border-gray-100
-                dark:border-[#273548]
+                dark:border-gray-800
+                p-4
+                h-fit
+                shadow-sm
+                dark:shadow-none
+                transition-colors
               "
             >
-              <div className="flex items-center gap-3">
+
+              {/* MENU HEADER */}
+
+              <div
+                className="
+                  flex
+                  items-center
+                  gap-3
+                  px-3
+                  pb-4
+                  border-b
+                  border-gray-100
+                  dark:border-gray-800
+                "
+              >
                 <div
                   className="
-                    w-10 h-10 rounded-xl
-                    bg-green-50 text-green-600
-                    dark:bg-green-500/10 dark:text-green-400
-                    flex items-center justify-center
+                    w-10
+                    h-10
+                    rounded-xl
+                    bg-green-50
+                    dark:bg-green-950/60
+                    text-green-600
+                    dark:text-green-400
+                    flex
+                    items-center
+                    justify-center
                   "
                 >
-                  <FiShield size={19} />
+                  <FiShield size={20} />
                 </div>
 
                 <div>
-                  <h2 className="font-bold text-gray-900 dark:text-white">
+                  <h2
+                    className="
+                      font-bold
+                      text-gray-800
+                      dark:text-white
+                    "
+                  >
                     Settings
                   </h2>
 
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  <p
+                    className="
+                      text-xs
+                      text-gray-500
+                      dark:text-gray-400
+                    "
+                  >
                     Account preferences
                   </p>
                 </div>
               </div>
-            </div>
 
-            <div className="p-3">
-              {menuSections.map((section) => (
-                <div key={section.title} className="mb-5 last:mb-1">
-                  <p
-                    className="
-                      px-3 mb-2
-                      text-[11px] font-bold uppercase tracking-wider
-                      text-gray-400
-                      dark:text-gray-500
-                    "
-                  >
-                    {section.title}
-                  </p>
+              {/* MENU */}
 
-                  <div className="space-y-1">
-                    {section.items.map((item) => {
-                      const Icon = item.icon;
-                      const active = activeSection === item.id;
+              <div className="mt-4 space-y-5">
 
-                      return (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() => setActiveSection(item.id)}
-                          className={`
-                            w-full flex items-center gap-3
-                            px-3 py-3 rounded-xl
-                            text-left transition
-                            ${
-                              active
-                                ? `
-                                  bg-green-50 text-green-700
-                                  dark:bg-green-500/10 dark:text-green-400
-                                `
-                                : `
-                                  text-gray-600 hover:bg-gray-50
-                                  dark:text-gray-300 dark:hover:bg-[#202c3c]
-                                `
+                {menuSections.map((section) => (
+                  <div key={section.title}>
+
+                    <p
+                      className="
+                        px-3
+                        mb-2
+                        text-[11px]
+                        font-semibold
+                        uppercase
+                        tracking-wider
+                        text-gray-400
+                        dark:text-gray-500
+                      "
+                    >
+                      {section.title}
+                    </p>
+
+                    <div className="space-y-1">
+
+                      {section.items.map((item) => {
+                        const Icon = item.icon;
+                        const active =
+                          activeSection === item.id;
+
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() =>
+                              setActiveSection(item.id)
                             }
-                          `}
-                        >
-                          <div
                             className={`
-                              w-9 h-9 rounded-lg
-                              flex items-center justify-center shrink-0
+                              w-full
+                              flex
+                              items-center
+                              justify-between
+                              gap-3
+                              px-3
+                              py-3
+                              rounded-xl
+                              text-left
+                              transition
+
                               ${
                                 active
                                   ? `
-                                    bg-white text-green-600
-                                    dark:bg-[#182230] dark:text-green-400
+                                    bg-green-50
+                                    dark:bg-green-950/50
+                                    text-green-600
+                                    dark:text-green-400
                                   `
                                   : `
-                                    bg-gray-50 text-gray-500
-                                    dark:bg-[#111827] dark:text-gray-400
+                                    text-gray-600
+                                    dark:text-gray-300
+                                    hover:bg-gray-50
+                                    dark:hover:bg-gray-800
+                                    hover:text-green-600
+                                    dark:hover:text-green-400
                                   `
                               }
                             `}
                           >
-                            <Icon size={18} />
-                          </div>
 
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-semibold truncate">
-                              {item.label}
-                            </p>
+                            <div className="flex items-center gap-3">
 
-                            <p
-                              className="
-                                text-[11px] mt-0.5 truncate
-                                text-gray-400
-                                dark:text-gray-500
-                              "
-                            >
-                              {item.description}
-                            </p>
-                          </div>
+                              <div
+                                className={`
+                                  w-9
+                                  h-9
+                                  rounded-lg
+                                  flex
+                                  items-center
+                                  justify-center
 
-                          {active && (
-                            <FiChevronRight
-                              size={16}
-                              className="shrink-0"
-                            />
-                          )}
-                        </button>
-                      );
-                    })}
+                                  ${
+                                    active
+                                      ? `
+                                        bg-white
+                                        dark:bg-gray-800
+                                        text-green-600
+                                        dark:text-green-400
+                                      `
+                                      : `
+                                        bg-gray-50
+                                        dark:bg-gray-800
+                                        text-gray-400
+                                        dark:text-gray-500
+                                      `
+                                  }
+                                `}
+                              >
+                                <Icon size={17} />
+                              </div>
+
+                              <span
+                                className={`
+                                  text-sm
+                                  ${
+                                    active
+                                      ? "font-semibold"
+                                      : "font-medium"
+                                  }
+                                `}
+                              >
+                                {item.label}
+                              </span>
+
+                            </div>
+
+                            {active && (
+                              <FiChevronRight size={16} />
+                            )}
+
+                          </button>
+                        );
+                      })}
+
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+
+              </div>
             </div>
-          </aside>
 
-          {/* ===================================================
-              CONTENT
-          =================================================== */}
-
-          <main
-            className="
-              min-w-0
-              rounded-2xl border
-              bg-white border-gray-100
-              dark:bg-[#182230] dark:border-[#273548]
-              transition-colors duration-200
-            "
-          >
             {/* =================================================
-                PERSONAL INFORMATION
+                CONTENT
             ================================================= */}
 
-            {activeSection === "personal" && (
-              <div className="p-5 sm:p-7">
-                <SectionHeader
-                  icon={FiUser}
-                  title="Personal Information"
-                  description="Manage your personal account information."
-                />
+            <div
+              className="
+                lg:col-span-2
+                bg-white
+                dark:bg-[#101827]
+                rounded-2xl
+                border
+                border-gray-100
+                dark:border-gray-800
+                p-5
+                sm:p-6
+                shadow-sm
+                dark:shadow-none
+                transition-colors
+              "
+            >
 
-                {personalSaved && (
-                  <SuccessMessage message="Your personal information has been saved successfully." />
-                )}
+              {/* =================================================
+                  PERSONAL INFORMATION
+              ================================================= */}
 
-                <form
-                  onSubmit={handlePersonalSave}
-                  className="mt-7 space-y-5"
-                >
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <FormField label="Full Name">
-                      <input
-                        type="text"
-                        name="fullName"
-                        value={personalForm.fullName}
-                        onChange={handlePersonalChange}
-                        placeholder="Enter your full name"
-                        className={inputClass}
-                      />
-                    </FormField>
+              {activeSection === "personal" && (
+                <section>
 
-                    <FormField label="Email Address">
-                      <input
-                        type="email"
-                        name="email"
-                        value={personalForm.email}
-                        onChange={handlePersonalChange}
-                        placeholder="Enter your email"
-                        className={inputClass}
-                      />
-                    </FormField>
+                  <SettingsHeader
+                    title="Personal Information"
+                    description="Manage your personal details and account information."
+                    icon={FiUser}
+                  />
 
-                    <FormField label="Phone Number">
-                      <input
-                        type="tel"
-                        name="phone"
-                        value={personalForm.phone}
-                        onChange={handlePersonalChange}
-                        placeholder="Enter your phone number"
-                        className={inputClass}
-                      />
-                    </FormField>
+                  {personalSaved && (
+                    <SuccessMessage
+                      message="Your personal information has been saved successfully."
+                    />
+                  )}
 
-                    <FormField label="Campus">
-                      <input
-                        type="text"
-                        name="campus"
-                        value={personalForm.campus}
-                        onChange={handlePersonalChange}
-                        placeholder="Enter your campus"
-                        className={inputClass}
-                      />
-                    </FormField>
+                  <div
+                    className="
+                      mt-6
+                      grid
+                      grid-cols-1
+                      sm:grid-cols-2
+                      gap-5
+                    "
+                  >
+
+                    <SettingsInput
+                      label="Full Name"
+                      name="fullName"
+                      value={personalForm.fullName}
+                      onChange={handlePersonalChange}
+                      icon={FiUser}
+                    />
+
+                    <SettingsInput
+                      label="Email Address"
+                      name="email"
+                      type="email"
+                      value={personalForm.email}
+                      onChange={handlePersonalChange}
+                      icon={FiMail}
+                    />
+
+                    <SettingsInput
+                      label="Phone Number"
+                      name="phone"
+                      type="tel"
+                      value={personalForm.phone}
+                      onChange={handlePersonalChange}
+                      icon={FiUser}
+                    />
+
+                    <SettingsInput
+                      label="Campus"
+                      name="campus"
+                      value={personalForm.campus}
+                      onChange={handlePersonalChange}
+                      icon={FiEye}
+                    />
+
                   </div>
 
                   <div
                     className="
-                      pt-5 border-t
+                      mt-6
+                      pt-5
+                      border-t
                       border-gray-100
-                      dark:border-[#273548]
+                      dark:border-gray-800
+                      flex
+                      justify-end
                     "
                   >
                     <button
-                      type="submit"
+                      type="button"
+                      onClick={handlePersonalSave}
                       className="
-                        h-11 px-5 rounded-xl
-                        bg-green-600 text-white
+                        flex
+                        items-center
+                        justify-center
+                        gap-2
+                        px-5
+                        py-3
+                        rounded-xl
+                        bg-green-600
                         hover:bg-green-700
-                        flex items-center justify-center gap-2
-                        font-semibold text-sm
+                        text-white
+                        text-sm
+                        font-medium
                         transition
                       "
                     >
-                      <FiSave size={17} />
+                      <FiSave size={16} />
                       Save Changes
                     </button>
                   </div>
-                </form>
-              </div>
-            )}
 
-            {/* =================================================
-                PASSWORD
-            ================================================= */}
+                </section>
+              )}
 
-            {activeSection === "password" && (
-              <div className="p-5 sm:p-7">
-                <SectionHeader
-                  icon={FiLock}
-                  title="Change Password"
-                  description="Update your password to keep your account secure."
-                />
+              {/* =================================================
+                  CHANGE PASSWORD
+              ================================================= */}
 
-                {passwordMessage && (
-                  <div
-                    className={`
-                      mt-6 rounded-xl border px-4 py-3 flex items-start gap-3
-                      ${
-                        passwordMessage.includes("successfully")
-                          ? `
-                            bg-green-50 border-green-100 text-green-700
-                            dark:bg-green-500/10 dark:border-green-500/20 dark:text-green-400
-                          `
-                          : `
-                            bg-red-50 border-red-100 text-red-700
-                            dark:bg-red-500/10 dark:border-red-500/20 dark:text-red-400
-                          `
-                      }
-                    `}
-                  >
-                    {passwordMessage.includes("successfully") ? (
-                      <FiCheckCircle className="mt-0.5 shrink-0" />
-                    ) : (
-                      <FiAlertCircle className="mt-0.5 shrink-0" />
+              {activeSection === "password" && (
+                <section>
+
+                  <SettingsHeader
+                    title="Change Password"
+                    description="Update your password to keep your CampusMart account secure."
+                    icon={FiLock}
+                  />
+
+                  <div className="mt-6 max-w-xl space-y-5">
+
+                    <PasswordField
+                      label="Current Password"
+                      name="currentPassword"
+                      value={passwordForm.currentPassword}
+                      onChange={handlePasswordChange}
+                      placeholder="Enter your current password"
+                    />
+
+                    <PasswordField
+                      label="New Password"
+                      name="newPassword"
+                      value={passwordForm.newPassword}
+                      onChange={handlePasswordChange}
+                      placeholder="Enter your new password"
+                    />
+
+                    {passwordForm.newPassword && (
+                      <div className="mt-2">
+                        <p
+                          className={`text-xs font-semibold ${
+                            passwordStrength === "Very strong"
+                              ? "text-green-600 dark:text-green-400"
+                              : passwordStrength === "Strong"
+                              ? "text-yellow-600 dark:text-yellow-400"
+                              : "text-red-500 dark:text-red-400"
+                          }`}
+                        >
+                          {passwordStrength}
+                        </p>
+                      </div>
                     )}
 
-                    <p className="text-sm">{passwordMessage}</p>
-                  </div>
-                )}
+                    <PasswordField
+                      label="Confirm New Password"
+                      name="confirmPassword"
+                      value={passwordForm.confirmPassword}
+                      onChange={handlePasswordChange}
+                      placeholder="Confirm your new password"
+                    />
 
-                <form
-                  onSubmit={handlePasswordUpdate}
-                  className="mt-7 max-w-2xl space-y-5"
-                >
-                  <PasswordField
-                    label="Current Password"
-                    name="currentPassword"
-                    value={passwordForm.currentPassword}
-                    onChange={handlePasswordChange}
-                    show={showCurrentPassword}
-                    setShow={setShowCurrentPassword}
-                    className={inputClass}
-                  />
+                    {/* PASSWORD REQUIREMENTS */}
 
-                  <PasswordField
-                    label="New Password"
-                    name="newPassword"
-                    value={passwordForm.newPassword}
-                    onChange={handlePasswordChange}
-                    show={showNewPassword}
-                    setShow={setShowNewPassword}
-                    className={inputClass}
-                  />
-
-                  {passwordForm.newPassword && (
-                    <div className="mt-2">
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-xs text-gray-500 dark:text-gray-400">
-                          Password strength
-                        </span>
-
-                        <span
-                          className={`
-                            text-xs font-semibold
-                            ${
-                              passwordStrength.level <= 1
-                                ? "text-red-500"
-                                : passwordStrength.level === 2
-                                ? "text-yellow-500"
-                                : "text-green-600 dark:text-green-400"
-                            }
-                          `}
-                        >
-                          {passwordStrength.label}
-                        </span>
-                      </div>
-
-                      <div className="mt-2 h-2 rounded-full bg-gray-100 dark:bg-[#111827] overflow-hidden">
-                        <div
-                          className={`
-                            h-full rounded-full transition-all duration-300
-                            ${
-                              passwordStrength.level <= 1
-                                ? "bg-red-500"
-                                : passwordStrength.level === 2
-                                ? "bg-yellow-500"
-                                : "bg-green-500"
-                            }
-                          `}
-                          style={{
-                            width: `${passwordStrength.percentage}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  <PasswordField
-                    label="Confirm New Password"
-                    name="confirmPassword"
-                    value={passwordForm.confirmPassword}
-                    onChange={handlePasswordChange}
-                    show={showConfirmPassword}
-                    setShow={setShowConfirmPassword}
-                    className={inputClass}
-                  />
-
-                  {/* REQUIREMENTS */}
-
-                  <div
-                    className="
-                      rounded-xl p-4
-                      bg-gray-50
-                      dark:bg-[#111827]
-                    "
-                  >
-                    <p className="text-sm font-semibold text-gray-800 dark:text-white">
-                      Password requirements
-                    </p>
-
-                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <Requirement
-                        valid={passwordForm.newPassword.length >= 8}
-                        text="At least 8 characters"
-                      />
-
-                      <Requirement
-                        valid={/[A-Z]/.test(passwordForm.newPassword)}
-                        text="One uppercase letter"
-                      />
-
-                      <Requirement
-                        valid={/[0-9]/.test(passwordForm.newPassword)}
-                        text="One number"
-                      />
-
-                      <Requirement
-                        valid={
-                          passwordForm.newPassword.length > 0 &&
-                          passwordForm.newPassword ===
-                            passwordForm.confirmPassword
-                        }
-                        text="Passwords match"
-                      />
-                    </div>
-                  </div>
-
-                  <div
-                    className="
-                      pt-5 border-t
-                      border-gray-100
-                      dark:border-[#273548]
-                    "
-                  >
-                    <button
-                      type="submit"
+                    <div
                       className="
-                        h-11 px-5 rounded-xl
-                        bg-green-600 text-white
+                        rounded-xl
+                        bg-gray-50
+                        dark:bg-gray-800
+                        border
+                        border-gray-100
+                        dark:border-gray-700
+                        p-4
+                      "
+                    >
+                      <div className="flex items-center gap-2">
+
+                        <FiKey
+                          className="text-green-600 dark:text-green-400"
+                          size={16}
+                        />
+
+                        <p
+                          className="
+                            text-sm
+                            font-semibold
+                            text-gray-700
+                            dark:text-gray-200
+                          "
+                        >
+                          Password requirements
+                        </p>
+
+                      </div>
+
+                      <div
+                        className="
+                          mt-3
+                          grid
+                          grid-cols-1
+                          sm:grid-cols-2
+                          gap-2
+                        "
+                      >
+
+                        <PasswordRequirement
+                          checked={
+                            passwordForm.newPassword.length >= 8
+                          }
+                          text="At least 8 characters"
+                        />
+
+                        <PasswordRequirement
+                          checked={
+                            /[A-Z]/.test(
+                              passwordForm.newPassword
+                            )
+                          }
+                          text="One uppercase letter"
+                        />
+
+                        <PasswordRequirement
+                          checked={
+                            /[0-9]/.test(
+                              passwordForm.newPassword
+                            )
+                          }
+                          text="One number"
+                        />
+
+                        <PasswordRequirement
+                          checked={
+                            passwordForm.newPassword.length > 0 &&
+                            passwordForm.newPassword ===
+                              passwordForm.confirmPassword
+                          }
+                          text="Passwords match"
+                        />
+
+                      </div>
+                    </div>
+
+                    {passwordMessage === "success" ? (
+                      <SuccessMessage
+                        message="Your password has been updated successfully."
+                      />
+                    ) : passwordMessage ? (
+                      <ErrorMessage
+                        message={passwordMessage}
+                      />
+                    ) : null}
+
+                    <button
+                      type="button"
+                      onClick={handlePasswordUpdate}
+                      className="
+                        flex
+                        items-center
+                        justify-center
+                        gap-2
+                        px-5
+                        py-3
+                        rounded-xl
+                        bg-green-600
                         hover:bg-green-700
-                        font-semibold text-sm
-                        flex items-center gap-2
+                        text-white
+                        text-sm
+                        font-medium
                         transition
                       "
                     >
                       <FiLock size={16} />
                       Update Password
                     </button>
+
                   </div>
-                </form>
-              </div>
-            )}
 
-            {/* =================================================
-                PROFILE VISIBILITY
-            ================================================= */}
+                </section>
+              )}
 
-            {activeSection === "visibility" && (
-              <div className="p-5 sm:p-7">
-                <SectionHeader
-                  icon={FiEye}
-                  title="Profile Visibility"
-                  description="Choose who can view your CampusMart profile."
-                />
+              {/* =================================================
+                  PROFILE VISIBILITY
+              ================================================= */}
 
-                <div className="mt-7 max-w-2xl">
-                  <FormField label="Who can see your profile?">
-                    <select
-                      value={profileVisibility}
-                      onChange={handleVisibilityChange}
-                      className={inputClass}
-                    >
-                      <option value="campus">
-                        Students on my campus
-                      </option>
+              {activeSection === "visibility" && (
+                <section>
 
-                      <option value="everyone">
-                        Everyone on CampusMart
-                      </option>
+                  <SettingsHeader
+                    title="Profile Visibility"
+                    description="Choose who can see your CampusMart profile."
+                    icon={FiEye}
+                  />
 
-                      <option value="private">
-                        Only me
-                      </option>
-                    </select>
-                  </FormField>
+                  <div className="mt-6 space-y-3">
+
+                    <VisibilityCard
+                      active={profileVisibility === "public"}
+                      onClick={() =>
+                        handleVisibilityChange("public")
+                      }
+                      title="Everyone"
+                      description="Anyone on CampusMart can view your profile."
+                      icon={FiEye}
+                    />
+
+                    <VisibilityCard
+                      active={profileVisibility === "campus"}
+                      onClick={() =>
+                        handleVisibilityChange("campus")
+                      }
+                      title="Campus Only"
+                      description="Only students and users from your campus can view your profile."
+                      icon={FiUser}
+                    />
+
+                    <VisibilityCard
+                      active={profileVisibility === "private"}
+                      onClick={() =>
+                        handleVisibilityChange("private")
+                      }
+                      title="Private"
+                      description="Your profile will only be visible to you."
+                      icon={FiLock}
+                    />
+
+                  </div>
 
                   <div
                     className="
-                      mt-5 rounded-xl p-4
+                      mt-5
+                      rounded-xl
                       bg-green-50
-                      dark:bg-green-500/10
+                      dark:bg-green-950/40
+                      border
+                      border-green-100
+                      dark:border-green-900
+                      p-4
+                      flex
+                      gap-3
                     "
                   >
-                    <div className="flex gap-3">
-                      <FiShield
-                        className="
-                          text-green-600 dark:text-green-400
-                          mt-0.5 shrink-0
-                        "
-                      />
+                    <FiShield
+                      className="
+                        text-green-600
+                        dark:text-green-400
+                        mt-0.5
+                        shrink-0
+                      "
+                      size={18}
+                    />
 
-                      <div>
-                        <p className="font-semibold text-sm text-gray-900 dark:text-white">
-                          Your privacy matters
-                        </p>
-
-                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 leading-6">
-                          You can change this setting whenever you want.
-                          Your choice is saved automatically.
-                        </p>
-                      </div>
-                    </div>
+                    <p
+                      className="
+                        text-xs
+                        leading-5
+                        text-gray-600
+                        dark:text-gray-300
+                      "
+                    >
+                      You can change your profile visibility at any
+                      time. Your account information remains protected.
+                    </p>
                   </div>
-                </div>
-              </div>
-            )}
 
-            {/* =================================================
-                TWO FACTOR
-            ================================================= */}
+                </section>
+              )}
 
-            {activeSection === "two-factor" && (
-              <div className="p-5 sm:p-7">
-                <SectionHeader
-                  icon={FiShield}
-                  title="Two-Factor Authentication"
-                  description="Add another layer of protection to your account."
-                />
+              {/* =================================================
+                  TWO FACTOR
+              ================================================= */}
 
-                <div
-                  className="
-                    mt-7 rounded-2xl border p-5 sm:p-6
-                    border-gray-100 bg-gray-50
-                    dark:border-[#273548] dark:bg-[#111827]
-                  "
-                >
-                  <div className="flex items-start justify-between gap-5">
-                    <div className="flex gap-4">
+              {activeSection === "two-factor" && (
+                <section>
+
+                  <SettingsHeader
+                    title="Two-Factor Authentication"
+                    description="Add an extra layer of security to your CampusMart account."
+                    icon={FiShield}
+                  />
+
+                  <div className="mt-6">
+
+                    <div
+                      className="
+                        rounded-2xl
+                        border
+                        border-gray-100
+                        dark:border-gray-700
+                        bg-gray-50
+                        dark:bg-gray-800
+                        p-5
+                        sm:p-6
+                      "
+                    >
+
                       <div
                         className="
-                          w-11 h-11 rounded-xl shrink-0
-                          bg-green-50 text-green-600
-                          dark:bg-green-500/10 dark:text-green-400
-                          flex items-center justify-center
+                          flex
+                          flex-col
+                          sm:flex-row
+                          sm:items-center
+                          justify-between
+                          gap-5
                         "
                       >
-                        <FiShield size={21} />
+
+                        <div className="flex gap-4">
+
+                          <div
+                            className="
+                              w-12
+                              h-12
+                              rounded-xl
+                              bg-green-100
+                              dark:bg-green-950/60
+                              text-green-600
+                              dark:text-green-400
+                              flex
+                              items-center
+                              justify-center
+                              shrink-0
+                            "
+                          >
+                            <FiShield size={23} />
+                          </div>
+
+                          <div>
+
+                            <h3
+                              className="
+                                font-semibold
+                                text-gray-800
+                                dark:text-white
+                              "
+                            >
+                              Two-Factor Authentication
+                            </h3>
+
+                            <p
+                              className="
+                                mt-1
+                                text-sm
+                                text-gray-500
+                                dark:text-gray-400
+                                leading-6
+                              "
+                            >
+                              Require an additional verification code
+                              whenever you sign in to your account.
+                            </p>
+
+                            <div
+                              className={`
+                                mt-3
+                                inline-flex
+                                items-center
+                                gap-2
+                                px-3
+                                py-1.5
+                                rounded-full
+                                text-xs
+                                font-medium
+
+                                ${
+                                  twoFactor
+                                    ? `
+                                      bg-green-100
+                                      dark:bg-green-950/60
+                                      text-green-600
+                                      dark:text-green-400
+                                    `
+                                    : `
+                                      bg-gray-200
+                                      dark:bg-gray-700
+                                      text-gray-500
+                                      dark:text-gray-400
+                                    `
+                                }
+                              `}
+                            >
+
+                              <span
+                                className={`
+                                  w-2
+                                  h-2
+                                  rounded-full
+
+                                  ${
+                                    twoFactor
+                                      ? "bg-green-500"
+                                      : "bg-gray-400"
+                                  }
+                                `}
+                              />
+
+                              {twoFactor
+                                ? "Protection Enabled"
+                                : "Protection Disabled"}
+
+                            </div>
+
+                          </div>
+                        </div>
+
+                        <Toggle
+                          enabled={twoFactor}
+                          onClick={handleTwoFactor}
+                        />
+
                       </div>
 
-                      <div>
-                        <h3 className="font-bold text-gray-900 dark:text-white">
-                          Two-Factor Authentication
-                        </h3>
-
-                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 leading-6">
-                          Protect your account with an additional security
-                          step when signing in.
-                        </p>
-                      </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={handleTwoFactor}
-                      aria-label="Toggle two-factor authentication"
-                      className={`
-                        relative w-12 h-7 rounded-full shrink-0 transition
-                        ${
-                          twoFactor
-                            ? "bg-green-600"
-                            : "bg-gray-300 dark:bg-gray-600"
-                        }
-                      `}
-                    >
-                      <span
-                        className={`
-                          absolute top-1 w-5 h-5 rounded-full bg-white shadow-sm transition
-                          ${
-                            twoFactor
-                              ? "left-6"
-                              : "left-1"
-                          }
-                        `}
-                      />
-                    </button>
+                  </div>
+
+                </section>
+              )}
+
+              {/* =================================================
+                  APPEARANCE
+              ================================================= */}
+
+              {activeSection === "appearance" && (
+                <section>
+
+                  <SettingsHeader
+                    title="Appearance"
+                    description="Choose how CampusMart looks on your device."
+                    icon={FiSun}
+                  />
+
+                  <div
+                    className="
+                      mt-6
+                      grid
+                      grid-cols-1
+                      sm:grid-cols-2
+                      gap-5
+                    "
+                  >
+
+                    <ThemeCard
+                      active={theme === "light"}
+                      icon={FiSun}
+                      title="Light Mode"
+                      description="Use the clean and bright CampusMart appearance."
+                      onClick={() => handleTheme("light")}
+                    />
+
+                    <ThemeCard
+                      active={theme === "dark"}
+                      icon={FiMoon}
+                      title="Dark Mode"
+                      description="Use a darker appearance that's easier on your eyes."
+                      onClick={() => handleTheme("dark")}
+                    />
+
                   </div>
 
                   <div
                     className="
-                      mt-5 pt-5 border-t
-                      border-gray-200
-                      dark:border-[#273548]
+                      mt-6
+                      rounded-xl
+                      bg-gray-50
+                      dark:bg-gray-800
+                      border
+                      border-gray-100
+                      dark:border-gray-700
+                      p-4
                     "
                   >
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      Status:{" "}
+                    <p
+                      className="
+                        text-sm
+                        text-gray-600
+                        dark:text-gray-300
+                      "
+                    >
+                      Current theme:
+
                       <span
-                        className={
-                          twoFactor
-                            ? "font-semibold text-green-600 dark:text-green-400"
-                            : "font-semibold text-gray-500 dark:text-gray-400"
-                        }
+                        className="
+                          ml-1
+                          font-semibold
+                          text-gray-800
+                          dark:text-white
+                        "
                       >
-                        {twoFactor ? "Enabled" : "Disabled"}
+                        {theme === "light"
+                          ? "Light Mode"
+                          : "Dark Mode"}
                       </span>
                     </p>
                   </div>
-                </div>
-              </div>
-            )}
 
-            {/* =================================================
-                APPEARANCE
-            ================================================= */}
+                </section>
+              )}
 
-            {activeSection === "appearance" && (
-              <div className="p-5 sm:p-7">
-                <SectionHeader
-                  icon={theme === "dark" ? FiMoon : FiSun}
-                  title="Light & Dark Mode"
-                  description="Choose how CampusMart should look."
-                />
+              {/* =================================================
+                  HELP
+              ================================================= */}
 
-                <div className="mt-7 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
-                  {/* LIGHT */}
+              {activeSection === "help" && (
+                <section>
 
-                  <button
-                    type="button"
-                    onClick={() => handleTheme("light")}
-                    className={`
-                      text-left rounded-2xl border p-5 transition
-                      ${
-                        theme === "light"
-                          ? `
-                            border-green-500
-                            bg-green-50
-                            dark:border-green-500
-                            dark:bg-green-500/10
-                          `
-                          : `
-                            border-gray-100 bg-gray-50
-                            hover:border-green-200
-                            dark:border-[#273548] dark:bg-[#111827]
-                            dark:hover:border-green-500/40
-                          `
-                      }
-                    `}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div
-                        className="
-                          w-11 h-11 rounded-xl
-                          bg-white text-yellow-500
-                          border border-gray-200
-                          flex items-center justify-center
-                        "
-                      >
-                        <FiSun size={21} />
-                      </div>
-
-                      {theme === "light" && (
-                        <FiCheckCircle
-                          className="text-green-600"
-                          size={20}
-                        />
-                      )}
-                    </div>
-
-                    <h3 className="mt-5 font-bold text-gray-900 dark:text-white">
-                      Light Mode
-                    </h3>
-
-                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                      Use a bright and clean appearance.
-                    </p>
-                  </button>
-
-                  {/* DARK */}
-
-                  <button
-                    type="button"
-                    onClick={() => handleTheme("dark")}
-                    className={`
-                      text-left rounded-2xl border p-5 transition
-                      ${
-                        theme === "dark"
-                          ? `
-                            border-green-500
-                            bg-green-500/10
-                          `
-                          : `
-                            border-gray-100 bg-gray-50
-                            hover:border-green-200
-                            dark:border-[#273548] dark:bg-[#111827]
-                            dark:hover:border-green-500/40
-                          `
-                      }
-                    `}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div
-                        className="
-                          w-11 h-11 rounded-xl
-                          bg-gray-900 text-white
-                          flex items-center justify-center
-                        "
-                      >
-                        <FiMoon size={21} />
-                      </div>
-
-                      {theme === "dark" && (
-                        <FiCheckCircle
-                          className="text-green-400"
-                          size={20}
-                        />
-                      )}
-                    </div>
-
-                    <h3 className="mt-5 font-bold text-gray-900 dark:text-white">
-                      Dark Mode
-                    </h3>
-
-                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                      Use a darker appearance that is easier on the eyes.
-                    </p>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* =================================================
-                HELP
-            ================================================= */}
-
-            {activeSection === "help" && (
-              <div className="p-5 sm:p-7">
-                <SectionHeader
-                  icon={FiHelpCircle}
-                  title="Help"
-                  description="Get help with using CampusMart."
-                />
-
-                <div className="mt-7 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <HelpCard
-                    icon={FiMessageCircle}
-                    title="Need assistance?"
-                    text="If you are having trouble using CampusMart, contact our support team."
+                  <SettingsHeader
+                    title="Help Center"
+                    description="Need help using CampusMart? We're here for you."
+                    icon={FiHelpCircle}
                   />
 
-                  <HelpCard
-                    icon={FiBookOpenIcon}
-                    title="Learn CampusMart"
-                    text="Explore the marketplace, products, messaging and account features."
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* =================================================
-                FAQ
-            ================================================= */}
-
-            {activeSection === "faq" && (
-              <div className="p-5 sm:p-7">
-                <SectionHeader
-                  icon={FiMessageCircle}
-                  title="Frequently Asked Questions"
-                  description="Answers to common CampusMart questions."
-                />
-
-                <div className="mt-7 space-y-3">
-                  <Faq
-                    question="What is CampusMart?"
-                    answer="CampusMart is a marketplace designed for students to buy, sell and connect within their campus community."
-                  />
-
-                  <Faq
-                    question="How do I sell an item?"
-                    answer="Create an account, go to the selling section and provide the details and images of your item."
-                  />
-
-                  <Faq
-                    question="How do I contact a seller?"
-                    answer="Open the product you are interested in and use the available messaging option to contact the seller."
-                  />
-
-                  <Faq
-                    question="Is CampusMart only for students?"
-                    answer="CampusMart is designed specifically around university and campus communities."
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* =================================================
-                CONTACT
-            ================================================= */}
-
-            {activeSection === "contact" && (
-              <div className="p-5 sm:p-7">
-                <SectionHeader
-                  icon={FiMail}
-                  title="Contact CampusMart"
-                  description="Send us a message and our team will get back to you."
-                />
-
-                {contactSent && (
-                  <SuccessMessage message="Your message has been sent successfully." />
-                )}
-
-                {contactError && (
                   <div
                     className="
-                      mt-6 rounded-xl border px-4 py-3
-                      flex items-start gap-3
-                      bg-red-50 border-red-100 text-red-700
-                      dark:bg-red-500/10 dark:border-red-500/20 dark:text-red-400
+                      mt-6
+                      grid
+                      grid-cols-1
+                      sm:grid-cols-2
+                      gap-4
                     "
                   >
-                    <FiAlertCircle className="mt-0.5 shrink-0" />
 
-                    <p className="text-sm">
+                    <SupportCard
+                      icon={FiMessageCircle}
+                      title="Frequently Asked Questions"
+                      description="Find answers to common CampusMart questions."
+                      onClick={() => setActiveSection("faq")}
+                    />
+
+                    <SupportCard
+                      icon={FiMail}
+                      title="Contact Support"
+                      description="Send a message to the CampusMart support team."
+                      onClick={() => setActiveSection("contact")}
+                    />
+
+                  </div>
+
+                  <div
+                    className="
+                      mt-5
+                      rounded-2xl
+                      bg-green-50
+                      dark:bg-green-950/40
+                      border
+                      border-green-100
+                      dark:border-green-900
+                      p-6
+                    "
+                  >
+
+                    <h3
+                      className="
+                        font-bold
+                        text-gray-800
+                        dark:text-white
+                      "
+                    >
+                      We're here to help.
+                    </h3>
+
+                    <p
+                      className="
+                        mt-2
+                        text-sm
+                        text-gray-600
+                        dark:text-gray-300
+                        leading-6
+                      "
+                    >
+                      If you're having trouble with an order, payment,
+                      account or seller, our support team can help you
+                      resolve the issue.
+                    </p>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setActiveSection("contact")
+                      }
+                      className="
+                        mt-5
+                        flex
+                        items-center
+                        gap-2
+                        px-5
+                        py-3
+                        rounded-xl
+                        bg-green-600
+                        hover:bg-green-700
+                        text-white
+                        text-sm
+                        font-medium
+                      "
+                    >
+                      <FiMail size={16} />
+                      Contact Support
+                    </button>
+
+                  </div>
+
+                </section>
+              )}
+
+              {/* =================================================
+                  FAQ
+              ================================================= */}
+
+              {activeSection === "faq" && (
+                <section>
+
+                  <SettingsHeader
+                    title="Frequently Asked Questions"
+                    description="Find answers to common CampusMart questions."
+                    icon={FiMessageCircle}
+                  />
+
+                  <div className="mt-6 space-y-3">
+
+                    <FAQ
+                      question="How do I place an order?"
+                      answer="Browse products, open the product you want, add it to your cart and proceed to checkout."
+                    />
+
+                    <FAQ
+                      question="How do I contact a seller?"
+                      answer="Open the product you are interested in and use the messaging option to contact the seller."
+                    />
+
+                    <FAQ
+                      question="How can I cancel an order?"
+                      answer="Go to your Orders page, open the order and check whether cancellation is available for that order."
+                    />
+
+                    <FAQ
+                      question="How do I change my profile information?"
+                      answer="Open Settings, select Personal Information and update the information you want to change."
+                    />
+
+                    <FAQ
+                      question="How do I change my password?"
+                      answer="Open Settings, select Change Password and enter your current and new password."
+                    />
+
+                    <FAQ
+                      question="Is CampusMart available on my campus?"
+                      answer="CampusMart is designed to connect students and sellers within their campus community."
+                    />
+
+                  </div>
+
+                </section>
+              )}
+
+              {/* =================================================
+                  CONTACT
+              ================================================= */}
+
+              {activeSection === "contact" && (
+                <section>
+
+                  <SettingsHeader
+                    title="Contact CampusMart"
+                    description="Have a question, complaint or suggestion? Send us a message."
+                    icon={FiMail}
+                  />
+
+                  {contactSent && (
+                    <SuccessMessage
+                      message="Your message has been sent to CampusMart support."
+                    />
+                  )}
+
+                  {contactError && (
+                    <p
+                      className="
+                        mt-3
+                        text-sm
+                        text-red-500
+                        dark:text-red-400
+                      "
+                    >
                       {contactError}
                     </p>
-                  </div>
-                )}
+                  )}
 
-                <form
-                  onSubmit={handleContactSubmit}
-                  className="mt-7 max-w-2xl space-y-5"
-                >
-                  <FormField label="Subject">
-                    <input
-                      type="text"
-                      name="subject"
-                      value={contactForm.subject}
-                      onChange={handleContactChange}
-                      placeholder="What is your message about?"
-                      className={inputClass}
-                    />
-                  </FormField>
+                  <div className="mt-6 max-w-2xl space-y-5">
 
-                  <FormField label="Message">
-                    <textarea
-                      name="message"
-                      value={contactForm.message}
-                      onChange={handleContactChange}
-                      placeholder="Write your message here..."
-                      rows={6}
+                    <div>
+
+                      <label
+                        className="
+                          block
+                          text-sm
+                          font-medium
+                          text-gray-700
+                          dark:text-gray-300
+                          mb-2
+                        "
+                      >
+                        Subject
+                      </label>
+
+                      <input
+                        type="text"
+                        name="subject"
+                        value={contactForm.subject}
+                        onChange={handleContactChange}
+                        placeholder="What can we help you with?"
+                        className="
+                          w-full
+                          px-4
+                          py-3
+                          rounded-xl
+                          border
+                          border-gray-200
+                          dark:border-gray-700
+                          bg-gray-50
+                          dark:bg-gray-800
+                          text-sm
+                          text-gray-800
+                          dark:text-white
+                          placeholder:text-gray-400
+                          dark:placeholder:text-gray-500
+                          outline-none
+                          focus:bg-white
+                          dark:focus:bg-gray-800
+                          focus:border-green-500
+                          transition
+                        "
+                      />
+
+                    </div>
+
+                    <div>
+
+                      <label
+                        className="
+                          block
+                          text-sm
+                          font-medium
+                          text-gray-700
+                          dark:text-gray-300
+                          mb-2
+                        "
+                      >
+                        Message
+                      </label>
+
+                      <textarea
+                        rows={6}
+                        name="message"
+                        value={contactForm.message}
+                        onChange={handleContactChange}
+                        placeholder="Write your message..."
+                        className="
+                          w-full
+                          px-4
+                          py-3
+                          rounded-xl
+                          border
+                          border-gray-200
+                          dark:border-gray-700
+                          bg-gray-50
+                          dark:bg-gray-800
+                          text-sm
+                          text-gray-800
+                          dark:text-white
+                          placeholder:text-gray-400
+                          dark:placeholder:text-gray-500
+                          outline-none
+                          resize-none
+                          focus:bg-white
+                          dark:focus:bg-gray-800
+                          focus:border-green-500
+                          transition
+                        "
+                      />
+
+                    </div>
+
+                    <div
                       className="
-                        w-full rounded-xl border px-4 py-3
-                        text-sm outline-none resize-none transition
-                        bg-white text-gray-900 border-gray-200
-                        focus:border-green-500 focus:ring-2 focus:ring-green-500/10
-                        dark:bg-[#111827] dark:text-white
-                        dark:border-[#334155]
-                        dark:placeholder:text-gray-500
-                        dark:focus:border-green-500
+                        flex
+                        justify-end
+                        pt-2
                       "
-                    />
-                  </FormField>
+                    >
 
-                  <button
-                    type="submit"
-                    className="
-                      h-11 px-5 rounded-xl
-                      bg-green-600 text-white
-                      hover:bg-green-700
-                      font-semibold text-sm
-                      flex items-center gap-2
-                      transition
-                    "
-                  >
-                    <FiMail size={17} />
-                    Send Message
-                  </button>
-                </form>
-              </div>
-            )}
-          </main>
+                      <button
+                        type="button"
+                        onClick={handleContactSubmit}
+                        className="
+                          flex
+                          items-center
+                          gap-2
+                          px-5
+                          py-3
+                          rounded-xl
+                          bg-green-600
+                          hover:bg-green-700
+                          text-white
+                          text-sm
+                          font-medium
+                          transition
+                        "
+                      >
+                        <FiSend size={16} />
+                        Send Message
+                      </button>
+
+                    </div>
+
+                  </div>
+
+                </section>
+              )}
+
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+    </CustomerLayout>
   );
 }
 
-// =============================================================
-// SECTION HEADER
-// =============================================================
+/* =========================================================
+   SETTINGS HEADER
+========================================================= */
 
-function SectionHeader({
-  icon: Icon,
+const SettingsHeader = ({
   title,
   description,
-}) {
+  icon: Icon,
+}) => {
   return (
     <div
       className="
-        flex items-start gap-4
-        pb-6 border-b
+        flex
+        items-start
+        gap-4
+        pb-5
+        border-b
         border-gray-100
-        dark:border-[#273548]
+        dark:border-gray-800
       "
     >
+
       <div
         className="
-          w-11 h-11 rounded-xl shrink-0
-          bg-green-50 text-green-600
-          dark:bg-green-500/10 dark:text-green-400
-          flex items-center justify-center
+          w-11
+          h-11
+          rounded-xl
+          bg-green-50
+          dark:bg-green-950/60
+          text-green-600
+          dark:text-green-400
+          flex
+          items-center
+          justify-center
+          shrink-0
         "
       >
-        <Icon size={21} />
+        <Icon size={20} />
       </div>
 
       <div>
-        <h2 className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white">
+
+        <h2
+          className="
+            text-xl
+            sm:text-2xl
+            font-bold
+            text-gray-800
+            dark:text-white
+          "
+        >
           {title}
         </h2>
 
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+        <p
+          className="
+            mt-1
+            text-sm
+            text-gray-500
+            dark:text-gray-400
+          "
+        >
           {description}
         </p>
+
       </div>
     </div>
   );
-}
+};
 
-// =============================================================
-// FORM FIELD
-// =============================================================
+/* =========================================================
+   SETTINGS INPUT
+========================================================= */
 
-function FormField({ label, children }) {
+const SettingsInput = ({
+  label,
+  name,
+  type = "text",
+  value,
+  onChange,
+  icon: Icon,
+}) => {
   return (
     <div>
-      <label className="block mb-2 text-sm font-semibold text-gray-800 dark:text-gray-200">
+
+      <label
+        className="
+          block
+          text-sm
+          font-medium
+          text-gray-700
+          dark:text-gray-300
+          mb-2
+        "
+      >
         {label}
       </label>
 
-      {children}
+      <div className="relative">
+
+        <Icon
+          className="
+            absolute
+            left-3
+            top-1/2
+            -translate-y-1/2
+            text-gray-400
+            dark:text-gray-500
+          "
+          size={17}
+        />
+
+        <input
+          type={type}
+          name={name}
+          value={value}
+          onChange={onChange}
+          className="
+            w-full
+            pl-10
+            pr-4
+            py-3
+            rounded-xl
+            border
+            border-gray-200
+            dark:border-gray-700
+            bg-gray-50
+            dark:bg-gray-800
+            text-sm
+            text-gray-700
+            dark:text-white
+            outline-none
+            placeholder:text-gray-400
+            dark:placeholder:text-gray-500
+            focus:bg-white
+            dark:focus:bg-gray-800
+            focus:border-green-500
+            transition
+          "
+        />
+
+      </div>
     </div>
   );
-}
+};
 
-// =============================================================
-// PASSWORD FIELD
-// =============================================================
+/* =========================================================
+   PASSWORD FIELD
+========================================================= */
 
-function PasswordField({
+const PasswordField = ({
   label,
   name,
   value,
   onChange,
-  show,
-  setShow,
-  className,
-}) {
+  placeholder,
+}) => {
+  const [show, setShow] = useState(false);
+
   return (
-    <FormField label={label}>
+    <div>
+
+      <label
+        className="
+          mb-2
+          block
+          text-sm
+          font-medium
+          text-gray-700
+          dark:text-gray-300
+        "
+      >
+        {label}
+      </label>
+
       <div className="relative">
+
         <input
           type={show ? "text" : "password"}
           name={name}
           value={value}
           onChange={onChange}
-          placeholder={`Enter ${label.toLowerCase()}`}
-          className={`${className} pr-14`}
+          placeholder={placeholder}
+          className="
+            w-full
+            rounded-xl
+            border
+            border-gray-200
+            dark:border-gray-700
+            bg-gray-50
+            dark:bg-gray-800
+            px-4
+            py-3
+            pr-12
+            text-sm
+            text-gray-800
+            dark:text-white
+            placeholder:text-gray-400
+            dark:placeholder:text-gray-500
+            outline-none
+            focus:border-green-500
+            transition
+          "
         />
 
         <button
           type="button"
-          onClick={() => setShow((current) => !current)}
+          onClick={() => setShow(!show)}
           className="
-            absolute right-3 top-1/2 -translate-y-1/2
-            text-xs font-semibold
-            text-gray-500 hover:text-green-600
-            dark:text-gray-400 dark:hover:text-green-400
-            transition
+            absolute
+            right-3
+            top-1/2
+            -translate-y-1/2
+            text-gray-400
+            dark:text-gray-500
+            hover:text-green-600
+            dark:hover:text-green-400
           "
-        >
-          {show ? "Hide" : "Show"}
-        </button>
-      </div>
-    </FormField>
-  );
-}
-
-// =============================================================
-// REQUIREMENT
-// =============================================================
-
-function Requirement({ valid, text }) {
-  return (
-    <div className="flex items-center gap-2">
-      <div
-        className={`
-          w-5 h-5 rounded-full flex items-center justify-center
-          ${
-            valid
-              ? "bg-green-100 text-green-600 dark:bg-green-500/10 dark:text-green-400"
-              : "bg-gray-100 text-gray-400 dark:bg-[#182230] dark:text-gray-500"
+          aria-label={
+            show ? "Hide password" : "Show password"
           }
-        `}
-      >
-        <FiCheckCircle size={12} />
+        >
+          {show ? <FiEyeOff /> : <FiEye />}
+        </button>
+
       </div>
+    </div>
+  );
+};
+
+/* =========================================================
+   PASSWORD REQUIREMENT
+========================================================= */
+
+const PasswordRequirement = ({
+  checked,
+  text,
+}) => {
+  return (
+    <div
+      className="
+        flex
+        items-center
+        gap-2
+        text-xs
+      "
+    >
 
       <span
         className={`
-          text-xs
+          w-5
+          h-5
+          rounded-full
+          flex
+          items-center
+          justify-center
+
           ${
-            valid
-              ? "text-green-600 dark:text-green-400"
-              : "text-gray-500 dark:text-gray-400"
+            checked
+              ? `
+                bg-green-100
+                dark:bg-green-950/60
+                text-green-600
+                dark:text-green-400
+              `
+              : `
+                bg-gray-200
+                dark:bg-gray-700
+                text-gray-400
+                dark:text-gray-500
+              `
           }
         `}
       >
+        <FiCheck size={12} />
+      </span>
+
+      <span
+        className={
+          checked
+            ? "text-green-600 dark:text-green-400"
+            : "text-gray-500 dark:text-gray-400"
+        }
+      >
         {text}
       </span>
+
     </div>
   );
-}
+};
 
-// =============================================================
-// SUCCESS MESSAGE
-// =============================================================
+/* =========================================================
+   VISIBILITY CARD
+========================================================= */
 
-function SuccessMessage({ message }) {
-  return (
-    <div
-      className="
-        mt-6 rounded-xl border px-4 py-3
-        flex items-start gap-3
-        bg-green-50 border-green-100 text-green-700
-        dark:bg-green-500/10 dark:border-green-500/20 dark:text-green-400
-      "
-    >
-      <FiCheckCircle className="mt-0.5 shrink-0" />
-
-      <p className="text-sm">{message}</p>
-    </div>
-  );
-}
-
-// =============================================================
-// HELP CARD
-// =============================================================
-
-function HelpCard({
-  icon: Icon,
+const VisibilityCard = ({
+  active,
+  onClick,
   title,
-  text,
-}) {
+  description,
+  icon: Icon,
+}) => {
   return (
-    <div
-      className="
-        rounded-2xl border p-6
-        border-gray-100 bg-gray-50
-        dark:border-[#273548] dark:bg-[#111827]
-      "
+    <button
+      type="button"
+      onClick={onClick}
+      className={`
+        w-full
+        flex
+        items-center
+        justify-between
+        gap-4
+        p-4
+        rounded-2xl
+        border
+        text-left
+        transition
+
+        ${
+          active
+            ? `
+              border-green-500
+              bg-green-50
+              dark:bg-green-950/40
+            `
+            : `
+              border-gray-100
+              dark:border-gray-800
+              bg-white
+              dark:bg-gray-800
+              hover:border-gray-200
+              dark:hover:border-gray-700
+              hover:bg-gray-50
+              dark:hover:bg-gray-750
+            `
+        }
+      `}
     >
-      <div
-        className="
-          w-11 h-11 rounded-xl
-          bg-green-50 text-green-600
-          dark:bg-green-500/10 dark:text-green-400
-          flex items-center justify-center
-        "
-      >
-        <Icon size={21} />
+
+      <div className="flex items-center gap-4">
+
+        <div
+          className={`
+            w-11
+            h-11
+            rounded-xl
+            flex
+            items-center
+            justify-center
+            shrink-0
+
+            ${
+              active
+                ? `
+                  bg-white
+                  dark:bg-gray-800
+                  text-green-600
+                  dark:text-green-400
+                `
+                : `
+                  bg-gray-50
+                  dark:bg-gray-700
+                  text-gray-400
+                  dark:text-gray-500
+                `
+            }
+          `}
+        >
+          <Icon size={19} />
+        </div>
+
+        <div>
+
+          <h3
+            className="
+              text-sm
+              font-semibold
+              text-gray-800
+              dark:text-white
+            "
+          >
+            {title}
+          </h3>
+
+          <p
+            className="
+              mt-1
+              text-xs
+              leading-5
+              text-gray-500
+              dark:text-gray-400
+            "
+          >
+            {description}
+          </p>
+
+        </div>
       </div>
 
-      <h3 className="mt-5 font-bold text-gray-900 dark:text-white">
+      <div
+        className={`
+          w-5
+          h-5
+          rounded-full
+          border
+          flex
+          items-center
+          justify-center
+          shrink-0
+
+          ${
+            active
+              ? "border-green-600 bg-green-600"
+              : "border-gray-300 dark:border-gray-600"
+          }
+        `}
+      >
+        {active && (
+          <FiCheck
+            className="text-white"
+            size={12}
+          />
+        )}
+      </div>
+
+    </button>
+  );
+};
+
+/* =========================================================
+   TOGGLE
+========================================================= */
+
+const Toggle = ({
+  enabled,
+  onClick,
+}) => {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="Toggle setting"
+      className={`
+        relative
+        w-12
+        h-7
+        rounded-full
+        transition
+        shrink-0
+
+        ${
+          enabled
+            ? "bg-green-600"
+            : "bg-gray-300 dark:bg-gray-600"
+        }
+      `}
+    >
+
+      <span
+        className={`
+          absolute
+          top-1
+          w-5
+          h-5
+          rounded-full
+          bg-white
+          shadow-sm
+          transition
+
+          ${
+            enabled
+              ? "left-6"
+              : "left-1"
+          }
+        `}
+      />
+
+    </button>
+  );
+};
+
+/* =========================================================
+   THEME CARD
+========================================================= */
+
+const ThemeCard = ({
+  active,
+  icon: Icon,
+  title,
+  description,
+  onClick,
+}) => {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`
+        relative
+        text-left
+        p-5
+        rounded-2xl
+        border
+        transition
+
+        ${
+          active
+            ? `
+              border-green-500
+              bg-green-50
+              dark:bg-green-950/40
+            `
+            : `
+              border-gray-100
+              dark:border-gray-800
+              bg-white
+              dark:bg-gray-800
+              hover:border-gray-200
+              dark:hover:border-gray-700
+              hover:bg-gray-50
+              dark:hover:bg-gray-750
+            `
+        }
+      `}
+    >
+
+      <div
+        className="
+          flex
+          items-center
+          justify-between
+        "
+      >
+
+        <div
+          className={`
+            w-12
+            h-12
+            rounded-xl
+            flex
+            items-center
+            justify-center
+
+            ${
+              active
+                ? `
+                  bg-white
+                  dark:bg-gray-800
+                  text-green-600
+                  dark:text-green-400
+                `
+                : `
+                  bg-gray-100
+                  dark:bg-gray-700
+                  text-gray-500
+                  dark:text-gray-400
+                `
+            }
+          `}
+        >
+          <Icon size={22} />
+        </div>
+
+        <div
+          className={`
+            w-5
+            h-5
+            rounded-full
+            border
+            flex
+            items-center
+            justify-center
+
+            ${
+              active
+                ? "border-green-600 bg-green-600"
+                : "border-gray-300 dark:border-gray-600"
+            }
+          `}
+        >
+          {active && (
+            <FiCheck
+              size={12}
+              className="text-white"
+            />
+          )}
+        </div>
+
+      </div>
+
+      <h3
+        className="
+          mt-5
+          text-sm
+          font-bold
+          text-gray-800
+          dark:text-white
+        "
+      >
         {title}
       </h3>
 
-      <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 leading-6">
-        {text}
+      <p
+        className="
+          mt-1
+          text-xs
+          leading-5
+          text-gray-500
+          dark:text-gray-400
+        "
+      >
+        {description}
       </p>
-    </div>
+
+    </button>
   );
-}
+};
 
-// =============================================================
-// FAQ
-// =============================================================
+/* =========================================================
+   SUPPORT CARD
+========================================================= */
 
-function Faq({
+const SupportCard = ({
+  icon: Icon,
+  title,
+  description,
+  onClick,
+}) => {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="
+        p-5
+        rounded-2xl
+        border
+        border-gray-100
+        dark:border-gray-800
+        bg-white
+        dark:bg-gray-800
+        text-left
+        hover:border-green-200
+        dark:hover:border-green-800
+        hover:bg-green-50
+        dark:hover:bg-green-950/40
+        transition
+      "
+    >
+
+      <div
+        className="
+          w-11
+          h-11
+          rounded-xl
+          bg-green-50
+          dark:bg-green-950/60
+          text-green-600
+          dark:text-green-400
+          flex
+          items-center
+          justify-center
+        "
+      >
+        <Icon size={20} />
+      </div>
+
+      <h3
+        className="
+          mt-4
+          text-sm
+          font-bold
+          text-gray-800
+          dark:text-white
+        "
+      >
+        {title}
+      </h3>
+
+      <p
+        className="
+          mt-1
+          text-xs
+          leading-5
+          text-gray-500
+          dark:text-gray-400
+        "
+      >
+        {description}
+      </p>
+
+      <div
+        className="
+          mt-4
+          flex
+          items-center
+          gap-1
+          text-xs
+          font-semibold
+          text-green-600
+          dark:text-green-400
+        "
+      >
+        Open
+        <FiChevronRight size={14} />
+      </div>
+
+    </button>
+  );
+};
+
+/* =========================================================
+   FAQ
+========================================================= */
+
+const FAQ = ({
   question,
   answer,
-}) {
+}) => {
   return (
     <details
       className="
-        group rounded-xl border
-        border-gray-100 bg-gray-50
-        dark:border-[#273548] dark:bg-[#111827]
+        group
+        rounded-2xl
+        border
+        border-gray-100
+        dark:border-gray-800
+        bg-white
+        dark:bg-gray-800
         overflow-hidden
       "
     >
+
       <summary
         className="
-          cursor-pointer list-none
-          px-5 py-4
-          flex items-center justify-between gap-4
-          font-semibold text-sm
-          text-gray-900 dark:text-white
+          flex
+          items-center
+          justify-between
+          gap-4
+          cursor-pointer
+          list-none
+          p-5
+          text-sm
+          font-semibold
+          text-gray-800
+          dark:text-white
         "
       >
+
         <span>{question}</span>
 
         <FiChevronRight
+          size={18}
           className="
-            shrink-0 transition-transform
-            group-open:rotate-90
             text-gray-400
+            dark:text-gray-500
+            transition
+            group-open:rotate-90
+            shrink-0
           "
         />
+
       </summary>
 
       <div
         className="
-          px-5 pb-5
-          text-sm leading-6
-          text-gray-500 dark:text-gray-400
+          px-5
+          pb-5
+          text-sm
+          leading-6
+          text-gray-500
+          dark:text-gray-400
         "
       >
         {answer}
       </div>
+
     </details>
   );
-}
+};
 
-// =============================================================
-// ICON HELPER
-// =============================================================
+/* =========================================================
+   SUCCESS MESSAGE
+========================================================= */
 
-function FiBookOpenIcon(props) {
-  return <FiMessageCircle {...props} />;
-}
+const SuccessMessage = ({
+  message,
+}) => {
+  return (
+    <div
+      className="
+        mt-5
+        flex
+        items-start
+        gap-3
+        rounded-xl
+        border
+        border-green-100
+        dark:border-green-900
+        bg-green-50
+        dark:bg-green-950/40
+        p-4
+      "
+    >
+
+      <div
+        className="
+          w-7
+          h-7
+          rounded-full
+          bg-green-100
+          dark:bg-green-900/60
+          text-green-600
+          dark:text-green-400
+          flex
+          items-center
+          justify-center
+          shrink-0
+        "
+      >
+        <FiCheck size={15} />
+      </div>
+
+      <p
+        className="
+          text-sm
+          text-green-700
+          dark:text-green-400
+        "
+      >
+        {message}
+      </p>
+
+    </div>
+  );
+};
+
+/* =========================================================
+   ERROR MESSAGE
+========================================================= */
+
+const ErrorMessage = ({
+  message,
+}) => {
+  return (
+    <div
+      className="
+        flex
+        items-start
+        gap-3
+        rounded-xl
+        border
+        border-red-100
+        dark:border-red-900
+        bg-red-50
+        dark:bg-red-950/40
+        p-4
+      "
+    >
+
+      <FiAlertCircle
+        className="
+          text-red-500
+          dark:text-red-400
+          mt-0.5
+          shrink-0
+        "
+        size={18}
+      />
+
+      <p
+        className="
+          text-sm
+          text-red-600
+          dark:text-red-400
+        "
+      >
+        {message}
+      </p>
+
+    </div>
+  );
+};
 
 export default Settings;
