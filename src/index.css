@@ -174,6 +174,19 @@ html.dark .shadow-sm {
 */
 
 /* =========================================================
+   LANDING PAGE BODY PROTECTION
+========================================================= */
+
+/*
+   When the landing page is currently mounted,
+   keep the body background white too.
+*/
+
+html.dark body:has(.landing-page) {
+  background-color: #ffffff !important;
+}
+
+/* =========================================================
    LANDING PAGE ROOT
 ========================================================= */
 
@@ -451,7 +464,9 @@ html:not(.dark) .settings-page .border-gray-300 {
 }
 
 
-/* Green */
+/* =========================================================
+   SETTINGS GREEN
+========================================================= */
 
 html:not(.dark) .settings-page .bg-green-50 {
   background-color: #f0fdf4 !important;
@@ -478,7 +493,9 @@ html:not(.dark) .settings-page .border-green-200 {
 }
 
 
-/* Inputs */
+/* =========================================================
+   SETTINGS INPUTS - LIGHT
+========================================================= */
 
 html:not(.dark) .settings-page input,
 html:not(.dark) .settings-page textarea,
@@ -495,7 +512,7 @@ html:not(.dark) .settings-page textarea::placeholder {
 
 
 /* =========================================================
-   DARK MODE
+   SETTINGS DARK MODE
 ========================================================= */
 
 html.dark .settings-page,
@@ -506,7 +523,9 @@ html.dark .settings-page.settings-dark {
 }
 
 
-/* Main cards */
+/* =========================================================
+   SETTINGS MAIN CARDS
+========================================================= */
 
 html.dark .settings-page .bg-white {
   background-color: #111827 !important;
@@ -525,7 +544,9 @@ html.dark .settings-page .bg-gray-200 {
 }
 
 
-/* Text */
+/* =========================================================
+   SETTINGS TEXT
+========================================================= */
 
 html.dark .settings-page .text-gray-900 {
   color: #f8fafc !important;
@@ -552,7 +573,9 @@ html.dark .settings-page .text-gray-400 {
 }
 
 
-/* Borders */
+/* =========================================================
+   SETTINGS BORDERS
+========================================================= */
 
 html.dark .settings-page .border-gray-100 {
   border-color: #263244 !important;
@@ -567,7 +590,9 @@ html.dark .settings-page .border-gray-300 {
 }
 
 
-/* Green */
+/* =========================================================
+   SETTINGS GREEN
+========================================================= */
 
 html.dark .settings-page .bg-green-50 {
   background-color: rgba(34, 197, 94, 0.10) !important;
@@ -594,7 +619,9 @@ html.dark .settings-page .border-green-200 {
 }
 
 
-/* Inputs */
+/* =========================================================
+   SETTINGS INPUTS - DARK
+========================================================= */
 
 html.dark .settings-page input,
 html.dark .settings-page textarea,
@@ -610,7 +637,9 @@ html.dark .settings-page textarea::placeholder {
 }
 
 
-/* Focus */
+/* =========================================================
+   SETTINGS INPUT FOCUS
+========================================================= */
 
 html.dark .settings-page input:focus,
 html.dark .settings-page textarea:focus,

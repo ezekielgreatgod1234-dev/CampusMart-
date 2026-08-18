@@ -300,8 +300,7 @@ function Landing() {
   // =========================================================
 
   return (
-    <div className="min-h-screen bg-white text-gray-900 overflow-x-hidden">
-
+    <div className="landing-page min-h-screen bg-white text-gray-900 overflow-x-hidden">
       {/* =====================================================
           NAVBAR
       ===================================================== */}
@@ -309,7 +308,6 @@ function Landing() {
       <header className="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-gray-100">
         <div className="max-w-[1400px] mx-auto px-5 sm:px-8 lg:px-10">
           <div className="h-[70px] sm:h-[78px] flex items-center justify-between">
-
             {/* LOGO */}
 
             <Link
@@ -330,7 +328,6 @@ function Landing() {
             {/* DESKTOP NAV */}
 
             <nav className="hidden lg:flex items-center gap-8 xl:gap-9">
-
               <a
                 href="#home"
                 className="text-sm font-semibold text-green-600 border-b-2 border-green-600 py-7"
@@ -365,20 +362,15 @@ function Landing() {
               >
                 Contact
               </a>
-
             </nav>
 
             {/* DESKTOP RIGHT SIDE */}
 
             <div className="hidden md:flex items-center gap-3">
-
               {/* SEARCH */}
 
               <div className="hidden xl:flex items-center w-[230px] h-10 rounded-full border border-gray-200 bg-white px-4">
-                <FiSearch
-                  size={17}
-                  className="text-gray-400"
-                />
+                <FiSearch size={17} className="text-gray-400" />
 
                 <input
                   type="text"
@@ -405,7 +397,6 @@ function Landing() {
               >
                 Login
               </Link>
-
             </div>
 
             {/* MOBILE MENU BUTTON */}
@@ -416,13 +407,8 @@ function Landing() {
               className="lg:hidden w-11 h-11 rounded-xl border border-gray-200 flex items-center justify-center text-gray-800 hover:bg-gray-50 transition"
               aria-label="Toggle menu"
             >
-              {mobileMenuOpen ? (
-                <FiX size={24} />
-              ) : (
-                <FiMenu size={24} />
-              )}
+              {mobileMenuOpen ? <FiX size={24} /> : <FiMenu size={24} />}
             </button>
-
           </div>
         </div>
 
@@ -432,11 +418,8 @@ function Landing() {
 
         {mobileMenuOpen && (
           <div className="lg:hidden border-t border-gray-100 bg-white shadow-lg">
-
             <div className="px-5 sm:px-8 py-5">
-
               <nav className="flex flex-col">
-
                 <a
                   href="#home"
                   onClick={closeMobileMenu}
@@ -492,14 +475,10 @@ function Landing() {
                 >
                   Login
                 </Link>
-
               </nav>
-
             </div>
-
           </div>
         )}
-
       </header>
 
       {/* =====================================================
@@ -510,11 +489,8 @@ function Landing() {
         id="home"
         className="relative overflow-hidden bg-gradient-to-br from-[#f5fff8] via-white to-[#f0fff5]"
       >
-
         <div className="max-w-[1400px] mx-auto px-5 sm:px-8 lg:px-10">
-
           <div className="relative min-h-[auto] lg:min-h-[600px] flex flex-col lg:block">
-
             {/* LEFT CONTENT */}
 
             <div
@@ -524,17 +500,14 @@ function Landing() {
                 py-12 sm:py-16 lg:py-20
               "
             >
-
               {/* BADGE */}
 
               <div className="inline-flex items-center gap-2 rounded-full bg-green-50 border border-green-100 px-3.5 py-2 text-xs sm:text-sm font-semibold text-green-700">
-
                 <span className="w-5 h-5 rounded-full bg-green-600 text-white flex items-center justify-center text-[10px]">
                   ★
                 </span>
 
                 The #1 Marketplace for Students
-
               </div>
 
               {/* HEADING */}
@@ -556,22 +529,19 @@ function Landing() {
 
                 <br />
 
-                <span className="text-green-600">
-                  All on Campus.
-                </span>
+                <span className="text-green-600">All on Campus.</span>
               </h1>
 
               {/* DESCRIPTION */}
 
               <p className="mt-6 sm:mt-7 max-w-[500px] text-sm sm:text-lg leading-7 sm:leading-8 text-gray-600">
-                CampusMart makes it easy for students to buy and sell
-                items within their campus community.
+                CampusMart makes it easy for students to buy and sell items
+                within their campus community.
               </p>
 
               {/* BUTTONS */}
 
               <div className="mt-7 sm:mt-8 flex flex-wrap gap-3">
-
                 <button
                   type="button"
                   onClick={goToBrowse}
@@ -616,15 +586,12 @@ function Landing() {
                   Sell an Item
                   <FiTag size={17} />
                 </button>
-
               </div>
 
               {/* USERS */}
 
               <div className="mt-7 sm:mt-8 flex items-center gap-4">
-
                 <div className="flex -space-x-3">
-
                   {[1, 2, 3, 4, 5].map((item) => (
                     <img
                       key={item}
@@ -633,7 +600,6 @@ function Landing() {
                       className="w-8 h-8 sm:w-9 sm:h-9 rounded-full border-2 border-white object-cover"
                     />
                   ))}
-
                 </div>
 
                 <div>
@@ -645,14 +611,10 @@ function Landing() {
                     already using CampusMart
                   </p>
                 </div>
-
               </div>
-
             </div>
 
-            {/* =================================================
-                HERO IMAGE DESKTOP
-            ================================================= */}
+            {/* HERO IMAGE DESKTOP */}
 
             <div
               className="
@@ -665,7 +627,6 @@ function Landing() {
                 h-full
               "
             >
-
               <div className="absolute inset-0 bg-gradient-to-r from-[#f5fff8] via-[#f5fff8]/30 to-transparent z-10 pointer-events-none" />
 
               <img
@@ -681,17 +642,12 @@ function Landing() {
                   object-right-bottom
                 "
               />
-
             </div>
 
-            {/* =================================================
-                HERO IMAGE MOBILE
-            ================================================= */}
+            {/* HERO IMAGE MOBILE */}
 
             <div className="lg:hidden w-full -mt-2 pb-10">
-
               <div className="relative w-full overflow-hidden rounded-3xl">
-
                 <img
                   src="/3stud.png"
                   alt="Three students using CampusMart"
@@ -703,24 +659,16 @@ function Landing() {
                     object-center
                   "
                 />
-
               </div>
-
             </div>
-
           </div>
         </div>
 
-        {/* =====================================================
-            HERO FEATURE BAR
-        ===================================================== */}
+        {/* HERO FEATURE BAR */}
 
         <div className="relative z-30 max-w-[1250px] mx-auto px-5 sm:px-8 lg:px-0 pb-7">
-
           <div className="rounded-2xl bg-green-600 text-white shadow-xl overflow-hidden">
-
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-
               {heroFeatures.map((item, index) => (
                 <div
                   key={item.title}
@@ -730,13 +678,11 @@ function Landing() {
                       : ""
                   }`}
                 >
-
                   <div className="w-14 h-14 rounded-full border-2 border-white/70 flex items-center justify-center shrink-0">
                     {item.icon}
                   </div>
 
                   <div>
-
                     <h3 className="font-bold text-sm sm:text-base">
                       {item.title}
                     </h3>
@@ -744,18 +690,12 @@ function Landing() {
                     <p className="mt-1 text-xs sm:text-sm text-green-50 leading-5">
                       {item.text}
                     </p>
-
                   </div>
-
                 </div>
               ))}
-
             </div>
-
           </div>
-
         </div>
-
       </section>
 
       {/* =====================================================
@@ -763,26 +703,19 @@ function Landing() {
       ===================================================== */}
 
       <section className="py-16 sm:py-20">
-
         <div className="max-w-[1250px] mx-auto px-5 sm:px-8">
-
           <div className="text-center">
-
             <h2 className="text-3xl sm:text-4xl font-black">
               Shop by{" "}
-              <span className="text-green-600">
-                Category
-              </span>
+              <span className="text-green-600">Category</span>
             </h2>
 
             <p className="mt-3 text-gray-500">
               Find exactly what you need
             </p>
-
           </div>
 
           <div className="mt-10 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-
             {categories.map((category) => (
               <button
                 key={category.name}
@@ -790,39 +723,28 @@ function Landing() {
                 onClick={goToBrowse}
                 className="group bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition overflow-hidden text-left"
               >
-
                 <div className="h-[135px] bg-gray-50 overflow-hidden">
-
                   <img
                     src={category.image}
                     alt={category.name}
                     className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
                   />
-
                 </div>
 
                 <div className="p-4 text-center">
-
                   <h3 className="font-bold text-sm text-gray-900">
                     {category.name}
                   </h3>
 
                   <p className="mt-1 text-xs text-gray-500">
                     {category.count}{" "}
-                    <span className="text-green-600">
-                      →
-                    </span>
+                    <span className="text-green-600">→</span>
                   </p>
-
                 </div>
-
               </button>
             ))}
-
           </div>
-
         </div>
-
       </section>
 
       {/* =====================================================
@@ -830,13 +752,9 @@ function Landing() {
       ===================================================== */}
 
       <section className="pb-16">
-
         <div className="max-w-[1250px] mx-auto px-5 sm:px-8">
-
           <div className="rounded-2xl bg-[#f1faf4] border border-green-50">
-
             <div className="grid grid-cols-2 lg:grid-cols-4">
-
               {stats.map((stat, index) => (
                 <div
                   key={stat.label}
@@ -846,13 +764,11 @@ function Landing() {
                       : ""
                   }`}
                 >
-
                   <div className="w-12 h-12 rounded-full bg-white border border-green-100 text-green-600 flex items-center justify-center shrink-0">
                     {stat.icon}
                   </div>
 
                   <div>
-
                     <p className="text-xl font-black">
                       {stat.number}
                     </p>
@@ -860,18 +776,12 @@ function Landing() {
                     <p className="text-sm text-gray-600">
                       {stat.label}
                     </p>
-
                   </div>
-
                 </div>
               ))}
-
             </div>
-
           </div>
-
         </div>
-
       </section>
 
       {/* =====================================================
@@ -882,11 +792,8 @@ function Landing() {
         id="about"
         className="py-16 sm:py-20 bg-gray-50/60"
       >
-
         <div className="max-w-[1250px] mx-auto px-5 sm:px-8">
-
           <div className="text-center">
-
             <h2 className="text-3xl sm:text-4xl font-black">
               Why Students Love{" "}
               <span className="text-green-600">
@@ -897,17 +804,14 @@ function Landing() {
             <p className="mt-3 text-gray-500">
               Built for students. By students.
             </p>
-
           </div>
 
           <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-
             {benefits.map((benefit) => (
               <div
                 key={benefit.title}
                 className="bg-white rounded-2xl border border-gray-100 p-7 text-center shadow-sm hover:shadow-md transition"
               >
-
                 <div className="mx-auto w-16 h-16 rounded-full bg-green-50 text-green-600 flex items-center justify-center">
                   {benefit.icon}
                 </div>
@@ -919,14 +823,10 @@ function Landing() {
                 <p className="mt-3 text-sm text-gray-500 leading-6">
                   {benefit.text}
                 </p>
-
               </div>
             ))}
-
           </div>
-
         </div>
-
       </section>
 
       {/* =====================================================
@@ -934,11 +834,8 @@ function Landing() {
       ===================================================== */}
 
       <section className="py-16 sm:py-20">
-
         <div className="max-w-[1250px] mx-auto px-5 sm:px-8">
-
           <div className="flex items-center justify-between gap-5">
-
             <h2 className="text-2xl sm:text-3xl font-black">
               Popular{" "}
               <span className="text-green-600">
@@ -953,19 +850,15 @@ function Landing() {
               View all products
               <FiArrowRight />
             </button>
-
           </div>
 
           <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-
             {products.map((product) => (
               <div
                 key={product.name}
                 className="group rounded-xl border border-gray-100 bg-white overflow-hidden shadow-sm hover:shadow-md transition"
               >
-
                 <div className="relative h-[180px] bg-gray-100 overflow-hidden">
-
                   <img
                     src={product.image}
                     alt={product.name}
@@ -975,27 +868,22 @@ function Landing() {
                   <span className="absolute top-3 left-3 px-2 py-1 rounded-md bg-green-600 text-white text-[9px] font-bold">
                     {product.badge}
                   </span>
-
                 </div>
 
                 <div className="p-4">
-
                   <h3 className="font-bold text-sm truncate">
                     {product.name}
                   </h3>
 
                   <div className="flex items-center gap-1 mt-2 text-xs text-gray-500">
-
                     <FiMapPin size={12} />
 
                     <span className="truncate">
                       {product.location}
                     </span>
-
                   </div>
 
                   <div className="mt-3 flex items-center justify-between gap-2">
-
                     <span className="font-black text-green-600 text-sm">
                       {product.price}
                     </span>
@@ -1006,14 +894,10 @@ function Landing() {
                     >
                       <FiHeart size={18} />
                     </button>
-
                   </div>
-
                 </div>
-
               </div>
             ))}
-
           </div>
 
           <button
@@ -1025,17 +909,13 @@ function Landing() {
           </button>
 
           <div className="flex justify-center gap-2 mt-7">
-
             <span className="w-2.5 h-2.5 rounded-full bg-green-600" />
             <span className="w-2.5 h-2.5 rounded-full bg-gray-200" />
             <span className="w-2.5 h-2.5 rounded-full bg-gray-200" />
             <span className="w-2.5 h-2.5 rounded-full bg-gray-200" />
             <span className="w-2.5 h-2.5 rounded-full bg-gray-200" />
-
           </div>
-
         </div>
-
       </section>
 
       {/* =====================================================
@@ -1046,11 +926,8 @@ function Landing() {
         id="how-it-works"
         className="py-16 sm:py-20 bg-gray-50/60"
       >
-
         <div className="max-w-[1250px] mx-auto px-5 sm:px-8">
-
           <div className="text-center">
-
             <h2 className="text-3xl sm:text-4xl font-black">
               How{" "}
               <span className="text-green-600">
@@ -1062,29 +939,24 @@ function Landing() {
             <p className="mt-3 text-gray-500">
               Buy or sell in just a few simple steps
             </p>
-
           </div>
 
           <div className="mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 lg:gap-5">
-
             {steps.map((step, index) => (
               <div
                 key={step.title}
                 className="relative text-center"
               >
-
                 {index !== steps.length - 1 && (
                   <div className="hidden lg:block absolute top-10 left-[65%] w-[70%] border-t-2 border-dashed border-green-200" />
                 )}
 
                 <div className="relative mx-auto w-20 h-20 rounded-full bg-green-50 text-green-600 flex items-center justify-center">
-
                   {step.icon}
 
                   <span className="absolute -top-1 -left-2 w-7 h-7 rounded-full bg-green-600 text-white text-xs font-bold flex items-center justify-center border-4 border-white">
                     {step.number}
                   </span>
-
                 </div>
 
                 <h3 className="mt-6 font-bold text-lg">
@@ -1094,14 +966,10 @@ function Landing() {
                 <p className="mt-3 text-sm text-gray-500 leading-6 max-w-[230px] mx-auto">
                   {step.text}
                 </p>
-
               </div>
             ))}
-
           </div>
-
         </div>
-
       </section>
 
       {/* =====================================================
@@ -1109,11 +977,8 @@ function Landing() {
       ===================================================== */}
 
       <section className="py-16 sm:py-20">
-
         <div className="max-w-[1250px] mx-auto px-5 sm:px-8">
-
           <div className="text-center">
-
             <h2 className="text-3xl sm:text-4xl font-black">
               What{" "}
               <span className="text-green-600">
@@ -1121,27 +986,22 @@ function Landing() {
               </span>{" "}
               Are Saying
             </h2>
-
           </div>
 
           <div className="mt-10 grid grid-cols-1 md:grid-cols-3 gap-5">
-
             {testimonials.map((testimonial) => (
               <div
                 key={testimonial.name}
                 className="rounded-2xl border border-gray-100 bg-white shadow-sm p-6"
               >
-
                 <div className="text-green-600 text-3xl font-black leading-none">
                   “
                 </div>
 
                 <div className="flex gap-1 mt-1 text-green-600">
-
                   {[1, 2, 3, 4, 5].map((star) => (
                     <span key={star}>★</span>
                   ))}
-
                 </div>
 
                 <p className="mt-4 text-sm text-gray-600 leading-6">
@@ -1149,7 +1009,6 @@ function Landing() {
                 </p>
 
                 <div className="mt-6 flex items-center gap-3">
-
                   <img
                     src={testimonial.image}
                     alt={testimonial.name}
@@ -1157,7 +1016,6 @@ function Landing() {
                   />
 
                   <div>
-
                     <p className="font-bold text-sm">
                       {testimonial.name}
                     </p>
@@ -1165,18 +1023,12 @@ function Landing() {
                     <p className="text-xs text-gray-500 mt-1">
                       {testimonial.school}
                     </p>
-
                   </div>
-
                 </div>
-
               </div>
             ))}
-
           </div>
-
         </div>
-
       </section>
 
       {/* =====================================================
@@ -1184,13 +1036,9 @@ function Landing() {
       ===================================================== */}
 
       <section className="pb-10">
-
         <div className="max-w-[1250px] mx-auto px-5 sm:px-8">
-
           <div className="relative overflow-hidden rounded-2xl bg-green-700 text-white">
-
             <div className="relative z-20 px-7 sm:px-10 py-10 sm:py-12 max-w-[700px]">
-
               <h2 className="text-3xl sm:text-4xl font-black">
                 Ready to Buy or Sell?
               </h2>
@@ -1201,7 +1049,6 @@ function Landing() {
               </p>
 
               <div className="mt-7 flex flex-wrap gap-3">
-
                 <button
                   onClick={goToRegister}
                   className="h-11 px-5 rounded-xl bg-white text-green-700 font-bold text-sm flex items-center gap-2 hover:bg-green-50 transition"
@@ -1216,9 +1063,7 @@ function Landing() {
                 >
                   Browse Products
                 </button>
-
               </div>
-
             </div>
 
             <img
@@ -1228,14 +1073,9 @@ function Landing() {
             />
 
             <div className="absolute inset-y-0 right-0 w-[55%] bg-gradient-to-r from-green-700 via-green-700/50 to-transparent pointer-events-none" />
-
           </div>
-
         </div>
-
       </section>
-
-      
 
       {/* =====================================================
           FOOTER
@@ -1245,20 +1085,15 @@ function Landing() {
         id="contact"
         className="bg-[#00261d] text-white"
       >
-
         <div className="max-w-[1250px] mx-auto px-5 sm:px-8 py-14">
-
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-10">
-
             {/* BRAND */}
 
             <div className="lg:col-span-2">
-
               <Link
                 to="/"
                 className="inline-flex items-center gap-3"
               >
-
                 <div className="w-11 h-11 rounded-xl bg-green-600 flex items-center justify-center">
                   <FiShoppingCart size={23} />
                 </div>
@@ -1269,7 +1104,6 @@ function Landing() {
                     Mart
                   </span>
                 </span>
-
               </Link>
 
               <p className="mt-5 text-sm leading-6 text-gray-300 max-w-[330px]">
@@ -1280,7 +1114,6 @@ function Landing() {
               {/* SOCIALS */}
 
               <div className="mt-6 flex gap-3">
-
                 <a
                   href="#"
                   onClick={(e) => e.preventDefault()}
@@ -1316,21 +1149,17 @@ function Landing() {
                 >
                   <FiMusic />
                 </a>
-
               </div>
-
             </div>
 
             {/* MARKETPLACE */}
 
             <div>
-
               <h3 className="font-bold mb-5">
                 Marketplace
               </h3>
 
               <ul className="space-y-3 text-sm text-gray-300">
-
                 <li>
                   <button
                     onClick={goToBrowse}
@@ -1366,21 +1195,17 @@ function Landing() {
                     Sell an Item
                   </button>
                 </li>
-
               </ul>
-
             </div>
 
             {/* COMPANY */}
 
             <div>
-
               <h3 className="font-bold mb-5">
                 Company
               </h3>
 
               <ul className="space-y-3 text-sm text-gray-300">
-
                 <li>
                   <a
                     href="#about"
@@ -1418,21 +1243,17 @@ function Landing() {
                     Terms of Service
                   </a>
                 </li>
-
               </ul>
-
             </div>
 
             {/* SUPPORT */}
 
             <div>
-
               <h3 className="font-bold mb-5">
                 Support
               </h3>
 
               <ul className="space-y-3 text-sm text-gray-300">
-
                 <li>
                   <a
                     href="#"
@@ -1472,21 +1293,15 @@ function Landing() {
                     Privacy Policy
                   </a>
                 </li>
-
               </ul>
-
             </div>
-
           </div>
 
           {/* CONTACT */}
 
           <div className="mt-12 pt-8 border-t border-white/10">
-
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-
               <div className="flex flex-wrap gap-5 text-sm text-gray-300">
-
                 <span className="flex items-center gap-2">
                   <FiPhone className="text-green-400" />
                   +234 816 123 4567
@@ -1501,21 +1316,15 @@ function Landing() {
                   <FiMapPin className="text-green-400" />
                   Nigeria
                 </span>
-
               </div>
 
               <p className="text-sm text-gray-400">
                 © 2025 CampusMart. All rights reserved.
               </p>
-
             </div>
-
           </div>
-
         </div>
-
       </footer>
-
     </div>
   );
 }
