@@ -6,7 +6,10 @@ import {
 } from "react";
 
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+} from "firebase/firestore";
 
 import { auth, db } from "./firebase";
 
@@ -47,6 +50,31 @@ const createFallbackProfile = (user) => {
 };
 
 // =========================================================
+// APPLY THEME
+// =========================================================
+
+const applyTheme = (theme) => {
+  const root = document.documentElement;
+  const body = document.body;
+
+  const isDark = theme === "dark";
+
+  root.classList.toggle("dark", isDark);
+
+  root.style.colorScheme = isDark
+    ? "dark"
+    : "light";
+
+  body.style.backgroundColor = isDark
+    ? "#080d18"
+    : "#f8fafc";
+
+  body.style.color = isDark
+    ? "#f8fafc"
+    : "#111827";
+};
+
+// =========================================================
 // AUTH PROVIDER
 // =========================================================
 
@@ -57,15 +85,30 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] =
     useState(null);
 
+  const [profileLoading, setProfileLoading] =
+    useState(true);
+
+  // =======================================================
+  // THEME
+  // =======================================================
+
   /*
-    This tells the application whether Firebase has
-    finished checking who is logged in.
+    Theme belongs to the currently authenticated
+    Firebase account.
 
     IMPORTANT:
-    We do NOT allow Firestore profile loading to keep
-    the entire application stuck forever.
+
+    We do NOT use:
+
+      localStorage.getItem("campusmart_theme")
+
+    because that would be shared between accounts.
   */
-  const [profileLoading, setProfileLoading] =
+
+  const [theme, setTheme] =
+    useState("light");
+
+  const [themeLoading, setThemeLoading] =
     useState(true);
 
   // =======================================================
@@ -91,41 +134,52 @@ export function AuthProvider({ children }) {
           );
 
           // =================================================
-          // UPDATE FIREBASE USER
-          // =================================================
-
-          setFirebaseUser(user);
-
-          // =================================================
           // NO USER
           // =================================================
 
           if (!user) {
+            setFirebaseUser(null);
             setProfile(null);
+
+            /*
+              VERY IMPORTANT:
+
+              Whenever nobody is logged in, always return
+              the application to LIGHT mode.
+
+              This also prevents a previous user's dark
+              theme from appearing on Login/Register.
+            */
+
+            setTheme("light");
+            applyTheme("light");
 
             if (mounted) {
               setProfileLoading(false);
+              setThemeLoading(false);
             }
 
             return;
           }
 
+          // =================================================
+          // USER EXISTS
+          // =================================================
+
+          setFirebaseUser(user);
+
           /*
-            IMPORTANT FIX
+            Immediately use light mode while we retrieve
+            this specific user's saved theme.
 
-            The Firebase authentication state is already
-            known at this point.
-
-            We don't want the whole application to remain
-            stuck on the loading screen just because the
-            Firestore profile request is slow.
-
-            Therefore, allow the application to continue.
+            This prevents the previous account's theme
+            from leaking into the new account.
           */
 
-          if (mounted) {
-            setProfileLoading(false);
-          }
+          setTheme("light");
+          applyTheme("light");
+
+          setThemeLoading(true);
 
           // =================================================
           // FALLBACK PROFILE
@@ -134,21 +188,21 @@ export function AuthProvider({ children }) {
           const fallbackProfile =
             createFallbackProfile(user);
 
-          /*
-            Set a temporary profile immediately.
-
-            If Firestore loads successfully, this will be
-            replaced with the real profile.
-          */
-
           if (mounted) {
             setProfile(
               fallbackProfile
             );
+
+            /*
+              Authentication itself is already complete,
+              so don't keep the entire application blocked.
+            */
+
+            setProfileLoading(false);
           }
 
           // =================================================
-          // LOAD FIRESTORE PROFILE
+          // LOAD USER FIRESTORE DATA
           // =================================================
 
           try {
@@ -159,11 +213,7 @@ export function AuthProvider({ children }) {
             );
 
             /*
-              Prevent Firestore from keeping the profile
-              request hanging forever.
-
-              If Firestore does not respond within 8 seconds,
-              we continue with the fallback Firebase profile.
+              Prevent Firestore from hanging forever.
             */
 
             const timeoutPromise =
@@ -172,7 +222,7 @@ export function AuthProvider({ children }) {
                   setTimeout(() => {
                     reject(
                       new Error(
-                        "Firestore profile request timed out."
+                        "Firestore request timed out."
                       )
                     );
                   }, 8000);
@@ -188,16 +238,12 @@ export function AuthProvider({ children }) {
                 timeoutPromise,
               ]);
 
-            // =================================================
-            // COMPONENT UNMOUNTED
-            // =================================================
-
             if (!mounted) {
               return;
             }
 
             // =================================================
-            // PROFILE EXISTS
+            // FIRESTORE PROFILE EXISTS
             // =================================================
 
             if (
@@ -240,9 +286,7 @@ export function AuthProvider({ children }) {
                 ...userData,
 
                 /*
-                  Make sure the Firebase UID is
-                  always available even if userData
-                  contains an id field.
+                  Firebase UID must always win.
                 */
                 id: user.uid,
               };
@@ -254,6 +298,31 @@ export function AuthProvider({ children }) {
               console.log(
                 "CampusMart profile loaded:",
                 loadedProfile
+              );
+
+              // =============================================
+              // LOAD THIS USER'S THEME
+              // =============================================
+
+              const savedTheme =
+                userData.theme === "dark"
+                  ? "dark"
+                  : "light";
+
+              /*
+                Only this Firebase user's theme
+                is applied.
+              */
+
+              setTheme(savedTheme);
+
+              applyTheme(savedTheme);
+
+              console.log(
+                "CampusMart theme loaded:",
+                savedTheme,
+                "for user:",
+                user.uid
               );
             }
 
@@ -268,9 +337,12 @@ export function AuthProvider({ children }) {
               );
 
               /*
-                We already created a fallback profile
-                above, so there is nothing else to do.
+                New accounts start with LIGHT mode.
               */
+
+              setTheme("light");
+
+              applyTheme("light");
             }
           } catch (error) {
             console.error(
@@ -279,18 +351,23 @@ export function AuthProvider({ children }) {
             );
 
             /*
-              IMPORTANT:
+              If Firestore fails, do NOT log the user out.
 
-              Do NOT log the user out because the
-              Firestore profile failed.
-
-              The Firebase account is still valid.
+              Just use the safe default LIGHT theme.
             */
 
             if (mounted) {
               setProfile(
                 fallbackProfile
               );
+
+              setTheme("light");
+
+              applyTheme("light");
+            }
+          } finally {
+            if (mounted) {
+              setThemeLoading(false);
             }
           }
         }
@@ -307,43 +384,109 @@ export function AuthProvider({ children }) {
   }, []);
 
   // =========================================================
+  // CHANGE USER THEME
+  // =========================================================
+
+  const updateTheme = async (newTheme) => {
+    /*
+      Only allow the two valid themes.
+    */
+
+    if (
+      newTheme !== "light" &&
+      newTheme !== "dark"
+    ) {
+      return;
+    }
+
+    /*
+      There must be a logged-in Firebase user.
+    */
+
+    if (!firebaseUser) {
+      return;
+    }
+
+    /*
+      Apply immediately for a fast UI response.
+    */
+
+    setTheme(newTheme);
+    applyTheme(newTheme);
+
+    try {
+      const userRef = doc(
+        db,
+        "users",
+        firebaseUser.uid
+      );
+
+      /*
+        Save the theme specifically inside
+        this user's Firestore document.
+      */
+
+      const { setDoc } = await import(
+        "firebase/firestore"
+      );
+
+      await setDoc(
+        userRef,
+        {
+          theme: newTheme,
+        },
+        {
+          merge: true,
+        }
+      );
+
+      console.log(
+        "Theme saved:",
+        newTheme,
+        "for user:",
+        firebaseUser.uid
+      );
+    } catch (error) {
+      console.error(
+        "Could not save theme:",
+        error
+      );
+    }
+  };
+
+  // =========================================================
   // PROVIDER
   // =========================================================
 
   return (
     <AuthContext.Provider
       value={{
-        /*
-          Original name
-        */
+        // Firebase user
         firebaseUser,
 
-        /*
-          Alias used by Settings and other pages.
-        */
+        // Alias
         user: firebaseUser,
 
-        /*
-          CampusMart Firestore profile
-        */
+        // Firestore profile
         profile,
 
-        /*
-          Authentication/profile loading state
-        */
+        // Loading
         profileLoading,
 
-        /*
-          Useful alias if another component expects
-          "loading".
-        */
         loading: profileLoading,
 
-        /*
-          Convenient boolean
-        */
+        // Authentication
         isAuthenticated:
           !!firebaseUser,
+
+        // Theme
+        theme,
+
+        // Theme loading
+        themeLoading,
+
+        // Theme updater
+        updateTheme,
       }}
     >
       {children}

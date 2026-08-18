@@ -75,7 +75,7 @@ function LoadingScreen({
   text = "Loading CampusMart...",
 }) {
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-5">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center px-5 transition-colors duration-200">
       <div className="text-center">
 
         <div
@@ -91,7 +91,7 @@ function LoadingScreen({
           "
         />
 
-        <p className="mt-5 text-sm font-medium text-gray-600">
+        <p className="mt-5 text-sm font-medium text-gray-600 dark:text-gray-300">
           {text}
         </p>
 
@@ -220,16 +220,18 @@ function SellerDashboardComingSoon() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-5">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center px-5 transition-colors duration-200">
 
       <div
         className="
           max-w-md
           w-full
           bg-white
+          dark:bg-gray-900
           rounded-3xl
           border
           border-gray-100
+          dark:border-gray-800
           shadow-sm
           p-8
           text-center
@@ -243,6 +245,7 @@ function SellerDashboardComingSoon() {
             h-16
             rounded-2xl
             bg-green-50
+            dark:bg-green-950/40
             text-green-600
             flex
             items-center
@@ -254,11 +257,11 @@ function SellerDashboardComingSoon() {
           CM
         </div>
 
-        <h1 className="mt-6 text-2xl font-bold text-gray-900">
+        <h1 className="mt-6 text-2xl font-bold text-gray-900 dark:text-white">
           Seller Dashboard
         </h1>
 
-        <p className="mt-3 text-sm leading-6 text-gray-500">
+        <p className="mt-3 text-sm leading-6 text-gray-500 dark:text-gray-400">
           The seller dashboard is currently being built.
           Your seller account has been created successfully.
         </p>
@@ -294,13 +297,69 @@ function App() {
   const navigate = useNavigate();
 
   // =======================================================
-  // INITIALIZE CAMPUSMART THEME
+  // AUTH
+  // =======================================================
+
+  const {
+    firebaseUser,
+    profileLoading,
+  } = useAuth();
+
+  // =======================================================
+  // USER-SPECIFIC THEME
   // =======================================================
 
   useEffect(() => {
+    /*
+      IMPORTANT:
+
+      The old version used:
+
+        campusmart_theme
+
+      That key belongs to the whole browser.
+
+      This version uses:
+
+        campusmart_theme_FIREBASE_UID
+
+      Therefore every account has its own theme.
+    */
+
+    if (!firebaseUser?.uid) {
+      /*
+        When nobody is logged in, use light mode.
+      */
+
+      document.documentElement.classList.remove(
+        "dark"
+      );
+
+      document.documentElement.style.colorScheme =
+        "light";
+
+      return;
+    }
+
+    /*
+      Create a unique localStorage key for this
+      Firebase account.
+    */
+
+    const themeKey =
+      `campusmart_theme_${firebaseUser.uid}`;
+
+    /*
+      Read only this user's theme.
+    */
+
     const savedTheme =
-      localStorage.getItem("campusmart_theme") ||
+      localStorage.getItem(themeKey) ||
       "light";
+
+    /*
+      Apply the theme.
+    */
 
     document.documentElement.classList.toggle(
       "dark",
@@ -311,16 +370,8 @@ function App() {
       savedTheme === "dark"
         ? "dark"
         : "light";
-  }, []);
 
-  // =======================================================
-  // AUTH
-  // =======================================================
-
-  const {
-    firebaseUser,
-    profileLoading,
-  } = useAuth();
+  }, [firebaseUser]);
 
   // =======================================================
   // PROFILE
@@ -482,6 +533,7 @@ function App() {
             merge: true,
           }
         );
+
       } catch (error) {
         console.error(
           "Error loading user profile:",
@@ -509,6 +561,7 @@ function App() {
             role: "buyer",
           });
         }
+
       } finally {
         if (!cancelled) {
           setProfileFetching(false);
@@ -521,6 +574,7 @@ function App() {
     return () => {
       cancelled = true;
     };
+
   }, [firebaseUser]);
 
   // =======================================================
@@ -691,6 +745,7 @@ function App() {
                 currentUid
               );
             }
+
           } catch (error) {
             console.error(
               "Customer data listener error:",
@@ -761,6 +816,7 @@ function App() {
       cancelled = true;
       unsubscribe();
     };
+
   }, [firebaseUser]);
 
   // =======================================================
@@ -833,6 +889,7 @@ function App() {
           lastCustomerDataRef.current =
             currentDataString;
         }
+
       } catch (error) {
         console.error(
           "Error saving customer data:",
@@ -846,6 +903,7 @@ function App() {
     return () => {
       cancelled = true;
     };
+
   }, [
     firebaseUser,
     customerDataUid,
@@ -903,6 +961,7 @@ function App() {
           merge: true,
         }
       );
+
     } catch (error) {
       console.error(
         "Error updating profile:",
