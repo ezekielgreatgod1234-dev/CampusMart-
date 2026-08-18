@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import CustomerLayout from "../../layouts/CustomerLayout";
+import { useAuth } from "../../context/AuthContext";
 
 import {
   FiArrowLeft,
@@ -21,6 +22,14 @@ import {
   FiEyeOff,
 } from "react-icons/fi";
 
+import {
+  doc,
+  getDoc,
+  setDoc,
+} from "firebase/firestore";
+
+import { db } from "../../context/firebase";
+
 /* =========================================================
    SETTINGS
 ========================================================= */
@@ -32,6 +41,8 @@ function Settings({
 }) {
   const navigate = useNavigate();
 
+  const { firebaseUser } = useAuth();
+
   /* =======================================================
      ACTIVE SECTION
   ======================================================= */
@@ -40,35 +51,22 @@ function Settings({
     useState("personal");
 
   /* =======================================================
+     LOADING
+  ======================================================= */
+
+  const [loading, setLoading] = useState(true);
+
+  /* =======================================================
      PROFILE
   ======================================================= */
 
-  const getProfile = () => {
-    try {
-      const savedProfile =
-        localStorage.getItem("campusmart_profile");
-
-      if (savedProfile) {
-        return JSON.parse(savedProfile);
-      }
-    } catch (error) {
-      console.error(
-        "Could not load profile:",
-        error
-      );
-    }
-
-    return {
-      fullName: "GreatGod",
-      email: "user@example.com",
-      phone: "08012345678",
-      campus: "Abia State University",
-      address: "Uturu, Abia State",
-    };
-  };
-
-  const [profile, setProfile] =
-    useState(getProfile);
+  const [profile, setProfile] = useState({
+    fullName: "",
+    email: "",
+    phone: "",
+    campus: "",
+    address: "",
+  });
 
   /* =======================================================
      PERSONAL INFORMATION
@@ -76,10 +74,10 @@ function Settings({
 
   const [personalForm, setPersonalForm] =
     useState({
-      fullName: profile.fullName || "",
-      email: profile.email || "",
-      phone: profile.phone || "",
-      campus: profile.campus || "",
+      fullName: "",
+      email: "",
+      phone: "",
+      campus: "",
     });
 
   const [personalSaved, setPersonalSaved] =
@@ -104,13 +102,7 @@ function Settings({
   ======================================================= */
 
   const [profileVisibility, setProfileVisibility] =
-    useState(() => {
-      return (
-        localStorage.getItem(
-          "campusmart_profile_visibility"
-        ) || "campus"
-      );
-    });
+    useState("campus");
 
   /* =======================================================
      CONTACT FORM
@@ -129,10 +121,153 @@ function Settings({
     useState("");
 
   /* =======================================================
+     LOAD USER SETTINGS
+     
+     IMPORTANT:
+     Everything is loaded using firebaseUser.uid.
+     
+     Example:
+     
+     Account A
+     users/ABC123/settings
+
+     Account B
+     users/XYZ789/settings
+     
+     This keeps every account completely separate.
+  ======================================================= */
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      if (!firebaseUser?.uid) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+
+        const userRef = doc(
+          db,
+          "users",
+          firebaseUser.uid
+        );
+
+        const userSnapshot =
+          await getDoc(userRef);
+
+        if (userSnapshot.exists()) {
+          const userData =
+            userSnapshot.data();
+
+          const savedProfile =
+            userData.profile || {};
+
+          const savedSettings =
+            userData.settings || {};
+
+          const loadedProfile = {
+            fullName:
+              savedProfile.fullName || "",
+            email:
+              savedProfile.email ||
+              firebaseUser.email ||
+              "",
+            phone:
+              savedProfile.phone || "",
+            campus:
+              savedProfile.campus || "",
+            address:
+              savedProfile.address || "",
+          };
+
+          setProfile(
+            loadedProfile
+          );
+
+          setPersonalForm({
+            fullName:
+              loadedProfile.fullName,
+            email:
+              loadedProfile.email,
+            phone:
+              loadedProfile.phone,
+            campus:
+              loadedProfile.campus,
+          });
+
+          setProfileVisibility(
+            savedSettings.profileVisibility ||
+              "campus"
+          );
+        } else {
+          /*
+            If this is a brand-new account,
+            create its own profile/settings document.
+
+            Nothing from another account is used.
+          */
+
+          const newProfile = {
+            fullName: "",
+            email:
+              firebaseUser.email || "",
+            phone: "",
+            campus: "",
+            address: "",
+          };
+
+          const newSettings = {
+            profileVisibility: "campus",
+          };
+
+          await setDoc(
+            userRef,
+            {
+              profile: newProfile,
+              settings: newSettings,
+            },
+            {
+              merge: true,
+            }
+          );
+
+          setProfile(
+            newProfile
+          );
+
+          setPersonalForm({
+            fullName: "",
+            email:
+              firebaseUser.email || "",
+            phone: "",
+            campus: "",
+          });
+
+          setProfileVisibility(
+            "campus"
+          );
+        }
+      } catch (error) {
+        console.error(
+          "Could not load account settings:",
+          error
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadSettings();
+  }, [firebaseUser]);
+
+  /* =======================================================
      PASSWORD STRENGTH
   ======================================================= */
 
-  const getPasswordStrength = (password) => {
+  const getPasswordStrength = (
+    password
+  ) => {
     if (!password) {
       return "";
     }
@@ -239,7 +374,9 @@ function Settings({
      PERSONAL INFORMATION CHANGE
   ======================================================= */
 
-  const handlePersonalChange = (e) => {
+  const handlePersonalChange = (
+    e
+  ) => {
     const {
       name,
       value,
@@ -257,41 +394,76 @@ function Settings({
 
   /* =======================================================
      SAVE PERSONAL INFORMATION
+     
+     IMPORTANT:
+     Saves to:
+     
+     users/{CURRENT_FIREBASE_UID}/profile
+     
+     Therefore Account A cannot overwrite Account B.
   ======================================================= */
 
-  const handlePersonalSave = () => {
-    const updatedProfile = {
-      ...profile,
-      ...personalForm,
-    };
+  const handlePersonalSave = async () => {
+    if (!firebaseUser?.uid) {
+      return;
+    }
 
-    setProfile(
-      updatedProfile
-    );
+    try {
+      const updatedProfile = {
+        ...profile,
+        ...personalForm,
+      };
 
-    localStorage.setItem(
-      "campusmart_profile",
-      JSON.stringify(
+      const userRef = doc(
+        db,
+        "users",
+        firebaseUser.uid
+      );
+
+      await setDoc(
+        userRef,
+        {
+          profile: updatedProfile,
+        },
+        {
+          merge: true,
+        }
+      );
+
+      setProfile(
         updatedProfile
-      )
-    );
+      );
 
-    window.dispatchEvent(
-      new Event("profileUpdated")
-    );
+      setPersonalSaved(true);
 
-    setPersonalSaved(true);
+      /*
+        Tell other parts of the application
+        that this user's profile changed.
+      */
+      window.dispatchEvent(
+        new Event("profileUpdated")
+      );
 
-    setTimeout(() => {
+      setTimeout(() => {
+        setPersonalSaved(false);
+      }, 3000);
+    } catch (error) {
+      console.error(
+        "Could not save personal information:",
+        error
+      );
+
       setPersonalSaved(false);
-    }, 3000);
+    }
   };
 
   /* =======================================================
      PASSWORD CHANGE
   ======================================================= */
 
-  const handlePasswordChange = (e) => {
+  const handlePasswordChange = (
+    e
+  ) => {
     const {
       name,
       value,
@@ -307,78 +479,112 @@ function Settings({
     setPasswordMessage("");
   };
 
-  const handlePasswordUpdate = () => {
-    if (
-      !passwordForm.currentPassword ||
-      !passwordForm.newPassword ||
-      !passwordForm.confirmPassword
-    ) {
+  const handlePasswordUpdate =
+    () => {
+      if (
+        !passwordForm.currentPassword ||
+        !passwordForm.newPassword ||
+        !passwordForm.confirmPassword
+      ) {
+        setPasswordMessage(
+          "Please fill in all password fields."
+        );
+
+        return;
+      }
+
+      if (
+        passwordForm.newPassword.length < 8
+      ) {
+        setPasswordMessage(
+          "Your new password must contain at least 8 characters."
+        );
+
+        return;
+      }
+
+      if (
+        passwordForm.newPassword !==
+        passwordForm.confirmPassword
+      ) {
+        setPasswordMessage(
+          "New password and confirmation password do not match."
+        );
+
+        return;
+      }
+
+      /*
+        Replace this with Firebase Auth password
+        update logic when your backend is ready.
+      */
+
       setPasswordMessage(
-        "Please fill in all password fields."
+        "success"
       );
 
-      return;
-    }
+      setPasswordForm({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
 
-    if (
-      passwordForm.newPassword.length < 8
-    ) {
-      setPasswordMessage(
-        "Your new password must contain at least 8 characters."
-      );
-
-      return;
-    }
-
-    if (
-      passwordForm.newPassword !==
-      passwordForm.confirmPassword
-    ) {
-      setPasswordMessage(
-        "New password and confirmation password do not match."
-      );
-
-      return;
-    }
-
-    /*
-      Replace this with Firebase Auth password
-      update logic when your backend is ready.
-    */
-
-    setPasswordMessage("success");
-
-    setPasswordForm({
-      currentPassword: "",
-      newPassword: "",
-      confirmPassword: "",
-    });
-
-    setTimeout(() => {
-      setPasswordMessage("");
-    }, 4000);
-  };
+      setTimeout(() => {
+        setPasswordMessage("");
+      }, 4000);
+    };
 
   /* =======================================================
      PROFILE VISIBILITY
+     
+     IMPORTANT:
+     Saves inside the CURRENT user's Firestore document.
   ======================================================= */
 
-  const handleVisibilityChange = (
-    value
-  ) => {
-    setProfileVisibility(value);
+  const handleVisibilityChange =
+    async (value) => {
+      if (!firebaseUser?.uid) {
+        return;
+      }
 
-    localStorage.setItem(
-      "campusmart_profile_visibility",
-      value
-    );
-  };
+      try {
+        setProfileVisibility(
+          value
+        );
+
+        const userRef = doc(
+          db,
+          "users",
+          firebaseUser.uid
+        );
+
+        await setDoc(
+          userRef,
+          {
+            settings: {
+              profileVisibility:
+                value,
+            },
+          },
+          {
+            merge: true,
+          }
+        );
+      } catch (error) {
+        console.error(
+          "Could not update profile visibility:",
+          error
+        );
+      }
+    };
 
   /* =======================================================
      CONTACT
   ======================================================= */
 
-  const handleContactChange = (e) => {
+  const handleContactChange = (
+    e
+  ) => {
     const {
       name,
       value,
@@ -395,37 +601,102 @@ function Settings({
     setContactError("");
   };
 
-  const handleContactSubmit = () => {
-    setContactError("");
-    setContactSent(false);
+  const handleContactSubmit =
+    () => {
+      setContactError("");
+      setContactSent(false);
 
-    if (
-      !contactForm.subject.trim()
-    ) {
-      setContactError(
-        "Please enter a subject."
-      );
+      if (
+        !contactForm.subject.trim()
+      ) {
+        setContactError(
+          "Please enter a subject."
+        );
 
-      return;
-    }
+        return;
+      }
 
-    if (
-      !contactForm.message.trim()
-    ) {
-      setContactError(
-        "Please enter your message."
-      );
+      if (
+        !contactForm.message.trim()
+      ) {
+        setContactError(
+          "Please enter your message."
+        );
 
-      return;
-    }
+        return;
+      }
 
-    setContactSent(true);
+      setContactSent(true);
 
-    setContactForm({
-      subject: "",
-      message: "",
-    });
-  };
+      setContactForm({
+        subject: "",
+        message: "",
+      });
+    };
+
+  /* =======================================================
+     LOADING SCREEN
+  ======================================================= */
+
+  if (loading) {
+    return (
+      <CustomerLayout
+        cartCount={cartCount}
+        wishlist={wishlist}
+        unreadMessages={
+          unreadMessages
+        }
+      >
+        <div
+          className="
+            min-h-screen
+            -m-4
+            sm:-m-6
+            lg:-m-8
+            p-4
+            sm:p-6
+            lg:p-8
+            bg-gray-50
+            text-gray-900
+          "
+        >
+          <div
+            className="
+              min-h-[60vh]
+              flex
+              items-center
+              justify-center
+            "
+          >
+            <div className="text-center">
+              <div
+                className="
+                  w-10
+                  h-10
+                  border-4
+                  border-green-100
+                  border-t-green-600
+                  rounded-full
+                  animate-spin
+                  mx-auto
+                "
+              />
+
+              <p
+                className="
+                  mt-4
+                  text-sm
+                  text-gray-500
+                "
+              >
+                Loading your settings...
+              </p>
+            </div>
+          </div>
+        </div>
+      </CustomerLayout>
+    );
+  }
 
   /* =======================================================
      RENDER
@@ -435,7 +706,9 @@ function Settings({
     <CustomerLayout
       cartCount={cartCount}
       wishlist={wishlist}
-      unreadMessages={unreadMessages}
+      unreadMessages={
+        unreadMessages
+      }
     >
       <div
         className="
@@ -458,7 +731,9 @@ function Settings({
             <button
               type="button"
               onClick={() =>
-                navigate("/dashboard")
+                navigate(
+                  "/dashboard"
+                )
               }
               className="
                 flex
@@ -732,9 +1007,7 @@ function Settings({
               "
             >
 
-              {/* =================================================
-                  PERSONAL INFORMATION
-              ================================================= */}
+              {/* PERSONAL */}
 
               {activeSection ===
                 "personal" && (
@@ -845,16 +1118,13 @@ function Settings({
                       <FiSave
                         size={16}
                       />
-
                       Save Changes
                     </button>
                   </div>
                 </section>
               )}
 
-              {/* =================================================
-                  PASSWORD
-              ================================================= */}
+              {/* PASSWORD */}
 
               {activeSection ===
                 "password" && (
@@ -1033,16 +1303,13 @@ function Settings({
                       <FiLock
                         size={16}
                       />
-
                       Update Password
                     </button>
                   </div>
                 </section>
               )}
 
-              {/* =================================================
-                  PROFILE VISIBILITY
-              ================================================= */}
+              {/* VISIBILITY */}
 
               {activeSection ===
                 "visibility" && (
@@ -1138,9 +1405,7 @@ function Settings({
                 </section>
               )}
 
-              {/* =================================================
-                  HELP
-              ================================================= */}
+              {/* HELP */}
 
               {activeSection ===
                 "help" && (
@@ -1243,16 +1508,13 @@ function Settings({
                       <FiMail
                         size={16}
                       />
-
                       Contact Support
                     </button>
                   </div>
                 </section>
               )}
 
-              {/* =================================================
-                  FAQ
-              ================================================= */}
+              {/* FAQ */}
 
               {activeSection ===
                 "faq" && (
@@ -1266,7 +1528,6 @@ function Settings({
                   />
 
                   <div className="mt-6 space-y-3">
-
                     <FAQ
                       question="How do I place an order?"
                       answer="Browse products, open the product you want, add it to your cart and proceed to checkout."
@@ -1296,14 +1557,11 @@ function Settings({
                       question="Is CampusMart available on my campus?"
                       answer="CampusMart is designed to connect students and sellers within their campus community."
                     />
-
                   </div>
                 </section>
               )}
 
-              {/* =================================================
-                  CONTACT
-              ================================================= */}
+              {/* CONTACT */}
 
               {activeSection ===
                 "contact" && (
@@ -1333,8 +1591,6 @@ function Settings({
                   )}
 
                   <div className="mt-6 max-w-2xl space-y-5">
-
-                    {/* SUBJECT */}
 
                     <div>
                       <label
@@ -1377,8 +1633,6 @@ function Settings({
                         "
                       />
                     </div>
-
-                    {/* MESSAGE */}
 
                     <div>
                       <label
@@ -1423,8 +1677,6 @@ function Settings({
                       />
                     </div>
 
-                    {/* SEND */}
-
                     <div
                       className="
                         flex
@@ -1455,11 +1707,9 @@ function Settings({
                         <FiSend
                           size={16}
                         />
-
                         Send Message
                       </button>
                     </div>
-
                   </div>
                 </section>
               )}
@@ -1940,7 +2190,6 @@ const SupportCard = ({
         "
       >
         Open
-
         <FiChevronRight
           size={14}
         />
