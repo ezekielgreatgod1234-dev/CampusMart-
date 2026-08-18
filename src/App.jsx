@@ -77,6 +77,7 @@ function LoadingScreen({
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-5">
       <div className="text-center">
+
         <div
           className="
             w-12
@@ -93,6 +94,7 @@ function LoadingScreen({
         <p className="mt-5 text-sm font-medium text-gray-600">
           {text}
         </p>
+
       </div>
     </div>
   );
@@ -219,7 +221,20 @@ function SellerDashboardComingSoon() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-5">
-      <div className="max-w-md w-full bg-white rounded-3xl border border-gray-100 shadow-sm p-8 text-center">
+
+      <div
+        className="
+          max-w-md
+          w-full
+          bg-white
+          rounded-3xl
+          border
+          border-gray-100
+          shadow-sm
+          p-8
+          text-center
+        "
+      >
 
         <div
           className="
@@ -265,6 +280,7 @@ function SellerDashboardComingSoon() {
         >
           Back to login
         </button>
+
       </div>
     </div>
   );
@@ -276,6 +292,26 @@ function SellerDashboardComingSoon() {
 
 function App() {
   const navigate = useNavigate();
+
+  // =======================================================
+  // INITIALIZE CAMPUSMART THEME
+  // =======================================================
+
+  useEffect(() => {
+    const savedTheme =
+      localStorage.getItem("campusmart_theme") ||
+      "light";
+
+    document.documentElement.classList.toggle(
+      "dark",
+      savedTheme === "dark"
+    );
+
+    document.documentElement.style.colorScheme =
+      savedTheme === "dark"
+        ? "dark"
+        : "light";
+  }, []);
 
   // =======================================================
   // AUTH
@@ -320,16 +356,7 @@ function App() {
     useState(null);
 
   // =======================================================
-  // IMPORTANT:
-  //
-  // Stores the last customer data that came from Firestore
-  // or was successfully saved.
-  //
-  // This prevents:
-  //
-  // Firestore -> React -> Firestore -> React -> Firestore
-  //
-  // infinite loops.
+  // LAST CUSTOMER DATA
   // =======================================================
 
   const lastCustomerDataRef =
@@ -501,10 +528,6 @@ function App() {
   // =======================================================
 
   useEffect(() => {
-    // -----------------------------------------------------
-    // NO USER
-    // -----------------------------------------------------
-
     if (!firebaseUser) {
       setCustomerDataUid(null);
 
@@ -520,13 +543,6 @@ function App() {
 
     const currentUid =
       firebaseUser.uid;
-
-    // -----------------------------------------------------
-    // VERY IMPORTANT
-    //
-    // When a new account logs in, immediately mark the
-    // previous user's data as unloaded.
-    // -----------------------------------------------------
 
     setCustomerDataUid(null);
 
@@ -566,9 +582,10 @@ function App() {
                 snapshot.data();
 
               const firestoreData = {
-                cart: Array.isArray(data.cart)
-                  ? data.cart
-                  : [],
+                cart:
+                  Array.isArray(data.cart)
+                    ? data.cart
+                    : [],
 
                 wishlist:
                   Array.isArray(
@@ -589,13 +606,6 @@ function App() {
                     ? data.messages
                     : messagesData,
               };
-
-              // -------------------------------------------------
-              // Store exactly what Firestore gave us.
-              //
-              // The save effect will compare against this and
-              // will NOT immediately write it back.
-              // -------------------------------------------------
 
               lastCustomerDataRef.current =
                 JSON.stringify(
@@ -631,21 +641,10 @@ function App() {
 
             const initialCustomerData = {
               cart: [],
-
               wishlist: [],
-
               orders: [],
-
               messages: messagesData,
             };
-
-            // -------------------------------------------------
-            // IMPORTANT:
-            //
-            // Mark this as already known before writing it.
-            // This prevents the listener + save effect from
-            // fighting each other.
-            // -------------------------------------------------
 
             lastCustomerDataRef.current =
               JSON.stringify(
@@ -667,10 +666,6 @@ function App() {
             setMessages(
               initialCustomerData.messages
             );
-
-            // -------------------------------------------------
-            // Create Firestore document.
-            // -------------------------------------------------
 
             await setDoc(
               customerDataRef,
@@ -705,11 +700,8 @@ function App() {
             if (!cancelled) {
               const fallbackData = {
                 cart: [],
-
                 wishlist: [],
-
                 orders: [],
-
                 messages: messagesData,
               };
 
@@ -721,7 +713,9 @@ function App() {
               setCart([]);
               setWishlist([]);
               setOrders([]);
-              setMessages(messagesData);
+              setMessages(
+                messagesData
+              );
 
               setCustomerDataUid(
                 currentUid
@@ -739,11 +733,8 @@ function App() {
           if (!cancelled) {
             const fallbackData = {
               cart: [],
-
               wishlist: [],
-
               orders: [],
-
               messages: messagesData,
             };
 
@@ -755,12 +746,9 @@ function App() {
             setCart([]);
             setWishlist([]);
             setOrders([]);
-            setMessages(messagesData);
-
-            // -------------------------------------------------
-            // Allow the application to continue instead of
-            // hanging forever when Firestore has an error.
-            // -------------------------------------------------
+            setMessages(
+              messagesData
+            );
 
             setCustomerDataUid(
               currentUid
@@ -777,13 +765,6 @@ function App() {
 
   // =======================================================
   // SAVE CUSTOMER DATA
-  //
-  // FIXED VERSION
-  //
-  // Only saves when the actual data has changed.
-  //
-  // Firestore listener updates do NOT trigger an endless
-  // save loop anymore.
   // =======================================================
 
   useEffect(() => {
@@ -813,11 +794,6 @@ function App() {
         currentCustomerData
       );
 
-    // -----------------------------------------------------
-    // If this is exactly what Firestore already gave us,
-    // DO NOT write it again.
-    // -----------------------------------------------------
-
     if (
       lastCustomerDataRef.current ===
       currentDataString
@@ -841,11 +817,8 @@ function App() {
           customerDataRef,
           {
             cart,
-
             wishlist,
-
             orders,
-
             messages,
 
             updatedAt:
@@ -857,10 +830,6 @@ function App() {
         );
 
         if (!cancelled) {
-          // -------------------------------------------------
-          // Remember what we just saved.
-          // -------------------------------------------------
-
           lastCustomerDataRef.current =
             currentDataString;
         }
@@ -905,7 +874,6 @@ function App() {
       ...updates,
     };
 
-    // Update UI immediately.
     setProfile(newProfile);
 
     try {
@@ -1301,7 +1269,6 @@ function App() {
 
             return {
               ...message,
-
               unread: 0,
             };
           }
