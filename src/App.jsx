@@ -250,7 +250,7 @@ function SellerDashboardComingSoon() {
 
         <button
           type="button"
-          onClick={() => navigate("/")}
+          onClick={() => navigate("/logout")}
           className="
             mt-7
             w-full
@@ -263,7 +263,7 @@ function SellerDashboardComingSoon() {
             transition
           "
         >
-          Back to CampusMart
+          Back to login
         </button>
       </div>
     </div>
