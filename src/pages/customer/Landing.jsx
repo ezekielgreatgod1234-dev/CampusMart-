@@ -1222,7 +1222,7 @@ function Landing() {
             </div>
 
             <img
-              src="/images/campusmart-three-students.png"
+              src="/3stud.png"
               alt=""
               className="hidden sm:block absolute right-0 bottom-0 h-full w-[45%] object-cover object-top opacity-95"
             />
@@ -1235,61 +1235,7 @@ function Landing() {
 
       </section>
 
-      {/* =====================================================
-          NEWSLETTER
-      ===================================================== */}
-
-      <section className="pb-10">
-
-        <div className="max-w-[1250px] mx-auto px-5 sm:px-8">
-
-          <div className="rounded-2xl bg-[#eff9f2] px-6 sm:px-10 py-7 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-
-            <div className="flex items-center gap-4">
-
-              <div className="w-12 h-12 rounded-full bg-green-600 text-white flex items-center justify-center shrink-0">
-                <FiMail size={23} />
-              </div>
-
-              <div>
-
-                <h3 className="font-bold">
-                  Stay in the Loop
-                </h3>
-
-                <p className="text-sm text-gray-500 mt-1">
-                  Get updates on new products, tips and exclusive offers.
-                </p>
-
-              </div>
-
-            </div>
-
-            <form
-              onSubmit={(e) => e.preventDefault()}
-              className="flex flex-col sm:flex-row w-full lg:w-auto gap-2"
-            >
-
-              <input
-                type="email"
-                placeholder="Enter your school email"
-                className="h-12 flex-1 lg:w-[320px] rounded-xl border border-gray-200 bg-white px-4 text-sm outline-none focus:border-green-500"
-              />
-
-              <button
-                type="submit"
-                className="h-12 px-6 rounded-xl bg-green-600 text-white font-semibold text-sm hover:bg-green-700 transition"
-              >
-                Subscribe
-              </button>
-
-            </form>
-
-          </div>
-
-        </div>
-
-      </section>
+      
 
       {/* =====================================================
           FOOTER
