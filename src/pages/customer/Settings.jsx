@@ -538,7 +538,7 @@ function Settings({
             <div
               className="
                 bg-white
-                dark:bg-[#101827]
+                dark:bg-[#ffffff]
                 rounded-2xl
                 border
                 border-gray-100
