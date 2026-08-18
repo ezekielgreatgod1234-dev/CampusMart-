@@ -37,6 +37,7 @@ import OrderDetails from "./pages/customer/OrderDetails";
 import Payment from "./pages/customer/Payment";
 import Profile from "./pages/customer/Profile";
 import Settings from "./pages/customer/Settings";
+import ForgotPassword from "./pages/customer/ForgotPassword";
 
 // =========================================================
 // OTHER PAGES
@@ -2118,6 +2119,12 @@ function App() {
           />
         }
       />
+
+
+      <Route
+  path="/forgot-password"
+  element={<ForgotPassword />}
+/>
 
     </Routes>
   );

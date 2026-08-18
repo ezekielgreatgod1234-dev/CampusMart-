@@ -23,6 +23,12 @@ import {
 } from "react-icons/fi";
 
 import {
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  updatePassword,
+} from "firebase/auth";
+
+import {
   doc,
   getDoc,
   setDoc,
@@ -54,19 +60,21 @@ function Settings({
      LOADING
   ======================================================= */
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] =
+    useState(true);
 
   /* =======================================================
      PROFILE
   ======================================================= */
 
-  const [profile, setProfile] = useState({
-    fullName: "",
-    email: "",
-    phone: "",
-    campus: "",
-    address: "",
-  });
+  const [profile, setProfile] =
+    useState({
+      fullName: "",
+      email: "",
+      phone: "",
+      campus: "",
+      address: "",
+    });
 
   /* =======================================================
      PERSONAL INFORMATION
@@ -97,6 +105,9 @@ function Settings({
   const [passwordMessage, setPasswordMessage] =
     useState("");
 
+  const [passwordUpdating, setPasswordUpdating] =
+    useState(false);
+
   /* =======================================================
      PROFILE VISIBILITY
   ======================================================= */
@@ -122,19 +133,19 @@ function Settings({
 
   /* =======================================================
      LOAD USER SETTINGS
-     
-     IMPORTANT:
-     Everything is loaded using firebaseUser.uid.
-     
-     Example:
-     
-     Account A
-     users/ABC123/settings
 
-     Account B
-     users/XYZ789/settings
-     
-     This keeps every account completely separate.
+     IMPORTANT:
+
+     Every account uses its own Firebase UID.
+
+     Account A:
+     users/ACCOUNT_A_UID
+
+     Account B:
+     users/ACCOUNT_B_UID
+
+     Therefore Account A's settings cannot be loaded
+     into Account B's account.
   ======================================================= */
 
   useEffect(() => {
@@ -169,14 +180,18 @@ function Settings({
           const loadedProfile = {
             fullName:
               savedProfile.fullName || "",
+
             email:
               savedProfile.email ||
               firebaseUser.email ||
               "",
+
             phone:
               savedProfile.phone || "",
+
             campus:
               savedProfile.campus || "",
+
             address:
               savedProfile.address || "",
           };
@@ -188,10 +203,13 @@ function Settings({
           setPersonalForm({
             fullName:
               loadedProfile.fullName,
+
             email:
               loadedProfile.email,
+
             phone:
               loadedProfile.phone,
+
             campus:
               loadedProfile.campus,
           });
@@ -202,10 +220,10 @@ function Settings({
           );
         } else {
           /*
-            If this is a brand-new account,
-            create its own profile/settings document.
+            Brand-new account.
 
-            Nothing from another account is used.
+            Create settings ONLY for the
+            currently logged-in Firebase user.
           */
 
           const newProfile = {
@@ -238,9 +256,12 @@ function Settings({
 
           setPersonalForm({
             fullName: "",
+
             email:
               firebaseUser.email || "",
+
             phone: "",
+
             campus: "",
           });
 
@@ -394,71 +415,68 @@ function Settings({
 
   /* =======================================================
      SAVE PERSONAL INFORMATION
-     
-     IMPORTANT:
+
      Saves to:
-     
-     users/{CURRENT_FIREBASE_UID}/profile
-     
-     Therefore Account A cannot overwrite Account B.
+
+     users/{CURRENT_FIREBASE_UID}
+
+     Therefore Account A cannot overwrite
+     Account B.
   ======================================================= */
 
-  const handlePersonalSave = async () => {
-    if (!firebaseUser?.uid) {
-      return;
-    }
+  const handlePersonalSave =
+    async () => {
+      if (!firebaseUser?.uid) {
+        return;
+      }
 
-    try {
-      const updatedProfile = {
-        ...profile,
-        ...personalForm,
-      };
+      try {
+        const updatedProfile = {
+          ...profile,
+          ...personalForm,
+        };
 
-      const userRef = doc(
-        db,
-        "users",
-        firebaseUser.uid
-      );
+        const userRef = doc(
+          db,
+          "users",
+          firebaseUser.uid
+        );
 
-      await setDoc(
-        userRef,
-        {
-          profile: updatedProfile,
-        },
-        {
-          merge: true,
-        }
-      );
+        await setDoc(
+          userRef,
+          {
+            profile: updatedProfile,
+          },
+          {
+            merge: true,
+          }
+        );
 
-      setProfile(
-        updatedProfile
-      );
+        setProfile(
+          updatedProfile
+        );
 
-      setPersonalSaved(true);
+        setPersonalSaved(true);
 
-      /*
-        Tell other parts of the application
-        that this user's profile changed.
-      */
-      window.dispatchEvent(
-        new Event("profileUpdated")
-      );
+        window.dispatchEvent(
+          new Event("profileUpdated")
+        );
 
-      setTimeout(() => {
+        setTimeout(() => {
+          setPersonalSaved(false);
+        }, 3000);
+      } catch (error) {
+        console.error(
+          "Could not save personal information:",
+          error
+        );
+
         setPersonalSaved(false);
-      }, 3000);
-    } catch (error) {
-      console.error(
-        "Could not save personal information:",
-        error
-      );
-
-      setPersonalSaved(false);
-    }
-  };
+      }
+    };
 
   /* =======================================================
-     PASSWORD CHANGE
+     PASSWORD CHANGE INPUT
   ======================================================= */
 
   const handlePasswordChange = (
@@ -479,8 +497,45 @@ function Settings({
     setPasswordMessage("");
   };
 
+  /* =======================================================
+     ACTUAL FIREBASE PASSWORD UPDATE
+
+     This is the important part.
+
+     1. Check that a Firebase user exists.
+     2. Validate the fields.
+     3. Check that the account uses password login.
+     4. Re-authenticate with the CURRENT password.
+     5. Update Firebase Authentication password.
+     6. Clear the form.
+
+     The password belongs to the currently logged-in
+     Firebase account.
+
+     Account A -> Account A password
+     Account B -> Account B password
+  ======================================================= */
+
   const handlePasswordUpdate =
-    () => {
+    async () => {
+      setPasswordMessage("");
+
+      /* -----------------------------------------------
+         CHECK CURRENT USER
+      ------------------------------------------------ */
+
+      if (!firebaseUser) {
+        setPasswordMessage(
+          "Your account session has expired. Please log in again."
+        );
+
+        return;
+      }
+
+      /* -----------------------------------------------
+         CHECK EMPTY FIELDS
+      ------------------------------------------------ */
+
       if (
         !passwordForm.currentPassword ||
         !passwordForm.newPassword ||
@@ -493,6 +548,10 @@ function Settings({
         return;
       }
 
+      /* -----------------------------------------------
+         CHECK PASSWORD LENGTH
+      ------------------------------------------------ */
+
       if (
         passwordForm.newPassword.length < 8
       ) {
@@ -502,6 +561,42 @@ function Settings({
 
         return;
       }
+
+      /* -----------------------------------------------
+         CHECK UPPERCASE
+      ------------------------------------------------ */
+
+      if (
+        !/[A-Z]/.test(
+          passwordForm.newPassword
+        )
+      ) {
+        setPasswordMessage(
+          "Your new password must contain at least one uppercase letter."
+        );
+
+        return;
+      }
+
+      /* -----------------------------------------------
+         CHECK NUMBER
+      ------------------------------------------------ */
+
+      if (
+        !/[0-9]/.test(
+          passwordForm.newPassword
+        )
+      ) {
+        setPasswordMessage(
+          "Your new password must contain at least one number."
+        );
+
+        return;
+      }
+
+      /* -----------------------------------------------
+         CHECK PASSWORD MATCH
+      ------------------------------------------------ */
 
       if (
         passwordForm.newPassword !==
@@ -514,31 +609,132 @@ function Settings({
         return;
       }
 
-      /*
-        Replace this with Firebase Auth password
-        update logic when your backend is ready.
-      */
+      /* -----------------------------------------------
+         CHECK EMAIL
+      ------------------------------------------------ */
 
-      setPasswordMessage(
-        "success"
-      );
+      if (!firebaseUser.email) {
+        setPasswordMessage(
+          "No email address is associated with this account."
+        );
 
-      setPasswordForm({
-        currentPassword: "",
-        newPassword: "",
-        confirmPassword: "",
-      });
+        return;
+      }
 
-      setTimeout(() => {
-        setPasswordMessage("");
-      }, 4000);
+      /* -----------------------------------------------
+         CHECK LOGIN PROVIDER
+      ------------------------------------------------ */
+
+      const passwordProvider =
+        firebaseUser.providerData?.some(
+          (provider) =>
+            provider.providerId ===
+            "password"
+        );
+
+      if (!passwordProvider) {
+        setPasswordMessage(
+          "This account does not use email and password login. Please use the sign-in method you registered with."
+        );
+
+        return;
+      }
+
+      try {
+        setPasswordUpdating(true);
+
+        /* ---------------------------------------------
+           RE-AUTHENTICATE USER
+
+           Firebase requires the user to prove
+           ownership of the account before changing
+           sensitive information such as a password.
+        --------------------------------------------- */
+
+        const credential =
+          EmailAuthProvider.credential(
+            firebaseUser.email,
+            passwordForm.currentPassword
+          );
+
+        await reauthenticateWithCredential(
+          firebaseUser,
+          credential
+        );
+
+        /* ---------------------------------------------
+           UPDATE FIREBASE AUTH PASSWORD
+        --------------------------------------------- */
+
+        await updatePassword(
+          firebaseUser,
+          passwordForm.newPassword
+        );
+
+        /* ---------------------------------------------
+           SUCCESS
+
+           Clear password fields.
+        --------------------------------------------- */
+
+        setPasswordForm({
+          currentPassword: "",
+          newPassword: "",
+          confirmPassword: "",
+        });
+
+        setPasswordMessage(
+          "success"
+        );
+      } catch (error) {
+        console.error(
+          "Password update error:",
+          error
+        );
+
+        /* ---------------------------------------------
+           FIREBASE ERROR HANDLING
+        --------------------------------------------- */
+
+        switch (error.code) {
+          case "auth/wrong-password":
+
+          case "auth/invalid-credential":
+            setPasswordMessage(
+              "Your current password is incorrect."
+            );
+            break;
+
+          case "auth/requires-recent-login":
+            setPasswordMessage(
+              "For security, please log out and log in again before changing your password."
+            );
+            break;
+
+          case "auth/weak-password":
+            setPasswordMessage(
+              "This password is too weak. Please choose a stronger password."
+            );
+            break;
+
+          case "auth/too-many-requests":
+            setPasswordMessage(
+              "Too many attempts. Please wait a while and try again."
+            );
+            break;
+
+          default:
+            setPasswordMessage(
+              "Unable to update your password. Please try again."
+            );
+        }
+      } finally {
+        setPasswordUpdating(false);
+      }
     };
 
   /* =======================================================
      PROFILE VISIBILITY
-     
-     IMPORTANT:
-     Saves inside the CURRENT user's Firestore document.
   ======================================================= */
 
   const handleVisibilityChange =
@@ -579,7 +775,7 @@ function Settings({
     };
 
   /* =======================================================
-     CONTACT
+     CONTACT INPUT
   ======================================================= */
 
   const handleContactChange = (
@@ -600,6 +796,10 @@ function Settings({
     setContactSent(false);
     setContactError("");
   };
+
+  /* =======================================================
+     CONTACT SUBMIT
+  ======================================================= */
 
   const handleContactSubmit =
     () => {
@@ -636,6 +836,8 @@ function Settings({
 
   /* =======================================================
      LOADING SCREEN
+
+     We keep this lightweight.
   ======================================================= */
 
   if (loading) {
@@ -699,7 +901,7 @@ function Settings({
   }
 
   /* =======================================================
-     RENDER
+     MAIN RENDER
   ======================================================= */
 
   return (
@@ -725,7 +927,9 @@ function Settings({
       >
         <div className="space-y-6 max-w-[1500px] mx-auto">
 
-          {/* HEADER */}
+          {/* =================================================
+              HEADER
+          ================================================= */}
 
           <div>
             <button
@@ -777,7 +981,9 @@ function Settings({
             </div>
           </div>
 
-          {/* SETTINGS LAYOUT */}
+          {/* =================================================
+              SETTINGS LAYOUT
+          ================================================= */}
 
           <div
             className="
@@ -788,7 +994,9 @@ function Settings({
             "
           >
 
-            {/* SETTINGS MENU */}
+            {/* =================================================
+                SETTINGS MENU
+            ================================================= */}
 
             <div
               className="
@@ -992,7 +1200,9 @@ function Settings({
               </div>
             </div>
 
-            {/* CONTENT */}
+            {/* =================================================
+                CONTENT
+            ================================================= */}
 
             <div
               className="
@@ -1007,7 +1217,9 @@ function Settings({
               "
             >
 
-              {/* PERSONAL */}
+              {/* =================================================
+                  PERSONAL INFORMATION
+              ================================================= */}
 
               {activeSection ===
                 "personal" && (
@@ -1118,13 +1330,16 @@ function Settings({
                       <FiSave
                         size={16}
                       />
+
                       Save Changes
                     </button>
                   </div>
                 </section>
               )}
 
-              {/* PASSWORD */}
+              {/* =================================================
+                  PASSWORD
+              ================================================= */}
 
               {activeSection ===
                 "password" && (
@@ -1136,6 +1351,8 @@ function Settings({
                   />
 
                   <div className="mt-6 max-w-xl space-y-5">
+
+                    {/* CURRENT PASSWORD */}
 
                     <PasswordField
                       label="Current Password"
@@ -1149,6 +1366,8 @@ function Settings({
                       placeholder="Enter your current password"
                     />
 
+                    {/* NEW PASSWORD */}
+
                     <PasswordField
                       label="New Password"
                       name="newPassword"
@@ -1160,6 +1379,8 @@ function Settings({
                       }
                       placeholder="Enter your new password"
                     />
+
+                    {/* PASSWORD STRENGTH */}
 
                     {passwordForm.newPassword && (
                       <div className="mt-2">
@@ -1181,6 +1402,8 @@ function Settings({
                       </div>
                     )}
 
+                    {/* CONFIRM PASSWORD */}
+
                     <PasswordField
                       label="Confirm New Password"
                       name="confirmPassword"
@@ -1192,6 +1415,8 @@ function Settings({
                       }
                       placeholder="Confirm your new password"
                     />
+
+                    {/* PASSWORD REQUIREMENTS */}
 
                     <div
                       className="
@@ -1266,6 +1491,8 @@ function Settings({
                       </div>
                     </div>
 
+                    {/* PASSWORD MESSAGE */}
+
                     {passwordMessage ===
                     "success" ? (
                       <SuccessMessage
@@ -1279,10 +1506,15 @@ function Settings({
                       />
                     ) : null}
 
+                    {/* UPDATE BUTTON */}
+
                     <button
                       type="button"
                       onClick={
                         handlePasswordUpdate
+                      }
+                      disabled={
+                        passwordUpdating
                       }
                       className="
                         flex
@@ -1294,6 +1526,8 @@ function Settings({
                         rounded-xl
                         bg-green-600
                         hover:bg-green-700
+                        disabled:bg-green-300
+                        disabled:cursor-not-allowed
                         text-white
                         text-sm
                         font-medium
@@ -1303,13 +1537,18 @@ function Settings({
                       <FiLock
                         size={16}
                       />
-                      Update Password
+
+                      {passwordUpdating
+                        ? "Updating Password..."
+                        : "Update Password"}
                     </button>
                   </div>
                 </section>
               )}
 
-              {/* VISIBILITY */}
+              {/* =================================================
+                  PROFILE VISIBILITY
+              ================================================= */}
 
               {activeSection ===
                 "visibility" && (
@@ -1405,7 +1644,9 @@ function Settings({
                 </section>
               )}
 
-              {/* HELP */}
+              {/* =================================================
+                  HELP
+              ================================================= */}
 
               {activeSection ===
                 "help" && (
@@ -1508,13 +1749,16 @@ function Settings({
                       <FiMail
                         size={16}
                       />
+
                       Contact Support
                     </button>
                   </div>
                 </section>
               )}
 
-              {/* FAQ */}
+              {/* =================================================
+                  FAQ
+              ================================================= */}
 
               {activeSection ===
                 "faq" && (
@@ -1528,6 +1772,7 @@ function Settings({
                   />
 
                   <div className="mt-6 space-y-3">
+
                     <FAQ
                       question="How do I place an order?"
                       answer="Browse products, open the product you want, add it to your cart and proceed to checkout."
@@ -1557,11 +1802,14 @@ function Settings({
                       question="Is CampusMart available on my campus?"
                       answer="CampusMart is designed to connect students and sellers within their campus community."
                     />
+
                   </div>
                 </section>
               )}
 
-              {/* CONTACT */}
+              {/* =================================================
+                  CONTACT
+              ================================================= */}
 
               {activeSection ===
                 "contact" && (
@@ -1591,6 +1839,8 @@ function Settings({
                   )}
 
                   <div className="mt-6 max-w-2xl space-y-5">
+
+                    {/* SUBJECT */}
 
                     <div>
                       <label
@@ -1633,6 +1883,8 @@ function Settings({
                         "
                       />
                     </div>
+
+                    {/* MESSAGE */}
 
                     <div>
                       <label
@@ -1677,6 +1929,8 @@ function Settings({
                       />
                     </div>
 
+                    {/* SEND */}
+
                     <div
                       className="
                         flex
@@ -1707,6 +1961,7 @@ function Settings({
                         <FiSend
                           size={16}
                         />
+
                         Send Message
                       </button>
                     </div>
@@ -2190,6 +2445,7 @@ const SupportCard = ({
         "
       >
         Open
+
         <FiChevronRight
           size={14}
         />

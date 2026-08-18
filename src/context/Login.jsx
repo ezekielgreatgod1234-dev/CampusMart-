@@ -359,17 +359,18 @@ function Login() {
                 </label>
 
                 <button
-                  type="button"
-                  onClick={() => {
-                    setError(
-                      "Password reset is not connected yet."
-                    );
-                  }}
-                  className="text-xs font-semibold text-green-600 hover:text-green-700"
-                >
-                  Forgot password?
-                </button>
-
+  type="button"
+  onClick={() => navigate("/forgot-password")}
+  className="
+    text-sm
+    font-medium
+    text-green-600
+    hover:text-green-700
+    transition
+  "
+>
+  Forgot Password?
+</button>
               </div>
 
               <div className="relative">
