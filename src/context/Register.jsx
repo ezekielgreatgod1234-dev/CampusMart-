@@ -66,6 +66,7 @@ function Register() {
     }));
 
     setError("");
+    setSuccess("");
   };
 
   const getFirebaseErrorMessage = (error) => {
@@ -130,11 +131,12 @@ function Register() {
     try {
       setLoading(true);
 
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
+      const userCredential =
+        await createUserWithEmailAndPassword(
+          auth,
+          email,
+          password
+        );
 
       const user = userCredential.user;
 
@@ -178,7 +180,7 @@ function Register() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f7faf8] flex">
+    <div className="auth-page min-h-screen bg-[#f7faf8] flex">
 
       {/* =====================================================
           LEFT SIDE - BRAND
@@ -189,6 +191,7 @@ function Register() {
         {/* Decorative circles */}
 
         <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-green-500/10" />
+
         <div className="absolute -bottom-40 -right-40 w-[500px] h-[500px] rounded-full bg-green-400/10" />
 
         <div className="relative z-10 w-full flex flex-col justify-between p-12 xl:p-16">
@@ -205,7 +208,10 @@ function Register() {
 
             <div>
               <div className="text-2xl font-black">
-                Campus<span className="text-green-400">Mart</span>
+                Campus
+                <span className="text-green-400">
+                  Mart
+                </span>
               </div>
 
               <p className="text-xs text-green-100/70">
@@ -231,15 +237,21 @@ function Register() {
             </h1>
 
             <p className="mt-6 text-lg leading-8 text-green-50/70 max-w-md">
-              Buy affordable items from fellow students or turn
-              things you no longer need into cash.
+              Buy affordable items from fellow students or
+              turn things you no longer need into cash.
             </p>
 
             <div className="mt-10 space-y-5">
 
+              {/* Find deals */}
+
               <div className="flex items-center gap-4">
+
                 <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center">
-                  <FiShoppingCart className="text-green-400" size={21} />
+                  <FiShoppingCart
+                    className="text-green-400"
+                    size={21}
+                  />
                 </div>
 
                 <div>
@@ -251,11 +263,18 @@ function Register() {
                     Shop directly from students around you.
                   </p>
                 </div>
+
               </div>
 
+              {/* Sell */}
+
               <div className="flex items-center gap-4">
+
                 <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center">
-                  <FiTag className="text-green-400" size={21} />
+                  <FiTag
+                    className="text-green-400"
+                    size={21}
+                  />
                 </div>
 
                 <div>
@@ -267,11 +286,18 @@ function Register() {
                     List your unused items and reach buyers.
                   </p>
                 </div>
+
               </div>
 
+              {/* Campus focused */}
+
               <div className="flex items-center gap-4">
+
                 <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center">
-                  <FiShield className="text-green-400" size={21} />
+                  <FiShield
+                    className="text-green-400"
+                    size={21}
+                  />
                 </div>
 
                 <div>
@@ -280,12 +306,15 @@ function Register() {
                   </p>
 
                   <p className="text-sm text-green-100/60">
-                    Connect with people in your student community.
+                    Connect with people in your student
+                    community.
                   </p>
                 </div>
+
               </div>
 
             </div>
+
           </div>
 
           {/* Bottom */}
@@ -313,20 +342,26 @@ function Register() {
               to="/"
               className="inline-flex items-center gap-3"
             >
+
               <div className="w-11 h-11 rounded-xl bg-green-600 text-white flex items-center justify-center">
                 <FiShoppingBag size={22} />
               </div>
 
               <div className="text-left">
-                <div className="text-2xl font-black">
+
+                <div className="text-2xl font-black text-gray-900">
                   Campus
-                  <span className="text-green-600">Mart</span>
+                  <span className="text-green-600">
+                    Mart
+                  </span>
                 </div>
 
                 <p className="text-xs text-gray-500">
                   Your Campus Marketplace
                 </p>
+
               </div>
+
             </Link>
 
           </div>
@@ -344,7 +379,8 @@ function Register() {
             </h2>
 
             <p className="mt-3 text-gray-500">
-              Join CampusMart and start buying or selling on campus.
+              Join CampusMart and start buying or selling
+              on campus.
             </p>
 
           </div>
@@ -361,18 +397,28 @@ function Register() {
 
           {success && (
             <div className="mb-5 rounded-xl bg-green-50 border border-green-100 px-4 py-3 text-sm text-green-700 flex items-start gap-3">
-              <FiCheck className="mt-0.5 shrink-0" size={18} />
+
+              <FiCheck
+                className="mt-0.5 shrink-0"
+                size={18}
+              />
+
               <span>{success}</span>
+
             </div>
           )}
 
           {/* Form */}
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form
+            onSubmit={handleSubmit}
+            className="space-y-5"
+          >
 
             {/* Full name */}
 
             <div>
+
               <label
                 htmlFor="fullName"
                 className="block text-sm font-bold text-gray-700 mb-2"
@@ -399,11 +445,13 @@ function Register() {
                 />
 
               </div>
+
             </div>
 
             {/* Email */}
 
             <div>
+
               <label
                 htmlFor="email"
                 className="block text-sm font-bold text-gray-700 mb-2"
@@ -430,6 +478,7 @@ function Register() {
                 />
 
               </div>
+
             </div>
 
             {/* Role */}
@@ -519,11 +568,13 @@ function Register() {
                 </button>
 
               </div>
+
             </div>
 
             {/* Password */}
 
             <div>
+
               <label
                 htmlFor="password"
                 className="block text-sm font-bold text-gray-700 mb-2"
@@ -551,7 +602,11 @@ function Register() {
 
                 <button
                   type="button"
-                  onClick={() => setShowPassword((current) => !current)}
+                  onClick={() =>
+                    setShowPassword(
+                      (current) => !current
+                    )
+                  }
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
                   aria-label={
                     showPassword
@@ -567,11 +622,13 @@ function Register() {
                 </button>
 
               </div>
+
             </div>
 
             {/* Confirm password */}
 
             <div>
+
               <label
                 htmlFor="confirmPassword"
                 className="block text-sm font-bold text-gray-700 mb-2"
@@ -604,7 +661,9 @@ function Register() {
                 <button
                   type="button"
                   onClick={() =>
-                    setShowConfirmPassword((current) => !current)
+                    setShowConfirmPassword(
+                      (current) => !current
+                    )
                   }
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
                   aria-label={
@@ -621,6 +680,7 @@ function Register() {
                 </button>
 
               </div>
+
             </div>
 
             {/* Submit */}
@@ -651,6 +711,7 @@ function Register() {
 
             <p className="text-sm text-gray-500">
               Already have an account?{" "}
+
               <Link
                 to="/login"
                 className="font-bold text-green-600 hover:text-green-700"

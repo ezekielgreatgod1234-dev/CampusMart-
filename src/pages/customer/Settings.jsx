@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import CustomerLayout from "../../layouts/CustomerLayout";
+import { useAuth } from "../../context/AuthContext";
 
 import {
   FiArrowLeft,
@@ -35,6 +36,12 @@ function Settings({
   const navigate = useNavigate();
 
   /* =======================================================
+     AUTHENTICATED USER
+  ======================================================= */
+
+  const { firebaseUser } = useAuth();
+
+  /* =======================================================
      ACTIVE SECTION
   ======================================================= */
 
@@ -46,7 +53,9 @@ function Settings({
 
   const getProfile = () => {
     try {
-      const savedProfile = localStorage.getItem("campusmart_profile");
+      const savedProfile = localStorage.getItem(
+        "campusmart_profile"
+      );
 
       if (savedProfile) {
         return JSON.parse(savedProfile);
@@ -95,51 +104,83 @@ function Settings({
      PRIVACY
   ======================================================= */
 
-  const [profileVisibility, setProfileVisibility] = useState(() => {
-    return (
-      localStorage.getItem("campusmart_profile_visibility") ||
-      "campus"
-    );
-  });
+  const [profileVisibility, setProfileVisibility] =
+    useState("campus");
 
   /* =======================================================
      TWO FACTOR
   ======================================================= */
 
-  const [twoFactor, setTwoFactor] = useState(() => {
-    return localStorage.getItem("campusmart_two_factor") === "true";
-  });
+  const [twoFactor, setTwoFactor] = useState(false);
 
   /* =======================================================
      THEME
   ======================================================= */
 
-  const [theme, setTheme] = useState(() => {
-    return localStorage.getItem("campusmart_theme") || "light";
-  });
+  const [theme, setTheme] = useState("light");
 
-  /*
-    Apply the theme globally.
-
-    This is important because the screenshot showed that
-    different parts of the page were receiving different
-    theme styles.
-
-    We explicitly control:
-    - html.dark
-    - color-scheme
-    - body background
-    - body text color
-  */
+  /* =======================================================
+     LOAD USER-SPECIFIC SETTINGS
+  ======================================================= */
 
   useEffect(() => {
+    if (!firebaseUser?.uid) return;
+
+    const uid = firebaseUser.uid;
+
+    /*
+      Every account gets its own localStorage keys.
+
+      Example:
+
+      campusmart_theme_ABC123
+      campusmart_theme_XYZ456
+
+      This prevents one account from changing
+      another account's settings.
+    */
+
+    const themeKey = `campusmart_theme_${uid}`;
+    const visibilityKey =
+      `campusmart_profile_visibility_${uid}`;
+    const twoFactorKey =
+      `campusmart_two_factor_${uid}`;
+
+    const savedTheme =
+      localStorage.getItem(themeKey) || "light";
+
+    const savedVisibility =
+      localStorage.getItem(visibilityKey) || "campus";
+
+    const savedTwoFactor =
+      localStorage.getItem(twoFactorKey) === "true";
+
+    setTheme(savedTheme);
+    setProfileVisibility(savedVisibility);
+    setTwoFactor(savedTwoFactor);
+  }, [firebaseUser?.uid]);
+
+  /* =======================================================
+     APPLY USER-SPECIFIC THEME
+  ======================================================= */
+
+  useEffect(() => {
+    if (!firebaseUser?.uid) return;
+
     const root = document.documentElement;
     const body = document.body;
 
     const isDark = theme === "dark";
 
+    /*
+      Apply theme globally to the current page.
+    */
+
     root.classList.toggle("dark", isDark);
-    root.style.colorScheme = isDark ? "dark" : "light";
+
+    root.style.colorScheme = isDark
+      ? "dark"
+      : "light";
 
     body.style.backgroundColor = isDark
       ? "#080d18"
@@ -149,8 +190,16 @@ function Settings({
       ? "#f8fafc"
       : "#111827";
 
-    localStorage.setItem("campusmart_theme", theme);
-  }, [theme]);
+    /*
+      Save theme under the currently logged-in
+      Firebase user's UID.
+    */
+
+    const themeKey =
+      `campusmart_theme_${firebaseUser.uid}`;
+
+    localStorage.setItem(themeKey, theme);
+  }, [theme, firebaseUser?.uid]);
 
   /* =======================================================
      CONTACT FORM
@@ -345,8 +394,8 @@ function Settings({
     }
 
     /*
-      Replace this with your real API/Firebase request
-      when your backend password update is ready.
+      Replace this with your real Firebase
+      password update request when ready.
     */
 
     setPasswordMessage("success");
@@ -369,8 +418,13 @@ function Settings({
   const handleVisibilityChange = (value) => {
     setProfileVisibility(value);
 
+    if (!firebaseUser?.uid) return;
+
+    const visibilityKey =
+      `campusmart_profile_visibility_${firebaseUser.uid}`;
+
     localStorage.setItem(
-      "campusmart_profile_visibility",
+      visibilityKey,
       value
     );
   };
@@ -384,8 +438,13 @@ function Settings({
 
     setTwoFactor(newValue);
 
+    if (!firebaseUser?.uid) return;
+
+    const twoFactorKey =
+      `campusmart_two_factor_${firebaseUser.uid}`;
+
     localStorage.setItem(
-      "campusmart_two_factor",
+      twoFactorKey,
       String(newValue)
     );
   };
@@ -489,7 +548,6 @@ function Settings({
               "
             >
               <FiArrowLeft size={18} />
-
               <span>Back to Dashboard</span>
             </button>
 
@@ -551,8 +609,6 @@ function Settings({
               "
             >
 
-              {/* MENU HEADER */}
-
               <div
                 className="
                   flex
@@ -604,8 +660,6 @@ function Settings({
                   </p>
                 </div>
               </div>
-
-              {/* MENU */}
 
               <div className="mt-4 space-y-5">
 
@@ -912,8 +966,6 @@ function Settings({
                       onChange={handlePasswordChange}
                       placeholder="Confirm your new password"
                     />
-
-                    {/* PASSWORD REQUIREMENTS */}
 
                     <div
                       className="
@@ -1297,7 +1349,9 @@ function Settings({
                       icon={FiSun}
                       title="Light Mode"
                       description="Use the clean and bright CampusMart appearance."
-                      onClick={() => handleTheme("light")}
+                      onClick={() =>
+                        handleTheme("light")
+                      }
                     />
 
                     <ThemeCard
@@ -1305,7 +1359,9 @@ function Settings({
                       icon={FiMoon}
                       title="Dark Mode"
                       description="Use a darker appearance that's easier on your eyes."
-                      onClick={() => handleTheme("dark")}
+                      onClick={() =>
+                        handleTheme("dark")
+                      }
                     />
 
                   </div>
@@ -1376,14 +1432,18 @@ function Settings({
                       icon={FiMessageCircle}
                       title="Frequently Asked Questions"
                       description="Find answers to common CampusMart questions."
-                      onClick={() => setActiveSection("faq")}
+                      onClick={() =>
+                        setActiveSection("faq")
+                      }
                     />
 
                     <SupportCard
                       icon={FiMail}
                       title="Contact Support"
                       description="Send a message to the CampusMart support team."
-                      onClick={() => setActiveSection("contact")}
+                      onClick={() =>
+                        setActiveSection("contact")
+                      }
                     />
 
                   </div>

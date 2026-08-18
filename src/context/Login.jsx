@@ -108,7 +108,7 @@ function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f7faf8] flex">
+    <div className="auth-page min-h-screen bg-[#f7faf8] flex">
 
       {/* =====================================================
           LEFT BRAND PANEL
@@ -128,19 +128,26 @@ function Login() {
             to="/"
             className="inline-flex items-center gap-3 w-fit"
           >
+
             <div className="w-12 h-12 rounded-xl bg-green-500 flex items-center justify-center shadow-lg">
               <FiShoppingBag size={24} />
             </div>
 
             <div>
+
               <div className="text-2xl font-black">
-                Campus<span className="text-green-400">Mart</span>
+                Campus
+                <span className="text-green-400">
+                  Mart
+                </span>
               </div>
 
               <p className="text-xs text-green-100/70">
                 Your Campus Marketplace
               </p>
+
             </div>
+
           </Link>
 
           {/* Main */}
@@ -160,13 +167,17 @@ function Login() {
             </h1>
 
             <p className="mt-6 text-lg leading-8 text-green-50/70 max-w-md">
-              Sign in to discover products, connect with students,
-              manage your listings and continue shopping.
+              Sign in to discover products, connect with
+              students, manage your listings and continue
+              shopping.
             </p>
 
             <div className="mt-10 grid grid-cols-2 gap-4">
 
+              {/* Buy */}
+
               <div className="rounded-2xl bg-white/10 border border-white/10 p-5">
+
                 <FiShoppingCart
                   className="text-green-400"
                   size={23}
@@ -179,9 +190,13 @@ function Login() {
                 <p className="mt-1 text-xs text-green-100/60 leading-5">
                   Find affordable products from students.
                 </p>
+
               </div>
 
+              {/* Sell */}
+
               <div className="rounded-2xl bg-white/10 border border-white/10 p-5">
+
                 <FiTag
                   className="text-green-400"
                   size={23}
@@ -194,16 +209,24 @@ function Login() {
                 <p className="mt-1 text-xs text-green-100/60 leading-5">
                   Turn your unused items into cash.
                 </p>
+
               </div>
 
             </div>
 
             <div className="mt-6 flex items-center gap-3 text-sm text-green-100/70">
+
               <div className="w-7 h-7 rounded-full bg-green-500/20 flex items-center justify-center">
-                <FiCheck className="text-green-400" size={15} />
+
+                <FiCheck
+                  className="text-green-400"
+                  size={15}
+                />
+
               </div>
 
               Built specifically for students
+
             </div>
 
           </div>
@@ -231,20 +254,26 @@ function Login() {
               to="/"
               className="inline-flex items-center gap-3"
             >
+
               <div className="w-11 h-11 rounded-xl bg-green-600 text-white flex items-center justify-center">
                 <FiShoppingBag size={22} />
               </div>
 
               <div className="text-left">
-                <div className="text-2xl font-black">
+
+                <div className="text-2xl font-black text-gray-900">
                   Campus
-                  <span className="text-green-600">Mart</span>
+                  <span className="text-green-600">
+                    Mart
+                  </span>
                 </div>
 
                 <p className="text-xs text-gray-500">
                   Your Campus Marketplace
                 </p>
+
               </div>
+
             </Link>
 
           </div>
@@ -262,7 +291,8 @@ function Login() {
             </h2>
 
             <p className="mt-3 text-gray-500">
-              Access your account and continue where you left off.
+              Access your account and continue where you
+              left off.
             </p>
 
           </div>
@@ -367,7 +397,9 @@ function Login() {
                 <button
                   type="button"
                   onClick={() =>
-                    setShowPassword((current) => !current)
+                    setShowPassword(
+                      (current) => !current
+                    )
                   }
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
                   aria-label={
@@ -394,6 +426,7 @@ function Login() {
               disabled={loading}
               className="w-full h-13 rounded-xl bg-green-600 text-white font-bold text-sm flex items-center justify-center gap-2 hover:bg-green-700 active:bg-green-800 transition shadow-lg shadow-green-600/10 disabled:opacity-60 disabled:cursor-not-allowed"
             >
+
               {loading ? (
                 <>
                   <span className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
@@ -405,6 +438,7 @@ function Login() {
                   <FiArrowRight size={18} />
                 </>
               )}
+
             </button>
 
           </form>
