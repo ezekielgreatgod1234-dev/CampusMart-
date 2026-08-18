@@ -379,3 +379,322 @@ html.dark .landing-page .shadow-lg,
 html.dark .landing-page .shadow-xl {
   --tw-shadow-color: rgba(0, 0, 0, 0.08) !important;
 }
+
+
+/* =========================================================
+   CAMPUSMART SETTINGS PAGE
+   CONSISTENT LIGHT / DARK MODE
+========================================================= */
+
+
+/* =========================================================
+   LIGHT MODE
+========================================================= */
+
+html:not(.dark) .settings-page,
+html:not(.dark) .settings-page.settings-light {
+  background-color: #f8fafc !important;
+  color: #111827 !important;
+  color-scheme: light !important;
+}
+
+html:not(.dark) .settings-page .bg-white {
+  background-color: #ffffff !important;
+}
+
+html:not(.dark) .settings-page .bg-gray-50 {
+  background-color: #f9fafb !important;
+}
+
+html:not(.dark) .settings-page .bg-gray-100 {
+  background-color: #f3f4f6 !important;
+}
+
+html:not(.dark) .settings-page .bg-gray-200 {
+  background-color: #e5e7eb !important;
+}
+
+html:not(.dark) .settings-page .text-gray-900 {
+  color: #111827 !important;
+}
+
+html:not(.dark) .settings-page .text-gray-800 {
+  color: #1f2937 !important;
+}
+
+html:not(.dark) .settings-page .text-gray-700 {
+  color: #374151 !important;
+}
+
+html:not(.dark) .settings-page .text-gray-600 {
+  color: #4b5563 !important;
+}
+
+html:not(.dark) .settings-page .text-gray-500 {
+  color: #6b7280 !important;
+}
+
+html:not(.dark) .settings-page .text-gray-400 {
+  color: #9ca3af !important;
+}
+
+html:not(.dark) .settings-page .border-gray-100 {
+  border-color: #f3f4f6 !important;
+}
+
+html:not(.dark) .settings-page .border-gray-200 {
+  border-color: #e5e7eb !important;
+}
+
+html:not(.dark) .settings-page .border-gray-300 {
+  border-color: #d1d5db !important;
+}
+
+
+/* Green */
+
+html:not(.dark) .settings-page .bg-green-50 {
+  background-color: #f0fdf4 !important;
+}
+
+html:not(.dark) .settings-page .bg-green-100 {
+  background-color: #dcfce7 !important;
+}
+
+html:not(.dark) .settings-page .text-green-600 {
+  color: #16a34a !important;
+}
+
+html:not(.dark) .settings-page .text-green-700 {
+  color: #15803d !important;
+}
+
+html:not(.dark) .settings-page .border-green-100 {
+  border-color: #dcfce7 !important;
+}
+
+html:not(.dark) .settings-page .border-green-200 {
+  border-color: #bbf7d0 !important;
+}
+
+
+/* Inputs */
+
+html:not(.dark) .settings-page input,
+html:not(.dark) .settings-page textarea,
+html:not(.dark) .settings-page select {
+  background-color: #f9fafb !important;
+  color: #111827 !important;
+  border-color: #e5e7eb !important;
+}
+
+html:not(.dark) .settings-page input::placeholder,
+html:not(.dark) .settings-page textarea::placeholder {
+  color: #9ca3af !important;
+}
+
+
+/* =========================================================
+   DARK MODE
+========================================================= */
+
+html.dark .settings-page,
+html.dark .settings-page.settings-dark {
+  background-color: #080d18 !important;
+  color: #f8fafc !important;
+  color-scheme: dark !important;
+}
+
+
+/* Main cards */
+
+html.dark .settings-page .bg-white {
+  background-color: #111827 !important;
+}
+
+html.dark .settings-page .bg-gray-50 {
+  background-color: #172033 !important;
+}
+
+html.dark .settings-page .bg-gray-100 {
+  background-color: #1e293b !important;
+}
+
+html.dark .settings-page .bg-gray-200 {
+  background-color: #334155 !important;
+}
+
+
+/* Text */
+
+html.dark .settings-page .text-gray-900 {
+  color: #f8fafc !important;
+}
+
+html.dark .settings-page .text-gray-800 {
+  color: #f1f5f9 !important;
+}
+
+html.dark .settings-page .text-gray-700 {
+  color: #e2e8f0 !important;
+}
+
+html.dark .settings-page .text-gray-600 {
+  color: #cbd5e1 !important;
+}
+
+html.dark .settings-page .text-gray-500 {
+  color: #94a3b8 !important;
+}
+
+html.dark .settings-page .text-gray-400 {
+  color: #94a3b8 !important;
+}
+
+
+/* Borders */
+
+html.dark .settings-page .border-gray-100 {
+  border-color: #263244 !important;
+}
+
+html.dark .settings-page .border-gray-200 {
+  border-color: #334155 !important;
+}
+
+html.dark .settings-page .border-gray-300 {
+  border-color: #475569 !important;
+}
+
+
+/* Green */
+
+html.dark .settings-page .bg-green-50 {
+  background-color: rgba(34, 197, 94, 0.10) !important;
+}
+
+html.dark .settings-page .bg-green-100 {
+  background-color: rgba(34, 197, 94, 0.16) !important;
+}
+
+html.dark .settings-page .text-green-600 {
+  color: #22c55e !important;
+}
+
+html.dark .settings-page .text-green-700 {
+  color: #4ade80 !important;
+}
+
+html.dark .settings-page .border-green-100 {
+  border-color: rgba(34, 197, 94, 0.20) !important;
+}
+
+html.dark .settings-page .border-green-200 {
+  border-color: rgba(34, 197, 94, 0.30) !important;
+}
+
+
+/* Inputs */
+
+html.dark .settings-page input,
+html.dark .settings-page textarea,
+html.dark .settings-page select {
+  background-color: #111827 !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+}
+
+html.dark .settings-page input::placeholder,
+html.dark .settings-page textarea::placeholder {
+  color: #64748b !important;
+}
+
+
+/* Focus */
+
+html.dark .settings-page input:focus,
+html.dark .settings-page textarea:focus,
+html.dark .settings-page select:focus {
+  background-color: #111827 !important;
+  border-color: #22c55e !important;
+  outline: none;
+}
+
+
+/* =========================================================
+   SETTINGS HOVER STATES
+========================================================= */
+
+html:not(.dark) .settings-page .hover\:bg-gray-50:hover {
+  background-color: #f9fafb !important;
+}
+
+html:not(.dark) .settings-page .hover\:bg-gray-100:hover {
+  background-color: #f3f4f6 !important;
+}
+
+html.dark .settings-page .hover\:bg-gray-50:hover {
+  background-color: #202b3d !important;
+}
+
+html.dark .settings-page .hover\:bg-gray-100:hover {
+  background-color: #263447 !important;
+}
+
+
+/* =========================================================
+   SETTINGS BUTTONS
+========================================================= */
+
+html.dark .settings-page button {
+  color-scheme: dark;
+}
+
+html:not(.dark) .settings-page button {
+  color-scheme: light;
+}
+
+
+/* =========================================================
+   SETTINGS DETAILS / FAQ
+========================================================= */
+
+html.dark .settings-page details {
+  background-color: #111827 !important;
+  border-color: #334155 !important;
+}
+
+html.dark .settings-page details summary {
+  color: #f1f5f9 !important;
+}
+
+html.dark .settings-page details div {
+  color: #94a3b8 !important;
+}
+
+
+/* =========================================================
+   SETTINGS DIVIDERS
+========================================================= */
+
+html.dark .settings-page hr {
+  border-color: #263244 !important;
+}
+
+
+/* =========================================================
+   SETTINGS SCROLL AREA
+========================================================= */
+
+html.dark .settings-page ::-webkit-scrollbar {
+  width: 8px;
+}
+
+html.dark .settings-page ::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+
+html.dark .settings-page ::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 999px;
+}
