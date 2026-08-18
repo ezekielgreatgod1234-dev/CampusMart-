@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import {
@@ -26,21 +27,31 @@ import {
   FiTwitter,
   FiFacebook,
   FiMusic,
+  FiMenu,
+  FiX,
 } from "react-icons/fi";
 
 function Landing() {
   const navigate = useNavigate();
+
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // =========================================================
   // NAVIGATION
   // =========================================================
 
   const goToBrowse = () => {
+    setMobileMenuOpen(false);
     navigate("/browse-products");
   };
 
   const goToRegister = () => {
+    setMobileMenuOpen(false);
     navigate("/register");
+  };
+
+  const closeMobileMenu = () => {
+    setMobileMenuOpen(false);
   };
 
   // =========================================================
@@ -297,19 +308,20 @@ function Landing() {
 
       <header className="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-gray-100">
         <div className="max-w-[1400px] mx-auto px-5 sm:px-8 lg:px-10">
-          <div className="h-[78px] flex items-center justify-between">
+          <div className="h-[70px] sm:h-[78px] flex items-center justify-between">
 
             {/* LOGO */}
 
             <Link
               to="/"
               className="flex items-center gap-2.5 shrink-0"
+              onClick={closeMobileMenu}
             >
-              <div className="w-11 h-11 rounded-xl bg-green-600 text-white flex items-center justify-center shadow-sm">
-                <FiShoppingCart size={23} />
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-green-600 text-white flex items-center justify-center shadow-sm">
+                <FiShoppingCart size={22} />
               </div>
 
-              <div className="text-xl sm:text-2xl font-extrabold tracking-tight">
+              <div className="text-lg sm:text-2xl font-extrabold tracking-tight">
                 Campus
                 <span className="text-green-600">Mart</span>
               </div>
@@ -317,7 +329,7 @@ function Landing() {
 
             {/* DESKTOP NAV */}
 
-            <nav className="hidden lg:flex items-center gap-9">
+            <nav className="hidden lg:flex items-center gap-8 xl:gap-9">
 
               <a
                 href="#home"
@@ -356,15 +368,15 @@ function Landing() {
 
             </nav>
 
-            {/* RIGHT SIDE */}
+            {/* DESKTOP RIGHT SIDE */}
 
-            <div className="flex items-center gap-3">
+            <div className="hidden md:flex items-center gap-3">
 
               {/* SEARCH */}
 
-              <div className="hidden md:flex items-center w-[240px] xl:w-[280px] h-11 rounded-full border border-gray-200 bg-white px-4">
+              <div className="hidden xl:flex items-center w-[230px] h-10 rounded-full border border-gray-200 bg-white px-4">
                 <FiSearch
-                  size={18}
+                  size={17}
                   className="text-gray-400"
                 />
 
@@ -380,24 +392,114 @@ function Landing() {
               <button
                 type="button"
                 onClick={() => navigate("/cart")}
-                className="hidden sm:flex w-11 h-11 items-center justify-center rounded-full hover:bg-gray-50 transition"
+                className="flex w-10 h-10 items-center justify-center rounded-full hover:bg-gray-50 transition"
               >
-                <FiShoppingCart size={21} />
+                <FiShoppingCart size={20} />
               </button>
 
               {/* LOGIN */}
 
               <Link
                 to="/login"
-                className="h-11 px-6 rounded-xl bg-green-600 text-white flex items-center justify-center text-sm font-semibold hover:bg-green-700 transition shadow-sm"
+                className="h-10 px-5 rounded-xl bg-green-600 text-white flex items-center justify-center text-sm font-semibold hover:bg-green-700 transition shadow-sm"
               >
                 Login
               </Link>
 
             </div>
 
+            {/* MOBILE MENU BUTTON */}
+
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen((prev) => !prev)}
+              className="lg:hidden w-11 h-11 rounded-xl border border-gray-200 flex items-center justify-center text-gray-800 hover:bg-gray-50 transition"
+              aria-label="Toggle menu"
+            >
+              {mobileMenuOpen ? (
+                <FiX size={24} />
+              ) : (
+                <FiMenu size={24} />
+              )}
+            </button>
+
           </div>
         </div>
+
+        {/* =====================================================
+            MOBILE MENU
+        ===================================================== */}
+
+        {mobileMenuOpen && (
+          <div className="lg:hidden border-t border-gray-100 bg-white shadow-lg">
+
+            <div className="px-5 sm:px-8 py-5">
+
+              <nav className="flex flex-col">
+
+                <a
+                  href="#home"
+                  onClick={closeMobileMenu}
+                  className="py-3.5 text-sm font-semibold text-green-600 border-b border-gray-100"
+                >
+                  Home
+                </a>
+
+                <button
+                  onClick={goToBrowse}
+                  className="py-3.5 text-left text-sm font-medium text-gray-700 border-b border-gray-100"
+                >
+                  Browse Products
+                </button>
+
+                <a
+                  href="#how-it-works"
+                  onClick={closeMobileMenu}
+                  className="py-3.5 text-sm font-medium text-gray-700 border-b border-gray-100"
+                >
+                  How it Works
+                </a>
+
+                <a
+                  href="#about"
+                  onClick={closeMobileMenu}
+                  className="py-3.5 text-sm font-medium text-gray-700 border-b border-gray-100"
+                >
+                  About Us
+                </a>
+
+                <a
+                  href="#contact"
+                  onClick={closeMobileMenu}
+                  className="py-3.5 text-sm font-medium text-gray-700 border-b border-gray-100"
+                >
+                  Contact
+                </a>
+
+                <button
+                  type="button"
+                  onClick={() => navigate("/cart")}
+                  className="mt-4 h-11 rounded-xl border border-gray-200 flex items-center justify-center gap-2 text-sm font-semibold text-gray-700"
+                >
+                  <FiShoppingCart size={18} />
+                  Cart
+                </button>
+
+                <Link
+                  to="/login"
+                  onClick={closeMobileMenu}
+                  className="mt-3 h-11 rounded-xl bg-green-600 text-white flex items-center justify-center text-sm font-semibold"
+                >
+                  Login
+                </Link>
+
+              </nav>
+
+            </div>
+
+          </div>
+        )}
+
       </header>
 
       {/* =====================================================
@@ -411,17 +513,23 @@ function Landing() {
 
         <div className="max-w-[1400px] mx-auto px-5 sm:px-8 lg:px-10">
 
-          <div className="relative min-h-[560px] lg:min-h-[600px] flex items-center">
+          <div className="relative min-h-[auto] lg:min-h-[600px] flex flex-col lg:block">
 
             {/* LEFT CONTENT */}
 
-            <div className="relative z-20 w-full lg:w-[53%] py-16 lg:py-20">
+            <div
+              className="
+                relative z-20
+                w-full lg:w-[49%] xl:w-[48%]
+                py-12 sm:py-16 lg:py-20
+              "
+            >
 
               {/* BADGE */}
 
-              <div className="inline-flex items-center gap-2 rounded-full bg-green-50 border border-green-100 px-4 py-2 text-sm font-semibold text-green-700">
+              <div className="inline-flex items-center gap-2 rounded-full bg-green-50 border border-green-100 px-3.5 py-2 text-xs sm:text-sm font-semibold text-green-700">
 
-                <span className="w-5 h-5 rounded-full bg-green-600 text-white flex items-center justify-center text-[11px]">
+                <span className="w-5 h-5 rounded-full bg-green-600 text-white flex items-center justify-center text-[10px]">
                   ★
                 </span>
 
@@ -431,8 +539,19 @@ function Landing() {
 
               {/* HEADING */}
 
-              <h1 className="mt-7 text-[44px] sm:text-[56px] lg:text-[64px] xl:text-[70px] leading-[0.98] font-black tracking-[-0.045em]">
-
+              <h1
+                className="
+                  mt-6 sm:mt-7
+                  text-[42px]
+                  sm:text-[52px]
+                  lg:text-[57px]
+                  xl:text-[64px]
+                  leading-[0.98]
+                  font-black
+                  tracking-[-0.045em]
+                  max-w-[650px]
+                "
+              >
                 Buy, Sell, Connect.
 
                 <br />
@@ -440,43 +559,69 @@ function Landing() {
                 <span className="text-green-600">
                   All on Campus.
                 </span>
-
               </h1>
 
               {/* DESCRIPTION */}
 
-              <p className="mt-7 max-w-[590px] text-base sm:text-lg leading-8 text-gray-600">
+              <p className="mt-6 sm:mt-7 max-w-[500px] text-sm sm:text-lg leading-7 sm:leading-8 text-gray-600">
                 CampusMart makes it easy for students to buy and sell
                 items within their campus community.
               </p>
 
               {/* BUTTONS */}
 
-              <div className="mt-8 flex flex-wrap gap-4">
+              <div className="mt-7 sm:mt-8 flex flex-wrap gap-3">
 
                 <button
                   type="button"
                   onClick={goToBrowse}
-                  className="h-12 px-6 rounded-xl bg-green-600 text-white font-semibold flex items-center gap-3 hover:bg-green-700 transition shadow-sm"
+                  className="
+                    h-11 sm:h-12
+                    px-4 sm:px-5
+                    rounded-xl
+                    bg-green-600
+                    text-white
+                    text-sm
+                    font-semibold
+                    flex items-center gap-2.5
+                    hover:bg-green-700
+                    transition
+                    shadow-sm
+                    whitespace-nowrap
+                  "
                 >
                   Browse Products
-                  <FiArrowRight size={19} />
+                  <FiArrowRight size={17} />
                 </button>
 
                 <button
                   type="button"
                   onClick={goToRegister}
-                  className="h-12 px-6 rounded-xl bg-white border border-gray-200 text-gray-800 font-semibold flex items-center gap-3 hover:border-green-300 hover:text-green-700 transition"
+                  className="
+                    h-11 sm:h-12
+                    px-4 sm:px-5
+                    rounded-xl
+                    bg-white
+                    border border-gray-200
+                    text-gray-800
+                    text-sm
+                    font-semibold
+                    flex items-center gap-2.5
+                    hover:border-green-300
+                    hover:text-green-700
+                    transition
+                    whitespace-nowrap
+                  "
                 >
                   Sell an Item
-                  <FiTag size={18} />
+                  <FiTag size={17} />
                 </button>
 
               </div>
 
               {/* USERS */}
 
-              <div className="mt-8 flex items-center gap-4">
+              <div className="mt-7 sm:mt-8 flex items-center gap-4">
 
                 <div className="flex -space-x-3">
 
@@ -485,18 +630,18 @@ function Landing() {
                       key={item}
                       src={`https://i.pravatar.cc/80?img=${item + 10}`}
                       alt=""
-                      className="w-9 h-9 rounded-full border-2 border-white object-cover"
+                      className="w-8 h-8 sm:w-9 sm:h-9 rounded-full border-2 border-white object-cover"
                     />
                   ))}
 
                 </div>
 
                 <div>
-                  <p className="font-bold text-gray-900 text-sm">
+                  <p className="font-bold text-gray-900 text-xs sm:text-sm">
                     Join 5,000+ students
                   </p>
 
-                  <p className="text-sm text-gray-500">
+                  <p className="text-xs sm:text-sm text-gray-500">
                     already using CampusMart
                   </p>
                 </div>
@@ -505,36 +650,70 @@ function Landing() {
 
             </div>
 
-            {/* HERO IMAGE DESKTOP */}
+            {/* =================================================
+                HERO IMAGE DESKTOP
+            ================================================= */}
 
-            <div className="hidden lg:block absolute right-[-80px] xl:right-[-40px] top-0 w-[58%] h-full">
+            <div
+              className="
+                hidden lg:block
+                absolute
+                right-[-30px]
+                xl:right-[-20px]
+                top-0
+                w-[55%]
+                h-full
+              "
+            >
 
-              <div className="absolute inset-0 bg-gradient-to-r from-[#f5fff8] via-transparent to-transparent z-10 pointer-events-none" />
+              <div className="absolute inset-0 bg-gradient-to-r from-[#f5fff8] via-[#f5fff8]/30 to-transparent z-10 pointer-events-none" />
 
               <img
                 src="/3stud.png"
                 alt="Three students using CampusMart"
-                className="absolute right-0 bottom-0 w-full h-[92%] object-cover object-top"
+                className="
+                  absolute
+                  right-0
+                  bottom-0
+                  w-full
+                  h-[94%]
+                  object-contain
+                  object-right-bottom
+                "
               />
 
             </div>
 
-            {/* HERO IMAGE MOBILE */}
+            {/* =================================================
+                HERO IMAGE MOBILE
+            ================================================= */}
 
-            <div className="lg:hidden w-full mt-2 pb-10">
+            <div className="lg:hidden w-full -mt-2 pb-10">
 
-              <img
-                src="/3stud.png"
-                alt="Three students using CampusMart"
-                className="w-full max-h-[330px] object-cover object-top rounded-3xl"
-              />
+              <div className="relative w-full overflow-hidden rounded-3xl">
+
+                <img
+                  src="/3stud.png"
+                  alt="Three students using CampusMart"
+                  className="
+                    w-full
+                    h-[310px]
+                    sm:h-[390px]
+                    object-cover
+                    object-center
+                  "
+                />
+
+              </div>
 
             </div>
 
           </div>
         </div>
 
-        {/* HERO FEATURE BAR */}
+        {/* =====================================================
+            HERO FEATURE BAR
+        ===================================================== */}
 
         <div className="relative z-30 max-w-[1250px] mx-auto px-5 sm:px-8 lg:px-0 pb-7">
 
@@ -785,8 +964,6 @@ function Landing() {
                 className="group rounded-xl border border-gray-100 bg-white overflow-hidden shadow-sm hover:shadow-md transition"
               >
 
-                {/* IMAGE */}
-
                 <div className="relative h-[180px] bg-gray-100 overflow-hidden">
 
                   <img
@@ -800,8 +977,6 @@ function Landing() {
                   </span>
 
                 </div>
-
-                {/* CONTENT */}
 
                 <div className="p-4">
 
@@ -841,8 +1016,6 @@ function Landing() {
 
           </div>
 
-          {/* MOBILE VIEW ALL */}
-
           <button
             onClick={goToBrowse}
             className="sm:hidden mt-7 w-full h-12 rounded-xl border border-green-200 text-green-700 font-semibold flex items-center justify-center gap-2"
@@ -850,8 +1023,6 @@ function Landing() {
             View all products
             <FiArrowRight />
           </button>
-
-          {/* DOTS */}
 
           <div className="flex justify-center gap-2 mt-7">
 
@@ -902,13 +1073,9 @@ function Landing() {
                 className="relative text-center"
               >
 
-                {/* CONNECTOR */}
-
                 {index !== steps.length - 1 && (
                   <div className="hidden lg:block absolute top-10 left-[65%] w-[70%] border-t-2 border-dashed border-green-200" />
                 )}
-
-                {/* NUMBER + ICON */}
 
                 <div className="relative mx-auto w-20 h-20 rounded-full bg-green-50 text-green-600 flex items-center justify-center">
 
