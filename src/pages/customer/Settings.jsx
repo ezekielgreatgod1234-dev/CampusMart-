@@ -118,10 +118,36 @@ function Settings({
     return localStorage.getItem("campusmart_theme") || "light";
   });
 
+  /*
+    Apply the theme globally.
+
+    This is important because the screenshot showed that
+    different parts of the page were receiving different
+    theme styles.
+
+    We explicitly control:
+    - html.dark
+    - color-scheme
+    - body background
+    - body text color
+  */
+
   useEffect(() => {
     const root = document.documentElement;
+    const body = document.body;
 
-    root.classList.toggle("dark", theme === "dark");
+    const isDark = theme === "dark";
+
+    root.classList.toggle("dark", isDark);
+    root.style.colorScheme = isDark ? "dark" : "light";
+
+    body.style.backgroundColor = isDark
+      ? "#080d18"
+      : "#f8fafc";
+
+    body.style.color = isDark
+      ? "#f8fafc"
+      : "#111827";
 
     localStorage.setItem("campusmart_theme", theme);
   }, [theme]);
@@ -183,6 +209,7 @@ function Settings({
         },
       ],
     },
+
     {
       title: "Privacy & Security",
       items: [
@@ -198,6 +225,7 @@ function Settings({
         },
       ],
     },
+
     {
       title: "Appearance",
       items: [
@@ -208,6 +236,7 @@ function Settings({
         },
       ],
     },
+
     {
       title: "Support",
       items: [
@@ -231,7 +260,7 @@ function Settings({
   ];
 
   /* =======================================================
-     PERSONAL INFORMATION
+     PERSONAL INFORMATION CHANGE
   ======================================================= */
 
   const handlePersonalChange = (e) => {
@@ -244,6 +273,10 @@ function Settings({
 
     setPersonalSaved(false);
   };
+
+  /* =======================================================
+     SAVE PERSONAL INFORMATION
+  ======================================================= */
 
   const handlePersonalSave = () => {
     const updatedProfile = {
@@ -268,7 +301,7 @@ function Settings({
   };
 
   /* =======================================================
-     PASSWORD
+     PASSWORD CHANGE
   ======================================================= */
 
   const handlePasswordChange = (e) => {
@@ -310,6 +343,11 @@ function Settings({
       );
       return;
     }
+
+    /*
+      Replace this with your real API/Firebase request
+      when your backend password update is ready.
+    */
 
     setPasswordMessage("success");
 
@@ -408,19 +446,28 @@ function Settings({
       wishlist={wishlist}
       unreadMessages={unreadMessages}
     >
-      {/* FULL SETTINGS BACKGROUND */}
+      {/* =================================================
+          MAIN SETTINGS WRAPPER
+      ================================================= */}
+
       <div
         className="
-          min-h-full
-          bg-white
+          min-h-screen
+          -m-4
+          sm:-m-6
+          lg:-m-8
+          p-4
+          sm:p-6
+          lg:p-8
+          bg-gray-50
+          dark:bg-[#080d18]
           text-gray-900
-          dark:bg-gray-950
           dark:text-gray-100
           transition-colors
           duration-200
         "
       >
-        <div className="space-y-6">
+        <div className="space-y-6 max-w-[1500px] mx-auto">
 
           {/* =================================================
               HEADER
@@ -442,6 +489,7 @@ function Settings({
               "
             >
               <FiArrowLeft size={18} />
+
               <span>Back to Dashboard</span>
             </button>
 
@@ -451,7 +499,7 @@ function Settings({
                   text-2xl
                   sm:text-3xl
                   font-bold
-                  text-gray-800
+                  text-gray-900
                   dark:text-white
                 "
               >
@@ -490,16 +538,19 @@ function Settings({
             <div
               className="
                 bg-white
-                dark:bg-gray-900
+                dark:bg-[#101827]
                 rounded-2xl
                 border
                 border-gray-100
                 dark:border-gray-800
                 p-4
                 h-fit
+                shadow-sm
+                dark:shadow-none
                 transition-colors
               "
             >
+
               {/* MENU HEADER */}
 
               <div
@@ -520,7 +571,7 @@ function Settings({
                     h-10
                     rounded-xl
                     bg-green-50
-                    dark:bg-green-950/50
+                    dark:bg-green-950/60
                     text-green-600
                     dark:text-green-400
                     flex
@@ -557,8 +608,10 @@ function Settings({
               {/* MENU */}
 
               <div className="mt-4 space-y-5">
+
                 {menuSections.map((section) => (
                   <div key={section.title}>
+
                     <p
                       className="
                         px-3
@@ -575,6 +628,7 @@ function Settings({
                     </p>
 
                     <div className="space-y-1">
+
                       {section.items.map((item) => {
                         const Icon = item.icon;
                         const active =
@@ -601,12 +655,26 @@ function Settings({
 
                               ${
                                 active
-                                  ? "bg-green-50 dark:bg-green-950/40 text-green-600 dark:text-green-400"
-                                  : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-green-600 dark:hover:text-green-400"
+                                  ? `
+                                    bg-green-50
+                                    dark:bg-green-950/50
+                                    text-green-600
+                                    dark:text-green-400
+                                  `
+                                  : `
+                                    text-gray-600
+                                    dark:text-gray-300
+                                    hover:bg-gray-50
+                                    dark:hover:bg-gray-800
+                                    hover:text-green-600
+                                    dark:hover:text-green-400
+                                  `
                               }
                             `}
                           >
+
                             <div className="flex items-center gap-3">
+
                               <div
                                 className={`
                                   w-9
@@ -618,8 +686,18 @@ function Settings({
 
                                   ${
                                     active
-                                      ? "bg-white dark:bg-gray-800 text-green-600 dark:text-green-400"
-                                      : "bg-gray-50 dark:bg-gray-800 text-gray-400 dark:text-gray-500"
+                                      ? `
+                                        bg-white
+                                        dark:bg-gray-800
+                                        text-green-600
+                                        dark:text-green-400
+                                      `
+                                      : `
+                                        bg-gray-50
+                                        dark:bg-gray-800
+                                        text-gray-400
+                                        dark:text-gray-500
+                                      `
                                   }
                                 `}
                               >
@@ -638,17 +716,21 @@ function Settings({
                               >
                                 {item.label}
                               </span>
+
                             </div>
 
                             {active && (
                               <FiChevronRight size={16} />
                             )}
+
                           </button>
                         );
                       })}
+
                     </div>
                   </div>
                 ))}
+
               </div>
             </div>
 
@@ -660,13 +742,15 @@ function Settings({
               className="
                 lg:col-span-2
                 bg-white
-                dark:bg-gray-900
+                dark:bg-[#101827]
                 rounded-2xl
                 border
                 border-gray-100
                 dark:border-gray-800
                 p-5
                 sm:p-6
+                shadow-sm
+                dark:shadow-none
                 transition-colors
               "
             >
@@ -677,6 +761,7 @@ function Settings({
 
               {activeSection === "personal" && (
                 <section>
+
                   <SettingsHeader
                     title="Personal Information"
                     description="Manage your personal details and account information."
@@ -698,6 +783,7 @@ function Settings({
                       gap-5
                     "
                   >
+
                     <SettingsInput
                       label="Full Name"
                       name="fullName"
@@ -731,6 +817,7 @@ function Settings({
                       onChange={handlePersonalChange}
                       icon={FiEye}
                     />
+
                   </div>
 
                   <div
@@ -767,6 +854,7 @@ function Settings({
                       Save Changes
                     </button>
                   </div>
+
                 </section>
               )}
 
@@ -776,6 +864,7 @@ function Settings({
 
               {activeSection === "password" && (
                 <section>
+
                   <SettingsHeader
                     title="Change Password"
                     description="Update your password to keep your CampusMart account secure."
@@ -783,6 +872,7 @@ function Settings({
                   />
 
                   <div className="mt-6 max-w-xl space-y-5">
+
                     <PasswordField
                       label="Current Password"
                       name="currentPassword"
@@ -802,17 +892,13 @@ function Settings({
                     {passwordForm.newPassword && (
                       <div className="mt-2">
                         <p
-                          className={`
-                            text-xs
-                            font-semibold
-                            ${
-                              passwordStrength === "Very strong"
-                                ? "text-green-600 dark:text-green-400"
-                                : passwordStrength === "Strong"
-                                ? "text-yellow-600 dark:text-yellow-400"
-                                : "text-red-500 dark:text-red-400"
-                            }
-                          `}
+                          className={`text-xs font-semibold ${
+                            passwordStrength === "Very strong"
+                              ? "text-green-600 dark:text-green-400"
+                              : passwordStrength === "Strong"
+                              ? "text-yellow-600 dark:text-yellow-400"
+                              : "text-red-500 dark:text-red-400"
+                          }`}
                         >
                           {passwordStrength}
                         </p>
@@ -841,6 +927,7 @@ function Settings({
                       "
                     >
                       <div className="flex items-center gap-2">
+
                         <FiKey
                           className="text-green-600 dark:text-green-400"
                           size={16}
@@ -856,6 +943,7 @@ function Settings({
                         >
                           Password requirements
                         </p>
+
                       </div>
 
                       <div
@@ -867,6 +955,7 @@ function Settings({
                           gap-2
                         "
                       >
+
                         <PasswordRequirement
                           checked={
                             passwordForm.newPassword.length >= 8
@@ -900,6 +989,7 @@ function Settings({
                           }
                           text="Passwords match"
                         />
+
                       </div>
                     </div>
 
@@ -935,7 +1025,9 @@ function Settings({
                       <FiLock size={16} />
                       Update Password
                     </button>
+
                   </div>
+
                 </section>
               )}
 
@@ -945,6 +1037,7 @@ function Settings({
 
               {activeSection === "visibility" && (
                 <section>
+
                   <SettingsHeader
                     title="Profile Visibility"
                     description="Choose who can see your CampusMart profile."
@@ -952,6 +1045,7 @@ function Settings({
                   />
 
                   <div className="mt-6 space-y-3">
+
                     <VisibilityCard
                       active={profileVisibility === "public"}
                       onClick={() =>
@@ -981,6 +1075,7 @@ function Settings({
                       description="Your profile will only be visible to you."
                       icon={FiLock}
                     />
+
                   </div>
 
                   <div
@@ -988,7 +1083,7 @@ function Settings({
                       mt-5
                       rounded-xl
                       bg-green-50
-                      dark:bg-green-950/30
+                      dark:bg-green-950/40
                       border
                       border-green-100
                       dark:border-green-900
@@ -998,7 +1093,12 @@ function Settings({
                     "
                   >
                     <FiShield
-                      className="text-green-600 dark:text-green-400 mt-0.5 shrink-0"
+                      className="
+                        text-green-600
+                        dark:text-green-400
+                        mt-0.5
+                        shrink-0
+                      "
                       size={18}
                     />
 
@@ -1014,6 +1114,7 @@ function Settings({
                       time. Your account information remains protected.
                     </p>
                   </div>
+
                 </section>
               )}
 
@@ -1023,6 +1124,7 @@ function Settings({
 
               {activeSection === "two-factor" && (
                 <section>
+
                   <SettingsHeader
                     title="Two-Factor Authentication"
                     description="Add an extra layer of security to your CampusMart account."
@@ -1030,6 +1132,7 @@ function Settings({
                   />
 
                   <div className="mt-6">
+
                     <div
                       className="
                         rounded-2xl
@@ -1042,6 +1145,7 @@ function Settings({
                         sm:p-6
                       "
                     >
+
                       <div
                         className="
                           flex
@@ -1052,14 +1156,16 @@ function Settings({
                           gap-5
                         "
                       >
+
                         <div className="flex gap-4">
+
                           <div
                             className="
                               w-12
                               h-12
                               rounded-xl
                               bg-green-100
-                              dark:bg-green-950/50
+                              dark:bg-green-950/60
                               text-green-600
                               dark:text-green-400
                               flex
@@ -1072,6 +1178,7 @@ function Settings({
                           </div>
 
                           <div>
+
                             <h3
                               className="
                                 font-semibold
@@ -1109,11 +1216,22 @@ function Settings({
 
                                 ${
                                   twoFactor
-                                    ? "bg-green-100 dark:bg-green-950/50 text-green-600 dark:text-green-400"
-                                    : "bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
+                                    ? `
+                                      bg-green-100
+                                      dark:bg-green-950/60
+                                      text-green-600
+                                      dark:text-green-400
+                                    `
+                                    : `
+                                      bg-gray-200
+                                      dark:bg-gray-700
+                                      text-gray-500
+                                      dark:text-gray-400
+                                    `
                                 }
                               `}
                             >
+
                               <span
                                 className={`
                                   w-2
@@ -1131,7 +1249,9 @@ function Settings({
                               {twoFactor
                                 ? "Protection Enabled"
                                 : "Protection Disabled"}
+
                             </div>
+
                           </div>
                         </div>
 
@@ -1139,9 +1259,13 @@ function Settings({
                           enabled={twoFactor}
                           onClick={handleTwoFactor}
                         />
+
                       </div>
+
                     </div>
+
                   </div>
+
                 </section>
               )}
 
@@ -1151,6 +1275,7 @@ function Settings({
 
               {activeSection === "appearance" && (
                 <section>
+
                   <SettingsHeader
                     title="Appearance"
                     description="Choose how CampusMart looks on your device."
@@ -1166,6 +1291,7 @@ function Settings({
                       gap-5
                     "
                   >
+
                     <ThemeCard
                       active={theme === "light"}
                       icon={FiSun}
@@ -1181,6 +1307,7 @@ function Settings({
                       description="Use a darker appearance that's easier on your eyes."
                       onClick={() => handleTheme("dark")}
                     />
+
                   </div>
 
                   <div
@@ -1218,6 +1345,7 @@ function Settings({
                       </span>
                     </p>
                   </div>
+
                 </section>
               )}
 
@@ -1227,6 +1355,7 @@ function Settings({
 
               {activeSection === "help" && (
                 <section>
+
                   <SettingsHeader
                     title="Help Center"
                     description="Need help using CampusMart? We're here for you."
@@ -1242,23 +1371,21 @@ function Settings({
                       gap-4
                     "
                   >
+
                     <SupportCard
                       icon={FiMessageCircle}
                       title="Frequently Asked Questions"
                       description="Find answers to common CampusMart questions."
-                      onClick={() =>
-                        setActiveSection("faq")
-                      }
+                      onClick={() => setActiveSection("faq")}
                     />
 
                     <SupportCard
                       icon={FiMail}
                       title="Contact Support"
                       description="Send a message to the CampusMart support team."
-                      onClick={() =>
-                        setActiveSection("contact")
-                      }
+                      onClick={() => setActiveSection("contact")}
                     />
+
                   </div>
 
                   <div
@@ -1266,13 +1393,14 @@ function Settings({
                       mt-5
                       rounded-2xl
                       bg-green-50
-                      dark:bg-green-950/30
+                      dark:bg-green-950/40
                       border
                       border-green-100
                       dark:border-green-900
                       p-6
                     "
                   >
+
                     <h3
                       className="
                         font-bold
@@ -1320,7 +1448,9 @@ function Settings({
                       <FiMail size={16} />
                       Contact Support
                     </button>
+
                   </div>
+
                 </section>
               )}
 
@@ -1330,6 +1460,7 @@ function Settings({
 
               {activeSection === "faq" && (
                 <section>
+
                   <SettingsHeader
                     title="Frequently Asked Questions"
                     description="Find answers to common CampusMart questions."
@@ -1337,6 +1468,7 @@ function Settings({
                   />
 
                   <div className="mt-6 space-y-3">
+
                     <FAQ
                       question="How do I place an order?"
                       answer="Browse products, open the product you want, add it to your cart and proceed to checkout."
@@ -1366,7 +1498,9 @@ function Settings({
                       question="Is CampusMart available on my campus?"
                       answer="CampusMart is designed to connect students and sellers within their campus community."
                     />
+
                   </div>
+
                 </section>
               )}
 
@@ -1376,6 +1510,7 @@ function Settings({
 
               {activeSection === "contact" && (
                 <section>
+
                   <SettingsHeader
                     title="Contact CampusMart"
                     description="Have a question, complaint or suggestion? Send us a message."
@@ -1404,6 +1539,7 @@ function Settings({
                   <div className="mt-6 max-w-2xl space-y-5">
 
                     <div>
+
                       <label
                         className="
                           block
@@ -1433,21 +1569,23 @@ function Settings({
                           dark:border-gray-700
                           bg-gray-50
                           dark:bg-gray-800
+                          text-sm
                           text-gray-800
                           dark:text-white
                           placeholder:text-gray-400
                           dark:placeholder:text-gray-500
-                          text-sm
                           outline-none
                           focus:bg-white
-                          dark:focus:bg-gray-900
+                          dark:focus:bg-gray-800
                           focus:border-green-500
                           transition
                         "
                       />
+
                     </div>
 
                     <div>
+
                       <label
                         className="
                           block
@@ -1477,22 +1615,30 @@ function Settings({
                           dark:border-gray-700
                           bg-gray-50
                           dark:bg-gray-800
+                          text-sm
                           text-gray-800
                           dark:text-white
                           placeholder:text-gray-400
                           dark:placeholder:text-gray-500
-                          text-sm
                           outline-none
                           resize-none
                           focus:bg-white
-                          dark:focus:bg-gray-900
+                          dark:focus:bg-gray-800
                           focus:border-green-500
                           transition
                         "
                       />
+
                     </div>
 
-                    <div className="flex justify-end pt-2">
+                    <div
+                      className="
+                        flex
+                        justify-end
+                        pt-2
+                      "
+                    >
+
                       <button
                         type="button"
                         onClick={handleContactSubmit}
@@ -1514,10 +1660,14 @@ function Settings({
                         <FiSend size={16} />
                         Send Message
                       </button>
+
                     </div>
+
                   </div>
+
                 </section>
               )}
+
             </div>
           </div>
         </div>
@@ -1547,13 +1697,14 @@ const SettingsHeader = ({
         dark:border-gray-800
       "
     >
+
       <div
         className="
           w-11
           h-11
           rounded-xl
           bg-green-50
-          dark:bg-green-950/50
+          dark:bg-green-950/60
           text-green-600
           dark:text-green-400
           flex
@@ -1566,6 +1717,7 @@ const SettingsHeader = ({
       </div>
 
       <div>
+
         <h2
           className="
             text-xl
@@ -1588,6 +1740,7 @@ const SettingsHeader = ({
         >
           {description}
         </p>
+
       </div>
     </div>
   );
@@ -1607,6 +1760,7 @@ const SettingsInput = ({
 }) => {
   return (
     <div>
+
       <label
         className="
           block
@@ -1621,6 +1775,7 @@ const SettingsInput = ({
       </label>
 
       <div className="relative">
+
         <Icon
           className="
             absolute
@@ -1649,18 +1804,19 @@ const SettingsInput = ({
             dark:border-gray-700
             bg-gray-50
             dark:bg-gray-800
+            text-sm
             text-gray-700
             dark:text-white
+            outline-none
             placeholder:text-gray-400
             dark:placeholder:text-gray-500
-            text-sm
-            outline-none
             focus:bg-white
-            dark:focus:bg-gray-900
+            dark:focus:bg-gray-800
             focus:border-green-500
             transition
           "
         />
+
       </div>
     </div>
   );
@@ -1681,6 +1837,7 @@ const PasswordField = ({
 
   return (
     <div>
+
       <label
         className="
           mb-2
@@ -1695,6 +1852,7 @@ const PasswordField = ({
       </label>
 
       <div className="relative">
+
         <input
           type={show ? "text" : "password"}
           name={name}
@@ -1718,8 +1876,6 @@ const PasswordField = ({
             placeholder:text-gray-400
             dark:placeholder:text-gray-500
             outline-none
-            focus:bg-white
-            dark:focus:bg-gray-900
             focus:border-green-500
             transition
           "
@@ -1738,9 +1894,13 @@ const PasswordField = ({
             hover:text-green-600
             dark:hover:text-green-400
           "
+          aria-label={
+            show ? "Hide password" : "Show password"
+          }
         >
           {show ? <FiEyeOff /> : <FiEye />}
         </button>
+
       </div>
     </div>
   );
@@ -1763,6 +1923,7 @@ const PasswordRequirement = ({
         text-xs
       "
     >
+
       <span
         className={`
           w-5
@@ -1774,8 +1935,18 @@ const PasswordRequirement = ({
 
           ${
             checked
-              ? "bg-green-100 dark:bg-green-950/50 text-green-600 dark:text-green-400"
-              : "bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500"
+              ? `
+                bg-green-100
+                dark:bg-green-950/60
+                text-green-600
+                dark:text-green-400
+              `
+              : `
+                bg-gray-200
+                dark:bg-gray-700
+                text-gray-400
+                dark:text-gray-500
+              `
           }
         `}
       >
@@ -1791,6 +1962,7 @@ const PasswordRequirement = ({
       >
         {text}
       </span>
+
     </div>
   );
 };
@@ -1824,12 +1996,27 @@ const VisibilityCard = ({
 
         ${
           active
-            ? "border-green-500 bg-green-50 dark:bg-green-950/30"
-            : "border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 hover:border-gray-200 dark:hover:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+            ? `
+              border-green-500
+              bg-green-50
+              dark:bg-green-950/40
+            `
+            : `
+              border-gray-100
+              dark:border-gray-800
+              bg-white
+              dark:bg-gray-800
+              hover:border-gray-200
+              dark:hover:border-gray-700
+              hover:bg-gray-50
+              dark:hover:bg-gray-750
+            `
         }
       `}
     >
-      <div className="flex items-center gap-4 min-w-0">
+
+      <div className="flex items-center gap-4">
+
         <div
           className={`
             w-11
@@ -1842,15 +2029,26 @@ const VisibilityCard = ({
 
             ${
               active
-                ? "bg-white dark:bg-gray-800 text-green-600 dark:text-green-400"
-                : "bg-gray-50 dark:bg-gray-800 text-gray-400 dark:text-gray-500"
+                ? `
+                  bg-white
+                  dark:bg-gray-800
+                  text-green-600
+                  dark:text-green-400
+                `
+                : `
+                  bg-gray-50
+                  dark:bg-gray-700
+                  text-gray-400
+                  dark:text-gray-500
+                `
             }
           `}
         >
           <Icon size={19} />
         </div>
 
-        <div className="min-w-0">
+        <div>
+
           <h3
             className="
               text-sm
@@ -1873,6 +2071,7 @@ const VisibilityCard = ({
           >
             {description}
           </p>
+
         </div>
       </div>
 
@@ -1901,6 +2100,7 @@ const VisibilityCard = ({
           />
         )}
       </div>
+
     </button>
   );
 };
@@ -1933,6 +2133,7 @@ const Toggle = ({
         }
       `}
     >
+
       <span
         className={`
           absolute
@@ -1951,6 +2152,7 @@ const Toggle = ({
           }
         `}
       />
+
     </button>
   );
 };
@@ -1980,11 +2182,25 @@ const ThemeCard = ({
 
         ${
           active
-            ? "border-green-500 bg-green-50 dark:bg-green-950/30"
-            : "border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 hover:border-gray-200 dark:hover:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+            ? `
+              border-green-500
+              bg-green-50
+              dark:bg-green-950/40
+            `
+            : `
+              border-gray-100
+              dark:border-gray-800
+              bg-white
+              dark:bg-gray-800
+              hover:border-gray-200
+              dark:hover:border-gray-700
+              hover:bg-gray-50
+              dark:hover:bg-gray-750
+            `
         }
       `}
     >
+
       <div
         className="
           flex
@@ -1992,6 +2208,7 @@ const ThemeCard = ({
           justify-between
         "
       >
+
         <div
           className={`
             w-12
@@ -2003,8 +2220,18 @@ const ThemeCard = ({
 
             ${
               active
-                ? "bg-white dark:bg-gray-800 text-green-600 dark:text-green-400"
-                : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400"
+                ? `
+                  bg-white
+                  dark:bg-gray-800
+                  text-green-600
+                  dark:text-green-400
+                `
+                : `
+                  bg-gray-100
+                  dark:bg-gray-700
+                  text-gray-500
+                  dark:text-gray-400
+                `
             }
           `}
         >
@@ -2035,6 +2262,7 @@ const ThemeCard = ({
             />
           )}
         </div>
+
       </div>
 
       <h3
@@ -2060,6 +2288,7 @@ const ThemeCard = ({
       >
         {description}
       </p>
+
     </button>
   );
 };
@@ -2085,22 +2314,23 @@ const SupportCard = ({
         border-gray-100
         dark:border-gray-800
         bg-white
-        dark:bg-gray-900
+        dark:bg-gray-800
         text-left
         hover:border-green-200
-        dark:hover:border-green-900
+        dark:hover:border-green-800
         hover:bg-green-50
-        dark:hover:bg-green-950/30
+        dark:hover:bg-green-950/40
         transition
       "
     >
+
       <div
         className="
           w-11
           h-11
           rounded-xl
           bg-green-50
-          dark:bg-green-950/50
+          dark:bg-green-950/60
           text-green-600
           dark:text-green-400
           flex
@@ -2150,6 +2380,7 @@ const SupportCard = ({
         Open
         <FiChevronRight size={14} />
       </div>
+
     </button>
   );
 };
@@ -2171,10 +2402,11 @@ const FAQ = ({
         border-gray-100
         dark:border-gray-800
         bg-white
-        dark:bg-gray-900
+        dark:bg-gray-800
         overflow-hidden
       "
     >
+
       <summary
         className="
           flex
@@ -2190,6 +2422,7 @@ const FAQ = ({
           dark:text-white
         "
       >
+
         <span>{question}</span>
 
         <FiChevronRight
@@ -2202,6 +2435,7 @@ const FAQ = ({
             shrink-0
           "
         />
+
       </summary>
 
       <div
@@ -2216,6 +2450,7 @@ const FAQ = ({
       >
         {answer}
       </div>
+
     </details>
   );
 };
@@ -2239,17 +2474,18 @@ const SuccessMessage = ({
         border-green-100
         dark:border-green-900
         bg-green-50
-        dark:bg-green-950/30
+        dark:bg-green-950/40
         p-4
       "
     >
+
       <div
         className="
           w-7
           h-7
           rounded-full
           bg-green-100
-          dark:bg-green-900/50
+          dark:bg-green-900/60
           text-green-600
           dark:text-green-400
           flex
@@ -2270,6 +2506,7 @@ const SuccessMessage = ({
       >
         {message}
       </p>
+
     </div>
   );
 };
@@ -2292,10 +2529,11 @@ const ErrorMessage = ({
         border-red-100
         dark:border-red-900
         bg-red-50
-        dark:bg-red-950/30
+        dark:bg-red-950/40
         p-4
       "
     >
+
       <FiAlertCircle
         className="
           text-red-500
@@ -2315,6 +2553,7 @@ const ErrorMessage = ({
       >
         {message}
       </p>
+
     </div>
   );
 };
