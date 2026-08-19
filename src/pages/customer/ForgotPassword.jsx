@@ -29,15 +29,9 @@ function ForgotPassword() {
   // =========================================================
 
   const [email, setEmail] = useState("");
-
-  const [loading, setLoading] =
-    useState(false);
-
-  const [success, setSuccess] =
-    useState(false);
-
-  const [error, setError] =
-    useState("");
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState("");
 
   // =========================================================
   // HANDLE SUBMIT
@@ -49,18 +43,14 @@ function ForgotPassword() {
     setError("");
     setSuccess(false);
 
-    const trimmedEmail =
-      email.trim().toLowerCase();
+    const trimmedEmail = email.trim().toLowerCase();
 
     // =======================================================
     // EMPTY EMAIL
     // =======================================================
 
     if (!trimmedEmail) {
-      setError(
-        "Please enter your email address."
-      );
-
+      setError("Please enter your email address.");
       return;
     }
 
@@ -68,14 +58,10 @@ function ForgotPassword() {
     // BASIC EMAIL VALIDATION
     // =======================================================
 
-    const emailRegex =
-      /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     if (!emailRegex.test(trimmedEmail)) {
-      setError(
-        "Please enter a valid email address."
-      );
-
+      setError("Please enter a valid email address.");
       return;
     }
 
@@ -87,7 +73,6 @@ function ForgotPassword() {
       setError(
         "Internet connection is required to reset your password. Please connect to the internet and try again."
       );
-
       return;
     }
 
@@ -95,25 +80,18 @@ function ForgotPassword() {
       setLoading(true);
 
       // =====================================================
-      // CHECK IF EMAIL EXISTS IN CAMPUSMART USERS
+      // CHECK REGISTERED CAMPUSMART EMAIL
       // =====================================================
 
-      const usersRef =
-        collection(db, "users");
+      const usersRef = collection(db, "users");
 
-      const emailQuery =
-        query(
-          usersRef,
-          where(
-            "email",
-            "==",
-            trimmedEmail
-          ),
-          limit(1)
-        );
+      const emailQuery = query(
+        usersRef,
+        where("email", "==", trimmedEmail),
+        limit(1)
+      );
 
-      const userSnapshot =
-        await getDocs(emailQuery);
+      const userSnapshot = await getDocs(emailQuery);
 
       // =====================================================
       // EMAIL NOT REGISTERED
@@ -124,45 +102,28 @@ function ForgotPassword() {
           "No CampusMart account was found with this email address."
         );
 
-        setLoading(false);
-
         return;
       }
 
       // =====================================================
-      // EMAIL EXISTS
-      // NOW SEND FIREBASE PASSWORD RESET EMAIL
+      // REGISTERED EMAIL
+      // SEND PASSWORD RESET
       // =====================================================
 
-      await sendPasswordResetEmail(
-        auth,
-        trimmedEmail
-      );
+      await sendPasswordResetEmail(auth, trimmedEmail);
 
       // =====================================================
       // SUCCESS
       // =====================================================
 
       setSuccess(true);
-
       setEmail("");
-
     } catch (error) {
-      console.error(
-        "Password reset error:",
-        error
-      );
-
-      // =====================================================
-      // FIREBASE ERRORS
-      // =====================================================
+      console.error("Password reset error:", error);
 
       switch (error.code) {
-
         case "auth/invalid-email":
-          setError(
-            "Please enter a valid email address."
-          );
+          setError("Please enter a valid email address.");
           break;
 
         case "auth/user-not-found":
@@ -194,7 +155,6 @@ function ForgotPassword() {
             "Unable to send the password reset email. Please try again."
           );
       }
-
     } finally {
       setLoading(false);
     }
@@ -207,19 +167,23 @@ function ForgotPassword() {
   return (
     <div
       className="
+        forgot-password-page
         min-h-screen
+        w-full
         flex
         items-center
         justify-center
         bg-gray-50
-        dark:bg-gray-950
+        text-gray-900
         px-4
         py-8
-        transition-colors
-        duration-200
       "
+      style={{
+        backgroundColor: "#f9fafb",
+        color: "#111827",
+        colorScheme: "light",
+      }}
     >
-
       <div className="w-full max-w-md">
 
         {/* =================================================
@@ -228,16 +192,20 @@ function ForgotPassword() {
 
         <div
           className="
+            w-full
             bg-white
-            dark:bg-gray-900
             rounded-2xl
             border
             border-gray-100
-            dark:border-gray-800
             shadow-sm
             p-6
             sm:p-8
           "
+          style={{
+            backgroundColor: "#ffffff",
+            color: "#111827",
+            colorScheme: "light",
+          }}
         >
 
           {/* =================================================
@@ -245,21 +213,22 @@ function ForgotPassword() {
           ================================================= */}
 
           <div className="flex justify-center">
-
             <div
               className="
                 w-16
                 h-16
                 rounded-2xl
                 bg-green-50
-                dark:bg-green-950/40
                 text-green-600
                 flex
                 items-center
                 justify-center
               "
+              style={{
+                backgroundColor: "#f0fdf4",
+                color: "#16a34a",
+              }}
             >
-
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 className="w-8 h-8"
@@ -268,7 +237,6 @@ function ForgotPassword() {
                 stroke="currentColor"
                 strokeWidth={1.8}
               >
-
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -292,11 +260,8 @@ function ForgotPassword() {
                   strokeLinejoin="round"
                   d="M21.5 10.5L19 13l-2.5-2.5"
                 />
-
               </svg>
-
             </div>
-
           </div>
 
           {/* =================================================
@@ -304,15 +269,14 @@ function ForgotPassword() {
           ================================================= */}
 
           <div className="text-center mt-5">
-
             <h1
               className="
                 text-xl
                 sm:text-2xl
                 font-bold
                 text-gray-900
-                dark:text-white
               "
+              style={{ color: "#111827" }}
             >
               Forgot your password?
             </h1>
@@ -323,15 +287,14 @@ function ForgotPassword() {
                 text-sm
                 leading-6
                 text-gray-500
-                dark:text-gray-400
               "
+              style={{ color: "#6b7280" }}
             >
               Enter the email address registered
               with your CampusMart account and
               we'll send you a link to reset your
               password.
             </p>
-
           </div>
 
           {/* =================================================
@@ -345,31 +308,34 @@ function ForgotPassword() {
                 rounded-xl
                 border
                 border-green-100
-                dark:border-green-900
                 bg-green-50
-                dark:bg-green-950/30
                 p-4
                 flex
                 items-start
                 gap-3
               "
+              style={{
+                backgroundColor: "#f0fdf4",
+                borderColor: "#dcfce7",
+              }}
             >
-
               <div
                 className="
                   w-8
                   h-8
                   rounded-full
                   bg-green-100
-                  dark:bg-green-900/50
                   text-green-600
                   flex
                   items-center
                   justify-center
                   shrink-0
                 "
+                style={{
+                  backgroundColor: "#dcfce7",
+                  color: "#16a34a",
+                }}
               >
-
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   className="w-4 h-4"
@@ -378,26 +344,22 @@ function ForgotPassword() {
                   stroke="currentColor"
                   strokeWidth={2}
                 >
-
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     d="M5 13l4 4L19 7"
                   />
-
                 </svg>
-
               </div>
 
               <div>
-
                 <p
                   className="
                     text-sm
                     font-semibold
                     text-green-700
-                    dark:text-green-400
                   "
+                  style={{ color: "#15803d" }}
                 >
                   Reset email sent
                 </p>
@@ -408,17 +370,15 @@ function ForgotPassword() {
                     text-xs
                     leading-5
                     text-green-600
-                    dark:text-green-500
                   "
+                  style={{ color: "#16a34a" }}
                 >
                   We found your CampusMart account
                   and sent a password reset link to
                   your email. Check your inbox and
                   spam or junk folder.
                 </p>
-
               </div>
-
             </div>
           )}
 
@@ -433,31 +393,34 @@ function ForgotPassword() {
                 rounded-xl
                 border
                 border-red-100
-                dark:border-red-900
                 bg-red-50
-                dark:bg-red-950/30
                 p-4
                 flex
                 items-start
                 gap-3
               "
+              style={{
+                backgroundColor: "#fef2f2",
+                borderColor: "#fee2e2",
+              }}
             >
-
               <div
                 className="
                   w-8
                   h-8
                   rounded-full
                   bg-red-100
-                  dark:bg-red-900/50
                   text-red-500
                   flex
                   items-center
                   justify-center
                   shrink-0
                 "
+                style={{
+                  backgroundColor: "#fee2e2",
+                  color: "#ef4444",
+                }}
               >
-
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   className="w-4 h-4"
@@ -466,7 +429,6 @@ function ForgotPassword() {
                   stroke="currentColor"
                   strokeWidth={2}
                 >
-
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -478,9 +440,7 @@ function ForgotPassword() {
                     strokeLinejoin="round"
                     d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
                   />
-
                 </svg>
-
               </div>
 
               <p
@@ -488,12 +448,11 @@ function ForgotPassword() {
                   text-sm
                   leading-5
                   text-red-600
-                  dark:text-red-400
                 "
+                style={{ color: "#dc2626" }}
               >
                 {error}
               </p>
-
             </div>
           )}
 
@@ -510,7 +469,6 @@ function ForgotPassword() {
               {/* EMAIL */}
 
               <div>
-
                 <label
                   htmlFor="email"
                   className="
@@ -518,9 +476,9 @@ function ForgotPassword() {
                     text-sm
                     font-medium
                     text-gray-700
-                    dark:text-gray-300
                     mb-2
                   "
+                  style={{ color: "#374151" }}
                 >
                   Registered Email Address
                 </label>
@@ -540,12 +498,12 @@ function ForgotPassword() {
                       h-5
                       text-gray-400
                     "
+                    style={{ color: "#9ca3af" }}
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
                     strokeWidth={1.8}
                   >
-
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -559,7 +517,6 @@ function ForgotPassword() {
                       height="14"
                       rx="2"
                     />
-
                   </svg>
 
                   {/* EMAIL INPUT */}
@@ -569,11 +526,9 @@ function ForgotPassword() {
                     type="email"
                     value={email}
                     onChange={(e) => {
-                      setEmail(
-                        e.target.value
-                      );
-
+                      setEmail(e.target.value);
                       setError("");
+                      setSuccess(false);
                     }}
                     placeholder="Enter your registered email"
                     autoComplete="email"
@@ -586,25 +541,25 @@ function ForgotPassword() {
                       rounded-xl
                       border
                       border-gray-200
-                      dark:border-gray-700
                       bg-gray-50
-                      dark:bg-gray-800
                       text-sm
                       text-gray-800
-                      dark:text-white
                       placeholder:text-gray-400
                       outline-none
                       focus:bg-white
-                      dark:focus:bg-gray-900
                       focus:border-green-500
                       focus:ring-2
                       focus:ring-green-100
-                      dark:focus:ring-green-950
                       transition
                       disabled:opacity-60
                     "
+                    style={{
+                      backgroundColor: "#f9fafb",
+                      color: "#1f2937",
+                      borderColor: "#e5e7eb",
+                      colorScheme: "light",
+                    }}
                   />
-
                 </div>
 
                 <p
@@ -612,13 +567,12 @@ function ForgotPassword() {
                     mt-2
                     text-xs
                     text-gray-400
-                    dark:text-gray-500
                   "
+                  style={{ color: "#9ca3af" }}
                 >
                   Only an email already registered
                   with CampusMart can be used.
                 </p>
-
               </div>
 
               {/* =================================================
@@ -649,8 +603,10 @@ function ForgotPassword() {
                   disabled:opacity-70
                   disabled:cursor-not-allowed
                 "
+                style={{
+                  colorScheme: "light",
+                }}
               >
-
                 {loading ? (
                   <>
                     <svg
@@ -663,7 +619,6 @@ function ForgotPassword() {
                       fill="none"
                       viewBox="0 0 24 24"
                     >
-
                       <circle
                         className="opacity-25"
                         cx="12"
@@ -678,11 +633,9 @@ function ForgotPassword() {
                         fill="currentColor"
                         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
                       />
-
                     </svg>
 
                     Checking account...
-
                   </>
                 ) : (
                   <>
@@ -696,7 +649,6 @@ function ForgotPassword() {
                       stroke="currentColor"
                       strokeWidth={2}
                     >
-
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
@@ -708,14 +660,10 @@ function ForgotPassword() {
                         strokeLinejoin="round"
                         d="M13 6l6 6-6 6"
                       />
-
                     </svg>
-
                   </>
                 )}
-
               </button>
-
             </form>
           )}
 
@@ -725,9 +673,7 @@ function ForgotPassword() {
 
           <button
             type="button"
-            onClick={() =>
-              navigate("/login")
-            }
+            onClick={() => navigate("/login")}
             disabled={loading}
             className="
               mt-5
@@ -741,23 +687,23 @@ function ForgotPassword() {
               rounded-xl
               border
               border-gray-200
-              dark:border-gray-700
               bg-white
-              dark:bg-gray-900
               text-gray-700
-              dark:text-gray-300
               text-sm
               font-medium
               hover:bg-gray-50
-              dark:hover:bg-gray-800
               hover:border-gray-300
-              dark:hover:border-gray-600
               transition
               disabled:opacity-50
               disabled:cursor-not-allowed
             "
+            style={{
+              backgroundColor: "#ffffff",
+              color: "#374151",
+              borderColor: "#e5e7eb",
+              colorScheme: "light",
+            }}
           >
-
             <svg
               xmlns="http://www.w3.org/2000/svg"
               className="w-4 h-4"
@@ -766,7 +712,6 @@ function ForgotPassword() {
               stroke="currentColor"
               strokeWidth={2}
             >
-
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -778,11 +723,9 @@ function ForgotPassword() {
                 strokeLinejoin="round"
                 d="M11 18l-6-6 6-6"
               />
-
             </svg>
 
             Back to Login
-
           </button>
 
           {/* =================================================
@@ -795,16 +738,13 @@ function ForgotPassword() {
               text-center
               text-xs
               text-gray-400
-              dark:text-gray-500
             "
+            style={{ color: "#9ca3af" }}
           >
             CampusMart &mdash; Your Campus Marketplace
           </p>
-
         </div>
-
       </div>
-
     </div>
   );
 }

@@ -1,21 +1,64 @@
 @import "tailwindcss";
 
 /* =========================================================
-   CAMPUSMART DARK MODE
-   Global dark theme
+   CAMPUSMART GLOBAL CSS
+========================================================= */
+
+/*
+  THEME BEHAVIOUR
+
+  Normal pages:
+    Light / Dark
+
+  Landing page:
+    Always Light
+
+  Login / Register:
+    Always Light
+
+  Forgot Password:
+    Always Light
+
+  Settings:
+    Light / Dark
+*/
+
+
+/* =========================================================
+   GLOBAL BASE
+========================================================= */
+
+html {
+  background-color: #ffffff;
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background-color: #ffffff;
+  color: #111827;
+}
+
+
+/* =========================================================
+   GLOBAL DARK MODE
+   Applies to normal pages only.
 ========================================================= */
 
 html.dark {
-  background: #0f172a;
+  background-color: #0f172a;
+  color-scheme: dark;
 }
 
 html.dark body {
-  background: #0f172a;
+  background-color: #0f172a;
   color: #f8fafc;
 }
 
+
 /* =========================================================
-   MAIN PAGE BACKGROUND
+   GLOBAL DARK BACKGROUNDS
 ========================================================= */
 
 html.dark .bg-gray-50 {
@@ -26,20 +69,21 @@ html.dark .bg-gray-100 {
   background-color: #1f2937 !important;
 }
 
-/* =========================================================
-   CARDS
-========================================================= */
-
 html.dark .bg-white {
   background-color: #182230 !important;
 }
 
+
 /* =========================================================
-   TEXT
+   GLOBAL DARK TEXT
 ========================================================= */
 
-html.dark .text-gray-800 {
+html.dark .text-gray-900 {
   color: #f8fafc !important;
+}
+
+html.dark .text-gray-800 {
+  color: #f1f5f9 !important;
 }
 
 html.dark .text-gray-700 {
@@ -58,8 +102,9 @@ html.dark .text-gray-400 {
   color: #94a3b8 !important;
 }
 
+
 /* =========================================================
-   BORDERS
+   GLOBAL DARK BORDERS
 ========================================================= */
 
 html.dark .border-gray-100 {
@@ -74,8 +119,9 @@ html.dark .border-gray-300 {
   border-color: #475569 !important;
 }
 
+
 /* =========================================================
-   GREEN SOFT BACKGROUNDS
+   GLOBAL GREEN DARK MODE
 ========================================================= */
 
 html.dark .bg-green-50 {
@@ -86,10 +132,6 @@ html.dark .bg-green-100 {
   background-color: rgba(0, 166, 81, 0.20) !important;
 }
 
-/* =========================================================
-   GREEN TEXT
-========================================================= */
-
 html.dark .text-green-600 {
   color: #22c55e !important;
 }
@@ -98,8 +140,17 @@ html.dark .text-green-700 {
   color: #4ade80 !important;
 }
 
+html.dark .border-green-100 {
+  border-color: rgba(34, 197, 94, 0.20) !important;
+}
+
+html.dark .border-green-200 {
+  border-color: rgba(34, 197, 94, 0.30) !important;
+}
+
+
 /* =========================================================
-   INPUTS
+   GLOBAL DARK INPUTS
 ========================================================= */
 
 html.dark input,
@@ -114,6 +165,7 @@ html.dark input:focus,
 html.dark textarea:focus,
 html.dark select:focus {
   background-color: #111827;
+  color: #f8fafc;
   border-color: #22c55e;
 }
 
@@ -122,8 +174,9 @@ html.dark textarea::placeholder {
   color: #64748b;
 }
 
+
 /* =========================================================
-   HOVER STATES
+   GLOBAL DARK HOVER
 ========================================================= */
 
 html.dark .hover\:bg-gray-50:hover {
@@ -134,16 +187,13 @@ html.dark .hover\:bg-gray-100:hover {
   background-color: #263447 !important;
 }
 
-/* =========================================================
-   GREEN HOVER
-========================================================= */
-
 html.dark .hover\:bg-green-50:hover {
   background-color: rgba(0, 166, 81, 0.18) !important;
 }
 
+
 /* =========================================================
-   SHADOW
+   GLOBAL DARK SHADOW
 ========================================================= */
 
 html.dark .shadow-sm {
@@ -152,43 +202,15 @@ html.dark .shadow-sm {
 
 
 /* =========================================================
-   =========================================================
-   CAMPUSMART LANDING PAGE
+   LANDING PAGE
    ALWAYS LIGHT
-   =========================================================
-   ========================================================= */
-
-/*
-   The landing page is intentionally protected from
-   the global dark-mode styles.
-
-   Even when:
-
-       html.dark
-
-   is active, everything inside:
-
-       .landing-page
-
-   remains light.
-*/
-
-/* =========================================================
-   LANDING PAGE BODY PROTECTION
 ========================================================= */
-
-/*
-   When the landing page is currently mounted,
-   keep the body background white too.
-*/
 
 html.dark body:has(.landing-page) {
   background-color: #ffffff !important;
+  color: #111827 !important;
+  color-scheme: light !important;
 }
-
-/* =========================================================
-   LANDING PAGE ROOT
-========================================================= */
 
 html.dark .landing-page {
   background-color: #ffffff !important;
@@ -196,9 +218,10 @@ html.dark .landing-page {
   color-scheme: light !important;
 }
 
-/* =========================================================
-   LANDING PAGE WHITE BACKGROUNDS
-========================================================= */
+
+/* ---------------------------------------------------------
+   Landing backgrounds
+--------------------------------------------------------- */
 
 html.dark .landing-page .bg-white {
   background-color: #ffffff !important;
@@ -211,10 +234,6 @@ html.dark .landing-page .bg-gray-50 {
 html.dark .landing-page .bg-gray-100 {
   background-color: #f3f4f6 !important;
 }
-
-/* =========================================================
-   LANDING PAGE GREEN BACKGROUNDS
-========================================================= */
 
 html.dark .landing-page .bg-green-50 {
   background-color: #f0fdf4 !important;
@@ -232,9 +251,10 @@ html.dark .landing-page .bg-green-700 {
   background-color: #15803d !important;
 }
 
-/* =========================================================
-   LANDING PAGE TEXT
-========================================================= */
+
+/* ---------------------------------------------------------
+   Landing text
+--------------------------------------------------------- */
 
 html.dark .landing-page .text-gray-900 {
   color: #111827 !important;
@@ -260,10 +280,6 @@ html.dark .landing-page .text-gray-400 {
   color: #9ca3af !important;
 }
 
-/* =========================================================
-   LANDING PAGE GREEN TEXT
-========================================================= */
-
 html.dark .landing-page .text-green-600 {
   color: #16a34a !important;
 }
@@ -276,9 +292,10 @@ html.dark .landing-page .text-green-800 {
   color: #166534 !important;
 }
 
-/* =========================================================
-   LANDING PAGE BORDERS
-========================================================= */
+
+/* ---------------------------------------------------------
+   Landing borders
+--------------------------------------------------------- */
 
 html.dark .landing-page .border-gray-100 {
   border-color: #f3f4f6 !important;
@@ -292,10 +309,6 @@ html.dark .landing-page .border-gray-300 {
   border-color: #d1d5db !important;
 }
 
-/* =========================================================
-   LANDING PAGE GREEN BORDERS
-========================================================= */
-
 html.dark .landing-page .border-green-100 {
   border-color: #dcfce7 !important;
 }
@@ -308,9 +321,10 @@ html.dark .landing-page .border-green-500 {
   border-color: #22c55e !important;
 }
 
-/* =========================================================
-   LANDING PAGE HOVER
-========================================================= */
+
+/* ---------------------------------------------------------
+   Landing hover
+--------------------------------------------------------- */
 
 html.dark .landing-page .hover\:bg-gray-50:hover {
   background-color: #f9fafb !important;
@@ -332,9 +346,10 @@ html.dark .landing-page .hover\:bg-green-700:hover {
   background-color: #15803d !important;
 }
 
-/* =========================================================
-   LANDING PAGE INPUTS
-========================================================= */
+
+/* ---------------------------------------------------------
+   Landing inputs
+--------------------------------------------------------- */
 
 html.dark .landing-page input,
 html.dark .landing-page textarea,
@@ -342,6 +357,7 @@ html.dark .landing-page select {
   background-color: #ffffff !important;
   color: #111827 !important;
   border-color: #d1d5db !important;
+  color-scheme: light !important;
 }
 
 html.dark .landing-page input:focus,
@@ -357,55 +373,27 @@ html.dark .landing-page textarea::placeholder {
   color: #9ca3af !important;
 }
 
-/* =========================================================
-   LANDING PAGE BUTTONS
-========================================================= */
-
-html.dark .landing-page button {
-  color-scheme: light;
+html.dark .landing-page button,
+html.dark .landing-page a {
+  color-scheme: light !important;
 }
-
-/* =========================================================
-   LANDING PAGE IMAGES
-========================================================= */
 
 html.dark .landing-page img {
   filter: none !important;
 }
 
-/* =========================================================
-   LANDING PAGE LINKS
-========================================================= */
-
-html.dark .landing-page a {
-  color-scheme: light;
-}
 
 /* =========================================================
-   LANDING PAGE SHADOWS
-========================================================= */
-
-html.dark .landing-page .shadow,
-html.dark .landing-page .shadow-sm,
-html.dark .landing-page .shadow-md,
-html.dark .landing-page .shadow-lg,
-html.dark .landing-page .shadow-xl {
-  --tw-shadow-color: rgba(0, 0, 0, 0.08) !important;
-}
-
-
-/* =========================================================
-   CAMPUSMART SETTINGS PAGE
-   CONSISTENT LIGHT / DARK MODE
+   SETTINGS PAGE
+   LIGHT / DARK
 ========================================================= */
 
 
-/* =========================================================
-   LIGHT MODE
-========================================================= */
+/* ---------------------------------------------------------
+   Settings light mode
+--------------------------------------------------------- */
 
-html:not(.dark) .settings-page,
-html:not(.dark) .settings-page.settings-light {
+html:not(.dark) .settings-page {
   background-color: #f8fafc !important;
   color: #111827 !important;
   color-scheme: light !important;
@@ -426,6 +414,11 @@ html:not(.dark) .settings-page .bg-gray-100 {
 html:not(.dark) .settings-page .bg-gray-200 {
   background-color: #e5e7eb !important;
 }
+
+
+/* ---------------------------------------------------------
+   Settings light text
+--------------------------------------------------------- */
 
 html:not(.dark) .settings-page .text-gray-900 {
   color: #111827 !important;
@@ -451,6 +444,11 @@ html:not(.dark) .settings-page .text-gray-400 {
   color: #9ca3af !important;
 }
 
+
+/* ---------------------------------------------------------
+   Settings light borders
+--------------------------------------------------------- */
+
 html:not(.dark) .settings-page .border-gray-100 {
   border-color: #f3f4f6 !important;
 }
@@ -464,9 +462,9 @@ html:not(.dark) .settings-page .border-gray-300 {
 }
 
 
-/* =========================================================
-   SETTINGS GREEN
-========================================================= */
+/* ---------------------------------------------------------
+   Settings light green
+--------------------------------------------------------- */
 
 html:not(.dark) .settings-page .bg-green-50 {
   background-color: #f0fdf4 !important;
@@ -493,9 +491,9 @@ html:not(.dark) .settings-page .border-green-200 {
 }
 
 
-/* =========================================================
-   SETTINGS INPUTS - LIGHT
-========================================================= */
+/* ---------------------------------------------------------
+   Settings light inputs
+--------------------------------------------------------- */
 
 html:not(.dark) .settings-page input,
 html:not(.dark) .settings-page textarea,
@@ -503,6 +501,7 @@ html:not(.dark) .settings-page select {
   background-color: #f9fafb !important;
   color: #111827 !important;
   border-color: #e5e7eb !important;
+  color-scheme: light !important;
 }
 
 html:not(.dark) .settings-page input::placeholder,
@@ -511,21 +510,15 @@ html:not(.dark) .settings-page textarea::placeholder {
 }
 
 
-/* =========================================================
-   SETTINGS DARK MODE
-========================================================= */
+/* ---------------------------------------------------------
+   Settings dark mode
+--------------------------------------------------------- */
 
-html.dark .settings-page,
-html.dark .settings-page.settings-dark {
+html.dark .settings-page {
   background-color: #080d18 !important;
   color: #f8fafc !important;
   color-scheme: dark !important;
 }
-
-
-/* =========================================================
-   SETTINGS MAIN CARDS
-========================================================= */
 
 html.dark .settings-page .bg-white {
   background-color: #111827 !important;
@@ -544,9 +537,9 @@ html.dark .settings-page .bg-gray-200 {
 }
 
 
-/* =========================================================
-   SETTINGS TEXT
-========================================================= */
+/* ---------------------------------------------------------
+   Settings dark text
+--------------------------------------------------------- */
 
 html.dark .settings-page .text-gray-900 {
   color: #f8fafc !important;
@@ -573,9 +566,9 @@ html.dark .settings-page .text-gray-400 {
 }
 
 
-/* =========================================================
-   SETTINGS BORDERS
-========================================================= */
+/* ---------------------------------------------------------
+   Settings dark borders
+--------------------------------------------------------- */
 
 html.dark .settings-page .border-gray-100 {
   border-color: #263244 !important;
@@ -590,9 +583,9 @@ html.dark .settings-page .border-gray-300 {
 }
 
 
-/* =========================================================
-   SETTINGS GREEN
-========================================================= */
+/* ---------------------------------------------------------
+   Settings dark green
+--------------------------------------------------------- */
 
 html.dark .settings-page .bg-green-50 {
   background-color: rgba(34, 197, 94, 0.10) !important;
@@ -619,9 +612,9 @@ html.dark .settings-page .border-green-200 {
 }
 
 
-/* =========================================================
-   SETTINGS INPUTS - DARK
-========================================================= */
+/* ---------------------------------------------------------
+   Settings dark inputs
+--------------------------------------------------------- */
 
 html.dark .settings-page input,
 html.dark .settings-page textarea,
@@ -629,17 +622,13 @@ html.dark .settings-page select {
   background-color: #111827 !important;
   color: #f8fafc !important;
   border-color: #334155 !important;
+  color-scheme: dark !important;
 }
 
 html.dark .settings-page input::placeholder,
 html.dark .settings-page textarea::placeholder {
   color: #64748b !important;
 }
-
-
-/* =========================================================
-   SETTINGS INPUT FOCUS
-========================================================= */
 
 html.dark .settings-page input:focus,
 html.dark .settings-page textarea:focus,
@@ -650,9 +639,9 @@ html.dark .settings-page select:focus {
 }
 
 
-/* =========================================================
-   SETTINGS HOVER STATES
-========================================================= */
+/* ---------------------------------------------------------
+   Settings hover
+--------------------------------------------------------- */
 
 html:not(.dark) .settings-page .hover\:bg-gray-50:hover {
   background-color: #f9fafb !important;
@@ -671,22 +660,22 @@ html.dark .settings-page .hover\:bg-gray-100:hover {
 }
 
 
-/* =========================================================
-   SETTINGS BUTTONS
-========================================================= */
-
-html.dark .settings-page button {
-  color-scheme: dark;
-}
+/* ---------------------------------------------------------
+   Settings buttons
+--------------------------------------------------------- */
 
 html:not(.dark) .settings-page button {
-  color-scheme: light;
+  color-scheme: light !important;
+}
+
+html.dark .settings-page button {
+  color-scheme: dark !important;
 }
 
 
-/* =========================================================
-   SETTINGS DETAILS / FAQ
-========================================================= */
+/* ---------------------------------------------------------
+   Settings FAQ
+--------------------------------------------------------- */
 
 html.dark .settings-page details {
   background-color: #111827 !important;
@@ -702,18 +691,18 @@ html.dark .settings-page details div {
 }
 
 
-/* =========================================================
-   SETTINGS DIVIDERS
-========================================================= */
+/* ---------------------------------------------------------
+   Settings divider
+--------------------------------------------------------- */
 
 html.dark .settings-page hr {
   border-color: #263244 !important;
 }
 
 
-/* =========================================================
-   SETTINGS SCROLL AREA
-========================================================= */
+/* ---------------------------------------------------------
+   Settings scrollbar
+--------------------------------------------------------- */
 
 html.dark .settings-page ::-webkit-scrollbar {
   width: 8px;
@@ -729,43 +718,26 @@ html.dark .settings-page ::-webkit-scrollbar-thumb {
 }
 
 
-
 /* =========================================================
-   CAMPUSMART LOGIN & REGISTER
-   ALWAYS LIGHT THEME
+   LOGIN / REGISTER
+   ALWAYS LIGHT
 ========================================================= */
 
-/*
-   Login and Register pages are intentionally protected
-   from the global dark mode.
 
-   Even when:
-
-       html.dark
-
-   is active,
-
-   everything inside:
-
-       .auth-page
-
-   remains LIGHT.
-*/
-
-
-/* =========================================================
-   AUTH PAGE BODY PROTECTION
-========================================================= */
+/* ---------------------------------------------------------
+   Auth body
+--------------------------------------------------------- */
 
 html.dark body:has(.auth-page) {
   background-color: #f7faf8 !important;
   color: #111827 !important;
+  color-scheme: light !important;
 }
 
 
-/* =========================================================
-   AUTH PAGE ROOT
-========================================================= */
+/* ---------------------------------------------------------
+   Auth root
+--------------------------------------------------------- */
 
 html.dark .auth-page {
   background-color: #f7faf8 !important;
@@ -774,9 +746,9 @@ html.dark .auth-page {
 }
 
 
-/* =========================================================
-   AUTH WHITE BACKGROUNDS
-========================================================= */
+/* ---------------------------------------------------------
+   Auth backgrounds
+--------------------------------------------------------- */
 
 html.dark .auth-page .bg-white {
   background-color: #ffffff !important;
@@ -795,9 +767,9 @@ html.dark .auth-page .bg-gray-200 {
 }
 
 
-/* =========================================================
-   AUTH TEXT
-========================================================= */
+/* ---------------------------------------------------------
+   Auth text
+--------------------------------------------------------- */
 
 html.dark .auth-page .text-gray-900 {
   color: #111827 !important;
@@ -824,9 +796,9 @@ html.dark .auth-page .text-gray-400 {
 }
 
 
-/* =========================================================
-   AUTH GREEN
-========================================================= */
+/* ---------------------------------------------------------
+   Auth green
+--------------------------------------------------------- */
 
 html.dark .auth-page .text-green-600 {
   color: #16a34a !important;
@@ -843,11 +815,6 @@ html.dark .auth-page .text-green-500 {
 html.dark .auth-page .text-green-400 {
   color: #4ade80 !important;
 }
-
-
-/* =========================================================
-   AUTH GREEN BACKGROUNDS
-========================================================= */
 
 html.dark .auth-page .bg-green-50 {
   background-color: #f0fdf4 !important;
@@ -874,9 +841,9 @@ html.dark .auth-page .bg-green-800 {
 }
 
 
-/* =========================================================
-   AUTH GREEN HOVER
-========================================================= */
+/* ---------------------------------------------------------
+   Auth hover
+--------------------------------------------------------- */
 
 html.dark .auth-page .hover\:bg-green-50:hover {
   background-color: #f0fdf4 !important;
@@ -899,9 +866,9 @@ html.dark .auth-page .hover\:text-green-700:hover {
 }
 
 
-/* =========================================================
-   AUTH BORDERS
-========================================================= */
+/* ---------------------------------------------------------
+   Auth borders
+--------------------------------------------------------- */
 
 html.dark .auth-page .border-gray-100 {
   border-color: #f3f4f6 !important;
@@ -932,9 +899,9 @@ html.dark .auth-page .border-green-500 {
 }
 
 
-/* =========================================================
-   AUTH INPUTS
-========================================================= */
+/* ---------------------------------------------------------
+   Auth inputs
+--------------------------------------------------------- */
 
 html.dark .auth-page input,
 html.dark .auth-page textarea,
@@ -945,11 +912,6 @@ html.dark .auth-page select {
   color-scheme: light !important;
 }
 
-
-/* =========================================================
-   AUTH INPUT FOCUS
-========================================================= */
-
 html.dark .auth-page input:focus,
 html.dark .auth-page textarea:focus,
 html.dark .auth-page select:focus {
@@ -959,38 +921,15 @@ html.dark .auth-page select:focus {
   outline: none;
 }
 
-
-/* =========================================================
-   AUTH PLACEHOLDERS
-========================================================= */
-
 html.dark .auth-page input::placeholder,
 html.dark .auth-page textarea::placeholder {
   color: #9ca3af !important;
 }
 
 
-/* =========================================================
-   AUTH INPUT ICONS
-========================================================= */
-
-html.dark .auth-page .text-gray-400 {
-  color: #9ca3af !important;
-}
-
-
-/* =========================================================
-   AUTH BUTTONS
-========================================================= */
-
-html.dark .auth-page button {
-  color-scheme: light !important;
-}
-
-
-/* =========================================================
-   AUTH ERROR MESSAGE
-========================================================= */
+/* ---------------------------------------------------------
+   Auth error
+--------------------------------------------------------- */
 
 html.dark .auth-page .bg-red-50 {
   background-color: #fef2f2 !important;
@@ -1009,9 +948,9 @@ html.dark .auth-page .text-red-700 {
 }
 
 
-/* =========================================================
-   AUTH SUCCESS MESSAGE
-========================================================= */
+/* ---------------------------------------------------------
+   Auth success
+--------------------------------------------------------- */
 
 html.dark .auth-page .bg-green-50 {
   background-color: #f0fdf4 !important;
@@ -1026,18 +965,18 @@ html.dark .auth-page .text-green-700 {
 }
 
 
-/* =========================================================
-   AUTH DIVIDERS
-========================================================= */
+/* ---------------------------------------------------------
+   Auth miscellaneous
+--------------------------------------------------------- */
 
-html.dark .auth-page .bg-gray-200 {
-  background-color: #e5e7eb !important;
+html.dark .auth-page button,
+html.dark .auth-page a {
+  color-scheme: light !important;
 }
 
-
-/* =========================================================
-   AUTH SHADOWS
-========================================================= */
+html.dark .auth-page img {
+  filter: none !important;
+}
 
 html.dark .auth-page .shadow,
 html.dark .auth-page .shadow-sm,
@@ -1049,18 +988,372 @@ html.dark .auth-page .shadow-xl {
 
 
 /* =========================================================
-   AUTH LINKS
+   FORGOT PASSWORD
+   ALWAYS LIGHT
 ========================================================= */
 
-html.dark .auth-page a {
+
+/*
+  IMPORTANT:
+
+  This section intentionally overrides html.dark.
+
+  Even if:
+      - the app is in dark mode
+      - the device is in dark mode
+      - the browser is using dark form controls
+      - the user opens Forgot Password on mobile
+
+  the Forgot Password page remains LIGHT.
+*/
+
+
+/* ---------------------------------------------------------
+   Forgot Password body
+--------------------------------------------------------- */
+
+html.dark body:has(.forgot-password-page) {
+  background-color: #f9fafb !important;
+  color: #111827 !important;
+  color-scheme: light !important;
+}
+
+
+/* ---------------------------------------------------------
+   Forgot Password root
+--------------------------------------------------------- */
+
+html.dark .forgot-password-page {
+  background-color: #f9fafb !important;
+  color: #111827 !important;
+  color-scheme: light !important;
+}
+
+
+/* ---------------------------------------------------------
+   Forgot Password backgrounds
+--------------------------------------------------------- */
+
+html.dark .forgot-password-page .bg-white {
+  background-color: #ffffff !important;
+}
+
+html.dark .forgot-password-page .bg-gray-50 {
+  background-color: #f9fafb !important;
+}
+
+html.dark .forgot-password-page .bg-gray-100 {
+  background-color: #f3f4f6 !important;
+}
+
+html.dark .forgot-password-page .bg-gray-200 {
+  background-color: #e5e7eb !important;
+}
+
+
+/* ---------------------------------------------------------
+   Forgot Password text
+--------------------------------------------------------- */
+
+html.dark .forgot-password-page .text-gray-900 {
+  color: #111827 !important;
+}
+
+html.dark .forgot-password-page .text-gray-800 {
+  color: #1f2937 !important;
+}
+
+html.dark .forgot-password-page .text-gray-700 {
+  color: #374151 !important;
+}
+
+html.dark .forgot-password-page .text-gray-600 {
+  color: #4b5563 !important;
+}
+
+html.dark .forgot-password-page .text-gray-500 {
+  color: #6b7280 !important;
+}
+
+html.dark .forgot-password-page .text-gray-400 {
+  color: #9ca3af !important;
+}
+
+
+/* ---------------------------------------------------------
+   Forgot Password green
+--------------------------------------------------------- */
+
+html.dark .forgot-password-page .text-green-600 {
+  color: #16a34a !important;
+}
+
+html.dark .forgot-password-page .text-green-700 {
+  color: #15803d !important;
+}
+
+html.dark .forgot-password-page .text-green-500 {
+  color: #22c55e !important;
+}
+
+html.dark .forgot-password-page .bg-green-50 {
+  background-color: #f0fdf4 !important;
+}
+
+html.dark .forgot-password-page .bg-green-100 {
+  background-color: #dcfce7 !important;
+}
+
+html.dark .forgot-password-page .bg-green-500 {
+  background-color: #22c55e !important;
+}
+
+html.dark .forgot-password-page .bg-green-600 {
+  background-color: #16a34a !important;
+}
+
+html.dark .forgot-password-page .bg-green-700 {
+  background-color: #15803d !important;
+}
+
+html.dark .forgot-password-page .bg-green-800 {
+  background-color: #166534 !important;
+}
+
+
+/* ---------------------------------------------------------
+   Forgot Password hover
+--------------------------------------------------------- */
+
+html.dark .forgot-password-page .hover\:bg-green-50:hover {
+  background-color: #f0fdf4 !important;
+}
+
+html.dark .forgot-password-page .hover\:bg-green-600:hover {
+  background-color: #16a34a !important;
+}
+
+html.dark .forgot-password-page .hover\:bg-green-700:hover {
+  background-color: #15803d !important;
+}
+
+html.dark .forgot-password-page .hover\:bg-gray-50:hover {
+  background-color: #f9fafb !important;
+}
+
+html.dark .forgot-password-page .hover\:bg-gray-100:hover {
+  background-color: #f3f4f6 !important;
+}
+
+
+/* ---------------------------------------------------------
+   Forgot Password borders
+--------------------------------------------------------- */
+
+html.dark .forgot-password-page .border-gray-100 {
+  border-color: #f3f4f6 !important;
+}
+
+html.dark .forgot-password-page .border-gray-200 {
+  border-color: #e5e7eb !important;
+}
+
+html.dark .forgot-password-page .border-gray-300 {
+  border-color: #d1d5db !important;
+}
+
+html.dark .forgot-password-page .border-green-100 {
+  border-color: #dcfce7 !important;
+}
+
+html.dark .forgot-password-page .border-green-200 {
+  border-color: #bbf7d0 !important;
+}
+
+html.dark .forgot-password-page .border-green-500 {
+  border-color: #22c55e !important;
+}
+
+
+/* ---------------------------------------------------------
+   Forgot Password inputs
+--------------------------------------------------------- */
+
+html.dark .forgot-password-page input,
+html.dark .forgot-password-page textarea,
+html.dark .forgot-password-page select {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  border-color: #e5e7eb !important;
+  color-scheme: light !important;
+}
+
+
+/* ---------------------------------------------------------
+   Forgot Password input focus
+--------------------------------------------------------- */
+
+html.dark .forgot-password-page input:focus,
+html.dark .forgot-password-page textarea:focus,
+html.dark .forgot-password-page select:focus {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  border-color: #22c55e !important;
+  outline: none;
+}
+
+
+/* ---------------------------------------------------------
+   Forgot Password placeholder
+--------------------------------------------------------- */
+
+html.dark .forgot-password-page input::placeholder,
+html.dark .forgot-password-page textarea::placeholder {
+  color: #9ca3af !important;
+}
+
+
+/* ---------------------------------------------------------
+   Forgot Password error
+--------------------------------------------------------- */
+
+html.dark .forgot-password-page .bg-red-50 {
+  background-color: #fef2f2 !important;
+}
+
+html.dark .forgot-password-page .border-red-100 {
+  border-color: #fee2e2 !important;
+}
+
+html.dark .forgot-password-page .text-red-600 {
+  color: #dc2626 !important;
+}
+
+html.dark .forgot-password-page .text-red-700 {
+  color: #b91c1c !important;
+}
+
+
+/* ---------------------------------------------------------
+   Forgot Password success
+--------------------------------------------------------- */
+
+html.dark .forgot-password-page .bg-green-50 {
+  background-color: #f0fdf4 !important;
+}
+
+html.dark .forgot-password-page .border-green-100 {
+  border-color: #dcfce7 !important;
+}
+
+html.dark .forgot-password-page .text-green-600 {
+  color: #16a34a !important;
+}
+
+html.dark .forgot-password-page .text-green-700 {
+  color: #15803d !important;
+}
+
+
+/* ---------------------------------------------------------
+   Forgot Password buttons / links
+--------------------------------------------------------- */
+
+html.dark .forgot-password-page button,
+html.dark .forgot-password-page a {
+  color-scheme: light !important;
+}
+
+
+/* ---------------------------------------------------------
+   Forgot Password images
+--------------------------------------------------------- */
+
+html.dark .forgot-password-page img {
+  filter: none !important;
+}
+
+
+/* =========================================================
+   MOBILE FORGOT PASSWORD PROTECTION
+========================================================= */
+
+@media (max-width: 768px) {
+
+  html.dark body:has(.forgot-password-page) {
+    background-color: #f9fafb !important;
+    color: #111827 !important;
+    color-scheme: light !important;
+  }
+
+  html.dark .forgot-password-page {
+    background-color: #f9fafb !important;
+    color: #111827 !important;
+    color-scheme: light !important;
+  }
+
+  html.dark .forgot-password-page .bg-white {
+    background-color: #ffffff !important;
+  }
+
+  html.dark .forgot-password-page .bg-gray-50 {
+    background-color: #f9fafb !important;
+  }
+
+  html.dark .forgot-password-page input,
+  html.dark .forgot-password-page textarea,
+  html.dark .forgot-password-page select {
+    background-color: #ffffff !important;
+    color: #111827 !important;
+    color-scheme: light !important;
+  }
+
+  html.dark .forgot-password-page button {
+    color-scheme: light !important;
+  }
+}
+
+
+/* =========================================================
+   EXTRA BROWSER DARK-MODE SAFETY
+========================================================= */
+
+.forgot-password-page {
+  background-color: #f9fafb;
+  color: #111827;
+  color-scheme: light !important;
+}
+
+.forgot-password-page input,
+.forgot-password-page textarea,
+.forgot-password-page select,
+.forgot-password-page button {
   color-scheme: light !important;
 }
 
 
 /* =========================================================
-   AUTH IMAGES
+   MOBILE GLOBAL SAFETY
 ========================================================= */
 
-html.dark .auth-page img {
-  filter: none !important;
+@media (max-width: 768px) {
+
+  .forgot-password-page {
+    background-color: #f9fafb !important;
+    color: #111827 !important;
+    color-scheme: light !important;
+  }
+
+  .forgot-password-page input,
+  .forgot-password-page textarea,
+  .forgot-password-page select {
+    background-color: #ffffff !important;
+    color: #111827 !important;
+    color-scheme: light !important;
+  }
 }
+
+
+/* =========================================================
+   END OF CAMPUSMART GLOBAL CSS
+========================================================= */
