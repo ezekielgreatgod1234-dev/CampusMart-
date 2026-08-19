@@ -1363,293 +1363,172 @@ html.dark .forgot-password-page img {
    END OF CAMPUSMART GLOBAL CSS
 ========================================================= */
 
+
 /* =========================================================
-   CAMPUSMART INTERNET REQUIRED SCREEN
+   INTERNET REQUIRED PAGE
    ALWAYS LIGHT
 ========================================================= */
 
 /*
-   The Internet Required screen must remain LIGHT.
-
-   This prevents:
-   - Global dark mode
-   - Device dark mode
-   - Mobile browser dark rendering
-   - Dark form/control rendering
-   - Global Tailwind overrides
+  InternetRequired must remain light even when:
+  - CampusMart is in dark mode
+  - html has the .dark class
+  - the device uses dark mode
+  - the browser prefers dark colors
+  - the page is opened on mobile
 */
-
-
-/* =========================================================
-   ROOT
-========================================================= */
 
 .internet-required-page {
   background-color: #f9fafb !important;
   color: #111827 !important;
-
-  /*
-     Tell the browser that this component
-     should use LIGHT UI controls.
-  */
   color-scheme: light !important;
-
-  /*
-     Prevent accidental inherited filters.
-  */
-  filter: none !important;
 }
 
+/* Card */
+.internet-required-page .bg-white {
+  background-color: #ffffff !important;
+}
 
-/* =========================================================
-   DARK HTML PROTECTION
-========================================================= */
+/* Backgrounds */
+.internet-required-page .bg-gray-50 {
+  background-color: #f9fafb !important;
+}
 
+.internet-required-page .bg-gray-100 {
+  background-color: #f3f4f6 !important;
+}
+
+.internet-required-page .bg-gray-200 {
+  background-color: #e5e7eb !important;
+}
+
+/* Text */
+.internet-required-page .text-gray-900 {
+  color: #111827 !important;
+}
+
+.internet-required-page .text-gray-800 {
+  color: #1f2937 !important;
+}
+
+.internet-required-page .text-gray-700 {
+  color: #374151 !important;
+}
+
+.internet-required-page .text-gray-600 {
+  color: #4b5563 !important;
+}
+
+.internet-required-page .text-gray-500 {
+  color: #6b7280 !important;
+}
+
+.internet-required-page .text-gray-400 {
+  color: #9ca3af !important;
+}
+
+/* Green */
+.internet-required-page .bg-green-50 {
+  background-color: #f0fdf4 !important;
+}
+
+.internet-required-page .bg-green-100 {
+  background-color: #dcfce7 !important;
+}
+
+.internet-required-page .bg-green-500 {
+  background-color: #22c55e !important;
+}
+
+.internet-required-page .bg-green-600 {
+  background-color: #16a34a !important;
+}
+
+.internet-required-page .bg-green-700 {
+  background-color: #15803d !important;
+}
+
+.internet-required-page .text-green-500 {
+  color: #22c55e !important;
+}
+
+.internet-required-page .text-green-600 {
+  color: #16a34a !important;
+}
+
+.internet-required-page .text-green-700 {
+  color: #15803d !important;
+}
+
+/* Hover */
+.internet-required-page .hover\:bg-green-600:hover {
+  background-color: #16a34a !important;
+}
+
+.internet-required-page .hover\:bg-green-700:hover {
+  background-color: #15803d !important;
+}
+
+/* Borders */
+.internet-required-page .border-gray-100 {
+  border-color: #f3f4f6 !important;
+}
+
+.internet-required-page .border-gray-200 {
+  border-color: #e5e7eb !important;
+}
+
+.internet-required-page .border-gray-300 {
+  border-color: #d1d5db !important;
+}
+
+/* Button and interactive elements */
+.internet-required-page button,
+.internet-required-page a {
+  color-scheme: light !important;
+}
+
+/* Browser dark-mode protection */
 html.dark .internet-required-page {
   background-color: #f9fafb !important;
   color: #111827 !important;
   color-scheme: light !important;
 }
 
-
-/* =========================================================
-   WHITE CARD
-========================================================= */
-
-html.dark .internet-required-page .bg-white,
-.internet-required-page .bg-white {
+html.dark .internet-required-page .bg-white {
   background-color: #ffffff !important;
 }
 
-
-/* =========================================================
-   MAIN BACKGROUND
-========================================================= */
-
-html.dark .internet-required-page .bg-gray-50,
-.internet-required-page .bg-gray-50 {
+html.dark .internet-required-page .bg-gray-50 {
   background-color: #f9fafb !important;
 }
 
-
-/* =========================================================
-   GRAY BACKGROUNDS
-========================================================= */
-
-html.dark .internet-required-page .bg-gray-100,
-.internet-required-page .bg-gray-100 {
-  background-color: #f3f4f6 !important;
-}
-
-html.dark .internet-required-page .bg-gray-200,
-.internet-required-page .bg-gray-200 {
-  background-color: #e5e7eb !important;
-}
-
-
-/* =========================================================
-   TEXT
-========================================================= */
-
-html.dark .internet-required-page .text-gray-900,
-.internet-required-page .text-gray-900 {
+html.dark .internet-required-page .text-gray-900 {
   color: #111827 !important;
 }
 
-html.dark .internet-required-page .text-gray-800,
-.internet-required-page .text-gray-800 {
-  color: #1f2937 !important;
-}
-
-html.dark .internet-required-page .text-gray-700,
-.internet-required-page .text-gray-700 {
-  color: #374151 !important;
-}
-
-html.dark .internet-required-page .text-gray-600,
-.internet-required-page .text-gray-600 {
-  color: #4b5563 !important;
-}
-
-html.dark .internet-required-page .text-gray-500,
-.internet-required-page .text-gray-500 {
+html.dark .internet-required-page .text-gray-500 {
   color: #6b7280 !important;
 }
 
-html.dark .internet-required-page .text-gray-400,
-.internet-required-page .text-gray-400 {
-  color: #9ca3af !important;
-}
-
-
-/* =========================================================
-   GREEN BACKGROUNDS
-========================================================= */
-
-html.dark .internet-required-page .bg-green-50,
-.internet-required-page .bg-green-50 {
+html.dark .internet-required-page .bg-green-50 {
   background-color: #f0fdf4 !important;
 }
 
-html.dark .internet-required-page .bg-green-100,
-.internet-required-page .bg-green-100 {
-  background-color: #dcfce7 !important;
-}
-
-html.dark .internet-required-page .bg-green-500,
-.internet-required-page .bg-green-500 {
-  background-color: #22c55e !important;
-}
-
-html.dark .internet-required-page .bg-green-600,
-.internet-required-page .bg-green-600 {
-  background-color: #16a34a !important;
-}
-
-html.dark .internet-required-page .bg-green-700,
-.internet-required-page .bg-green-700 {
-  background-color: #15803d !important;
-}
-
-
-/* =========================================================
-   GREEN TEXT
-========================================================= */
-
-html.dark .internet-required-page .text-green-600,
-.internet-required-page .text-green-600 {
+html.dark .internet-required-page .text-green-600 {
   color: #16a34a !important;
 }
 
-html.dark .internet-required-page .text-green-700,
-.internet-required-page .text-green-700 {
-  color: #15803d !important;
-}
-
-
-/* =========================================================
-   GREEN HOVER
-========================================================= */
-
-html.dark .internet-required-page .hover\:bg-green-600:hover,
-.internet-required-page .hover\:bg-green-600:hover {
+html.dark .internet-required-page .bg-green-600 {
   background-color: #16a34a !important;
 }
 
-html.dark .internet-required-page .hover\:bg-green-700:hover,
-.internet-required-page .hover\:bg-green-700:hover {
+html.dark .internet-required-page .hover\:bg-green-700:hover {
   background-color: #15803d !important;
 }
 
-
-/* =========================================================
-   BORDERS
-========================================================= */
-
-html.dark .internet-required-page .border-gray-100,
-.internet-required-page .border-gray-100 {
-  border-color: #f3f4f6 !important;
-}
-
-html.dark .internet-required-page .border-gray-200,
-.internet-required-page .border-gray-200 {
-  border-color: #e5e7eb !important;
-}
-
-html.dark .internet-required-page .border-gray-300,
-.internet-required-page .border-gray-300 {
-  border-color: #d1d5db !important;
-}
-
-
-/* =========================================================
-   BUTTON
-========================================================= */
-
-html.dark .internet-required-page button {
-  color: #ffffff !important;
-  color-scheme: light !important;
-}
-
-.internet-required-page button {
-  color-scheme: light !important;
-}
-
-
-/* =========================================================
-   DISABLED BUTTON
-========================================================= */
-
-html.dark .internet-required-page button:disabled {
-  background-color: #4ade80 !important;
-  color: #ffffff !important;
-}
-
-
-/* =========================================================
-   SVG / ICONS
-========================================================= */
-
-html.dark .internet-required-page svg {
-  color: inherit !important;
-}
-
-
-/* =========================================================
-   MOBILE DARK-MODE PROTECTION
-========================================================= */
-
+/* Mobile protection */
 @media (max-width: 768px) {
-
-  html.dark body:has(.internet-required-page) {
-    background-color: #f9fafb !important;
-    color: #111827 !important;
-    color-scheme: light !important;
-  }
-
-  html.dark .internet-required-page {
-    background-color: #f9fafb !important;
-    color: #111827 !important;
-    color-scheme: light !important;
-  }
-
-  html.dark .internet-required-page .bg-white {
-    background-color: #ffffff !important;
-  }
-
-  html.dark .internet-required-page .bg-gray-50 {
-    background-color: #f9fafb !important;
-  }
-
-  html.dark .internet-required-page .bg-green-50 {
-    background-color: #f0fdf4 !important;
-  }
-
-  html.dark .internet-required-page .text-gray-900 {
-    color: #111827 !important;
-  }
-
-  html.dark .internet-required-page .text-gray-500 {
-    color: #6b7280 !important;
-  }
-
-  html.dark .internet-required-page .text-green-600 {
-    color: #16a34a !important;
-  }
-
-  html.dark .internet-required-page button {
-    color: #ffffff !important;
-    color-scheme: light !important;
-  }
-}
-
-
-/* =========================================================
-   DEVICE DARK-MODE SAFETY
-========================================================= */
-
-@media (prefers-color-scheme: dark) {
-
   .internet-required-page {
     background-color: #f9fafb !important;
     color: #111827 !important;
@@ -1664,34 +1543,7 @@ html.dark .internet-required-page svg {
     background-color: #f9fafb !important;
   }
 
-  .internet-required-page .bg-green-50 {
-    background-color: #f0fdf4 !important;
-  }
-
-  .internet-required-page .text-gray-900 {
-    color: #111827 !important;
-  }
-
-  .internet-required-page .text-gray-500 {
-    color: #6b7280 !important;
-  }
-
-  .internet-required-page .text-green-600 {
-    color: #16a34a !important;
-  }
-
   .internet-required-page button {
-    color: #ffffff !important;
     color-scheme: light !important;
   }
-}
-
-
-/* =========================================================
-   FINAL LIGHT-MODE GUARANTEE
-========================================================= */
-
-.internet-required-page,
-.internet-required-page * {
-  color-scheme: light !important;
 }

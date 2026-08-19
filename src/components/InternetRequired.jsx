@@ -1,20 +1,9 @@
-```jsx
 import { useEffect, useState } from "react";
-import {
-  FiWifiOff,
-  FiRefreshCw,
-} from "react-icons/fi";
+import { FiWifiOff, FiRefreshCw } from "react-icons/fi";
 
 function InternetRequired() {
-  const [isOnline, setIsOnline] = useState(
-    () => navigator.onLine
-  );
-
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine);
   const [checking, setChecking] = useState(false);
-
-  // =========================================================
-  // INTERNET STATUS
-  // =========================================================
 
   useEffect(() => {
     const handleOnline = () => {
@@ -25,32 +14,14 @@ function InternetRequired() {
       setIsOnline(false);
     };
 
-    window.addEventListener(
-      "online",
-      handleOnline
-    );
-
-    window.addEventListener(
-      "offline",
-      handleOffline
-    );
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
 
     return () => {
-      window.removeEventListener(
-        "online",
-        handleOnline
-      );
-
-      window.removeEventListener(
-        "offline",
-        handleOffline
-      );
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
     };
   }, []);
-
-  // =========================================================
-  // RETRY
-  // =========================================================
 
   const handleRetry = () => {
     setChecking(true);
@@ -61,18 +32,11 @@ function InternetRequired() {
     }, 500);
   };
 
-  // =========================================================
-  // INTERNET AVAILABLE
-  // =========================================================
-
+  // Internet is available.
+  // Do not render anything.
   if (isOnline) {
     return null;
   }
-
-  // =========================================================
-  // OFFLINE SCREEN
-  // ALWAYS LIGHT
-  // =========================================================
 
   return (
     <div
@@ -80,31 +44,29 @@ function InternetRequired() {
         internet-required-page
         fixed
         inset-0
-        z-[99999]
+        z-[9999]
         flex
+        min-h-screen
         items-center
         justify-center
         bg-gray-50
-        p-6
+        px-4
+        py-8
       "
     >
       <div
         className="
           w-full
           max-w-md
-          rounded-3xl
+          rounded-2xl
           bg-white
-          border
-          border-gray-100
-          shadow-xl
-          p-8
+          p-6
           text-center
+          shadow-sm
+          sm:p-8
         "
       >
-        {/* =================================================
-            ICON
-        ================================================= */}
-
+        {/* ICON */}
         <div
           className="
             mx-auto
@@ -121,10 +83,7 @@ function InternetRequired() {
           <FiWifiOff size={36} />
         </div>
 
-        {/* =================================================
-            TITLE
-        ================================================= */}
-
+        {/* TITLE */}
         <h1
           className="
             mt-6
@@ -136,10 +95,7 @@ function InternetRequired() {
           No Internet Connection
         </h1>
 
-        {/* =================================================
-            DESCRIPTION
-        ================================================= */}
-
+        {/* TEXT */}
         <p
           className="
             mt-3
@@ -148,8 +104,7 @@ function InternetRequired() {
             text-gray-500
           "
         >
-          CampusMart requires an active
-          internet connection to work.
+          CampusMart requires an active internet connection to work.
         </p>
 
         <p
@@ -160,14 +115,10 @@ function InternetRequired() {
             text-gray-500
           "
         >
-          Please connect to Wi-Fi or mobile
-          data and try again.
+          Please connect to Wi-Fi or mobile data and try again.
         </p>
 
-        {/* =================================================
-            RETRY BUTTON
-        ================================================= */}
-
+        {/* BUTTON */}
         <button
           type="button"
           onClick={handleRetry}
@@ -188,23 +139,16 @@ function InternetRequired() {
             text-white
             transition
             hover:bg-green-700
-            active:bg-green-800
-            disabled:bg-green-400
             disabled:cursor-not-allowed
+            disabled:bg-green-400
           "
         >
           <FiRefreshCw
             size={17}
-            className={
-              checking
-                ? "animate-spin"
-                : ""
-            }
+            className={checking ? "animate-spin" : ""}
           />
 
-          {checking
-            ? "Checking..."
-            : "Try Again"}
+          {checking ? "Checking..." : "Try Again"}
         </button>
       </div>
     </div>
@@ -212,4 +156,3 @@ function InternetRequired() {
 }
 
 export default InternetRequired;
-```
