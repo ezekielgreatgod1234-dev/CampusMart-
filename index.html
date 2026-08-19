@@ -2,12 +2,60 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+
+    <!-- Prevent mobile browsers from applying dark mode -->
+    <meta name="color-scheme" content="light" />
+
+    <!-- Force the page to use light colors only -->
+    <meta name="theme-color" content="#ffffff" />
+
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>camp</title>
+
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+
+    <title>CampusMart</title>
+
+    <!-- Force light mode before React loads -->
+    <style>
+      html,
+      body {
+        background: #ffffff !important;
+        color: #111827 !important;
+        color-scheme: only light !important;
+      }
+
+      html {
+        color-scheme: only light !important;
+        background-color: #ffffff !important;
+      }
+
+      body {
+        margin: 0;
+        background-color: #ffffff !important;
+        color: #111827 !important;
+      }
+
+      #root {
+        min-height: 100vh;
+        background-color: #ffffff;
+        color: #111827;
+      }
+
+      input,
+      textarea,
+      select,
+      button {
+        color-scheme: only light !important;
+      }
+    </style>
   </head>
+
   <body>
     <div id="root"></div>
+
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
