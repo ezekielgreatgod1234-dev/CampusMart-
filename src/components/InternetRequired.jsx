@@ -47,12 +47,19 @@ function InternetRequired() {
         z-[9999]
         flex
         min-h-screen
+        w-full
         items-center
         justify-center
+        overflow-auto
         bg-gray-50
         px-4
         py-8
       "
+      style={{
+        backgroundColor: "#f9fafb",
+        color: "#111827",
+        colorScheme: "light",
+      }}
     >
       <div
         className="
@@ -65,8 +72,15 @@ function InternetRequired() {
           shadow-sm
           sm:p-8
         "
+        style={{
+          backgroundColor: "#ffffff",
+          color: "#111827",
+          colorScheme: "light",
+        }}
       >
-        {/* ICON */}
+        {/* =====================================================
+            ICON
+        ====================================================== */}
         <div
           className="
             mx-auto
@@ -79,11 +93,17 @@ function InternetRequired() {
             bg-green-50
             text-green-600
           "
+          style={{
+            backgroundColor: "#f0fdf4",
+            color: "#16a34a",
+          }}
         >
           <FiWifiOff size={36} />
         </div>
 
-        {/* TITLE */}
+        {/* =====================================================
+            TITLE
+        ====================================================== */}
         <h1
           className="
             mt-6
@@ -91,11 +111,16 @@ function InternetRequired() {
             font-bold
             text-gray-900
           "
+          style={{
+            color: "#111827",
+          }}
         >
           No Internet Connection
         </h1>
 
-        {/* TEXT */}
+        {/* =====================================================
+            DESCRIPTION
+        ====================================================== */}
         <p
           className="
             mt-3
@@ -103,6 +128,9 @@ function InternetRequired() {
             leading-6
             text-gray-500
           "
+          style={{
+            color: "#6b7280",
+          }}
         >
           CampusMart requires an active internet connection to work.
         </p>
@@ -114,11 +142,16 @@ function InternetRequired() {
             leading-6
             text-gray-500
           "
+          style={{
+            color: "#6b7280",
+          }}
         >
           Please connect to Wi-Fi or mobile data and try again.
         </p>
 
-        {/* BUTTON */}
+        {/* =====================================================
+            RETRY BUTTON
+        ====================================================== */}
         <button
           type="button"
           onClick={handleRetry}
@@ -142,6 +175,11 @@ function InternetRequired() {
             disabled:cursor-not-allowed
             disabled:bg-green-400
           "
+          style={{
+            backgroundColor: checking ? "#4ade80" : "#16a34a",
+            color: "#ffffff",
+            colorScheme: "light",
+          }}
         >
           <FiRefreshCw
             size={17}

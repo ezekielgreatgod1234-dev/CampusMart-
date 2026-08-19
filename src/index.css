@@ -19,6 +19,9 @@
   Forgot Password:
     Always Light
 
+  Internet Required:
+    Always Light
+
   Settings:
     Light / Dark
 */
@@ -992,19 +995,14 @@ html.dark .auth-page .shadow-xl {
    ALWAYS LIGHT
 ========================================================= */
 
-
 /*
-  IMPORTANT:
+  Forgot Password ALWAYS remains LIGHT.
 
-  This section intentionally overrides html.dark.
-
-  Even if:
-      - the app is in dark mode
-      - the device is in dark mode
-      - the browser is using dark form controls
-      - the user opens Forgot Password on mobile
-
-  the Forgot Password page remains LIGHT.
+  This overrides:
+  - CampusMart dark mode
+  - Browser dark mode
+  - Device dark mode
+  - Mobile dark mode
 */
 
 
@@ -1275,52 +1273,16 @@ html.dark .forgot-password-page img {
 
 
 /* =========================================================
-   MOBILE FORGOT PASSWORD PROTECTION
-========================================================= */
-
-@media (max-width: 768px) {
-
-  html.dark body:has(.forgot-password-page) {
-    background-color: #f9fafb !important;
-    color: #111827 !important;
-    color-scheme: light !important;
-  }
-
-  html.dark .forgot-password-page {
-    background-color: #f9fafb !important;
-    color: #111827 !important;
-    color-scheme: light !important;
-  }
-
-  html.dark .forgot-password-page .bg-white {
-    background-color: #ffffff !important;
-  }
-
-  html.dark .forgot-password-page .bg-gray-50 {
-    background-color: #f9fafb !important;
-  }
-
-  html.dark .forgot-password-page input,
-  html.dark .forgot-password-page textarea,
-  html.dark .forgot-password-page select {
-    background-color: #ffffff !important;
-    color: #111827 !important;
-    color-scheme: light !important;
-  }
-
-  html.dark .forgot-password-page button {
-    color-scheme: light !important;
-  }
-}
-
-
-/* =========================================================
-   EXTRA BROWSER DARK-MODE SAFETY
+   EXTRA FORGOT PASSWORD LIGHT SAFETY
 ========================================================= */
 
 .forgot-password-page {
-  background-color: #f9fafb;
-  color: #111827;
+  background-color: #f9fafb !important;
+  color: #111827 !important;
+  color-scheme: light !important;
+}
+
+.forgot-password-page * {
   color-scheme: light !important;
 }
 
@@ -1333,15 +1295,28 @@ html.dark .forgot-password-page img {
 
 
 /* =========================================================
-   MOBILE GLOBAL SAFETY
+   MOBILE FORGOT PASSWORD PROTECTION
 ========================================================= */
 
 @media (max-width: 768px) {
 
-  .forgot-password-page {
+  .forgot-password-page,
+  html.dark .forgot-password-page {
     background-color: #f9fafb !important;
     color: #111827 !important;
     color-scheme: light !important;
+  }
+
+  .forgot-password-page * {
+    color-scheme: light !important;
+  }
+
+  .forgot-password-page .bg-white {
+    background-color: #ffffff !important;
+  }
+
+  .forgot-password-page .bg-gray-50 {
+    background-color: #f9fafb !important;
   }
 
   .forgot-password-page input,
@@ -1351,17 +1326,11 @@ html.dark .forgot-password-page img {
     color: #111827 !important;
     color-scheme: light !important;
   }
+
+  .forgot-password-page button {
+    color-scheme: light !important;
+  }
 }
-
-
-
-
-
-
-
-/* =========================================================
-   END OF CAMPUSMART GLOBAL CSS
-========================================================= */
 
 
 /* =========================================================
@@ -1370,168 +1339,243 @@ html.dark .forgot-password-page img {
 ========================================================= */
 
 /*
-  InternetRequired must remain light even when:
-  - CampusMart is in dark mode
+  IMPORTANT:
+
+  InternetRequired MUST remain LIGHT even when:
+
+  - CampusMart dark mode is ON
   - html has the .dark class
-  - the device uses dark mode
-  - the browser prefers dark colors
+  - the browser prefers dark mode
+  - the mobile phone is using dark mode
+  - Android is using dark theme
+  - iOS is using dark appearance
+  - the browser is using dark form controls
   - the page is opened on mobile
 */
 
-.internet-required-page {
-  background-color: #f9fafb !important;
-  color: #111827 !important;
-  color-scheme: light !important;
-}
 
-/* Card */
-.internet-required-page .bg-white {
-  background-color: #ffffff !important;
-}
+/* ---------------------------------------------------------
+   Internet Required root
+--------------------------------------------------------- */
 
-/* Backgrounds */
-.internet-required-page .bg-gray-50 {
-  background-color: #f9fafb !important;
-}
-
-.internet-required-page .bg-gray-100 {
-  background-color: #f3f4f6 !important;
-}
-
-.internet-required-page .bg-gray-200 {
-  background-color: #e5e7eb !important;
-}
-
-/* Text */
-.internet-required-page .text-gray-900 {
-  color: #111827 !important;
-}
-
-.internet-required-page .text-gray-800 {
-  color: #1f2937 !important;
-}
-
-.internet-required-page .text-gray-700 {
-  color: #374151 !important;
-}
-
-.internet-required-page .text-gray-600 {
-  color: #4b5563 !important;
-}
-
-.internet-required-page .text-gray-500 {
-  color: #6b7280 !important;
-}
-
-.internet-required-page .text-gray-400 {
-  color: #9ca3af !important;
-}
-
-/* Green */
-.internet-required-page .bg-green-50 {
-  background-color: #f0fdf4 !important;
-}
-
-.internet-required-page .bg-green-100 {
-  background-color: #dcfce7 !important;
-}
-
-.internet-required-page .bg-green-500 {
-  background-color: #22c55e !important;
-}
-
-.internet-required-page .bg-green-600 {
-  background-color: #16a34a !important;
-}
-
-.internet-required-page .bg-green-700 {
-  background-color: #15803d !important;
-}
-
-.internet-required-page .text-green-500 {
-  color: #22c55e !important;
-}
-
-.internet-required-page .text-green-600 {
-  color: #16a34a !important;
-}
-
-.internet-required-page .text-green-700 {
-  color: #15803d !important;
-}
-
-/* Hover */
-.internet-required-page .hover\:bg-green-600:hover {
-  background-color: #16a34a !important;
-}
-
-.internet-required-page .hover\:bg-green-700:hover {
-  background-color: #15803d !important;
-}
-
-/* Borders */
-.internet-required-page .border-gray-100 {
-  border-color: #f3f4f6 !important;
-}
-
-.internet-required-page .border-gray-200 {
-  border-color: #e5e7eb !important;
-}
-
-.internet-required-page .border-gray-300 {
-  border-color: #d1d5db !important;
-}
-
-/* Button and interactive elements */
-.internet-required-page button,
-.internet-required-page a {
-  color-scheme: light !important;
-}
-
-/* Browser dark-mode protection */
+.internet-required-page,
 html.dark .internet-required-page {
   background-color: #f9fafb !important;
   color: #111827 !important;
   color-scheme: light !important;
 }
 
+
+/* ---------------------------------------------------------
+   Force EVERY child to use LIGHT color scheme
+--------------------------------------------------------- */
+
+.internet-required-page *,
+html.dark .internet-required-page * {
+  color-scheme: light !important;
+}
+
+
+/* ---------------------------------------------------------
+   Internet Required backgrounds
+--------------------------------------------------------- */
+
+.internet-required-page .bg-white,
 html.dark .internet-required-page .bg-white {
   background-color: #ffffff !important;
 }
 
+.internet-required-page .bg-gray-50,
 html.dark .internet-required-page .bg-gray-50 {
   background-color: #f9fafb !important;
 }
 
+.internet-required-page .bg-gray-100,
+html.dark .internet-required-page .bg-gray-100 {
+  background-color: #f3f4f6 !important;
+}
+
+.internet-required-page .bg-gray-200,
+html.dark .internet-required-page .bg-gray-200 {
+  background-color: #e5e7eb !important;
+}
+
+
+/* ---------------------------------------------------------
+   Internet Required text
+--------------------------------------------------------- */
+
+.internet-required-page .text-gray-900,
 html.dark .internet-required-page .text-gray-900 {
   color: #111827 !important;
 }
 
+.internet-required-page .text-gray-800,
+html.dark .internet-required-page .text-gray-800 {
+  color: #1f2937 !important;
+}
+
+.internet-required-page .text-gray-700,
+html.dark .internet-required-page .text-gray-700 {
+  color: #374151 !important;
+}
+
+.internet-required-page .text-gray-600,
+html.dark .internet-required-page .text-gray-600 {
+  color: #4b5563 !important;
+}
+
+.internet-required-page .text-gray-500,
 html.dark .internet-required-page .text-gray-500 {
   color: #6b7280 !important;
 }
 
+.internet-required-page .text-gray-400,
+html.dark .internet-required-page .text-gray-400 {
+  color: #9ca3af !important;
+}
+
+
+/* ---------------------------------------------------------
+   Internet Required green
+--------------------------------------------------------- */
+
+.internet-required-page .bg-green-50,
 html.dark .internet-required-page .bg-green-50 {
   background-color: #f0fdf4 !important;
 }
 
-html.dark .internet-required-page .text-green-600 {
-  color: #16a34a !important;
+.internet-required-page .bg-green-100,
+html.dark .internet-required-page .bg-green-100 {
+  background-color: #dcfce7 !important;
 }
 
+.internet-required-page .bg-green-500,
+html.dark .internet-required-page .bg-green-500 {
+  background-color: #22c55e !important;
+}
+
+.internet-required-page .bg-green-600,
 html.dark .internet-required-page .bg-green-600 {
   background-color: #16a34a !important;
 }
 
+.internet-required-page .bg-green-700,
+html.dark .internet-required-page .bg-green-700 {
+  background-color: #15803d !important;
+}
+
+.internet-required-page .text-green-500,
+html.dark .internet-required-page .text-green-500 {
+  color: #22c55e !important;
+}
+
+.internet-required-page .text-green-600,
+html.dark .internet-required-page .text-green-600 {
+  color: #16a34a !important;
+}
+
+.internet-required-page .text-green-700,
+html.dark .internet-required-page .text-green-700 {
+  color: #15803d !important;
+}
+
+
+/* ---------------------------------------------------------
+   Internet Required borders
+--------------------------------------------------------- */
+
+.internet-required-page .border-gray-100,
+html.dark .internet-required-page .border-gray-100 {
+  border-color: #f3f4f6 !important;
+}
+
+.internet-required-page .border-gray-200,
+html.dark .internet-required-page .border-gray-200 {
+  border-color: #e5e7eb !important;
+}
+
+.internet-required-page .border-gray-300,
+html.dark .internet-required-page .border-gray-300 {
+  border-color: #d1d5db !important;
+}
+
+
+/* ---------------------------------------------------------
+   Internet Required hover
+--------------------------------------------------------- */
+
+.internet-required-page .hover\:bg-green-50:hover,
+html.dark .internet-required-page .hover\:bg-green-50:hover {
+  background-color: #f0fdf4 !important;
+}
+
+.internet-required-page .hover\:bg-green-600:hover,
+html.dark .internet-required-page .hover\:bg-green-600:hover {
+  background-color: #16a34a !important;
+}
+
+.internet-required-page .hover\:bg-green-700:hover,
 html.dark .internet-required-page .hover\:bg-green-700:hover {
   background-color: #15803d !important;
 }
 
-/* Mobile protection */
-@media (max-width: 768px) {
+
+/* ---------------------------------------------------------
+   Internet Required button
+--------------------------------------------------------- */
+
+.internet-required-page button,
+html.dark .internet-required-page button {
+  color-scheme: light !important;
+  color: #ffffff !important;
+}
+
+.internet-required-page button.bg-green-600,
+html.dark .internet-required-page button.bg-green-600 {
+  background-color: #16a34a !important;
+  color: #ffffff !important;
+}
+
+.internet-required-page button:hover,
+html.dark .internet-required-page button:hover {
+  color: #ffffff !important;
+}
+
+
+/* ---------------------------------------------------------
+   Internet Required images
+--------------------------------------------------------- */
+
+.internet-required-page img,
+html.dark .internet-required-page img {
+  filter: none !important;
+}
+
+
+/* =========================================================
+   INTERNET REQUIRED
+   BROWSER / DEVICE DARK MODE PROTECTION
+========================================================= */
+
+/*
+  This is especially important for mobile devices.
+
+  If the phone itself is in Dark Mode, the browser can expose
+  prefers-color-scheme: dark.
+
+  We explicitly tell the browser that this component is LIGHT.
+*/
+
+@media (prefers-color-scheme: dark) {
+
   .internet-required-page {
     background-color: #f9fafb !important;
     color: #111827 !important;
+    color-scheme: light !important;
+  }
+
+  .internet-required-page * {
     color-scheme: light !important;
   }
 
@@ -1543,7 +1587,99 @@ html.dark .internet-required-page .hover\:bg-green-700:hover {
     background-color: #f9fafb !important;
   }
 
+  .internet-required-page .bg-gray-100 {
+    background-color: #f3f4f6 !important;
+  }
+
+  .internet-required-page .text-gray-900 {
+    color: #111827 !important;
+  }
+
+  .internet-required-page .text-gray-500 {
+    color: #6b7280 !important;
+  }
+
+  .internet-required-page .bg-green-50 {
+    background-color: #f0fdf4 !important;
+  }
+
+  .internet-required-page .text-green-600 {
+    color: #16a34a !important;
+  }
+
+  .internet-required-page .bg-green-600 {
+    background-color: #16a34a !important;
+    color: #ffffff !important;
+  }
+
   .internet-required-page button {
     color-scheme: light !important;
+    color: #ffffff !important;
   }
 }
+
+
+/* =========================================================
+   INTERNET REQUIRED
+   MOBILE DARK MODE PROTECTION
+========================================================= */
+
+@media (max-width: 768px) {
+
+  .internet-required-page,
+  html.dark .internet-required-page {
+    background-color: #f9fafb !important;
+    color: #111827 !important;
+    color-scheme: light !important;
+  }
+
+  .internet-required-page * {
+    color-scheme: light !important;
+  }
+
+  .internet-required-page .bg-white,
+  html.dark .internet-required-page .bg-white {
+    background-color: #ffffff !important;
+  }
+
+  .internet-required-page .bg-gray-50,
+  html.dark .internet-required-page .bg-gray-50 {
+    background-color: #f9fafb !important;
+  }
+
+  .internet-required-page .bg-green-50,
+  html.dark .internet-required-page .bg-green-50 {
+    background-color: #f0fdf4 !important;
+  }
+
+  .internet-required-page .text-gray-900,
+  html.dark .internet-required-page .text-gray-900 {
+    color: #111827 !important;
+  }
+
+  .internet-required-page .text-gray-500,
+  html.dark .internet-required-page .text-gray-500 {
+    color: #6b7280 !important;
+  }
+
+  .internet-required-page .text-green-600,
+  html.dark .internet-required-page .text-green-600 {
+    color: #16a34a !important;
+  }
+
+  .internet-required-page button,
+  html.dark .internet-required-page button {
+    color-scheme: light !important;
+    color: #ffffff !important;
+  }
+
+  .internet-required-page .bg-green-600,
+  html.dark .internet-required-page .bg-green-600 {
+    background-color: #16a34a !important;
+  }
+}
+
+
+/* =========================================================
+   END OF CAMPUSMART GLOBAL CSS
+========================================================= */
