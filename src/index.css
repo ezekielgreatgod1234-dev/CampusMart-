@@ -1679,7 +1679,251 @@ html.dark .internet-required-page img {
   }
 }
 
+/* =========================================================
+   INTERNET REQUIRED
+   ABSOLUTELY LIGHT MODE
+   MOBILE + DARK DEVICE PROTECTION
+========================================================= */
 
+html:has(.internet-required-page),
+body:has(.internet-required-page) {
+  background: #f9fafb !important;
+  background-color: #f9fafb !important;
+
+  color: #111827 !important;
+
+  color-scheme: light !important;
+
+  forced-color-adjust: none !important;
+}
+
+
+/* Even when the application has html.dark */
+html.dark:has(.internet-required-page),
+html.dark:has(.internet-required-page) body {
+  background: #f9fafb !important;
+  background-color: #f9fafb !important;
+
+  color: #111827 !important;
+
+  color-scheme: light !important;
+
+  forced-color-adjust: none !important;
+}
+
+
+/* Full screen */
+.internet-required-page {
+  background: #f9fafb !important;
+  background-color: #f9fafb !important;
+
+  color: #111827 !important;
+
+  color-scheme: light !important;
+
+  forced-color-adjust: none !important;
+
+  -webkit-appearance: none !important;
+  appearance: none !important;
+}
+
+
+/* Card */
+.internet-required-page > div {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+
+  color: #111827 !important;
+
+  color-scheme: light !important;
+
+  forced-color-adjust: none !important;
+
+  -webkit-appearance: none !important;
+  appearance: none !important;
+}
+
+
+/* Title */
+.internet-required-page h1 {
+  color: #111827 !important;
+}
+
+
+/* Paragraphs */
+.internet-required-page p {
+  color: #6b7280 !important;
+}
+
+
+/* Icon */
+.internet-required-page svg {
+  color: #16a34a !important;
+}
+
+
+/* Green icon circle */
+.internet-required-page .bg-green-50 {
+  background-color: #f0fdf4 !important;
+}
+
+
+/* Retry button */
+.internet-required-page button {
+  background: #16a34a !important;
+  background-color: #16a34a !important;
+
+  color: #ffffff !important;
+
+  color-scheme: light !important;
+
+  forced-color-adjust: none !important;
+
+  -webkit-appearance: none !important;
+  appearance: none !important;
+}
+
+
+/* Button hover */
+.internet-required-page button:hover {
+  background: #15803d !important;
+  background-color: #15803d !important;
+}
+
+
+/* Disabled button */
+.internet-required-page button:disabled {
+  background: #4ade80 !important;
+  background-color: #4ade80 !important;
+
+  color: #ffffff !important;
+}
+
+
+/* =========================================================
+   MOBILE DARK-MODE PROTECTION
+========================================================= */
+
+@media (max-width: 768px) {
+
+  html:has(.internet-required-page),
+  body:has(.internet-required-page) {
+    background: #f9fafb !important;
+    background-color: #f9fafb !important;
+
+    color: #111827 !important;
+
+    color-scheme: light !important;
+
+    forced-color-adjust: none !important;
+  }
+
+  html.dark:has(.internet-required-page),
+  html.dark:has(.internet-required-page) body {
+    background: #f9fafb !important;
+    background-color: #f9fafb !important;
+
+    color: #111827 !important;
+
+    color-scheme: light !important;
+
+    forced-color-adjust: none !important;
+  }
+
+  .internet-required-page {
+    background: #f9fafb !important;
+    background-color: #f9fafb !important;
+
+    color: #111827 !important;
+
+    color-scheme: light !important;
+
+    forced-color-adjust: none !important;
+  }
+
+  .internet-required-page > div {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+
+    color: #111827 !important;
+
+    color-scheme: light !important;
+
+    forced-color-adjust: none !important;
+  }
+
+  .internet-required-page h1 {
+    color: #111827 !important;
+  }
+
+  .internet-required-page p {
+    color: #6b7280 !important;
+  }
+
+  .internet-required-page button {
+    background: #16a34a !important;
+    background-color: #16a34a !important;
+
+    color: #ffffff !important;
+
+    color-scheme: light !important;
+
+    forced-color-adjust: none !important;
+
+    -webkit-appearance: none !important;
+    appearance: none !important;
+  }
+}
+
+
+/* =========================================================
+   DEVICE DARK PREFERENCE
+   DO NOT CHANGE INTERNET REQUIRED TO DARK
+========================================================= */
+
+@media (prefers-color-scheme: dark) {
+
+  html:has(.internet-required-page),
+  body:has(.internet-required-page),
+  .internet-required-page {
+    background: #f9fafb !important;
+    background-color: #f9fafb !important;
+
+    color: #111827 !important;
+
+    color-scheme: light !important;
+
+    forced-color-adjust: none !important;
+  }
+
+  .internet-required-page > div {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+
+    color: #111827 !important;
+
+    color-scheme: light !important;
+
+    forced-color-adjust: none !important;
+  }
+
+  .internet-required-page h1 {
+    color: #111827 !important;
+  }
+
+  .internet-required-page p {
+    color: #6b7280 !important;
+  }
+
+  .internet-required-page button {
+    background: #16a34a !important;
+    background-color: #16a34a !important;
+
+    color: #ffffff !important;
+
+    color-scheme: light !important;
+  }
+}
 /* =========================================================
    END OF CAMPUSMART GLOBAL CSS
 ========================================================= */
