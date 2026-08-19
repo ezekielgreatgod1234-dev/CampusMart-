@@ -1,49 +1,68 @@
 import { useEffect, useState } from "react";
-import { FiWifiOff, FiRefreshCw } from "react-icons/fi";
+import {
+  FiWifiOff,
+  FiRefreshCw,
+} from "react-icons/fi";
 
 function InternetRequired() {
-  const [isOnline, setIsOnline] = useState(() => navigator.onLine);
+  const [isOnline, setIsOnline] = useState(() =>
+    typeof navigator !== "undefined"
+      ? navigator.onLine
+      : true
+  );
+
   const [checking, setChecking] = useState(false);
 
   /*
    * =========================================================
-   * FORCE THIS PAGE TO LIGHT MODE
+   * FORCE INTERNET REQUIRED SCREEN TO LIGHT MODE
    * =========================================================
    *
-   * This temporarily overrides:
-   *
-   * - html.dark
-   * - dark body styles
-   * - !important background colors
-   * - browser color-scheme
-   * - mobile dark-mode form controls
+   * This page is completely independent of the application's
+   * light/dark theme.
    */
   useEffect(() => {
     const html = document.documentElement;
     const body = document.body;
 
-    // Save current values
-    const previousHtmlBackground =
-      html.style.getPropertyValue("background-color");
-
-    const previousHtmlColor =
-      html.style.getPropertyValue("color");
-
-    const previousBodyBackground =
-      body.style.getPropertyValue("background-color");
-
-    const previousBodyColor =
-      body.style.getPropertyValue("color");
-
-    const previousHtmlColorScheme =
-      html.style.getPropertyValue("color-scheme");
-
-    const previousBodyColorScheme =
-      body.style.getPropertyValue("color-scheme");
-
     /*
-     * Force LIGHT mode with !important.
+     * Save existing values so they can be restored when
+     * InternetRequired disappears.
      */
+    const previous = {
+      htmlBackground:
+        html.style.getPropertyValue(
+          "background-color"
+        ),
+
+      htmlColor:
+        html.style.getPropertyValue("color"),
+
+      htmlColorScheme:
+        html.style.getPropertyValue(
+          "color-scheme"
+        ),
+
+      bodyBackground:
+        body.style.getPropertyValue(
+          "background-color"
+        ),
+
+      bodyColor:
+        body.style.getPropertyValue("color"),
+
+      bodyColorScheme:
+        body.style.getPropertyValue(
+          "color-scheme"
+        ),
+    };
+
+    /*
+     * =======================================================
+     * FORCE LIGHT
+     * =======================================================
+     */
+
     html.style.setProperty(
       "background-color",
       "#f9fafb",
@@ -81,8 +100,8 @@ function InternetRequired() {
     );
 
     /*
-     * Add an attribute so CSS can specifically identify
-     * that the Internet Required screen is active.
+     * Tell the rest of the application's CSS that the
+     * Internet Required screen is currently active.
      */
     html.setAttribute(
       "data-internet-required",
@@ -90,8 +109,11 @@ function InternetRequired() {
     );
 
     /*
-     * Change browser address-bar/theme color to light.
+     * =======================================================
+     * MOBILE BROWSER THEME COLOR
+     * =======================================================
      */
+
     let themeColorMeta =
       document.querySelector(
         'meta[name="theme-color"]'
@@ -100,20 +122,25 @@ function InternetRequired() {
     let createdThemeColorMeta = false;
 
     if (!themeColorMeta) {
-      themeColorMeta = document.createElement("meta");
+      themeColorMeta =
+        document.createElement("meta");
 
       themeColorMeta.setAttribute(
         "name",
         "theme-color"
       );
 
-      document.head.appendChild(themeColorMeta);
+      document.head.appendChild(
+        themeColorMeta
+      );
 
       createdThemeColorMeta = true;
     }
 
     const previousThemeColor =
-      themeColorMeta.getAttribute("content");
+      themeColorMeta.getAttribute(
+        "content"
+      );
 
     themeColorMeta.setAttribute(
       "content",
@@ -121,13 +148,19 @@ function InternetRequired() {
     );
 
     /*
-     * Cleanup when InternetRequired disappears.
+     * =======================================================
+     * CLEANUP
+     * =======================================================
      */
+
     return () => {
-      if (previousHtmlBackground) {
+      /*
+       * Restore HTML background.
+       */
+      if (previous.htmlBackground) {
         html.style.setProperty(
           "background-color",
-          previousHtmlBackground
+          previous.htmlBackground
         );
       } else {
         html.style.removeProperty(
@@ -135,19 +168,27 @@ function InternetRequired() {
         );
       }
 
-      if (previousHtmlColor) {
+      /*
+       * Restore HTML color.
+       */
+      if (previous.htmlColor) {
         html.style.setProperty(
           "color",
-          previousHtmlColor
+          previous.htmlColor
         );
       } else {
-        html.style.removeProperty("color");
+        html.style.removeProperty(
+          "color"
+        );
       }
 
-      if (previousHtmlColorScheme) {
+      /*
+       * Restore HTML color scheme.
+       */
+      if (previous.htmlColorScheme) {
         html.style.setProperty(
           "color-scheme",
-          previousHtmlColorScheme
+          previous.htmlColorScheme
         );
       } else {
         html.style.removeProperty(
@@ -155,10 +196,13 @@ function InternetRequired() {
         );
       }
 
-      if (previousBodyBackground) {
+      /*
+       * Restore body background.
+       */
+      if (previous.bodyBackground) {
         body.style.setProperty(
           "background-color",
-          previousBodyBackground
+          previous.bodyBackground
         );
       } else {
         body.style.removeProperty(
@@ -166,19 +210,27 @@ function InternetRequired() {
         );
       }
 
-      if (previousBodyColor) {
+      /*
+       * Restore body color.
+       */
+      if (previous.bodyColor) {
         body.style.setProperty(
           "color",
-          previousBodyColor
+          previous.bodyColor
         );
       } else {
-        body.style.removeProperty("color");
+        body.style.removeProperty(
+          "color"
+        );
       }
 
-      if (previousBodyColorScheme) {
+      /*
+       * Restore body color scheme.
+       */
+      if (previous.bodyColorScheme) {
         body.style.setProperty(
           "color-scheme",
-          previousBodyColorScheme
+          previous.bodyColorScheme
         );
       } else {
         body.style.removeProperty(
@@ -186,10 +238,16 @@ function InternetRequired() {
         );
       }
 
+      /*
+       * Remove Internet Required marker.
+       */
       html.removeAttribute(
         "data-internet-required"
       );
 
+      /*
+       * Restore browser theme color.
+       */
       if (themeColorMeta) {
         if (previousThemeColor) {
           themeColorMeta.setAttribute(
@@ -243,22 +301,43 @@ function InternetRequired() {
 
   /*
    * =========================================================
-   * RETRY
+   * CHECK INTERNET
    * =========================================================
    */
 
-  const handleRetry = () => {
+  const handleRetry = async () => {
+    if (checking) {
+      return;
+    }
+
     setChecking(true);
 
-    setTimeout(() => {
-      setIsOnline(navigator.onLine);
+    /*
+     * First check the browser's network state.
+     */
+    if (!navigator.onLine) {
+      setIsOnline(false);
       setChecking(false);
-    }, 500);
+      return;
+    }
+
+    /*
+     * Give the browser a short moment to reconnect.
+     */
+    await new Promise((resolve) =>
+      setTimeout(resolve, 500)
+    );
+
+    setIsOnline(navigator.onLine);
+    setChecking(false);
   };
 
   /*
-   * Internet available.
+   * =========================================================
+   * INTERNET AVAILABLE
+   * =========================================================
    */
+
   if (isOnline) {
     return null;
   }
@@ -275,20 +354,26 @@ function InternetRequired() {
       style={{
         position: "fixed",
         inset: 0,
+
         zIndex: 999999,
 
-        display: "flex",
-
         width: "100%",
+        height: "100%",
         minHeight: "100vh",
-      
+        minHeight: "100dvh",
+
+        display: "flex",
 
         alignItems: "center",
         justifyContent: "center",
 
         boxSizing: "border-box",
 
-        padding: "24px 16px",
+        padding:
+          "max(16px, env(safe-area-inset-top)) " +
+          "max(16px, env(safe-area-inset-right)) " +
+          "max(16px, env(safe-area-inset-bottom)) " +
+          "max(16px, env(safe-area-inset-left))",
 
         backgroundColor: "#f9fafb",
 
@@ -301,6 +386,8 @@ function InternetRequired() {
         WebkitTextSizeAdjust: "100%",
 
         overflowY: "auto",
+
+        overscrollBehavior: "none",
       }}
     >
       {/* =====================================================
@@ -308,24 +395,27 @@ function InternetRequired() {
       ===================================================== */}
 
       <div
+        className="internet-required-card"
         style={{
           width: "100%",
           maxWidth: "448px",
 
           boxSizing: "border-box",
 
-          padding: "24px",
+          padding:
+            "clamp(20px, 5vw, 32px)",
 
           backgroundColor: "#ffffff",
 
           color: "#111827",
 
-          borderRadius: "16px",
+          borderRadius:
+            "clamp(16px, 4vw, 20px)",
 
           textAlign: "center",
 
           boxShadow:
-            "0 1px 3px rgba(0, 0, 0, 0.08)",
+            "0 10px 30px rgba(0, 0, 0, 0.06)",
 
           colorScheme: "light",
 
@@ -337,9 +427,13 @@ function InternetRequired() {
         =================================================== */}
 
         <div
+          className="internet-required-icon"
           style={{
-            width: "80px",
-            height: "80px",
+            width:
+              "clamp(64px, 18vw, 80px)",
+
+            height:
+              "clamp(64px, 18vw, 80px)",
 
             margin: "0 auto",
 
@@ -357,7 +451,10 @@ function InternetRequired() {
             forcedColorAdjust: "none",
           }}
         >
-          <FiWifiOff size={36} />
+          <FiWifiOff
+            size={36}
+            strokeWidth={1.8}
+          />
         </div>
 
         {/* ===================================================
@@ -365,17 +462,24 @@ function InternetRequired() {
         =================================================== */}
 
         <h1
+          className="internet-required-title"
           style={{
-            marginTop: "24px",
-            marginBottom: "0",
+            marginTop:
+              "clamp(20px, 5vw, 24px)",
+
+            marginBottom: 0,
 
             color: "#111827",
 
-            fontSize: "24px",
+            fontSize:
+              "clamp(21px, 6vw, 26px)",
 
-            lineHeight: "32px",
+            lineHeight:
+              "clamp(28px, 7vw, 34px)",
 
             fontWeight: 700,
+
+            letterSpacing: "-0.02em",
 
             forcedColorAdjust: "none",
           }}
@@ -388,39 +492,45 @@ function InternetRequired() {
         =================================================== */}
 
         <p
+          className="internet-required-text"
           style={{
             marginTop: "12px",
-            marginBottom: "0",
+
+            marginBottom: 0,
 
             color: "#6b7280",
 
-            fontSize: "14px",
+            fontSize:
+              "clamp(13px, 3.8vw, 15px)",
 
-            lineHeight: "24px",
+            lineHeight: 1.7,
 
             forcedColorAdjust: "none",
           }}
         >
-          CampusMart requires an active internet
-          connection to work.
+          CampusMart requires an active
+          internet connection to work.
         </p>
 
         <p
+          className="internet-required-text"
           style={{
-            marginTop: "8px",
-            marginBottom: "0",
+            marginTop: "6px",
+
+            marginBottom: 0,
 
             color: "#6b7280",
 
-            fontSize: "14px",
+            fontSize:
+              "clamp(13px, 3.8vw, 15px)",
 
-            lineHeight: "24px",
+            lineHeight: 1.7,
 
             forcedColorAdjust: "none",
           }}
         >
-          Please connect to Wi-Fi or mobile data
-          and try again.
+          Please connect to Wi-Fi or mobile
+          data and try again.
         </p>
 
         {/* ===================================================
@@ -431,12 +541,16 @@ function InternetRequired() {
           type="button"
           onClick={handleRetry}
           disabled={checking}
+          className="internet-required-button"
           style={{
-            marginTop: "28px",
+            marginTop:
+              "clamp(22px, 6vw, 28px)",
 
             display: "flex",
 
             width: "100%",
+
+            minHeight: "48px",
 
             alignItems: "center",
             justifyContent: "center",
@@ -472,6 +586,11 @@ function InternetRequired() {
             forcedColorAdjust: "none",
 
             outline: "none",
+
+            WebkitTapHighlightColor:
+              "transparent",
+
+            touchAction: "manipulation",
           }}
         >
           <FiRefreshCw
@@ -480,24 +599,31 @@ function InternetRequired() {
               animation: checking
                 ? "internet-required-spin 1s linear infinite"
                 : "none",
+
+              flexShrink: 0,
             }}
           />
 
-          {checking
-            ? "Checking..."
-            : "Try Again"}
+          <span>
+            {checking
+              ? "Checking..."
+              : "Try Again"}
+          </span>
         </button>
       </div>
 
       {/* =====================================================
-          MOBILE + DARK MODE PROTECTION
+          LIGHT MODE PROTECTION
       ===================================================== */}
 
       <style>
         {`
           /*
-           * Animation
+           * ===================================================
+           * SPINNER
+           * ===================================================
            */
+
           @keyframes internet-required-spin {
             from {
               transform: rotate(0deg);
@@ -510,8 +636,11 @@ function InternetRequired() {
 
 
           /*
+           * ===================================================
            * FORCE LIGHT MODE
+           * ===================================================
            */
+
           html[data-internet-required="true"],
           html[data-internet-required="true"] body {
             background-color: #f9fafb !important;
@@ -522,9 +651,13 @@ function InternetRequired() {
 
 
           /*
-           * Internet Required container
+           * ===================================================
+           * PAGE
+           * ===================================================
            */
-          html.dark .internet-required-page {
+
+          html[data-internet-required="true"]
+          .internet-required-page {
             background-color: #f9fafb !important;
             color: #111827 !important;
             color-scheme: light !important;
@@ -533,9 +666,13 @@ function InternetRequired() {
 
 
           /*
-           * Card
+           * ===================================================
+           * CARD
+           * ===================================================
            */
-          html.dark .internet-required-page > div {
+
+          html[data-internet-required="true"]
+          .internet-required-card {
             background-color: #ffffff !important;
             color: #111827 !important;
             color-scheme: light !important;
@@ -544,25 +681,12 @@ function InternetRequired() {
 
 
           /*
-           * Title
+           * ===================================================
+           * ICON
+           * ===================================================
            */
-          html.dark .internet-required-page h1 {
-            color: #111827 !important;
-          }
 
-
-          /*
-           * Paragraphs
-           */
-          html.dark .internet-required-page p {
-            color: #6b7280 !important;
-          }
-
-
-          /*
-           * Icon background
-           */
-          html.dark .internet-required-page
+          html[data-internet-required="true"]
           .internet-required-icon {
             background-color: #f0fdf4 !important;
             color: #16a34a !important;
@@ -570,32 +694,133 @@ function InternetRequired() {
 
 
           /*
-           * Button
+           * ===================================================
+           * TITLE
+           * ===================================================
            */
-          html.dark .internet-required-page button {
+
+          html[data-internet-required="true"]
+          .internet-required-title {
+            color: #111827 !important;
+          }
+
+
+          /*
+           * ===================================================
+           * TEXT
+           * ===================================================
+           */
+
+          html[data-internet-required="true"]
+          .internet-required-text {
+            color: #6b7280 !important;
+          }
+
+
+          /*
+           * ===================================================
+           * BUTTON
+           * ===================================================
+           */
+
+          html[data-internet-required="true"]
+          .internet-required-button {
             background-color: #16a34a !important;
             color: #ffffff !important;
             color-scheme: light !important;
           }
 
 
+          html[data-internet-required="true"]
+          .internet-required-button:disabled {
+            background-color: #4ade80 !important;
+            color: #ffffff !important;
+          }
+
+
           /*
-           * Prevent dark-mode color changes
+           * ===================================================
+           * DARK HTML CLASS
+           *
+           * Even if the rest of CampusMart has:
+           *
+           * html.dark { ... }
+           *
+           * this screen stays light.
+           * ===================================================
            */
+
+          html.dark[data-internet-required="true"],
+          html.dark[data-internet-required="true"] body {
+            background-color: #f9fafb !important;
+            color: #111827 !important;
+            color-scheme: light !important;
+          }
+
+
+          html.dark[data-internet-required="true"]
+          .internet-required-page {
+            background-color: #f9fafb !important;
+            color: #111827 !important;
+          }
+
+
+          html.dark[data-internet-required="true"]
+          .internet-required-card {
+            background-color: #ffffff !important;
+            color: #111827 !important;
+          }
+
+
+          html.dark[data-internet-required="true"]
+          .internet-required-icon {
+            background-color: #f0fdf4 !important;
+            color: #16a34a !important;
+          }
+
+
+          html.dark[data-internet-required="true"]
+          .internet-required-title {
+            color: #111827 !important;
+          }
+
+
+          html.dark[data-internet-required="true"]
+          .internet-required-text {
+            color: #6b7280 !important;
+          }
+
+
+          html.dark[data-internet-required="true"]
+          .internet-required-button {
+            background-color: #16a34a !important;
+            color: #ffffff !important;
+          }
+
+
+          /*
+           * ===================================================
+           * ALL CHILD ELEMENTS
+           * ===================================================
+           */
+
+          html[data-internet-required="true"]
           .internet-required-page,
-          .internet-required-page *,
-          .internet-required-page button,
-          .internet-required-page h1,
-          .internet-required-page p {
+          html[data-internet-required="true"]
+          .internet-required-page * {
             color-scheme: light !important;
             forced-color-adjust: none !important;
           }
 
 
           /*
-           * Mobile browsers
+           * ===================================================
+           * MOBILE
+           * ===================================================
            */
-          @media (max-width: 768px) {
+
+          @media (max-width: 640px) {
+
             html[data-internet-required="true"],
             html[data-internet-required="true"] body {
               background-color: #f9fafb !important;
@@ -603,27 +828,152 @@ function InternetRequired() {
               color-scheme: light !important;
             }
 
+
+            html[data-internet-required="true"]
             .internet-required-page {
+              min-height: 100vh !important;
+              min-height: 100dvh !important;
+
+              padding:
+                max(16px, env(safe-area-inset-top))
+                max(16px, env(safe-area-inset-right))
+                max(16px, env(safe-area-inset-bottom))
+                max(16px, env(safe-area-inset-left))
+                !important;
+            }
+
+
+            html[data-internet-required="true"]
+            .internet-required-card {
+              width: 100% !important;
+              max-width: 448px !important;
+            }
+
+
+            html[data-internet-required="true"]
+            .internet-required-button {
+              min-height: 50px !important;
+            }
+          }
+
+
+          /*
+           * ===================================================
+           * VERY SMALL PHONES
+           * ===================================================
+           */
+
+          @media (max-width: 360px) {
+
+            html[data-internet-required="true"]
+            .internet-required-card {
+              padding: 20px 16px !important;
+              border-radius: 16px !important;
+            }
+
+
+            html[data-internet-required="true"]
+            .internet-required-title {
+              font-size: 21px !important;
+              line-height: 28px !important;
+            }
+
+
+            html[data-internet-required="true"]
+            .internet-required-text {
+              font-size: 13px !important;
+            }
+          }
+
+
+          /*
+           * ===================================================
+           * TOUCH DEVICES
+           * ===================================================
+           */
+
+          @media (hover: none) and (pointer: coarse) {
+
+            html[data-internet-required="true"]
+            .internet-required-button {
+              min-height: 50px !important;
+
+              -webkit-tap-highlight-color:
+                transparent !important;
+            }
+          }
+
+
+          /*
+           * ===================================================
+           * REMOVE BROWSER DARK MODE
+           * ===================================================
+           */
+
+          @media (prefers-color-scheme: dark) {
+
+            html[data-internet-required="true"],
+            html[data-internet-required="true"] body {
               background-color: #f9fafb !important;
               color: #111827 !important;
-              min-height: 100dvh !important;
+              color-scheme: light !important;
             }
 
-            .internet-required-page > div {
+
+            html[data-internet-required="true"]
+            .internet-required-page {
+              background-color: #f9fafb !important;
+            }
+
+
+            html[data-internet-required="true"]
+            .internet-required-card {
               background-color: #ffffff !important;
-            }
-
-            .internet-required-page h1 {
               color: #111827 !important;
             }
 
-            .internet-required-page p {
+
+            html[data-internet-required="true"]
+            .internet-required-title {
+              color: #111827 !important;
+            }
+
+
+            html[data-internet-required="true"]
+            .internet-required-text {
               color: #6b7280 !important;
             }
 
-            .internet-required-page button {
+
+            html[data-internet-required="true"]
+            .internet-required-button {
               background-color: #16a34a !important;
               color: #ffffff !important;
+            }
+          }
+
+
+          /*
+           * ===================================================
+           * HIGH CONTRAST / FORCED COLORS
+           * ===================================================
+           */
+
+          @media (forced-colors: active) {
+
+            html[data-internet-required="true"]
+            .internet-required-page {
+              forced-color-adjust: none !important;
+            }
+
+            html[data-internet-required="true"]
+            .internet-required-card {
+              forced-color-adjust: none !important;
+            }
+
+            html[data-internet-required="true"]
+            .internet-required-button {
+              forced-color-adjust: none !important;
             }
           }
         `}
