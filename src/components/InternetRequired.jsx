@@ -1,3 +1,4 @@
+```jsx
 import { useEffect, useState } from "react";
 import {
   FiWifiOff,
@@ -10,6 +11,10 @@ function InternetRequired() {
   );
 
   const [checking, setChecking] = useState(false);
+
+  // =========================================================
+  // INTERNET STATUS
+  // =========================================================
 
   useEffect(() => {
     const handleOnline = () => {
@@ -43,6 +48,10 @@ function InternetRequired() {
     };
   }, []);
 
+  // =========================================================
+  // RETRY
+  // =========================================================
+
   const handleRetry = () => {
     setChecking(true);
 
@@ -52,15 +61,23 @@ function InternetRequired() {
     }, 500);
   };
 
-  // Internet is available.
-  // Do not render anything.
+  // =========================================================
+  // INTERNET AVAILABLE
+  // =========================================================
+
   if (isOnline) {
     return null;
   }
 
+  // =========================================================
+  // OFFLINE SCREEN
+  // ALWAYS LIGHT
+  // =========================================================
+
   return (
     <div
       className="
+        internet-required-page
         fixed
         inset-0
         z-[99999]
@@ -84,7 +101,9 @@ function InternetRequired() {
           text-center
         "
       >
-        {/* ICON */}
+        {/* =================================================
+            ICON
+        ================================================= */}
 
         <div
           className="
@@ -102,7 +121,9 @@ function InternetRequired() {
           <FiWifiOff size={36} />
         </div>
 
-        {/* TITLE */}
+        {/* =================================================
+            TITLE
+        ================================================= */}
 
         <h1
           className="
@@ -115,7 +136,9 @@ function InternetRequired() {
           No Internet Connection
         </h1>
 
-        {/* TEXT */}
+        {/* =================================================
+            DESCRIPTION
+        ================================================= */}
 
         <p
           className="
@@ -141,7 +164,9 @@ function InternetRequired() {
           data and try again.
         </p>
 
-        {/* BUTTON */}
+        {/* =================================================
+            RETRY BUTTON
+        ================================================= */}
 
         <button
           type="button"
@@ -163,7 +188,9 @@ function InternetRequired() {
             text-white
             transition
             hover:bg-green-700
+            active:bg-green-800
             disabled:bg-green-400
+            disabled:cursor-not-allowed
           "
         >
           <FiRefreshCw
@@ -185,3 +212,4 @@ function InternetRequired() {
 }
 
 export default InternetRequired;
+```
