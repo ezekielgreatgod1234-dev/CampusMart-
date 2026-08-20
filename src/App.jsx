@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   Routes,
@@ -74,6 +74,21 @@ const emptyProfile = {
   profileImage: null,
   role: "",
 };
+
+// =========================================================
+// CUSTOMER DATA SAVE DELAY
+//
+// Rapid cart/wishlist changes are grouped together.
+// Example:
+//
+// + + + + +
+//
+// Instead of 5 immediate writes, the latest state is
+// saved once after the user stops clicking.
+//
+// =========================================================
+
+const CUSTOMER_DATA_SAVE_DELAY = 800;
 
 // =========================================================
 // LOADING SCREEN
@@ -494,15 +509,6 @@ function App() {
 
   // =======================================================
   // INTERNET CONNECTION
-  //
-  // IMPORTANT:
-  //
-  // We start with TRUE instead of navigator.onLine.
-  //
-  // This prevents InternetRequired from flashing during
-  // page refresh while the browser is reconnecting.
-  //
-  // We then check navigator.onLine shortly after startup.
   // =======================================================
 
   const [isOnline, setIsOnline] =
@@ -511,25 +517,13 @@ function App() {
   useEffect(() => {
     let startupTimer;
 
-    // =====================================================
-    // ONLINE
-    // =====================================================
-
     const handleOnline = () => {
       setIsOnline(true);
     };
 
-    // =====================================================
-    // OFFLINE
-    // =====================================================
-
     const handleOffline = () => {
       setIsOnline(false);
     };
-
-    // =====================================================
-    // LISTEN FOR NETWORK CHANGES
-    // =====================================================
 
     window.addEventListener(
       "online",
@@ -541,25 +535,12 @@ function App() {
       handleOffline
     );
 
-    // =====================================================
-    // STARTUP NETWORK CHECK
-    //
-    // Give the browser a little time to establish the
-    // network after a refresh before showing the offline
-    // screen.
-    //
-    // This is what prevents the brief flash.
-    // =====================================================
-
-    startupTimer = window.setTimeout(() => {
-      setIsOnline(
-        navigator.onLine
-      );
-    }, 1000);
-
-    // =====================================================
-    // CLEANUP
-    // =====================================================
+    startupTimer =
+      window.setTimeout(() => {
+        setIsOnline(
+          navigator.onLine
+        );
+      }, 1000);
 
     return () => {
       window.clearTimeout(
@@ -643,7 +624,185 @@ function App() {
     useState([]);
 
   // =======================================================
+  // CUSTOMER DATA SAVE REF
+  //
+  // Keeps the latest data waiting to be saved.
+  // =======================================================
+
+  const customerDataSaveTimer =
+    useRef(null);
+
+  const pendingCustomerData =
+    useRef(null);
+
+  // =======================================================
+  // CUSTOMER DATA DOCUMENT
+  // =======================================================
+
+  const getCustomerDataRef = () => {
+    if (!firebaseUser) {
+      return null;
+    }
+
+    return doc(
+      db,
+      "users",
+      firebaseUser.uid,
+      "customerData",
+      "main"
+    );
+  };
+
+  // =======================================================
+  // ACTUALLY SAVE CUSTOMER DATA
+  // =======================================================
+
+  const writeCustomerData =
+    async ({
+      nextCart,
+      nextWishlist,
+      nextOrders,
+    }) => {
+      if (!firebaseUser) {
+        return false;
+      }
+
+      const customerDataRef =
+        getCustomerDataRef();
+
+      if (!customerDataRef) {
+        return false;
+      }
+
+      try {
+        await setDoc(
+          customerDataRef,
+          {
+            cart:
+              Array.isArray(nextCart)
+                ? nextCart
+                : [],
+
+            wishlist:
+              Array.isArray(
+                nextWishlist
+              )
+                ? nextWishlist
+                : [],
+
+            orders:
+              Array.isArray(nextOrders)
+                ? nextOrders
+                : [],
+
+            updatedAt:
+              serverTimestamp(),
+          },
+          {
+            merge: true,
+          }
+        );
+
+        return true;
+      } catch (error) {
+        console.error(
+          "Error saving customer data:",
+          error
+        );
+
+        return false;
+      }
+    };
+
+  // =======================================================
+  // QUEUE CUSTOMER DATA SAVE
+  //
+  // This prevents many rapid writes.
+  //
+  // Example:
+  //
+  // User clicks + 5 times quickly.
+  //
+  // Instead of:
+  //
+  // WRITE
+  // WRITE
+  // WRITE
+  // WRITE
+  // WRITE
+  //
+  // We normally do:
+  //
+  // WRITE
+  //
+  // with the latest state.
+  // =======================================================
+
+  const queueCustomerDataSave =
+    ({
+      nextCart,
+      nextWishlist,
+      nextOrders,
+      immediate = false,
+    }) => {
+      if (!firebaseUser) {
+        return;
+      }
+
+      pendingCustomerData.current = {
+        nextCart,
+        nextWishlist,
+        nextOrders,
+      };
+
+      if (
+        customerDataSaveTimer.current
+      ) {
+        window.clearTimeout(
+          customerDataSaveTimer.current
+        );
+
+        customerDataSaveTimer.current =
+          null;
+      }
+
+      if (immediate) {
+        const dataToSave =
+          pendingCustomerData.current;
+
+        pendingCustomerData.current =
+          null;
+
+        writeCustomerData(
+          dataToSave
+        );
+
+        return;
+      }
+
+      customerDataSaveTimer.current =
+        window.setTimeout(() => {
+          const dataToSave =
+            pendingCustomerData.current;
+
+          pendingCustomerData.current =
+            null;
+
+          customerDataSaveTimer.current =
+            null;
+
+          if (dataToSave) {
+            writeCustomerData(
+              dataToSave
+            );
+          }
+        }, CUSTOMER_DATA_SAVE_DELAY);
+    };
+
+  // =======================================================
   // LOAD CUSTOMER DATA
+  //
+  // ONE READ WHEN THE USER SESSION STARTS.
   // =======================================================
 
   useEffect(() => {
@@ -659,13 +818,11 @@ function App() {
         }
 
         const customerDataRef =
-          doc(
-            db,
-            "users",
-            firebaseUser.uid,
-            "customerData",
-            "main"
-          );
+          getCustomerDataRef();
+
+        if (!customerDataRef) {
+          return;
+        }
 
         try {
           const snapshot =
@@ -682,6 +839,7 @@ function App() {
             setWishlist([]);
             setOrders([]);
 
+            // Only create the document once.
             await setDoc(
               customerDataRef,
               {
@@ -743,67 +901,26 @@ function App() {
   }, [firebaseUser]);
 
   // =======================================================
-  // SAVE CUSTOMER DATA
+  // CLEAN UP PENDING CUSTOMER SAVE
   // =======================================================
 
-  const saveCustomerData =
-    async ({
-      nextCart,
-      nextWishlist,
-      nextOrders,
-    }) => {
-      if (!firebaseUser) {
-        return false;
+  useEffect(() => {
+    return () => {
+      if (
+        customerDataSaveTimer.current
+      ) {
+        window.clearTimeout(
+          customerDataSaveTimer.current
+        );
+
+        customerDataSaveTimer.current =
+          null;
       }
 
-      const customerDataRef =
-        doc(
-          db,
-          "users",
-          firebaseUser.uid,
-          "customerData",
-          "main"
-        );
-
-      try {
-        await setDoc(
-          customerDataRef,
-          {
-            cart:
-              Array.isArray(nextCart)
-                ? nextCart
-                : [],
-
-            wishlist:
-              Array.isArray(
-                nextWishlist
-              )
-                ? nextWishlist
-                : [],
-
-            orders:
-              Array.isArray(nextOrders)
-                ? nextOrders
-                : [],
-
-            updatedAt:
-              serverTimestamp(),
-          },
-          {
-            merge: true,
-          }
-        );
-
-        return true;
-      } catch (error) {
-        console.error(
-          "Error saving customer data:",
-          error
-        );
-
-        return false;
-      }
+      pendingCustomerData.current =
+        null;
     };
+  }, []);
 
   // =======================================================
   // UPDATE PROFILE
@@ -820,6 +937,7 @@ function App() {
         ...updates,
       };
 
+      // Update UI immediately.
       setProfile(newProfile);
 
       try {
@@ -910,7 +1028,7 @@ function App() {
 
     setCart(nextCart);
 
-    saveCustomerData({
+    queueCustomerDataSave({
       nextCart,
       nextWishlist: wishlist,
       nextOrders: orders,
@@ -939,7 +1057,7 @@ function App() {
 
     setCart(nextCart);
 
-    saveCustomerData({
+    queueCustomerDataSave({
       nextCart,
       nextWishlist: wishlist,
       nextOrders: orders,
@@ -971,7 +1089,7 @@ function App() {
 
     setCart(nextCart);
 
-    saveCustomerData({
+    queueCustomerDataSave({
       nextCart,
       nextWishlist: wishlist,
       nextOrders: orders,
@@ -993,7 +1111,7 @@ function App() {
 
     setCart(nextCart);
 
-    saveCustomerData({
+    queueCustomerDataSave({
       nextCart,
       nextWishlist: wishlist,
       nextOrders: orders,
@@ -1030,7 +1148,7 @@ function App() {
 
     setCart(nextCart);
 
-    saveCustomerData({
+    queueCustomerDataSave({
       nextCart,
       nextWishlist: wishlist,
       nextOrders: orders,
@@ -1081,7 +1199,7 @@ function App() {
 
     setWishlist(nextWishlist);
 
-    saveCustomerData({
+    queueCustomerDataSave({
       nextCart: cart,
       nextWishlist,
       nextOrders: orders,
@@ -1103,7 +1221,7 @@ function App() {
 
     setWishlist(nextWishlist);
 
-    saveCustomerData({
+    queueCustomerDataSave({
       nextCart: cart,
       nextWishlist,
       nextOrders: orders,
@@ -1112,6 +1230,8 @@ function App() {
 
   // =======================================================
   // PLACE ORDER
+  //
+  // Orders are saved immediately.
   // =======================================================
 
   const placeOrder = (
@@ -1210,10 +1330,12 @@ function App() {
     setOrders(nextOrders);
     setCart(nextCart);
 
-    saveCustomerData({
+    // Save immediately because this is a critical action.
+    queueCustomerDataSave({
       nextCart,
       nextWishlist: wishlist,
       nextOrders,
+      immediate: true,
     });
 
     return newOrder;
@@ -1251,6 +1373,12 @@ function App() {
           firebaseUser.uid
         )
       );
+
+    // =====================================================
+    // MESSAGES PAGE
+    //
+    // Realtime listener is active only here.
+    // =====================================================
 
     if (isMessagesPage) {
       const unsubscribe =
@@ -1297,6 +1425,12 @@ function App() {
         unsubscribe();
       };
     }
+
+    // =====================================================
+    // OTHER PAGES
+    //
+    // Only one read when needed.
+    // =====================================================
 
     let cancelled = false;
 
@@ -1555,6 +1689,14 @@ function App() {
 
   // =======================================================
   // DELETE MESSAGES
+  //
+  // deleteType:
+  //
+  // "me"
+  // "everyone"
+  //
+  // Delete for everyone only removes messages sent
+  // by the current user.
   // =======================================================
 
   const deleteMessages =
@@ -1718,7 +1860,9 @@ function App() {
 
                     lastMessage:
                       lastMessage?.text ||
-                      "",
+                      (lastMessage?.imageUrl
+                        ? "📷 Photo"
+                        : ""),
 
                     lastMessageAt:
                       lastMessage?.createdAt ||
@@ -1824,7 +1968,9 @@ function App() {
 
                   lastMessage:
                     lastMessage?.text ||
-                    "",
+                    (lastMessage?.imageUrl
+                      ? "📷 Photo"
+                      : ""),
 
                   lastMessageAt:
                     lastMessage?.createdAt ||
@@ -1897,6 +2043,7 @@ function App() {
         );
 
       try {
+        // One read to check if chat already exists.
         const existingSnapshot =
           await getDoc(
             conversationRef
@@ -1912,6 +2059,7 @@ function App() {
           return;
         }
 
+        // Only create if it does not exist.
         await setDoc(
           conversationRef,
           {
@@ -1998,10 +2146,6 @@ function App() {
   if (profileLoading) {
     return (
       <>
-        {/* =================================================
-            INTERNET REQUIRED
-            ================================================= */}
-
         {!isOnline && (
           <InternetRequired />
         )}
@@ -2019,20 +2163,6 @@ function App() {
 
   return (
     <>
-      {/* ===================================================
-          INTERNET REQUIRED
-
-          This is outside Routes so it works globally.
-
-          IMPORTANT:
-          isOnline starts as TRUE to prevent the
-          InternetRequired screen from flashing during
-          refresh.
-
-          If the browser confirms that the connection
-          is actually offline, it will appear.
-          =================================================== */}
-
       {!isOnline && (
         <InternetRequired />
       )}

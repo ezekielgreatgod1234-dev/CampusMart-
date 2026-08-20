@@ -32,6 +32,9 @@ import {
   doc,
   getDoc,
   setDoc,
+  addDoc,
+  collection,
+  serverTimestamp,
 } from "firebase/firestore";
 
 import { db } from "../../context/firebase";
@@ -131,10 +134,11 @@ function Settings({
   const [contactError, setContactError] =
     useState("");
 
+  const [contactSending, setContactSending] =
+    useState(false);
+
   /* =======================================================
      LOAD USER SETTINGS
-
-     IMPORTANT:
 
      Every account uses its own Firebase UID.
 
@@ -219,12 +223,9 @@ function Settings({
               "campus"
           );
         } else {
-          /*
-            Brand-new account.
-
-            Create settings ONLY for the
-            currently logged-in Firebase user.
-          */
+          /* -----------------------------------------------
+             BRAND-NEW ACCOUNT
+          ------------------------------------------------ */
 
           const newProfile = {
             fullName: "",
@@ -415,13 +416,6 @@ function Settings({
 
   /* =======================================================
      SAVE PERSONAL INFORMATION
-
-     Saves to:
-
-     users/{CURRENT_FIREBASE_UID}
-
-     Therefore Account A cannot overwrite
-     Account B.
   ======================================================= */
 
   const handlePersonalSave =
@@ -499,21 +493,6 @@ function Settings({
 
   /* =======================================================
      ACTUAL FIREBASE PASSWORD UPDATE
-
-     This is the important part.
-
-     1. Check that a Firebase user exists.
-     2. Validate the fields.
-     3. Check that the account uses password login.
-     4. Re-authenticate with the CURRENT password.
-     5. Update Firebase Authentication password.
-     6. Clear the form.
-
-     The password belongs to the currently logged-in
-     Firebase account.
-
-     Account A -> Account A password
-     Account B -> Account B password
   ======================================================= */
 
   const handlePasswordUpdate =
@@ -645,10 +624,6 @@ function Settings({
 
         /* ---------------------------------------------
            RE-AUTHENTICATE USER
-
-           Firebase requires the user to prove
-           ownership of the account before changing
-           sensitive information such as a password.
         --------------------------------------------- */
 
         const credential =
@@ -673,8 +648,6 @@ function Settings({
 
         /* ---------------------------------------------
            SUCCESS
-
-           Clear password fields.
         --------------------------------------------- */
 
         setPasswordForm({
@@ -691,10 +664,6 @@ function Settings({
           "Password update error:",
           error
         );
-
-        /* ---------------------------------------------
-           FIREBASE ERROR HANDLING
-        --------------------------------------------- */
 
         switch (error.code) {
           case "auth/wrong-password":
@@ -799,12 +768,45 @@ function Settings({
 
   /* =======================================================
      CONTACT SUBMIT
+
+     The message is saved directly to:
+
+     supportMessages/{automatically generated ID}
+
+     The future Admin Dashboard can listen to this
+     collection and display all support messages.
+
+     Each message contains:
+
+     - userId
+     - userName
+     - userEmail
+     - subject
+     - message
+     - status
+     - createdAt
   ======================================================= */
 
   const handleContactSubmit =
-    () => {
+    async () => {
       setContactError("");
       setContactSent(false);
+
+      /* -----------------------------------------------
+         CHECK USER
+      ------------------------------------------------ */
+
+      if (!firebaseUser?.uid) {
+        setContactError(
+          "Your account session has expired. Please log in again."
+        );
+
+        return;
+      }
+
+      /* -----------------------------------------------
+         CHECK SUBJECT
+      ------------------------------------------------ */
 
       if (
         !contactForm.subject.trim()
@@ -816,6 +818,10 @@ function Settings({
         return;
       }
 
+      /* -----------------------------------------------
+         CHECK MESSAGE
+      ------------------------------------------------ */
+
       if (
         !contactForm.message.trim()
       ) {
@@ -826,18 +832,79 @@ function Settings({
         return;
       }
 
-      setContactSent(true);
+      try {
+        setContactSending(true);
 
-      setContactForm({
-        subject: "",
-        message: "",
-      });
+        /* ---------------------------------------------
+           SAVE MESSAGE TO FIRESTORE
+
+           Collection:
+
+           supportMessages
+
+           Firestore automatically creates
+           the document ID.
+        --------------------------------------------- */
+
+        await addDoc(
+          collection(
+            db,
+            "supportMessages"
+          ),
+          {
+            userId:
+              firebaseUser.uid,
+
+            userName:
+              profile.fullName ||
+              personalForm.fullName ||
+              "CampusMart User",
+
+            userEmail:
+              firebaseUser.email ||
+              personalForm.email ||
+              "",
+
+            subject:
+              contactForm.subject.trim(),
+
+            message:
+              contactForm.message.trim(),
+
+            status: "unread",
+
+            createdAt:
+              serverTimestamp(),
+          }
+        );
+
+        /* ---------------------------------------------
+           SUCCESS
+        --------------------------------------------- */
+
+        setContactSent(true);
+
+        setContactForm({
+          subject: "",
+          message: "",
+        });
+
+      } catch (error) {
+        console.error(
+          "Could not send support message:",
+          error
+        );
+
+        setContactError(
+          "We couldn't send your message. Please check your internet connection and try again."
+        );
+      } finally {
+        setContactSending(false);
+      }
     };
 
   /* =======================================================
      LOADING SCREEN
-
-     We keep this lightweight.
   ======================================================= */
 
   if (loading) {
@@ -871,6 +938,7 @@ function Settings({
             "
           >
             <div className="text-center">
+
               <div
                 className="
                   w-10
@@ -893,6 +961,7 @@ function Settings({
               >
                 Loading your settings...
               </p>
+
             </div>
           </div>
         </div>
@@ -932,6 +1001,7 @@ function Settings({
           ================================================= */}
 
           <div>
+
             <button
               type="button"
               onClick={() =>
@@ -958,6 +1028,7 @@ function Settings({
             </button>
 
             <div className="mt-5">
+
               <h1
                 className="
                   text-2xl
@@ -978,7 +1049,9 @@ function Settings({
                 Manage your CampusMart account,
                 privacy and preferences.
               </p>
+
             </div>
+
           </div>
 
           {/* =================================================
@@ -1021,6 +1094,7 @@ function Settings({
                   border-gray-100
                 "
               >
+
                 <div
                   className="
                     w-10
@@ -1039,6 +1113,7 @@ function Settings({
                 </div>
 
                 <div>
+
                   <h2
                     className="
                       font-bold
@@ -1056,7 +1131,9 @@ function Settings({
                   >
                     Account preferences
                   </p>
+
                 </div>
+
               </div>
 
               <div className="mt-4 space-y-5">
@@ -1068,6 +1145,7 @@ function Settings({
                         section.title
                       }
                     >
+
                       <p
                         className="
                           px-3
@@ -1088,6 +1166,7 @@ function Settings({
 
                         {section.items.map(
                           (item) => {
+
                             const Icon =
                               item.icon;
 
@@ -1132,6 +1211,7 @@ function Settings({
                                   }
                                 `}
                               >
+
                                 <div className="flex items-center gap-3">
 
                                   <div
@@ -1187,17 +1267,20 @@ function Settings({
                                     }
                                   />
                                 )}
+
                               </button>
                             );
                           }
                         )}
 
                       </div>
+
                     </div>
                   )
                 )}
 
               </div>
+
             </div>
 
             {/* =================================================
@@ -1224,6 +1307,7 @@ function Settings({
               {activeSection ===
                 "personal" && (
                 <section>
+
                   <SettingsHeader
                     title="Personal Information"
                     description="Manage your personal details and account information."
@@ -1245,6 +1329,7 @@ function Settings({
                       gap-5
                     "
                   >
+
                     <SettingsInput
                       label="Full Name"
                       name="fullName"
@@ -1294,6 +1379,7 @@ function Settings({
                       }
                       icon={FiEye}
                     />
+
                   </div>
 
                   <div
@@ -1306,6 +1392,7 @@ function Settings({
                       justify-end
                     "
                   >
+
                     <button
                       type="button"
                       onClick={
@@ -1327,13 +1414,17 @@ function Settings({
                         transition
                       "
                     >
+
                       <FiSave
                         size={16}
                       />
 
                       Save Changes
+
                     </button>
+
                   </div>
+
                 </section>
               )}
 
@@ -1344,6 +1435,7 @@ function Settings({
               {activeSection ===
                 "password" && (
                 <section>
+
                   <SettingsHeader
                     title="Change Password"
                     description="Update your password to keep your CampusMart account secure."
@@ -1351,8 +1443,6 @@ function Settings({
                   />
 
                   <div className="mt-6 max-w-xl space-y-5">
-
-                    {/* CURRENT PASSWORD */}
 
                     <PasswordField
                       label="Current Password"
@@ -1366,8 +1456,6 @@ function Settings({
                       placeholder="Enter your current password"
                     />
 
-                    {/* NEW PASSWORD */}
-
                     <PasswordField
                       label="New Password"
                       name="newPassword"
@@ -1380,10 +1468,9 @@ function Settings({
                       placeholder="Enter your new password"
                     />
 
-                    {/* PASSWORD STRENGTH */}
-
                     {passwordForm.newPassword && (
                       <div className="mt-2">
+
                         <p
                           className={`text-xs font-semibold ${
                             passwordStrength ===
@@ -1399,10 +1486,9 @@ function Settings({
                             passwordStrength
                           }
                         </p>
+
                       </div>
                     )}
-
-                    {/* CONFIRM PASSWORD */}
 
                     <PasswordField
                       label="Confirm New Password"
@@ -1416,8 +1502,6 @@ function Settings({
                       placeholder="Confirm your new password"
                     />
 
-                    {/* PASSWORD REQUIREMENTS */}
-
                     <div
                       className="
                         rounded-xl
@@ -1427,7 +1511,9 @@ function Settings({
                         p-4
                       "
                     >
+
                       <div className="flex items-center gap-2">
+
                         <FiKey
                           className="text-green-600"
                           size={16}
@@ -1442,6 +1528,7 @@ function Settings({
                         >
                           Password requirements
                         </p>
+
                       </div>
 
                       <div
@@ -1453,6 +1540,7 @@ function Settings({
                           gap-2
                         "
                       >
+
                         <PasswordRequirement
                           checked={
                             passwordForm.newPassword.length >=
@@ -1488,10 +1576,10 @@ function Settings({
                           }
                           text="Passwords match"
                         />
-                      </div>
-                    </div>
 
-                    {/* PASSWORD MESSAGE */}
+                      </div>
+
+                    </div>
 
                     {passwordMessage ===
                     "success" ? (
@@ -1505,8 +1593,6 @@ function Settings({
                         }
                       />
                     ) : null}
-
-                    {/* UPDATE BUTTON */}
 
                     <button
                       type="button"
@@ -1534,6 +1620,7 @@ function Settings({
                         transition
                       "
                     >
+
                       <FiLock
                         size={16}
                       />
@@ -1541,8 +1628,11 @@ function Settings({
                       {passwordUpdating
                         ? "Updating Password..."
                         : "Update Password"}
+
                     </button>
+
                   </div>
+
                 </section>
               )}
 
@@ -1553,6 +1643,7 @@ function Settings({
               {activeSection ===
                 "visibility" && (
                 <section>
+
                   <SettingsHeader
                     title="Profile Visibility"
                     description="Choose who can see your CampusMart profile."
@@ -1605,6 +1696,7 @@ function Settings({
                       description="Your profile will only be visible to you."
                       icon={FiLock}
                     />
+
                   </div>
 
                   <div
@@ -1619,6 +1711,7 @@ function Settings({
                       gap-3
                     "
                   >
+
                     <FiShield
                       className="
                         text-green-600
@@ -1640,7 +1733,9 @@ function Settings({
                       account information remains
                       protected.
                     </p>
+
                   </div>
+
                 </section>
               )}
 
@@ -1651,6 +1746,7 @@ function Settings({
               {activeSection ===
                 "help" && (
                 <section>
+
                   <SettingsHeader
                     title="Help Center"
                     description="Need help using CampusMart? We're here for you."
@@ -1666,6 +1762,7 @@ function Settings({
                       gap-4
                     "
                   >
+
                     <SupportCard
                       icon={
                         FiMessageCircle
@@ -1689,6 +1786,7 @@ function Settings({
                         )
                       }
                     />
+
                   </div>
 
                   <div
@@ -1701,6 +1799,7 @@ function Settings({
                       p-6
                     "
                   >
+
                     <h3
                       className="
                         font-bold
@@ -1746,13 +1845,17 @@ function Settings({
                         font-medium
                       "
                     >
+
                       <FiMail
                         size={16}
                       />
 
                       Contact Support
+
                     </button>
+
                   </div>
+
                 </section>
               )}
 
@@ -1763,6 +1866,7 @@ function Settings({
               {activeSection ===
                 "faq" && (
                 <section>
+
                   <SettingsHeader
                     title="Frequently Asked Questions"
                     description="Find answers to common CampusMart questions."
@@ -1804,21 +1908,25 @@ function Settings({
                     />
 
                   </div>
+
                 </section>
               )}
 
               {/* =================================================
-                  CONTACT
+                  CONTACT CAMPUSMART
               ================================================= */}
 
               {activeSection ===
                 "contact" && (
                 <section>
+
                   <SettingsHeader
                     title="Contact CampusMart"
                     description="Have a question, complaint or suggestion? Send us a message."
                     icon={FiMail}
                   />
+
+                  {/* SUCCESS MESSAGE */}
 
                   {contactSent && (
                     <SuccessMessage
@@ -1826,23 +1934,52 @@ function Settings({
                     />
                   )}
 
+                  {/* ERROR MESSAGE */}
+
                   {contactError && (
-                    <p
+                    <div
                       className="
-                        mt-3
-                        text-sm
-                        text-red-500
+                        mt-5
+                        flex
+                        items-start
+                        gap-3
+                        rounded-xl
+                        border
+                        border-red-100
+                        bg-red-50
+                        p-4
                       "
                     >
-                      {contactError}
-                    </p>
+
+                      <FiAlertCircle
+                        className="
+                          text-red-500
+                          mt-0.5
+                          shrink-0
+                        "
+                        size={18}
+                      />
+
+                      <p
+                        className="
+                          text-sm
+                          text-red-600
+                        "
+                      >
+                        {contactError}
+                      </p>
+
+                    </div>
                   )}
 
                   <div className="mt-6 max-w-2xl space-y-5">
 
-                    {/* SUBJECT */}
+                    {/* -----------------------------------------
+                        SUBJECT
+                    ----------------------------------------- */}
 
                     <div>
+
                       <label
                         className="
                           block
@@ -1864,6 +2001,9 @@ function Settings({
                         onChange={
                           handleContactChange
                         }
+                        disabled={
+                          contactSending
+                        }
                         placeholder="What can we help you with?"
                         className="
                           w-full
@@ -1879,14 +2019,19 @@ function Settings({
                           outline-none
                           focus:bg-white
                           focus:border-green-500
+                          disabled:opacity-60
                           transition
                         "
                       />
+
                     </div>
 
-                    {/* MESSAGE */}
+                    {/* -----------------------------------------
+                        MESSAGE
+                    ----------------------------------------- */}
 
                     <div>
+
                       <label
                         className="
                           block
@@ -1908,6 +2053,9 @@ function Settings({
                         onChange={
                           handleContactChange
                         }
+                        disabled={
+                          contactSending
+                        }
                         placeholder="Write your message..."
                         className="
                           w-full
@@ -1924,12 +2072,16 @@ function Settings({
                           resize-none
                           focus:bg-white
                           focus:border-green-500
+                          disabled:opacity-60
                           transition
                         "
                       />
+
                     </div>
 
-                    {/* SEND */}
+                    {/* -----------------------------------------
+                        SEND
+                    ----------------------------------------- */}
 
                     <div
                       className="
@@ -1938,39 +2090,55 @@ function Settings({
                         pt-2
                       "
                     >
+
                       <button
                         type="button"
                         onClick={
                           handleContactSubmit
                         }
+                        disabled={
+                          contactSending
+                        }
                         className="
                           flex
                           items-center
+                          justify-center
                           gap-2
                           px-5
                           py-3
                           rounded-xl
                           bg-green-600
                           hover:bg-green-700
+                          disabled:bg-green-300
+                          disabled:cursor-not-allowed
                           text-white
                           text-sm
                           font-medium
                           transition
                         "
                       >
+
                         <FiSend
                           size={16}
                         />
 
-                        Send Message
+                        {contactSending
+                          ? "Sending..."
+                          : "Send Message"}
+
                       </button>
+
                     </div>
+
                   </div>
+
                 </section>
               )}
 
             </div>
+
           </div>
+
         </div>
       </div>
     </CustomerLayout>
@@ -1997,6 +2165,7 @@ const SettingsHeader = ({
         border-gray-100
       "
     >
+
       <div
         className="
           w-11
@@ -2014,6 +2183,7 @@ const SettingsHeader = ({
       </div>
 
       <div>
+
         <h2
           className="
             text-xl
@@ -2034,7 +2204,9 @@ const SettingsHeader = ({
         >
           {description}
         </p>
+
       </div>
+
     </div>
   );
 };
@@ -2053,6 +2225,7 @@ const SettingsInput = ({
 }) => {
   return (
     <div>
+
       <label
         className="
           block
@@ -2066,6 +2239,7 @@ const SettingsInput = ({
       </label>
 
       <div className="relative">
+
         <Icon
           className="
             absolute
@@ -2100,7 +2274,9 @@ const SettingsInput = ({
             transition
           "
         />
+
       </div>
+
     </div>
   );
 };
@@ -2121,6 +2297,7 @@ const PasswordField = ({
 
   return (
     <div>
+
       <label
         className="
           mb-2
@@ -2134,6 +2311,7 @@ const PasswordField = ({
       </label>
 
       <div className="relative">
+
         <input
           type={
             show
@@ -2165,7 +2343,9 @@ const PasswordField = ({
         <button
           type="button"
           onClick={() =>
-            setShow((current) => !current)
+            setShow(
+              (current) => !current
+            )
           }
           className="
             absolute
@@ -2197,7 +2377,9 @@ const PasswordField = ({
             />
           )}
         </button>
+
       </div>
+
     </div>
   );
 };
@@ -2219,6 +2401,7 @@ const PasswordRequirement = ({
         text-xs
       "
     >
+
       <span
         className={`
           w-5
@@ -2253,6 +2436,7 @@ const PasswordRequirement = ({
       >
         {text}
       </span>
+
     </div>
   );
 };
@@ -2299,6 +2483,7 @@ const VisibilityCard = ({
         }
       `}
     >
+
       <div className="flex items-center gap-4">
 
         <div
@@ -2328,6 +2513,7 @@ const VisibilityCard = ({
         </div>
 
         <div>
+
           <h3
             className="
               text-sm
@@ -2348,7 +2534,9 @@ const VisibilityCard = ({
           >
             {description}
           </p>
+
         </div>
+
       </div>
 
       <div
@@ -2376,6 +2564,7 @@ const VisibilityCard = ({
           />
         )}
       </div>
+
     </button>
   );
 };
@@ -2406,6 +2595,7 @@ const SupportCard = ({
         transition
       "
     >
+
       <div
         className="
           w-11
@@ -2460,6 +2650,7 @@ const SupportCard = ({
           size={14}
         />
       </div>
+
     </button>
   );
 };
@@ -2483,6 +2674,7 @@ const FAQ = ({
         overflow-hidden
       "
     >
+
       <summary
         className="
           flex
@@ -2497,6 +2689,7 @@ const FAQ = ({
           text-gray-800
         "
       >
+
         <span>
           {question}
         </span>
@@ -2510,6 +2703,7 @@ const FAQ = ({
             shrink-0
           "
         />
+
       </summary>
 
       <div
@@ -2523,6 +2717,7 @@ const FAQ = ({
       >
         {answer}
       </div>
+
     </details>
   );
 };
@@ -2548,6 +2743,7 @@ const SuccessMessage = ({
         p-4
       "
     >
+
       <div
         className="
           w-7
@@ -2574,6 +2770,7 @@ const SuccessMessage = ({
       >
         {message}
       </p>
+
     </div>
   );
 };
@@ -2598,6 +2795,7 @@ const ErrorMessage = ({
         p-4
       "
     >
+
       <FiAlertCircle
         className="
           text-red-500
@@ -2615,6 +2813,7 @@ const ErrorMessage = ({
       >
         {message}
       </p>
+
     </div>
   );
 };

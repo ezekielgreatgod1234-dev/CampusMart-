@@ -31,7 +31,10 @@ function Messages({
 
   const navigate = useNavigate();
 
-  const { firebaseUser, profileLoading } = useAuth();
+  const {
+    firebaseUser,
+    profileLoading,
+  } = useAuth();
 
   const [search, setSearch] = useState("");
 
@@ -96,6 +99,10 @@ function Messages({
                 conversationDoc.id;
 
 
+              // ==========================================
+              // PARTICIPANTS
+              // ==========================================
+
               const participants =
                 Array.isArray(data.participants)
                   ? data.participants
@@ -103,7 +110,7 @@ function Messages({
 
 
               // ==========================================
-              // FIND THE OTHER PERSON
+              // FIND OTHER USER
               // ==========================================
 
               const otherUserId =
@@ -112,6 +119,10 @@ function Messages({
                     uid !== firebaseUser.uid
                 );
 
+
+              // ==========================================
+              // PARTICIPANT NAMES
+              // ==========================================
 
               const participantNames =
                 data.participantNames || {};
@@ -127,23 +138,15 @@ function Messages({
 
               const otherUserName =
                 otherUserId &&
-                participantNames[
-                  otherUserId
-                ]
-                  ? participantNames[
-                      otherUserId
-                    ]
+                participantNames[otherUserId]
+                  ? participantNames[otherUserId]
                   : "CampusMart User";
 
 
               const otherUserImage =
                 otherUserId &&
-                participantImages[
-                  otherUserId
-                ]
-                  ? participantImages[
-                      otherUserId
-                    ]
+                participantImages[otherUserId]
+                  ? participantImages[otherUserId]
                   : null;
 
 
@@ -183,7 +186,7 @@ function Messages({
 
 
               // ==========================================
-              // TIME
+              // LAST MESSAGE TIME
               // ==========================================
 
               const lastMessageAt =
@@ -219,11 +222,14 @@ function Messages({
 
                 id: conversationId,
 
-                name: otherUserName,
+                name:
+                  otherUserName,
 
-                image: otherUserImage,
+                image:
+                  otherUserImage,
 
-                online: otherUserOnline,
+                online:
+                  otherUserOnline,
 
                 lastMessage,
 
@@ -382,6 +388,11 @@ function Messages({
   const openChat = (
     conversationId
   ) => {
+
+    if (!conversationId) {
+      return;
+    }
+
 
     navigate(
       `/messages/${conversationId}`
@@ -561,6 +572,10 @@ function Messages({
   }
 
 
+  // =========================================================
+  // PAGE
+  // =========================================================
+
   return (
     <CustomerLayout
       cartCount={cartCount}
@@ -606,8 +621,6 @@ function Messages({
           </div>
 
 
-          {/* NEW MESSAGE */}
-
           <button
             type="button"
             className="
@@ -648,8 +661,6 @@ function Messages({
             gap-4
           "
         >
-
-          {/* CONVERSATIONS */}
 
           <div
             className="
@@ -699,8 +710,6 @@ function Messages({
           </div>
 
 
-          {/* UNREAD */}
-
           <div
             className="
               bg-white
@@ -748,8 +757,6 @@ function Messages({
 
           </div>
 
-
-          {/* ONLINE */}
 
           <div
             className="
@@ -862,8 +869,6 @@ function Messages({
             overflow-hidden
           "
         >
-
-          {/* CARD HEADER */}
 
           <div
             className="
@@ -1102,7 +1107,7 @@ function Messages({
                     </div>
 
 
-                    {/* UNREAD COUNT */}
+                    {/* UNREAD */}
 
                     {message.unread > 0 && (
 
@@ -1130,8 +1135,6 @@ function Messages({
                     )}
 
 
-                    {/* ARROW */}
-
                     <FiChevronRight
                       className="text-gray-300 shrink-0"
                       size={18}
@@ -1145,8 +1148,6 @@ function Messages({
             </div>
 
           ) : (
-
-            /* EMPTY STATE */
 
             <div
               className="

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 
 import CustomerLayout from "../../layouts/CustomerLayout";
@@ -14,61 +14,483 @@ import {
   FiUser,
   FiCheck,
   FiMessageCircle,
+  FiRefreshCw,
 } from "react-icons/fi";
+
+import {
+  doc,
+  getDoc,
+  setDoc,
+  serverTimestamp,
+} from "firebase/firestore";
+
+import { db } from "../../context/firebase";
+
+import { useAuth } from "../../context/AuthContext";
+
+
+// =========================================================
+// TEMPORARY HARDCODED SELLER ID
+//
+// Replace this with the Firebase Authentication UID of the
+// seller you want customers to chat with for now.
+//
+// Later, when the seller dashboard is created, this will be
+// replaced by product.sellerId from Firebase.
+// =========================================================
+
+const HARDCODED_SELLER_ID =
+  "YOUR_SELLER_FIREBASE_UID";
+
 
 function ProductDetails({
   addToCart,
   cartCount = 0,
   wishlist = [],
   toggleWishlist,
-  openSellerChat,
 }) {
   const { id } = useParams();
+
   const navigate = useNavigate();
 
-  // ==============================
+  const {
+    firebaseUser,
+    profileLoading,
+  } = useAuth();
+
+
+  // =========================================================
   // FIND PRODUCT
-  // ==============================
+  // =========================================================
 
   const product = products.find(
-    (item) => item.id === Number(id)
+    (item) =>
+      item.id === Number(id)
   );
 
-  // ==============================
+
+  // =========================================================
   // STATES
-  // ==============================
+  // =========================================================
 
-  const [quantity, setQuantity] = useState(1);
-  const [added, setAdded] = useState(false);
+  const [quantity, setQuantity] =
+    useState(1);
 
-  // ==============================
+  const [added, setAdded] =
+    useState(false);
+
+  const [chatLoading, setChatLoading] =
+    useState(false);
+
+
+  // =========================================================
   // WISHLIST STATUS
-  // ==============================
+  // =========================================================
 
   const isWishlisted = product
     ? wishlist.includes(product.id)
     : false;
 
-  // ==============================
+
+  // =========================================================
+  // WISHLIST
+  // =========================================================
+
+  const handleWishlist = () => {
+    if (!toggleWishlist) {
+      console.error(
+        "toggleWishlist function was not provided."
+      );
+
+      return;
+    }
+
+    toggleWishlist(product.id);
+  };
+
+
+  // =========================================================
+  // ADD TO CART
+  // =========================================================
+
+  const handleAddToCart = () => {
+    if (!addToCart) {
+      console.error(
+        "addToCart function was not provided."
+      );
+
+      return;
+    }
+
+    addToCart(
+      product,
+      quantity
+    );
+
+    setAdded(true);
+
+    setTimeout(() => {
+      setAdded(false);
+    }, 2000);
+  };
+
+
+  // =========================================================
+  // BUY NOW
+  // =========================================================
+
+  const handleBuyNow = () => {
+    if (!addToCart) {
+      console.error(
+        "addToCart function was not provided."
+      );
+
+      return;
+    }
+
+    addToCart(
+      product,
+      quantity
+    );
+
+    navigate("/cart");
+  };
+
+
+  // =========================================================
+  // CHAT WITH SELLER
+  //
+  // TEMPORARY VERSION
+  //
+  // Customer
+  //      ↓
+  // Product Details
+  //      ↓
+  // Hardcoded Seller ID
+  //      ↓
+  // Create/find conversation
+  //      ↓
+  // /messages/{conversationId}
+  //      ↓
+  // Chat.jsx
+  //
+  // Later we can replace the hardcoded seller ID with:
+  //
+  // product.sellerId
+  //
+  // =========================================================
+
+  const handleChatWithSeller =
+    async () => {
+
+      // -----------------------------------------------------
+      // Prevent multiple clicks
+      // -----------------------------------------------------
+
+      if (chatLoading) {
+        return;
+      }
+
+
+      // -----------------------------------------------------
+      // Make sure Firebase authentication has finished
+      // -----------------------------------------------------
+
+      if (profileLoading) {
+        return;
+      }
+
+
+      // -----------------------------------------------------
+      // Make sure customer is logged in
+      // -----------------------------------------------------
+
+      if (!firebaseUser?.uid) {
+
+        console.error(
+          "Customer is not logged in."
+        );
+
+        navigate("/login");
+
+        return;
+      }
+
+
+      // -----------------------------------------------------
+      // Make sure seller ID exists
+      // -----------------------------------------------------
+
+      if (
+        !HARDCODED_SELLER_ID ||
+        HARDCODED_SELLER_ID ===
+          "YOUR_SELLER_FIREBASE_UID"
+      ) {
+
+        console.error(
+          "Please add the hardcoded seller Firebase UID."
+        );
+
+        alert(
+          "Seller chat is not configured yet. Add the seller Firebase UID first."
+        );
+
+        return;
+      }
+
+
+      // -----------------------------------------------------
+      // Prevent chatting with yourself
+      // -----------------------------------------------------
+
+      if (
+        firebaseUser.uid ===
+        HARDCODED_SELLER_ID
+      ) {
+
+        alert(
+          "You cannot chat with yourself."
+        );
+
+        return;
+      }
+
+
+      setChatLoading(true);
+
+
+      try {
+
+        // ===================================================
+        // CREATE A CONSISTENT CONVERSATION ID
+        //
+        // Sorting the IDs means:
+        //
+        // customer + seller
+        //
+        // and
+        //
+        // seller + customer
+        //
+        // always produce the same conversation ID.
+        //
+        // ===================================================
+
+        const participantIds = [
+          firebaseUser.uid,
+          HARDCODED_SELLER_ID,
+        ].sort();
+
+
+        const conversationId =
+          participantIds.join("_");
+
+
+        const conversationRef =
+          doc(
+            db,
+            "conversations",
+            conversationId
+          );
+
+
+        // ===================================================
+        // CHECK IF CONVERSATION ALREADY EXISTS
+        // ===================================================
+
+        const conversationSnapshot =
+          await getDoc(
+            conversationRef
+          );
+
+
+        // ===================================================
+        // EXISTING CONVERSATION
+        //
+        // Simply open it.
+        // ===================================================
+
+        if (
+          conversationSnapshot.exists()
+        ) {
+
+          navigate(
+            `/messages/${conversationId}`
+          );
+
+          return;
+        }
+
+
+        // ===================================================
+        // CREATE NEW CONVERSATION
+        // ===================================================
+
+        const customerName =
+          firebaseUser.displayName ||
+          "CampusMart User";
+
+
+        const sellerName =
+          product?.sellerName ||
+          "CampusMart Seller";
+
+
+        await setDoc(
+          conversationRef,
+          {
+            participants: [
+              firebaseUser.uid,
+              HARDCODED_SELLER_ID,
+            ],
+
+            participantNames: {
+              [firebaseUser.uid]:
+                customerName,
+
+              [HARDCODED_SELLER_ID]:
+                sellerName,
+            },
+
+            participantImages: {
+              [firebaseUser.uid]:
+                firebaseUser.photoURL ||
+                null,
+
+              [HARDCODED_SELLER_ID]:
+                null,
+            },
+
+            participantOnline: {
+              [firebaseUser.uid]:
+                true,
+
+              [HARDCODED_SELLER_ID]:
+                false,
+            },
+
+            unread: {
+              [firebaseUser.uid]: 0,
+
+              [HARDCODED_SELLER_ID]: 0,
+            },
+
+            lastMessage:
+              "Conversation started",
+
+            lastMessageAt:
+              serverTimestamp(),
+
+            createdAt:
+              serverTimestamp(),
+
+            updatedAt:
+              serverTimestamp(),
+
+            // ---------------------------------------------
+            // Temporary product information
+            //
+            // This lets Chat.jsx know which product the
+            // conversation started from.
+            // ---------------------------------------------
+
+            productId:
+              product.id,
+
+            productName:
+              product.name,
+
+            productImage:
+              product.image,
+
+            sellerId:
+              HARDCODED_SELLER_ID,
+          }
+        );
+
+
+        // ===================================================
+        // OPEN CHAT
+        // ===================================================
+
+        navigate(
+          `/messages/${conversationId}`
+        );
+
+      } catch (error) {
+
+        console.error(
+          "Error opening seller chat:",
+          error
+        );
+
+        alert(
+          "Unable to open seller chat right now. Please try again."
+        );
+
+      } finally {
+
+        if (
+          profileLoading === false
+        ) {
+          setChatLoading(false);
+        }
+
+      }
+    };
+
+
+  // =========================================================
   // PRODUCT NOT FOUND
-  // ==============================
+  // =========================================================
 
   if (!product) {
-    return (
-      <CustomerLayout cartCount={cartCount}>
-        <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">
 
-          <h2 className="text-2xl font-bold text-gray-800">
+    return (
+      <CustomerLayout
+        cartCount={cartCount}
+      >
+
+        <div
+          className="
+            bg-white
+            rounded-2xl
+            border
+            border-gray-100
+            p-10
+            text-center
+          "
+        >
+
+          <h2
+            className="
+              text-2xl
+              font-bold
+              text-gray-800
+            "
+          >
             Product Not Found
           </h2>
 
-          <p className="text-gray-500 mt-2">
-            The product you're looking for doesn't exist.
+
+          <p
+            className="
+              text-gray-500
+              mt-2
+            "
+          >
+            The product you're looking for
+            doesn't exist.
           </p>
+
 
           <button
             type="button"
-            onClick={() => navigate("/browse-products")}
+            onClick={() =>
+              navigate(
+                "/browse-products"
+              )
+            }
             className="
               mt-5
               bg-green-600
@@ -84,92 +506,35 @@ function ProductDetails({
           </button>
 
         </div>
+
       </CustomerLayout>
     );
   }
 
-  // ==============================
-  // WISHLIST
-  // ==============================
 
-  const handleWishlist = () => {
-    if (!toggleWishlist) {
-      console.error(
-        "toggleWishlist function was not provided."
-      );
-
-      return;
-    }
-
-    toggleWishlist(product.id);
-  };
-
-  // ==============================
-  // ADD TO CART
-  // ==============================
-
-  const handleAddToCart = () => {
-    if (!addToCart) {
-      console.error(
-        "addToCart function was not provided."
-      );
-
-      return;
-    }
-
-    addToCart(product, quantity);
-
-    setAdded(true);
-
-    setTimeout(() => {
-      setAdded(false);
-    }, 2000);
-  };
-
-  // ==============================
-  // BUY NOW
-  // ==============================
-
-  const handleBuyNow = () => {
-    if (!addToCart) {
-      console.error(
-        "addToCart function was not provided."
-      );
-
-      return;
-    }
-
-    addToCart(product, quantity);
-
-    navigate("/cart");
-  };
-
-  // ==============================
-  // CHAT WITH SELLER
-  // ==============================
-
-  const handleChatWithSeller = () => {
-    if (!openSellerChat) {
-      console.error(
-        "openSellerChat function was not provided."
-      );
-
-      return;
-    }
-
-    openSellerChat(product);
-  };
+  // =========================================================
+  // RENDER
+  // =========================================================
 
   return (
-    <CustomerLayout cartCount={cartCount}>
+    <CustomerLayout
+      cartCount={cartCount}
+    >
 
       <div className="space-y-6">
 
-        {/* ================= BACK BUTTON ================= */}
+
+        {/* ===================================================
+            BACK BUTTON
+        =================================================== */}
 
         <button
           type="button"
-          onClick={() => navigate("/browse-products")}
+          onClick={() =>
+            navigate(
+              "/browse-products"
+            )
+          }
           className="
             flex
             items-center
@@ -179,15 +544,19 @@ function ProductDetails({
             transition
           "
         >
+
           <FiArrowLeft />
 
           <span>
             Back to Products
           </span>
+
         </button>
 
 
-        {/* ================= PRODUCT SECTION ================= */}
+        {/* ===================================================
+            PRODUCT SECTION
+        =================================================== */}
 
         <div
           className="
@@ -210,7 +579,10 @@ function ProductDetails({
             "
           >
 
-            {/* ================= IMAGE ================= */}
+
+            {/* =================================================
+                IMAGE
+            ================================================= */}
 
             <div className="relative">
 
@@ -241,7 +613,9 @@ function ProductDetails({
 
               <button
                 type="button"
-                onClick={handleWishlist}
+                onClick={
+                  handleWishlist
+                }
                 aria-label={
                   isWishlisted
                     ? "Remove from wishlist"
@@ -284,13 +658,27 @@ function ProductDetails({
             </div>
 
 
-            {/* ================= INFORMATION ================= */}
+            {/* =================================================
+                INFORMATION
+            ================================================= */}
 
-            <div className="flex flex-col">
+            <div
+              className="
+                flex
+                flex-col
+              "
+            >
+
 
               {/* CATEGORY */}
 
-              <span className="text-green-600 font-medium text-sm">
+              <span
+                className="
+                  text-green-600
+                  font-medium
+                  text-sm
+                "
+              >
                 {product.category}
               </span>
 
@@ -312,9 +700,22 @@ function ProductDetails({
 
               {/* RATING */}
 
-              <div className="flex items-center gap-2 mt-4">
+              <div
+                className="
+                  flex
+                  items-center
+                  gap-2
+                  mt-4
+                "
+              >
 
-                <div className="flex items-center gap-1">
+                <div
+                  className="
+                    flex
+                    items-center
+                    gap-1
+                  "
+                >
 
                   <FiStar
                     className="
@@ -323,17 +724,32 @@ function ProductDetails({
                     "
                   />
 
-                  <span className="font-medium">
+                  <span
+                    className="
+                      font-medium
+                    "
+                  >
                     {product.rating}
                   </span>
 
                 </div>
 
-                <span className="text-gray-400">
+
+                <span
+                  className="
+                    text-gray-400
+                  "
+                >
                   •
                 </span>
 
-                <span className="text-gray-500 text-sm">
+
+                <span
+                  className="
+                    text-gray-500
+                    text-sm
+                  "
+                >
                   12 Reviews
                 </span>
 
@@ -344,9 +760,15 @@ function ProductDetails({
 
               <div className="mt-6">
 
-                <p className="text-sm text-gray-400">
+                <p
+                  className="
+                    text-sm
+                    text-gray-400
+                  "
+                >
                   Price
                 </p>
+
 
                 <h2
                   className="
@@ -362,7 +784,9 @@ function ProductDetails({
               </div>
 
 
-              {/* ================= SELLER ================= */}
+              {/* =================================================
+                  SELLER
+              ================================================= */}
 
               <div
                 className="
@@ -388,17 +812,38 @@ function ProductDetails({
                     shrink-0
                   "
                 >
-                  <FiUser className="text-green-600" />
+
+                  <FiUser
+                    className="
+                      text-green-600
+                    "
+                  />
+
                 </div>
 
 
-                <div className="flex-1">
+                <div
+                  className="
+                    flex-1
+                  "
+                >
 
-                  <p className="text-xs text-gray-400">
+                  <p
+                    className="
+                      text-xs
+                      text-gray-400
+                    "
+                  >
                     Sold by
                   </p>
 
-                  <p className="font-semibold text-gray-800">
+
+                  <p
+                    className="
+                      font-semibold
+                      text-gray-800
+                    "
+                  >
                     {product.sellerName}
                   </p>
 
@@ -407,11 +852,19 @@ function ProductDetails({
               </div>
 
 
-              {/* ================= CHAT WITH SELLER ================= */}
+              {/* =================================================
+                  CHAT WITH SELLER
+              ================================================= */}
 
               <button
                 type="button"
-                onClick={handleChatWithSeller}
+                onClick={
+                  handleChatWithSeller
+                }
+                disabled={
+                  chatLoading ||
+                  profileLoading
+                }
                 className="
                   w-full
                   mt-3
@@ -423,6 +876,8 @@ function ProductDetails({
                   border-green-600
                   text-green-600
                   hover:bg-green-50
+                  disabled:opacity-60
+                  disabled:cursor-not-allowed
                   py-3
                   rounded-xl
                   font-semibold
@@ -430,20 +885,50 @@ function ProductDetails({
                 "
               >
 
-                <FiMessageCircle size={18} />
+                {chatLoading ? (
 
-                Chat with Seller
+                  <>
+                    <FiRefreshCw
+                      size={18}
+                      className="
+                        animate-spin
+                      "
+                    />
+
+                    Opening Chat...
+
+                  </>
+
+                ) : (
+
+                  <>
+                    <FiMessageCircle
+                      size={18}
+                    />
+
+                    Chat with Seller
+                  </>
+
+                )}
 
               </button>
 
 
-              {/* DESCRIPTION */}
+              {/* =================================================
+                  DESCRIPTION
+              ================================================= */}
 
               <div className="mt-6">
 
-                <h3 className="font-bold text-gray-800">
+                <h3
+                  className="
+                    font-bold
+                    text-gray-800
+                  "
+                >
                   Description
                 </h3>
+
 
                 <p
                   className="
@@ -453,21 +938,33 @@ function ProductDetails({
                     mt-2
                   "
                 >
-                  This is a quality {product.name} available
-                  on CampusMart. Connect with the seller,
-                  ask questions and purchase securely.
+                  This is a quality{" "}
+                  {product.name}{" "}
+                  available on CampusMart.
+                  Connect with the seller,
+                  ask questions and purchase
+                  securely.
                 </p>
 
               </div>
 
 
-              {/* ================= QUANTITY ================= */}
+              {/* =================================================
+                  QUANTITY
+              ================================================= */}
 
               <div className="mt-6">
 
-                <p className="font-semibold text-gray-800 mb-3">
+                <p
+                  className="
+                    font-semibold
+                    text-gray-800
+                    mb-3
+                  "
+                >
                   Quantity
                 </p>
+
 
                 <div
                   className="
@@ -484,8 +981,12 @@ function ProductDetails({
                   <button
                     type="button"
                     onClick={() =>
-                      setQuantity((current) =>
-                        Math.max(1, current - 1)
+                      setQuantity(
+                        (current) =>
+                          Math.max(
+                            1,
+                            current - 1
+                          )
                       )
                     }
                     className="
@@ -500,6 +1001,7 @@ function ProductDetails({
                     <FiMinus />
                   </button>
 
+
                   <span
                     className="
                       w-12
@@ -510,11 +1012,13 @@ function ProductDetails({
                     {quantity}
                   </span>
 
+
                   <button
                     type="button"
                     onClick={() =>
                       setQuantity(
-                        (current) => current + 1
+                        (current) =>
+                          current + 1
                       )
                     }
                     className="
@@ -534,7 +1038,9 @@ function ProductDetails({
               </div>
 
 
-              {/* ================= ACTION BUTTONS ================= */}
+              {/* =================================================
+                  ACTION BUTTONS
+              ================================================= */}
 
               <div
                 className="
@@ -550,7 +1056,9 @@ function ProductDetails({
 
                 <button
                   type="button"
-                  onClick={handleAddToCart}
+                  onClick={
+                    handleAddToCart
+                  }
                   className={`
                     flex
                     items-center
@@ -571,17 +1079,21 @@ function ProductDetails({
                 >
 
                   {added ? (
+
                     <>
                       <FiCheck />
 
                       Added to Cart
                     </>
+
                   ) : (
+
                     <>
                       <FiShoppingCart />
 
                       Add to Cart
                     </>
+
                   )}
 
                 </button>
@@ -591,7 +1103,9 @@ function ProductDetails({
 
                 <button
                   type="button"
-                  onClick={handleBuyNow}
+                  onClick={
+                    handleBuyNow
+                  }
                   className="
                     bg-green-600
                     hover:bg-green-700
@@ -614,7 +1128,9 @@ function ProductDetails({
         </div>
 
 
-        {/* ================= REVIEWS ================= */}
+        {/* =====================================================
+            REVIEWS
+        ===================================================== */}
 
         <div
           className="
@@ -627,12 +1143,25 @@ function ProductDetails({
           "
         >
 
-          <h2 className="text-xl font-bold text-gray-800">
+          <h2
+            className="
+              text-xl
+              font-bold
+              text-gray-800
+            "
+          >
             Customer Reviews
           </h2>
 
 
-          <div className="flex items-center gap-2 mt-4">
+          <div
+            className="
+              flex
+              items-center
+              gap-2
+              mt-4
+            "
+          >
 
             <FiStar
               className="
@@ -641,11 +1170,18 @@ function ProductDetails({
               "
             />
 
+
             <span className="font-bold">
               {product.rating}
             </span>
 
-            <span className="text-gray-500 text-sm">
+
+            <span
+              className="
+                text-gray-500
+                text-sm
+              "
+            >
               based on 12 reviews
             </span>
 
@@ -661,7 +1197,13 @@ function ProductDetails({
             "
           >
 
-            <div className="flex items-center gap-3">
+            <div
+              className="
+                flex
+                items-center
+                gap-3
+              "
+            >
 
               <div
                 className="
@@ -674,27 +1216,51 @@ function ProductDetails({
                   justify-center
                 "
               >
-                <FiUser className="text-gray-500" />
+
+                <FiUser
+                  className="
+                    text-gray-500
+                  "
+                />
+
               </div>
+
 
               <div>
 
-                <p className="font-semibold text-gray-800">
+                <p
+                  className="
+                    font-semibold
+                    text-gray-800
+                  "
+                >
                   CampusMart User
                 </p>
 
-                <div className="flex items-center gap-1 mt-1">
 
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <FiStar
-                      key={star}
-                      size={13}
-                      className="
-                        text-yellow-500
-                        fill-yellow-500
-                      "
-                    />
-                  ))}
+                <div
+                  className="
+                    flex
+                    items-center
+                    gap-1
+                    mt-1
+                  "
+                >
+
+                  {[1, 2, 3, 4, 5].map(
+                    (star) => (
+
+                      <FiStar
+                        key={star}
+                        size={13}
+                        className="
+                          text-yellow-500
+                          fill-yellow-500
+                        "
+                      />
+
+                    )
+                  )}
 
                 </div>
 
@@ -703,9 +1269,17 @@ function ProductDetails({
             </div>
 
 
-            <p className="text-sm text-gray-500 mt-3 leading-6">
-              Great product and exactly as described.
-              The seller was also very helpful.
+            <p
+              className="
+                text-sm
+                text-gray-500
+                mt-3
+                leading-6
+              "
+            >
+              Great product and exactly
+              as described. The seller was
+              also very helpful.
             </p>
 
           </div>
@@ -717,5 +1291,6 @@ function ProductDetails({
     </CustomerLayout>
   );
 }
+
 
 export default ProductDetails;
