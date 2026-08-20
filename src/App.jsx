@@ -5,6 +5,7 @@ import {
   Route,
   Navigate,
   useNavigate,
+  useLocation,
 } from "react-router-dom";
 
 import { useAuth } from "./context/AuthContext";
@@ -12,6 +13,7 @@ import { useAuth } from "./context/AuthContext";
 import {
   doc,
   getDoc,
+  getDocs,
   setDoc,
   onSnapshot,
   serverTimestamp,
@@ -64,16 +66,6 @@ const emptyProfile = {
   address: "",
   profileImage: null,
   role: "",
-};
-
-// =========================================================
-// DEFAULT CUSTOMER DATA
-// =========================================================
-
-const emptyCustomerData = {
-  cart: [],
-  wishlist: [],
-  orders: [],
 };
 
 // =========================================================
@@ -279,11 +271,219 @@ function SellerDashboardComingSoon() {
 }
 
 // =========================================================
+// CONVERT FIRESTORE CONVERSATION INTO APP DATA
+// =========================================================
+
+function formatConversation(
+  conversationDoc,
+  currentUserId
+) {
+  const data =
+    conversationDoc.data();
+
+  const participantNames =
+    data.participantNames || {};
+
+  const participantImages =
+    data.participantImages || {};
+
+  const participants =
+    Array.isArray(data.participants)
+      ? data.participants
+      : [];
+
+  const otherParticipantId =
+    participants.find(
+      (uid) =>
+        String(uid) !==
+        String(currentUserId)
+    ) || null;
+
+  const otherName =
+    participantNames[
+      otherParticipantId
+    ] ||
+    "CampusMart User";
+
+  const unreadCount =
+    Number(
+      data.unreadCounts?.[
+        currentUserId
+      ] || 0
+    );
+
+  const conversationMessages =
+    Array.isArray(data.messages)
+      ? data.messages
+      : [];
+
+  const visibleMessages =
+    conversationMessages.filter(
+      (message) => {
+        const deletedFor =
+          Array.isArray(
+            message.deletedFor
+          )
+            ? message.deletedFor
+            : [];
+
+        if (
+          deletedFor.includes(
+            currentUserId
+          )
+        ) {
+          return false;
+        }
+
+        if (
+          message.deletedForEveryone ===
+          true
+        ) {
+          return false;
+        }
+
+        return true;
+      }
+    );
+
+  const sortedVisibleMessages = [
+    ...visibleMessages,
+  ].sort((a, b) => {
+    const aTime =
+      a.createdAt?.toMillis
+        ? a.createdAt.toMillis()
+        : Number(a.createdAt || 0);
+
+    const bTime =
+      b.createdAt?.toMillis
+        ? b.createdAt.toMillis()
+        : Number(b.createdAt || 0);
+
+    return aTime - bTime;
+  });
+
+  const lastVisibleMessage =
+    sortedVisibleMessages.length > 0
+      ? sortedVisibleMessages[
+          sortedVisibleMessages.length - 1
+        ]
+      : null;
+
+  const lastMessage =
+    lastVisibleMessage?.text ||
+    (lastVisibleMessage?.imageUrl
+      ? "📷 Photo"
+      : "") ||
+    "";
+
+  const lastMessageAt =
+    lastVisibleMessage?.createdAt ||
+    0;
+
+  let displayTime = "";
+
+  if (lastMessageAt) {
+    try {
+      const date =
+        lastMessageAt?.toDate
+          ? lastMessageAt.toDate()
+          : new Date(lastMessageAt);
+
+      displayTime =
+        date.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+    } catch {
+      displayTime = "";
+    }
+  }
+
+  return {
+    id:
+      conversationDoc.id,
+
+    conversationId:
+      conversationDoc.id,
+
+    otherParticipantId,
+
+    name:
+      otherName,
+
+    profileImage:
+      participantImages[
+        otherParticipantId
+      ] || null,
+
+    lastMessage,
+
+    time:
+      displayTime,
+
+    unread:
+      unreadCount,
+
+    online:
+      data.onlineStatus?.[
+        otherParticipantId
+      ] === true,
+
+    conversation:
+      sortedVisibleMessages,
+
+    allMessages:
+      conversationMessages,
+  };
+}
+
+// =========================================================
+// SORT CONVERSATIONS
+// =========================================================
+
+function sortConversations(
+  conversationList
+) {
+  return [...conversationList].sort(
+    (a, b) => {
+      const aMessages =
+        a.conversation || [];
+
+      const bMessages =
+        b.conversation || [];
+
+      const aLast =
+        aMessages[
+          aMessages.length - 1
+        ]?.createdAt || 0;
+
+      const bLast =
+        bMessages[
+          bMessages.length - 1
+        ]?.createdAt || 0;
+
+      const aTime =
+        aLast?.toMillis
+          ? aLast.toMillis()
+          : Number(aLast) || 0;
+
+      const bTime =
+        bLast?.toMillis
+          ? bLast.toMillis()
+          : Number(bLast) || 0;
+
+      return bTime - aTime;
+    }
+  );
+}
+
+// =========================================================
 // APP
 // =========================================================
 
 function App() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   // =======================================================
   // FIREBASE AUTH
@@ -291,11 +491,17 @@ function App() {
 
   const {
     firebaseUser,
+    profile: authProfile,
     profileLoading,
   } = useAuth();
 
   // =======================================================
   // PROFILE
+  //
+  // IMPORTANT:
+  // AuthContext already loads the Firestore profile.
+  //
+  // We therefore DO NOT call getDoc(users/uid) again here.
   // =======================================================
 
   const [profile, setProfile] =
@@ -304,11 +510,36 @@ function App() {
   const [profileFetching, setProfileFetching] =
     useState(false);
 
+  useEffect(() => {
+    if (!firebaseUser) {
+      setProfile(emptyProfile);
+      setProfileFetching(false);
+      return;
+    }
+
+    setProfile(
+      authProfile || {
+        ...emptyProfile,
+        fullName:
+          firebaseUser.displayName || "",
+        email:
+          firebaseUser.email || "",
+        role: "buyer",
+      }
+    );
+
+    setProfileFetching(false);
+  }, [
+    firebaseUser,
+    authProfile,
+  ]);
+
   // =======================================================
   // CUSTOMER DATA
   // =======================================================
 
-  const [cart, setCart] = useState([]);
+  const [cart, setCart] =
+    useState([]);
 
   const [wishlist, setWishlist] =
     useState([]);
@@ -324,183 +555,54 @@ function App() {
     useState([]);
 
   // =======================================================
-  // LOAD USER PROFILE
+  // LOAD CUSTOMER DATA
+  //
+  // ONE READ WHEN THE USER LOGS IN.
+  //
+  // No permanent onSnapshot listener here.
   // =======================================================
 
   useEffect(() => {
     let cancelled = false;
 
-    const loadUserProfile = async () => {
-      if (!firebaseUser) {
-        setProfile(emptyProfile);
-        setProfileFetching(false);
-        return;
-      }
-
-      try {
-        setProfileFetching(true);
-
-        const userRef = doc(
-          db,
-          "users",
-          firebaseUser.uid
-        );
-
-        const userSnapshot =
-          await getDoc(userRef);
-
-        if (cancelled) {
+    const loadCustomerData =
+      async () => {
+        if (!firebaseUser) {
+          setCart([]);
+          setWishlist([]);
+          setOrders([]);
           return;
         }
 
-        if (userSnapshot.exists()) {
-          const userData =
-            userSnapshot.data();
-
-          setProfile({
-            fullName:
-              userData.fullName ||
-              firebaseUser.displayName ||
-              "",
-
-            email:
-              userData.email ||
-              firebaseUser.email ||
-              "",
-
-            phone:
-              userData.phone ||
-              "",
-
-            campus:
-              userData.campus ||
-              "",
-
-            address:
-              userData.address ||
-              "",
-
-            profileImage:
-              userData.profileImage ||
-              null,
-
-            role:
-              userData.role ||
-              "",
-          });
-        } else {
-          const newProfile = {
-            fullName:
-              firebaseUser.displayName ||
-              "",
-
-            email:
-              firebaseUser.email ||
-              "",
-
-            phone: "",
-            campus: "",
-            address: "",
-            profileImage: null,
-            role: "",
-          };
-
-          setProfile(newProfile);
-
-          // Create the profile in the background.
-          await setDoc(
-            userRef,
-            {
-              ...newProfile,
-              uid: firebaseUser.uid,
-              createdAt:
-                serverTimestamp(),
-              updatedAt:
-                serverTimestamp(),
-            },
-            {
-              merge: true,
-            }
+        const customerDataRef =
+          doc(
+            db,
+            "users",
+            firebaseUser.uid,
+            "customerData",
+            "main"
           );
-        }
-      } catch (error) {
-        console.error(
-          "Error loading user profile:",
-          error
-        );
 
-        if (!cancelled) {
-          setProfile({
-            fullName:
-              firebaseUser.displayName ||
-              "",
-
-            email:
-              firebaseUser.email ||
-              "",
-
-            phone: "",
-            campus: "",
-            address: "",
-            profileImage: null,
-            role: "",
-          });
-        }
-      } finally {
-        if (!cancelled) {
-          setProfileFetching(false);
-        }
-      }
-    };
-
-    loadUserProfile();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [firebaseUser]);
-
-  // =======================================================
-  // CUSTOMER DATA LISTENER
-  //
-  // IMPORTANT:
-  // This ONLY READS Firebase.
-  //
-  // It DOES NOT automatically write back whenever the
-  // listener changes.
-  //
-  // This removes the Firestore write loop.
-  // =======================================================
-
-  useEffect(() => {
-    if (!firebaseUser) {
-      setCart([]);
-      setWishlist([]);
-      setOrders([]);
-
-      return undefined;
-    }
-
-    const customerDataRef = doc(
-      db,
-      "users",
-      firebaseUser.uid,
-      "customerData",
-      "main"
-    );
-
-    const unsubscribe = onSnapshot(
-      customerDataRef,
-
-      (snapshot) => {
         try {
+          const snapshot =
+            await getDoc(
+              customerDataRef
+            );
+
+          if (cancelled) {
+            return;
+          }
+
           if (!snapshot.exists()) {
-            // Create initial data once.
             setCart([]);
             setWishlist([]);
             setOrders([]);
 
-            setDoc(
+            /*
+              Only create the document once.
+            */
+
+            await setDoc(
               customerDataRef,
               {
                 cart: [],
@@ -514,12 +616,7 @@ function App() {
               {
                 merge: true,
               }
-            ).catch((error) => {
-              console.error(
-                "Error initializing customer data:",
-                error
-              );
-            });
+            );
 
             return;
           }
@@ -546,138 +643,144 @@ function App() {
           );
         } catch (error) {
           console.error(
-            "Error processing customer data:",
+            "Error loading customer data:",
             error
           );
-        }
-      },
 
-      (error) => {
-        console.error(
-          "Customer data listener error:",
-          error
-        );
-      }
-    );
+          if (!cancelled) {
+            setCart([]);
+            setWishlist([]);
+            setOrders([]);
+          }
+        }
+      };
+
+    loadCustomerData();
 
     return () => {
-      unsubscribe();
+      cancelled = true;
     };
   }, [firebaseUser]);
 
   // =======================================================
-  // SAVE CUSTOMER DATA DIRECTLY
+  // SAVE CUSTOMER DATA
   //
-  // IMPORTANT:
-  // This function is called ONLY after a real user action.
-  //
-  // We do NOT have a useEffect watching cart/wishlist/orders.
+  // Called ONLY after an actual user action.
   // =======================================================
 
-  const saveCustomerData = async ({
-    nextCart,
-    nextWishlist,
-    nextOrders,
-  }) => {
-    if (!firebaseUser) {
-      return;
-    }
+  const saveCustomerData =
+    async ({
+      nextCart,
+      nextWishlist,
+      nextOrders,
+    }) => {
+      if (!firebaseUser) {
+        return false;
+      }
 
-    const customerDataRef = doc(
-      db,
-      "users",
-      firebaseUser.uid,
-      "customerData",
-      "main"
-    );
+      const customerDataRef =
+        doc(
+          db,
+          "users",
+          firebaseUser.uid,
+          "customerData",
+          "main"
+        );
 
-    try {
-      await setDoc(
-        customerDataRef,
-        {
-          cart:
-            Array.isArray(nextCart)
-              ? nextCart
-              : cart,
+      try {
+        await setDoc(
+          customerDataRef,
+          {
+            cart:
+              Array.isArray(nextCart)
+                ? nextCart
+                : [],
 
-          wishlist:
-            Array.isArray(nextWishlist)
-              ? nextWishlist
-              : wishlist,
+            wishlist:
+              Array.isArray(
+                nextWishlist
+              )
+                ? nextWishlist
+                : [],
 
-          orders:
-            Array.isArray(nextOrders)
-              ? nextOrders
-              : orders,
+            orders:
+              Array.isArray(nextOrders)
+                ? nextOrders
+                : [],
 
-          updatedAt:
-            serverTimestamp(),
-        },
-        {
-          merge: true,
-        }
-      );
-    } catch (error) {
-      console.error(
-        "Error saving customer data:",
-        error
-      );
-    }
-  };
+            updatedAt:
+              serverTimestamp(),
+          },
+          {
+            merge: true,
+          }
+        );
+
+        return true;
+      } catch (error) {
+        console.error(
+          "Error saving customer data:",
+          error
+        );
+
+        return false;
+      }
+    };
 
   // =======================================================
   // UPDATE PROFILE
+  //
+  // One write only when the user saves profile changes.
   // =======================================================
 
-  const updateProfile = async (
-    updates
-  ) => {
-    if (!firebaseUser) {
-      return;
-    }
+  const updateProfile =
+    async (updates) => {
+      if (!firebaseUser) {
+        return;
+      }
 
-    const newProfile = {
-      ...profile,
-      ...updates,
+      const newProfile = {
+        ...profile,
+        ...updates,
+      };
+
+      setProfile(newProfile);
+
+      try {
+        const userRef =
+          doc(
+            db,
+            "users",
+            firebaseUser.uid
+          );
+
+        await setDoc(
+          userRef,
+          {
+            ...updates,
+
+            uid:
+              firebaseUser.uid,
+
+            email:
+              newProfile.email ||
+              firebaseUser.email ||
+              "",
+
+            updatedAt:
+              serverTimestamp(),
+          },
+          {
+            merge: true,
+          }
+        );
+      } catch (error) {
+        console.error(
+          "Error updating profile:",
+          error
+        );
+      }
     };
-
-    // Update UI immediately.
-    setProfile(newProfile);
-
-    try {
-      const userRef = doc(
-        db,
-        "users",
-        firebaseUser.uid
-      );
-
-      await setDoc(
-        userRef,
-        {
-          ...updates,
-
-          uid:
-            firebaseUser.uid,
-
-          email:
-            newProfile.email ||
-            firebaseUser.email ||
-            "",
-
-          updatedAt:
-            serverTimestamp(),
-        },
-        {
-          merge: true,
-        }
-      );
-    } catch (error) {
-      console.error(
-        "Error updating profile:",
-        error
-      );
-    }
-  };
 
   // =======================================================
   // ADD TO CART
@@ -687,55 +790,54 @@ function App() {
     product,
     quantity = 1
   ) => {
-    if (!product || !firebaseUser) {
+    if (
+      !product ||
+      !firebaseUser
+    ) {
       return;
     }
 
-    setCart((currentCart) => {
-      const existingProduct =
-        currentCart.find(
-          (item) =>
-            item.id === product.id
+    const existingProduct =
+      cart.find(
+        (item) =>
+          item.id === product.id
+      );
+
+    let nextCart;
+
+    if (existingProduct) {
+      nextCart =
+        cart.map((item) =>
+          item.id === product.id
+            ? {
+                ...item,
+                quantity:
+                  Number(
+                    item.quantity || 0
+                  ) +
+                  Number(
+                    quantity || 0
+                  ),
+              }
+            : item
         );
+    } else {
+      nextCart = [
+        ...cart,
+        {
+          ...product,
+          quantity:
+            Number(quantity) || 1,
+        },
+      ];
+    }
 
-      let nextCart;
+    setCart(nextCart);
 
-      if (existingProduct) {
-        nextCart =
-          currentCart.map(
-            (item) =>
-              item.id === product.id
-                ? {
-                    ...item,
-                    quantity:
-                      Number(
-                        item.quantity || 0
-                      ) +
-                      Number(
-                        quantity || 0
-                      ),
-                  }
-                : item
-          );
-      } else {
-        nextCart = [
-          ...currentCart,
-          {
-            ...product,
-            quantity:
-              Number(quantity) || 1,
-          },
-        ];
-      }
-
-      // Save in background.
-      saveCustomerData({
-        nextCart,
-        nextWishlist: wishlist,
-        nextOrders: orders,
-      });
-
-      return nextCart;
+    saveCustomerData({
+      nextCart,
+      nextWishlist: wishlist,
+      nextOrders: orders,
     });
   };
 
@@ -746,28 +848,25 @@ function App() {
   const increaseQuantity = (
     productId
   ) => {
-    setCart((currentCart) => {
-      const nextCart =
-        currentCart.map(
-          (item) =>
-            item.id === productId
-              ? {
-                  ...item,
-                  quantity:
-                    Number(
-                      item.quantity || 0
-                    ) + 1,
-                }
-              : item
-        );
+    const nextCart =
+      cart.map((item) =>
+        item.id === productId
+          ? {
+              ...item,
+              quantity:
+                Number(
+                  item.quantity || 0
+                ) + 1,
+            }
+          : item
+      );
 
-      saveCustomerData({
-        nextCart,
-        nextWishlist: wishlist,
-        nextOrders: orders,
-      });
+    setCart(nextCart);
 
-      return nextCart;
+    saveCustomerData({
+      nextCart,
+      nextWishlist: wishlist,
+      nextOrders: orders,
     });
   };
 
@@ -778,31 +877,28 @@ function App() {
   const decreaseQuantity = (
     productId
   ) => {
-    setCart((currentCart) => {
-      const nextCart =
-        currentCart.map(
-          (item) =>
-            item.id === productId
-              ? {
-                  ...item,
-                  quantity:
-                    Math.max(
-                      1,
-                      Number(
-                        item.quantity || 1
-                      ) - 1
-                    ),
-                }
-              : item
-        );
+    const nextCart =
+      cart.map((item) =>
+        item.id === productId
+          ? {
+              ...item,
+              quantity:
+                Math.max(
+                  1,
+                  Number(
+                    item.quantity || 1
+                  ) - 1
+                ),
+            }
+          : item
+      );
 
-      saveCustomerData({
-        nextCart,
-        nextWishlist: wishlist,
-        nextOrders: orders,
-      });
+    setCart(nextCart);
 
-      return nextCart;
+    saveCustomerData({
+      nextCart,
+      nextWishlist: wishlist,
+      nextOrders: orders,
     });
   };
 
@@ -813,20 +909,18 @@ function App() {
   const removeFromCart = (
     productId
   ) => {
-    setCart((currentCart) => {
-      const nextCart =
-        currentCart.filter(
-          (item) =>
-            item.id !== productId
-        );
+    const nextCart =
+      cart.filter(
+        (item) =>
+          item.id !== productId
+      );
 
-      saveCustomerData({
-        nextCart,
-        nextWishlist: wishlist,
-        nextOrders: orders,
-      });
+    setCart(nextCart);
 
-      return nextCart;
+    saveCustomerData({
+      nextCart,
+      nextWishlist: wishlist,
+      nextOrders: orders,
     });
   };
 
@@ -850,22 +944,20 @@ function App() {
         (item) => item.id
       );
 
-    setCart((currentCart) => {
-      const nextCart =
-        currentCart.filter(
-          (item) =>
-            !purchasedIds.includes(
-              item.id
-            )
-        );
+    const nextCart =
+      cart.filter(
+        (item) =>
+          !purchasedIds.includes(
+            item.id
+          )
+      );
 
-      saveCustomerData({
-        nextCart,
-        nextWishlist: wishlist,
-        nextOrders: orders,
-      });
+    setCart(nextCart);
 
-      return nextCart;
+    saveCustomerData({
+      nextCart,
+      nextWishlist: wishlist,
+      nextOrders: orders,
     });
   };
 
@@ -894,37 +986,30 @@ function App() {
       return;
     }
 
-    setWishlist(
-      (currentWishlist) => {
-        let nextWishlist;
+    let nextWishlist;
 
-        if (
-          currentWishlist.includes(
-            productId
-          )
-        ) {
-          nextWishlist =
-            currentWishlist.filter(
-              (id) =>
-                id !== productId
-            );
-        } else {
-          nextWishlist = [
-            ...currentWishlist,
-            productId,
-          ];
-        }
+    if (
+      wishlist.includes(productId)
+    ) {
+      nextWishlist =
+        wishlist.filter(
+          (id) =>
+            id !== productId
+        );
+    } else {
+      nextWishlist = [
+        ...wishlist,
+        productId,
+      ];
+    }
 
-        // Save in background.
-        saveCustomerData({
-          nextCart: cart,
-          nextWishlist,
-          nextOrders: orders,
-        });
+    setWishlist(nextWishlist);
 
-        return nextWishlist;
-      }
-    );
+    saveCustomerData({
+      nextCart: cart,
+      nextWishlist,
+      nextOrders: orders,
+    });
   };
 
   // =======================================================
@@ -934,23 +1019,19 @@ function App() {
   const removeFromWishlist = (
     productId
   ) => {
-    setWishlist(
-      (currentWishlist) => {
-        const nextWishlist =
-          currentWishlist.filter(
-            (id) =>
-              id !== productId
-          );
+    const nextWishlist =
+      wishlist.filter(
+        (id) =>
+          id !== productId
+      );
 
-        saveCustomerData({
-          nextCart: cart,
-          nextWishlist,
-          nextOrders: orders,
-        });
+    setWishlist(nextWishlist);
 
-        return nextWishlist;
-      }
-    );
+    saveCustomerData({
+      nextCart: cart,
+      nextWishlist,
+      nextOrders: orders,
+    });
   };
 
   // =======================================================
@@ -1028,65 +1109,60 @@ function App() {
         "Placed",
     };
 
-    // =====================================================
-    // UPDATE ORDERS IMMEDIATELY
-    // =====================================================
+    const nextOrders = [
+      ...orders,
+      newOrder,
+    ];
 
-    setOrders((currentOrders) => {
-      const nextOrders = [
-        ...currentOrders,
-        newOrder,
-      ];
+    const purchasedIds =
+      Array.isArray(
+        orderData.items
+      )
+        ? orderData.items.map(
+            (item) => item.id
+          )
+        : [];
 
-      const purchasedIds =
-        Array.isArray(
-          orderData.items
-        )
-          ? orderData.items.map(
-              (item) => item.id
-            )
-          : [];
+    const nextCart =
+      cart.filter(
+        (item) =>
+          !purchasedIds.includes(
+            item.id
+          )
+      );
 
-      const nextCart =
-        cart.filter(
-          (item) =>
-            !purchasedIds.includes(
-              item.id
-            )
-        );
+    setOrders(nextOrders);
+    setCart(nextCart);
 
-      setCart(nextCart);
-
-      // Save both changes in background.
-      saveCustomerData({
-        nextCart,
-        nextWishlist: wishlist,
-        nextOrders,
-      });
-
-      return nextOrders;
+    saveCustomerData({
+      nextCart,
+      nextWishlist: wishlist,
+      nextOrders,
     });
 
     return newOrder;
   };
 
   // =======================================================
-  // UNREAD MESSAGE COUNT
+  // REAL-TIME CONVERSATIONS
+  //
+  // IMPORTANT:
+  //
+  // We ONLY keep onSnapshot active on:
+  //
+  // /messages
+  // /messages/:id
+  //
+  // This prevents the entire conversations collection
+  // from constantly producing reads on every other page.
   // =======================================================
 
-  const unreadMessages =
-    messages.reduce(
-      (total, message) =>
-        total +
-        Number(
-          message.unread || 0
-        ),
-      0
+  const isMessagesPage =
+    location.pathname ===
+      "/messages" ||
+    location.pathname.startsWith(
+      "/messages/"
     );
-
-  // =======================================================
-  // REAL-TIME FIREBASE CONVERSATIONS
-  // =======================================================
 
   useEffect(() => {
     if (!firebaseUser) {
@@ -1110,259 +1186,128 @@ function App() {
         )
       );
 
-    const unsubscribe = onSnapshot(
-      conversationsQuery,
+    // =====================================================
+    // REAL-TIME ONLY ON MESSAGE PAGES
+    // =====================================================
 
-      (snapshot) => {
-        try {
-          const conversationList =
-            snapshot.docs.map(
-              (conversationDoc) => {
-                const data =
-                  conversationDoc.data();
+    if (isMessagesPage) {
+      const unsubscribe =
+        onSnapshot(
+          conversationsQuery,
 
-                const participantNames =
-                  data.participantNames ||
-                  {};
-
-                const participantImages =
-                  data.participantImages ||
-                  {};
-
-                const otherParticipantId =
-                  Array.isArray(
-                    data.participants
-                  )
-                    ? data.participants.find(
-                        (uid) =>
-                          String(uid) !==
-                          String(
-                            firebaseUser.uid
-                          )
-                      )
-                    : null;
-
-                const otherName =
-                  participantNames[
-                    otherParticipantId
-                  ] ||
-                  "CampusMart User";
-
-                const unreadCount =
-                  Number(
-                    data.unreadCounts?.[
+          (snapshot) => {
+            try {
+              const conversationList =
+                snapshot.docs.map(
+                  (conversationDoc) =>
+                    formatConversation(
+                      conversationDoc,
                       firebaseUser.uid
-                    ] || 0
-                  );
+                    )
+                );
 
-                const conversationMessages =
-                  Array.isArray(
-                    data.messages
-                  )
-                    ? data.messages
-                    : [];
+              setMessages(
+                sortConversations(
+                  conversationList
+                )
+              );
+            } catch (error) {
+              console.error(
+                "Error processing conversations:",
+                error
+              );
 
-                const visibleMessages =
-                  conversationMessages.filter(
-                    (message) => {
-                      const deletedFor =
-                        Array.isArray(
-                          message.deletedFor
-                        )
-                          ? message.deletedFor
-                          : [];
+              setMessages([]);
+            }
+          },
 
-                      if (
-                        deletedFor.includes(
-                          firebaseUser.uid
-                        )
-                      ) {
-                        return false;
-                      }
-
-                      if (
-                        message.deletedForEveryone ===
-                        true
-                      ) {
-                        return false;
-                      }
-
-                      return true;
-                    }
-                  );
-
-                const sortedVisibleMessages =
-                  [
-                    ...visibleMessages,
-                  ].sort(
-                    (a, b) => {
-                      const aTime =
-                        a.createdAt?.toMillis
-                          ? a.createdAt.toMillis()
-                          : Number(
-                              a.createdAt || 0
-                            );
-
-                      const bTime =
-                        b.createdAt?.toMillis
-                          ? b.createdAt.toMillis()
-                          : Number(
-                              b.createdAt || 0
-                            );
-
-                      return (
-                        aTime -
-                        bTime
-                      );
-                    }
-                  );
-
-                const lastVisibleMessage =
-                  sortedVisibleMessages.length >
-                  0
-                    ? sortedVisibleMessages[
-                        sortedVisibleMessages.length -
-                          1
-                      ]
-                    : null;
-
-                const lastMessage =
-                  lastVisibleMessage?.text ||
-                  (
-                    lastVisibleMessage?.imageUrl
-                      ? "📷 Photo"
-                      : ""
-                  ) ||
-                  "";
-
-                const lastMessageAt =
-                  lastVisibleMessage?.createdAt ||
-                  0;
-
-                let displayTime = "";
-
-                if (lastMessageAt) {
-                  try {
-                    const date =
-                      lastMessageAt?.toDate
-                        ? lastMessageAt.toDate()
-                        : new Date(
-                            lastMessageAt
-                          );
-
-                    displayTime =
-                      date.toLocaleTimeString(
-                        [],
-                        {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        }
-                      );
-                  } catch {
-                    displayTime = "";
-                  }
-                }
-
-                return {
-                  id:
-                    conversationDoc.id,
-
-                  conversationId:
-                    conversationDoc.id,
-
-                  otherParticipantId,
-
-                  name:
-                    otherName,
-
-                  profileImage:
-                    participantImages[
-                      otherParticipantId
-                    ] || null,
-
-                  lastMessage,
-
-                  time:
-                    displayTime,
-
-                  unread:
-                    unreadCount,
-
-                  online:
-                    data.onlineStatus?.[
-                      otherParticipantId
-                    ] === true,
-
-                  conversation:
-                    sortedVisibleMessages,
-
-                  allMessages:
-                    conversationMessages,
-                };
-              }
+          (error) => {
+            console.error(
+              "Conversation listener error:",
+              error
             );
 
-          conversationList.sort(
-            (a, b) => {
-              const aMessages =
-                a.conversation || [];
+            setMessages([]);
+          }
+        );
 
-              const bMessages =
-                b.conversation || [];
+      return () => {
+        unsubscribe();
+      };
+    }
 
-              const aLast =
-                aMessages[
-                  aMessages.length - 1
-                ]?.createdAt || 0;
+    // =====================================================
+    // OUTSIDE MESSAGE PAGES
+    //
+    // Load conversations once.
+    //
+    // This gives dashboard/unread counts some data without
+    // maintaining a real-time listener everywhere.
+    // =====================================================
 
-              const bLast =
-                bMessages[
-                  bMessages.length - 1
-                ]?.createdAt || 0;
+    let cancelled = false;
 
-              const aTime =
-                aLast?.toMillis
-                  ? aLast.toMillis()
-                  : Number(aLast) || 0;
+    const loadConversationsOnce =
+      async () => {
+        try {
+          const snapshot =
+            await getDocs(
+              conversationsQuery
+            );
 
-              const bTime =
-                bLast?.toMillis
-                  ? bLast.toMillis()
-                  : Number(bLast) || 0;
+          if (cancelled) {
+            return;
+          }
 
-              return (
-                bTime - aTime
-              );
-            }
-          );
+          const conversationList =
+            snapshot.docs.map(
+              (conversationDoc) =>
+                formatConversation(
+                  conversationDoc,
+                  firebaseUser.uid
+                )
+            );
 
           setMessages(
-            conversationList
+            sortConversations(
+              conversationList
+            )
           );
         } catch (error) {
           console.error(
-            "Error processing conversations:",
+            "Error loading conversations:",
             error
           );
 
-          setMessages([]);
+          if (!cancelled) {
+            setMessages([]);
+          }
         }
-      },
+      };
 
-      (error) => {
-        console.error(
-          "Conversation listener error:",
-          error
-        );
-
-        setMessages([]);
-      }
-    );
+    loadConversationsOnce();
 
     return () => {
-      unsubscribe();
+      cancelled = true;
     };
-  }, [firebaseUser]);
+  }, [
+    firebaseUser,
+    isMessagesPage,
+  ]);
+
+  // =======================================================
+  // UNREAD MESSAGE COUNT
+  // =======================================================
+
+  const unreadMessages =
+    messages.reduce(
+      (total, message) =>
+        total +
+        Number(
+          message.unread || 0
+        ),
+      0
+    );
 
   // =======================================================
   // MARK MESSAGE AS READ
@@ -1454,6 +1399,16 @@ function App() {
               )
                 ? data.participants
                 : [];
+
+            if (
+              !participants.includes(
+                firebaseUser.uid
+              )
+            ) {
+              throw new Error(
+                "You are not a participant in this conversation."
+              );
+            }
 
             const receiverId =
               participants.find(
@@ -1598,6 +1553,23 @@ function App() {
 
               const data =
                 snapshot.data();
+
+              const participants =
+                Array.isArray(
+                  data.participants
+                )
+                  ? data.participants
+                  : [];
+
+              if (
+                !participants.includes(
+                  firebaseUser.uid
+                )
+              ) {
+                throw new Error(
+                  "You are not a participant in this conversation."
+                );
+              }
 
               const existingMessages =
                 Array.isArray(
@@ -1789,7 +1761,7 @@ function App() {
                       visibleForCurrentUser.length -
                         1
                     ]
-                    : null;
+                  : null;
 
               transaction.update(
                 conversationRef,
@@ -1856,23 +1828,6 @@ function App() {
         return;
       }
 
-      const existingConversation =
-        messages.find(
-          (message) =>
-            String(
-              message.otherParticipantId
-            ) ===
-            String(sellerId)
-        );
-
-      if (existingConversation) {
-        navigate(
-          `/messages/${existingConversation.id}`
-        );
-
-        return;
-      }
-
       const participantIds = [
         String(firebaseUser.uid),
         String(sellerId),
@@ -1889,6 +1844,33 @@ function App() {
         );
 
       try {
+        // ===================================================
+        // CHECK WHETHER CHAT ALREADY EXISTS
+        //
+        // One read instead of blindly writing.
+        // ===================================================
+
+        const existingSnapshot =
+          await getDoc(
+            conversationRef
+          );
+
+        if (
+          existingSnapshot.exists()
+        ) {
+          navigate(
+            `/messages/${conversationId}`
+          );
+
+          return;
+        }
+
+        // ===================================================
+        // CREATE NEW CONVERSATION
+        //
+        // Only one write.
+        // ===================================================
+
         await setDoc(
           conversationRef,
           {
@@ -1962,7 +1944,7 @@ function App() {
         );
       } catch (error) {
         console.error(
-          "Error creating conversation:",
+          "Error opening seller chat:",
           error
         );
       }
@@ -1987,7 +1969,9 @@ function App() {
   return (
     <Routes>
 
+      {/* ================================================= */}
       {/* LANDING */}
+      {/* ================================================= */}
 
       <Route
         path="/"
@@ -1996,7 +1980,9 @@ function App() {
         }
       />
 
+      {/* ================================================= */}
       {/* LOGIN */}
+      {/* ================================================= */}
 
       <Route
         path="/login"
@@ -2007,7 +1993,9 @@ function App() {
         }
       />
 
+      {/* ================================================= */}
       {/* REGISTER */}
+      {/* ================================================= */}
 
       <Route
         path="/register"
@@ -2018,7 +2006,9 @@ function App() {
         }
       />
 
+      {/* ================================================= */}
       {/* DASHBOARD */}
+      {/* ================================================= */}
 
       <Route
         path="/dashboard"
@@ -2058,7 +2048,9 @@ function App() {
         }
       />
 
+      {/* ================================================= */}
       {/* BROWSE PRODUCTS */}
+      {/* ================================================= */}
 
       <Route
         path="/browse-products"
@@ -2089,7 +2081,9 @@ function App() {
         }
       />
 
+      {/* ================================================= */}
       {/* PRODUCT DETAILS */}
+      {/* ================================================= */}
 
       <Route
         path="/products/:id"
@@ -2123,7 +2117,9 @@ function App() {
         }
       />
 
+      {/* ================================================= */}
       {/* CART */}
+      {/* ================================================= */}
 
       <Route
         path="/cart"
@@ -2160,7 +2156,9 @@ function App() {
         }
       />
 
+      {/* ================================================= */}
       {/* ORDERS */}
+      {/* ================================================= */}
 
       <Route
         path="/orders"
@@ -2185,7 +2183,9 @@ function App() {
         }
       />
 
+      {/* ================================================= */}
       {/* ORDER DETAILS */}
+      {/* ================================================= */}
 
       <Route
         path="/orders/:id"
@@ -2210,7 +2210,9 @@ function App() {
         }
       />
 
+      {/* ================================================= */}
       {/* MESSAGES */}
+      {/* ================================================= */}
 
       <Route
         path="/messages"
@@ -2244,7 +2246,9 @@ function App() {
         }
       />
 
+      {/* ================================================= */}
       {/* CHAT */}
+      {/* ================================================= */}
 
       <Route
         path="/messages/:id"
@@ -2284,7 +2288,9 @@ function App() {
         }
       />
 
+      {/* ================================================= */}
       {/* CHECKOUT */}
+      {/* ================================================= */}
 
       <Route
         path="/checkout"
@@ -2312,7 +2318,9 @@ function App() {
         }
       />
 
+      {/* ================================================= */}
       {/* ORDER SUCCESS */}
+      {/* ================================================= */}
 
       <Route
         path="/order-success"
@@ -2331,7 +2339,9 @@ function App() {
         }
       />
 
+      {/* ================================================= */}
       {/* WISHLIST */}
+      {/* ================================================= */}
 
       <Route
         path="/wishlist"
@@ -2362,7 +2372,9 @@ function App() {
         }
       />
 
+      {/* ================================================= */}
       {/* PAYMENT */}
+      {/* ================================================= */}
 
       <Route
         path="/payment"
@@ -2384,7 +2396,9 @@ function App() {
         }
       />
 
+      {/* ================================================= */}
       {/* PROFILE */}
+      {/* ================================================= */}
 
       <Route
         path="/profile"
@@ -2415,7 +2429,9 @@ function App() {
         }
       />
 
+      {/* ================================================= */}
       {/* SETTINGS */}
+      {/* ================================================= */}
 
       <Route
         path="/settings"
@@ -2446,7 +2462,9 @@ function App() {
         }
       />
 
+      {/* ================================================= */}
       {/* LOGOUT */}
+      {/* ================================================= */}
 
       <Route
         path="/logout"
@@ -2467,7 +2485,9 @@ function App() {
         }
       />
 
+      {/* ================================================= */}
       {/* SELLER DASHBOARD */}
+      {/* ================================================= */}
 
       <Route
         path="/seller-dashboard"
@@ -2482,7 +2502,9 @@ function App() {
         }
       />
 
+      {/* ================================================= */}
       {/* FALLBACK */}
+      {/* ================================================= */}
 
       <Route
         path="*"
