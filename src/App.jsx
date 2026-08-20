@@ -27,6 +27,12 @@ import {
 import { db } from "./context/firebase";
 
 // =========================================================
+// INTERNET REQUIRED
+// =========================================================
+
+import InternetRequired from "./components/InternetRequired";
+
+// =========================================================
 // CUSTOMER PAGES
 // =========================================================
 
@@ -53,6 +59,7 @@ import Logout from "./context/Logout";
 import Login from "./context/Login";
 import Register from "./context/Register";
 import Landing from "./pages/customer/Landing";
+import ForgotPassword from "./pages/customer/ForgotPassword";
 
 // =========================================================
 // DEFAULT PROFILE
@@ -486,6 +493,77 @@ function App() {
   const location = useLocation();
 
   // =======================================================
+  // INTERNET CONNECTION
+  //
+  // THIS LISTENER IS ALWAYS ACTIVE.
+  //
+  // It does NOT depend on:
+  // - route
+  // - Firebase auth
+  // - dashboard
+  // - messages
+  // - user clicking anything
+  //
+  // As soon as the browser reports that the network is
+  // offline, InternetRequired is shown.
+  //
+  // As soon as the browser reports that the network is
+  // back, InternetRequired disappears automatically.
+  // =======================================================
+
+  const [isOnline, setIsOnline] = useState(
+    () => navigator.onLine
+  );
+
+  useEffect(() => {
+    // =====================================================
+    // ONLINE
+    // =====================================================
+
+    const handleOnline = () => {
+      setIsOnline(true);
+    };
+
+    // =====================================================
+    // OFFLINE
+    // =====================================================
+
+    const handleOffline = () => {
+      setIsOnline(false);
+    };
+
+    // =====================================================
+    // LISTEN CONTINUOUSLY
+    // =====================================================
+
+    window.addEventListener(
+      "online",
+      handleOnline
+    );
+
+    window.addEventListener(
+      "offline",
+      handleOffline
+    );
+
+    // =====================================================
+    // CLEANUP
+    // =====================================================
+
+    return () => {
+      window.removeEventListener(
+        "online",
+        handleOnline
+      );
+
+      window.removeEventListener(
+        "offline",
+        handleOffline
+      );
+    };
+  }, []);
+
+  // =======================================================
   // FIREBASE AUTH
   // =======================================================
 
@@ -497,11 +575,6 @@ function App() {
 
   // =======================================================
   // PROFILE
-  //
-  // IMPORTANT:
-  // AuthContext already loads the Firestore profile.
-  //
-  // We therefore DO NOT call getDoc(users/uid) again here.
   // =======================================================
 
   const [profile, setProfile] =
@@ -556,10 +629,6 @@ function App() {
 
   // =======================================================
   // LOAD CUSTOMER DATA
-  //
-  // ONE READ WHEN THE USER LOGS IN.
-  //
-  // No permanent onSnapshot listener here.
   // =======================================================
 
   useEffect(() => {
@@ -597,10 +666,6 @@ function App() {
             setCart([]);
             setWishlist([]);
             setOrders([]);
-
-            /*
-              Only create the document once.
-            */
 
             await setDoc(
               customerDataRef,
@@ -664,8 +729,6 @@ function App() {
 
   // =======================================================
   // SAVE CUSTOMER DATA
-  //
-  // Called ONLY after an actual user action.
   // =======================================================
 
   const saveCustomerData =
@@ -729,8 +792,6 @@ function App() {
 
   // =======================================================
   // UPDATE PROFILE
-  //
-  // One write only when the user saves profile changes.
   // =======================================================
 
   const updateProfile =
@@ -1145,16 +1206,6 @@ function App() {
 
   // =======================================================
   // REAL-TIME CONVERSATIONS
-  //
-  // IMPORTANT:
-  //
-  // We ONLY keep onSnapshot active on:
-  //
-  // /messages
-  // /messages/:id
-  //
-  // This prevents the entire conversations collection
-  // from constantly producing reads on every other page.
   // =======================================================
 
   const isMessagesPage =
@@ -1185,10 +1236,6 @@ function App() {
           firebaseUser.uid
         )
       );
-
-    // =====================================================
-    // REAL-TIME ONLY ON MESSAGE PAGES
-    // =====================================================
 
     if (isMessagesPage) {
       const unsubscribe =
@@ -1235,15 +1282,6 @@ function App() {
         unsubscribe();
       };
     }
-
-    // =====================================================
-    // OUTSIDE MESSAGE PAGES
-    //
-    // Load conversations once.
-    //
-    // This gives dashboard/unread counts some data without
-    // maintaining a real-time listener everywhere.
-    // =====================================================
 
     let cancelled = false;
 
@@ -1844,12 +1882,6 @@ function App() {
         );
 
       try {
-        // ===================================================
-        // CHECK WHETHER CHAT ALREADY EXISTS
-        //
-        // One read instead of blindly writing.
-        // ===================================================
-
         const existingSnapshot =
           await getDoc(
             conversationRef
@@ -1864,12 +1896,6 @@ function App() {
 
           return;
         }
-
-        // ===================================================
-        // CREATE NEW CONVERSATION
-        //
-        // Only one write.
-        // ===================================================
 
         await setDoc(
           conversationRef,
@@ -1951,14 +1977,24 @@ function App() {
     };
 
   // =======================================================
-  // ONLY AUTH INITIALIZATION BLOCKS THE APP
+  // AUTH INITIALIZATION
   // =======================================================
 
   if (profileLoading) {
     return (
-      <LoadingScreen
-        text="Checking your account..."
-      />
+      <>
+        {/* =================================================
+            INTERNET OVERLAY
+            ================================================= */}
+
+        {!isOnline && (
+          <InternetRequired />
+        )}
+
+        <LoadingScreen
+          text="Checking your account..."
+        />
+      </>
     );
   }
 
@@ -1967,556 +2003,602 @@ function App() {
   // =======================================================
 
   return (
-    <Routes>
+    <>
+      {/* ===================================================
+          INTERNET REQUIRED OVERLAY
 
-      {/* ================================================= */}
-      {/* LANDING */}
-      {/* ================================================= */}
+          This is deliberately OUTSIDE Routes.
 
-      <Route
-        path="/"
-        element={
-          <Landing />
-        }
-      />
+          Therefore it can appear immediately on:
+          - Landing
+          - Login
+          - Register
+          - Dashboard
+          - Products
+          - Cart
+          - Orders
+          - Messages
+          - Chat
+          - Settings
+          - Profile
+          - Checkout
+          - Payment
+          - Seller dashboard
+          - Any future route
 
-      {/* ================================================= */}
-      {/* LOGIN */}
-      {/* ================================================= */}
+          It does not wait for a click.
+          It does not wait for Firebase.
+          It does not require a refresh.
+          =================================================== */}
 
-      <Route
-        path="/login"
-        element={
-          <GuestRoute>
-            <Login />
-          </GuestRoute>
-        }
-      />
+      {!isOnline && (
+        <InternetRequired />
+      )}
 
-      {/* ================================================= */}
-      {/* REGISTER */}
-      {/* ================================================= */}
+      <Routes>
 
-      <Route
-        path="/register"
-        element={
-          <GuestRoute>
-            <Register />
-          </GuestRoute>
-        }
-      />
+        {/* ================================================= */}
+        {/* LANDING */}
+        {/* ================================================= */}
 
-      {/* ================================================= */}
-      {/* DASHBOARD */}
-      {/* ================================================= */}
+        <Route
+          path="/"
+          element={
+            <Landing />
+          }
+        />
 
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute>
-            <CustomerRoute
-              profile={profile}
-            >
-              <Dashboard
-                addToCart={
-                  addToCart
-                }
+        {/* ================================================= */}
+        {/* LOGIN */}
+        {/* ================================================= */}
+
+        <Route
+          path="/login"
+          element={
+            <GuestRoute>
+              <Login />
+            </GuestRoute>
+          }
+        />
+
+        {/* ================================================= */}
+        {/* REGISTER */}
+        {/* ================================================= */}
+
+        <Route
+          path="/register"
+          element={
+            <GuestRoute>
+              <Register />
+            </GuestRoute>
+          }
+        />
+
+        {/* ================================================= */}
+        {/* DASHBOARD */}
+        {/* ================================================= */}
+
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <CustomerRoute
+                profile={profile}
+              >
+                <Dashboard
+                  addToCart={
+                    addToCart
+                  }
+                  cartCount={
+                    cartCount
+                  }
+                  orders={
+                    orders
+                  }
+                  wishlist={
+                    wishlist
+                  }
+                  toggleWishlist={
+                    toggleWishlist
+                  }
+                  unreadMessages={
+                    unreadMessages
+                  }
+                  messages={
+                    messages
+                  }
+                  profile={
+                    profile
+                  }
+                />
+              </CustomerRoute>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ================================================= */}
+        {/* BROWSE PRODUCTS */}
+        {/* ================================================= */}
+
+        <Route
+          path="/browse-products"
+          element={
+            <ProtectedRoute>
+              <CustomerRoute
+                profile={profile}
+              >
+                <BrowseProducts
+                  addToCart={
+                    addToCart
+                  }
+                  cartCount={
+                    cartCount
+                  }
+                  wishlist={
+                    wishlist
+                  }
+                  toggleWishlist={
+                    toggleWishlist
+                  }
+                  profile={
+                    profile
+                  }
+                />
+              </CustomerRoute>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ================================================= */}
+        {/* PRODUCT DETAILS */}
+        {/* ================================================= */}
+
+        <Route
+          path="/products/:id"
+          element={
+            <ProtectedRoute>
+              <CustomerRoute
+                profile={profile}
+              >
+                <ProductDetails
+                  addToCart={
+                    addToCart
+                  }
+                  cartCount={
+                    cartCount
+                  }
+                  wishlist={
+                    wishlist
+                  }
+                  toggleWishlist={
+                    toggleWishlist
+                  }
+                  openSellerChat={
+                    openSellerChat
+                  }
+                  profile={
+                    profile
+                  }
+                />
+              </CustomerRoute>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ================================================= */}
+        {/* CART */}
+        {/* ================================================= */}
+
+        <Route
+          path="/cart"
+          element={
+            <ProtectedRoute>
+              <CustomerRoute
+                profile={profile}
+              >
+                <Cart
+                  cart={
+                    cart
+                  }
+                  cartCount={
+                    cartCount
+                  }
+                  increaseQuantity={
+                    increaseQuantity
+                  }
+                  decreaseQuantity={
+                    decreaseQuantity
+                  }
+                  removeFromCart={
+                    removeFromCart
+                  }
+                  openSellerChat={
+                    openSellerChat
+                  }
+                  profile={
+                    profile
+                  }
+                />
+              </CustomerRoute>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ================================================= */}
+        {/* ORDERS */}
+        {/* ================================================= */}
+
+        <Route
+          path="/orders"
+          element={
+            <ProtectedRoute>
+              <CustomerRoute
+                profile={profile}
+              >
+                <Orders
+                  orders={
+                    orders
+                  }
+                  cartCount={
+                    cartCount
+                  }
+                  profile={
+                    profile
+                  }
+                />
+              </CustomerRoute>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ================================================= */}
+        {/* ORDER DETAILS */}
+        {/* ================================================= */}
+
+        <Route
+          path="/orders/:id"
+          element={
+            <ProtectedRoute>
+              <CustomerRoute
+                profile={profile}
+              >
+                <OrderDetails
+                  orders={
+                    orders
+                  }
+                  cartCount={
+                    cartCount
+                  }
+                  profile={
+                    profile
+                  }
+                />
+              </CustomerRoute>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ================================================= */}
+        {/* MESSAGES */}
+        {/* ================================================= */}
+
+        <Route
+          path="/messages"
+          element={
+            <ProtectedRoute>
+              <CustomerRoute
+                profile={profile}
+              >
+                <Messages
+                  cartCount={
+                    cartCount
+                  }
+                  wishlist={
+                    wishlist
+                  }
+                  messages={
+                    messages
+                  }
+                  unreadMessages={
+                    unreadMessages
+                  }
+                  markMessageAsRead={
+                    markMessageAsRead
+                  }
+                  profile={
+                    profile
+                  }
+                />
+              </CustomerRoute>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ================================================= */}
+        {/* CHAT */}
+        {/* ================================================= */}
+
+        <Route
+          path="/messages/:id"
+          element={
+            <ProtectedRoute>
+              <CustomerRoute
+                profile={profile}
+              >
+                <Chat
+                  cartCount={
+                    cartCount
+                  }
+                  wishlist={
+                    wishlist
+                  }
+                  messages={
+                    messages
+                  }
+                  unreadMessages={
+                    unreadMessages
+                  }
+                  markMessageAsRead={
+                    markMessageAsRead
+                  }
+                  sendMessage={
+                    sendMessage
+                  }
+                  deleteMessages={
+                    deleteMessages
+                  }
+                  profile={
+                    profile
+                  }
+                />
+              </CustomerRoute>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ================================================= */}
+        {/* CHECKOUT */}
+        {/* ================================================= */}
+
+        <Route
+          path="/checkout"
+          element={
+            <ProtectedRoute>
+              <CustomerRoute
+                profile={profile}
+              >
+                <Checkout
+                  cart={
+                    cart
+                  }
+                  cartCount={
+                    cartCount
+                  }
+                  placeOrder={
+                    placeOrder
+                  }
+                  profile={
+                    profile
+                  }
+                />
+              </CustomerRoute>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ================================================= */}
+        {/* ORDER SUCCESS */}
+        {/* ================================================= */}
+
+        <Route
+          path="/order-success"
+          element={
+            <ProtectedRoute>
+              <CustomerRoute
+                profile={profile}
+              >
+                <OrderSuccess
+                  profile={
+                    profile
+                  }
+                />
+              </CustomerRoute>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ================================================= */}
+        {/* WISHLIST */}
+        {/* ================================================= */}
+
+        <Route
+          path="/wishlist"
+          element={
+            <ProtectedRoute>
+              <CustomerRoute
+                profile={profile}
+              >
+                <Wishlist
+                  wishlist={
+                    wishlist
+                  }
+                  removeFromWishlist={
+                    removeFromWishlist
+                  }
+                  addToCart={
+                    addToCart
+                  }
+                  cartCount={
+                    cartCount
+                  }
+                  profile={
+                    profile
+                  }
+                />
+              </CustomerRoute>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ================================================= */}
+        {/* PAYMENT */}
+        {/* ================================================= */}
+
+        <Route
+          path="/payment"
+          element={
+            <ProtectedRoute>
+              <CustomerRoute
+                profile={profile}
+              >
+                <Payment
+                  cartCount={
+                    cartCount
+                  }
+                  profile={
+                    profile
+                  }
+                />
+              </CustomerRoute>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ================================================= */}
+        {/* PROFILE */}
+        {/* ================================================= */}
+
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <CustomerRoute
+                profile={profile}
+              >
+                <Profile
+                  profile={
+                    profile
+                  }
+                  updateProfile={
+                    updateProfile
+                  }
+                  cartCount={
+                    cartCount
+                  }
+                  wishlist={
+                    wishlist
+                  }
+                  unreadMessages={
+                    unreadMessages
+                  }
+                />
+              </CustomerRoute>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ================================================= */}
+        {/* SETTINGS */}
+        {/* ================================================= */}
+
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <CustomerRoute
+                profile={profile}
+              >
+                <Settings
+                  profile={
+                    profile
+                  }
+                  updateProfile={
+                    updateProfile
+                  }
+                  cartCount={
+                    cartCount
+                  }
+                  wishlist={
+                    wishlist
+                  }
+                  unreadMessages={
+                    unreadMessages
+                  }
+                />
+              </CustomerRoute>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ================================================= */}
+        {/* LOGOUT */}
+        {/* ================================================= */}
+
+        <Route
+          path="/logout"
+          element={
+            <ProtectedRoute>
+              <Logout
                 cartCount={
                   cartCount
                 }
-                orders={
-                  orders
-                }
                 wishlist={
                   wishlist
-                }
-                toggleWishlist={
-                  toggleWishlist
                 }
                 unreadMessages={
                   unreadMessages
                 }
-                messages={
-                  messages
-                }
-                profile={
-                  profile
-                }
               />
-            </CustomerRoute>
-          </ProtectedRoute>
-        }
-      />
+            </ProtectedRoute>
+          }
+        />
 
-      {/* ================================================= */}
-      {/* BROWSE PRODUCTS */}
-      {/* ================================================= */}
+        {/* ================================================= */}
+        {/* SELLER DASHBOARD */}
+        {/* ================================================= */}
 
-      <Route
-        path="/browse-products"
-        element={
-          <ProtectedRoute>
-            <CustomerRoute
-              profile={profile}
-            >
-              <BrowseProducts
-                addToCart={
-                  addToCart
-                }
-                cartCount={
-                  cartCount
-                }
-                wishlist={
-                  wishlist
-                }
-                toggleWishlist={
-                  toggleWishlist
-                }
-                profile={
-                  profile
-                }
-              />
-            </CustomerRoute>
-          </ProtectedRoute>
-        }
-      />
+        <Route
+          path="/seller-dashboard"
+          element={
+            <ProtectedRoute>
+              <SellerRoute
+                profile={profile}
+              >
+                <SellerDashboardComingSoon />
+              </SellerRoute>
+            </ProtectedRoute>
+          }
+        />
 
-      {/* ================================================= */}
-      {/* PRODUCT DETAILS */}
-      {/* ================================================= */}
+        {/* ================================================= */}
+        {/* FORGOT PASSWORD */}
+        {/* ================================================= */}
 
-      <Route
-        path="/products/:id"
-        element={
-          <ProtectedRoute>
-            <CustomerRoute
-              profile={profile}
-            >
-              <ProductDetails
-                addToCart={
-                  addToCart
-                }
-                cartCount={
-                  cartCount
-                }
-                wishlist={
-                  wishlist
-                }
-                toggleWishlist={
-                  toggleWishlist
-                }
-                openSellerChat={
-                  openSellerChat
-                }
-                profile={
-                  profile
-                }
-              />
-            </CustomerRoute>
-          </ProtectedRoute>
-        }
-      />
+        <Route
+          path="/forgot-password"
+          element={
+            <GuestRoute>
+              <ForgotPassword />
+            </GuestRoute>
+          }
+        />
 
-      {/* ================================================= */}
-      {/* CART */}
-      {/* ================================================= */}
+        {/* ================================================= */}
+        {/* FALLBACK */}
+        {/* ================================================= */}
 
-      <Route
-        path="/cart"
-        element={
-          <ProtectedRoute>
-            <CustomerRoute
-              profile={profile}
-            >
-              <Cart
-                cart={
-                  cart
-                }
-                cartCount={
-                  cartCount
-                }
-                increaseQuantity={
-                  increaseQuantity
-                }
-                decreaseQuantity={
-                  decreaseQuantity
-                }
-                removeFromCart={
-                  removeFromCart
-                }
-                openSellerChat={
-                  openSellerChat
-                }
-                profile={
-                  profile
-                }
-              />
-            </CustomerRoute>
-          </ProtectedRoute>
-        }
-      />
-
-      {/* ================================================= */}
-      {/* ORDERS */}
-      {/* ================================================= */}
-
-      <Route
-        path="/orders"
-        element={
-          <ProtectedRoute>
-            <CustomerRoute
-              profile={profile}
-            >
-              <Orders
-                orders={
-                  orders
-                }
-                cartCount={
-                  cartCount
-                }
-                profile={
-                  profile
-                }
-              />
-            </CustomerRoute>
-          </ProtectedRoute>
-        }
-      />
-
-      {/* ================================================= */}
-      {/* ORDER DETAILS */}
-      {/* ================================================= */}
-
-      <Route
-        path="/orders/:id"
-        element={
-          <ProtectedRoute>
-            <CustomerRoute
-              profile={profile}
-            >
-              <OrderDetails
-                orders={
-                  orders
-                }
-                cartCount={
-                  cartCount
-                }
-                profile={
-                  profile
-                }
-              />
-            </CustomerRoute>
-          </ProtectedRoute>
-        }
-      />
-
-      {/* ================================================= */}
-      {/* MESSAGES */}
-      {/* ================================================= */}
-
-      <Route
-        path="/messages"
-        element={
-          <ProtectedRoute>
-            <CustomerRoute
-              profile={profile}
-            >
-              <Messages
-                cartCount={
-                  cartCount
-                }
-                wishlist={
-                  wishlist
-                }
-                messages={
-                  messages
-                }
-                unreadMessages={
-                  unreadMessages
-                }
-                markMessageAsRead={
-                  markMessageAsRead
-                }
-                profile={
-                  profile
-                }
-              />
-            </CustomerRoute>
-          </ProtectedRoute>
-        }
-      />
-
-      {/* ================================================= */}
-      {/* CHAT */}
-      {/* ================================================= */}
-
-      <Route
-        path="/messages/:id"
-        element={
-          <ProtectedRoute>
-            <CustomerRoute
-              profile={profile}
-            >
-              <Chat
-                cartCount={
-                  cartCount
-                }
-                wishlist={
-                  wishlist
-                }
-                messages={
-                  messages
-                }
-                unreadMessages={
-                  unreadMessages
-                }
-                markMessageAsRead={
-                  markMessageAsRead
-                }
-                sendMessage={
-                  sendMessage
-                }
-                deleteMessages={
-                  deleteMessages
-                }
-                profile={
-                  profile
-                }
-              />
-            </CustomerRoute>
-          </ProtectedRoute>
-        }
-      />
-
-      {/* ================================================= */}
-      {/* CHECKOUT */}
-      {/* ================================================= */}
-
-      <Route
-        path="/checkout"
-        element={
-          <ProtectedRoute>
-            <CustomerRoute
-              profile={profile}
-            >
-              <Checkout
-                cart={
-                  cart
-                }
-                cartCount={
-                  cartCount
-                }
-                placeOrder={
-                  placeOrder
-                }
-                profile={
-                  profile
-                }
-              />
-            </CustomerRoute>
-          </ProtectedRoute>
-        }
-      />
-
-      {/* ================================================= */}
-      {/* ORDER SUCCESS */}
-      {/* ================================================= */}
-
-      <Route
-        path="/order-success"
-        element={
-          <ProtectedRoute>
-            <CustomerRoute
-              profile={profile}
-            >
-              <OrderSuccess
-                profile={
-                  profile
-                }
-              />
-            </CustomerRoute>
-          </ProtectedRoute>
-        }
-      />
-
-      {/* ================================================= */}
-      {/* WISHLIST */}
-      {/* ================================================= */}
-
-      <Route
-        path="/wishlist"
-        element={
-          <ProtectedRoute>
-            <CustomerRoute
-              profile={profile}
-            >
-              <Wishlist
-                wishlist={
-                  wishlist
-                }
-                removeFromWishlist={
-                  removeFromWishlist
-                }
-                addToCart={
-                  addToCart
-                }
-                cartCount={
-                  cartCount
-                }
-                profile={
-                  profile
-                }
-              />
-            </CustomerRoute>
-          </ProtectedRoute>
-        }
-      />
-
-      {/* ================================================= */}
-      {/* PAYMENT */}
-      {/* ================================================= */}
-
-      <Route
-        path="/payment"
-        element={
-          <ProtectedRoute>
-            <CustomerRoute
-              profile={profile}
-            >
-              <Payment
-                cartCount={
-                  cartCount
-                }
-                profile={
-                  profile
-                }
-              />
-            </CustomerRoute>
-          </ProtectedRoute>
-        }
-      />
-
-      {/* ================================================= */}
-      {/* PROFILE */}
-      {/* ================================================= */}
-
-      <Route
-        path="/profile"
-        element={
-          <ProtectedRoute>
-            <CustomerRoute
-              profile={profile}
-            >
-              <Profile
-                profile={
-                  profile
-                }
-                updateProfile={
-                  updateProfile
-                }
-                cartCount={
-                  cartCount
-                }
-                wishlist={
-                  wishlist
-                }
-                unreadMessages={
-                  unreadMessages
-                }
-              />
-            </CustomerRoute>
-          </ProtectedRoute>
-        }
-      />
-
-      {/* ================================================= */}
-      {/* SETTINGS */}
-      {/* ================================================= */}
-
-      <Route
-        path="/settings"
-        element={
-          <ProtectedRoute>
-            <CustomerRoute
-              profile={profile}
-            >
-              <Settings
-                profile={
-                  profile
-                }
-                updateProfile={
-                  updateProfile
-                }
-                cartCount={
-                  cartCount
-                }
-                wishlist={
-                  wishlist
-                }
-                unreadMessages={
-                  unreadMessages
-                }
-              />
-            </CustomerRoute>
-          </ProtectedRoute>
-        }
-      />
-
-      {/* ================================================= */}
-      {/* LOGOUT */}
-      {/* ================================================= */}
-
-      <Route
-        path="/logout"
-        element={
-          <ProtectedRoute>
-            <Logout
-              cartCount={
-                cartCount
-              }
-              wishlist={
-                wishlist
-              }
-              unreadMessages={
-                unreadMessages
-              }
+        <Route
+          path="*"
+          element={
+            <Navigate
+              to="/"
+              replace
             />
-          </ProtectedRoute>
-        }
-      />
+          }
+        />
 
-      {/* ================================================= */}
-      {/* SELLER DASHBOARD */}
-      {/* ================================================= */}
-
-      <Route
-        path="/seller-dashboard"
-        element={
-          <ProtectedRoute>
-            <SellerRoute
-              profile={profile}
-            >
-              <SellerDashboardComingSoon />
-            </SellerRoute>
-          </ProtectedRoute>
-        }
-      />
-
-      {/* ================================================= */}
-      {/* FALLBACK */}
-      {/* ================================================= */}
-
-      <Route
-        path="*"
-        element={
-          <Navigate
-            to="/"
-            replace
-          />
-        }
-      />
-
-    </Routes>
+      </Routes>
+    </>
   );
 }
 

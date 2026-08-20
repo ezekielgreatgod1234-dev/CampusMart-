@@ -6,12 +6,16 @@ import {
 } from "react";
 
 import { onAuthStateChanged } from "firebase/auth";
+
 import {
   doc,
   getDoc,
+  setDoc,
 } from "firebase/firestore";
 
 import { auth, db } from "./firebase";
+
+
 
 // =========================================================
 // AUTH CONTEXT
@@ -54,62 +58,71 @@ const createFallbackProfile = (user) => {
 // =========================================================
 
 const applyTheme = (theme) => {
-  const root = document.documentElement;
-  const body = document.body;
+  const root =
+    document.documentElement;
 
-  const isDark = theme === "dark";
+  const body =
+    document.body;
 
-  root.classList.toggle("dark", isDark);
+  const isDark =
+    theme === "dark";
 
-  root.style.colorScheme = isDark
-    ? "dark"
-    : "light";
+  root.classList.toggle(
+    "dark",
+    isDark
+  );
 
-  body.style.backgroundColor = isDark
-    ? "#080d18"
-    : "#f8fafc";
+  root.style.colorScheme =
+    isDark
+      ? "dark"
+      : "light";
 
-  body.style.color = isDark
-    ? "#f8fafc"
-    : "#111827";
+  body.style.backgroundColor =
+    isDark
+      ? "#080d18"
+      : "#f8fafc";
+
+  body.style.color =
+    isDark
+      ? "#f8fafc"
+      : "#111827";
 };
 
 // =========================================================
 // AUTH PROVIDER
 // =========================================================
 
-export function AuthProvider({ children }) {
-  const [firebaseUser, setFirebaseUser] =
-    useState(null);
+export function AuthProvider({
+  children,
+}) {
+  const [
+    firebaseUser,
+    setFirebaseUser,
+  ] = useState(null);
 
-  const [profile, setProfile] =
-    useState(null);
+  const [
+    profile,
+    setProfile,
+  ] = useState(null);
 
-  const [profileLoading, setProfileLoading] =
-    useState(true);
+  const [
+    profileLoading,
+    setProfileLoading,
+  ] = useState(true);
 
   // =======================================================
   // THEME
   // =======================================================
 
-  /*
-    Theme belongs to the currently authenticated
-    Firebase account.
+  const [
+    theme,
+    setTheme,
+  ] = useState("light");
 
-    IMPORTANT:
-
-    We do NOT use:
-
-      localStorage.getItem("campusmart_theme")
-
-    because that would be shared between accounts.
-  */
-
-  const [theme, setTheme] =
-    useState("light");
-
-  const [themeLoading, setThemeLoading] =
-    useState(true);
+  const [
+    themeLoading,
+    setThemeLoading,
+  ] = useState(true);
 
   // =======================================================
   // FIREBASE AUTH LISTENER
@@ -133,60 +146,53 @@ export function AuthProvider({ children }) {
               : "No user"
           );
 
-          // =================================================
+          // ===============================================
           // NO USER
-          // =================================================
+          // ===============================================
 
           if (!user) {
             setFirebaseUser(null);
+
             setProfile(null);
 
-            /*
-              VERY IMPORTANT:
-
-              Whenever nobody is logged in, always return
-              the application to LIGHT mode.
-
-              This also prevents a previous user's dark
-              theme from appearing on Login/Register.
-            */
-
             setTheme("light");
+
             applyTheme("light");
 
             if (mounted) {
               setProfileLoading(false);
+
               setThemeLoading(false);
             }
 
             return;
           }
 
-          // =================================================
+          // ===============================================
           // USER EXISTS
-          // =================================================
+          // ===============================================
 
           setFirebaseUser(user);
 
           /*
-            Immediately use light mode while we retrieve
-            this specific user's saved theme.
-
-            This prevents the previous account's theme
-            from leaking into the new account.
-          */
+           * Start every newly authenticated account
+           * in light mode while its profile loads.
+           */
 
           setTheme("light");
+
           applyTheme("light");
 
           setThemeLoading(true);
 
-          // =================================================
+          // ===============================================
           // FALLBACK PROFILE
-          // =================================================
+          // ===============================================
 
           const fallbackProfile =
-            createFallbackProfile(user);
+            createFallbackProfile(
+              user
+            );
 
           if (mounted) {
             setProfile(
@@ -194,27 +200,28 @@ export function AuthProvider({ children }) {
             );
 
             /*
-              Authentication itself is already complete,
-              so don't keep the entire application blocked.
-            */
+             * Authentication itself has completed.
+             */
 
             setProfileLoading(false);
           }
 
-          // =================================================
-          // LOAD USER FIRESTORE DATA
-          // =================================================
+          // ===============================================
+          // LOAD FIRESTORE USER
+          // ===============================================
 
           try {
-            const userRef = doc(
-              db,
-              "users",
-              user.uid
-            );
+            const userRef =
+              doc(
+                db,
+                "users",
+                user.uid
+              );
 
             /*
-              Prevent Firestore from hanging forever.
-            */
+             * Prevent Firestore from
+             * hanging forever.
+             */
 
             const timeoutPromise =
               new Promise(
@@ -242,9 +249,9 @@ export function AuthProvider({ children }) {
               return;
             }
 
-            // =================================================
-            // FIRESTORE PROFILE EXISTS
-            // =================================================
+            // =============================================
+            // PROFILE EXISTS
+            // =============================================
 
             if (
               userSnapshot &&
@@ -286,8 +293,9 @@ export function AuthProvider({ children }) {
                 ...userData,
 
                 /*
-                  Firebase UID must always win.
-                */
+                 * Firebase UID always wins.
+                 */
+
                 id: user.uid,
               };
 
@@ -300,23 +308,23 @@ export function AuthProvider({ children }) {
                 loadedProfile
               );
 
-              // =============================================
-              // LOAD THIS USER'S THEME
-              // =============================================
+              // =========================================
+              // LOAD USER THEME
+              // =========================================
 
               const savedTheme =
-                userData.theme === "dark"
+                userData.theme ===
+                "dark"
                   ? "dark"
                   : "light";
 
-              /*
-                Only this Firebase user's theme
-                is applied.
-              */
+              setTheme(
+                savedTheme
+              );
 
-              setTheme(savedTheme);
-
-              applyTheme(savedTheme);
+              applyTheme(
+                savedTheme
+              );
 
               console.log(
                 "CampusMart theme loaded:",
@@ -326,19 +334,15 @@ export function AuthProvider({ children }) {
               );
             }
 
-            // =================================================
+            // =============================================
             // PROFILE DOES NOT EXIST
-            // =================================================
+            // =============================================
 
             else {
               console.warn(
                 "No Firestore profile found for:",
                 user.uid
               );
-
-              /*
-                New accounts start with LIGHT mode.
-              */
 
               setTheme("light");
 
@@ -351,10 +355,9 @@ export function AuthProvider({ children }) {
             );
 
             /*
-              If Firestore fails, do NOT log the user out.
-
-              Just use the safe default LIGHT theme.
-            */
+             * Do NOT log the user out if
+             * Firestore fails.
+             */
 
             if (mounted) {
               setProfile(
@@ -373,12 +376,13 @@ export function AuthProvider({ children }) {
         }
       );
 
-    // =====================================================
+    // ===============================================
     // CLEANUP
-    // =====================================================
+    // ===============================================
 
     return () => {
       mounted = false;
+
       unsubscribe();
     };
   }, []);
@@ -387,72 +391,66 @@ export function AuthProvider({ children }) {
   // CHANGE USER THEME
   // =========================================================
 
-  const updateTheme = async (newTheme) => {
-    /*
-      Only allow the two valid themes.
-    */
+  const updateTheme =
+    async (newTheme) => {
+      /*
+       * Only allow valid themes.
+       */
 
-    if (
-      newTheme !== "light" &&
-      newTheme !== "dark"
-    ) {
-      return;
-    }
-
-    /*
-      There must be a logged-in Firebase user.
-    */
-
-    if (!firebaseUser) {
-      return;
-    }
-
-    /*
-      Apply immediately for a fast UI response.
-    */
-
-    setTheme(newTheme);
-    applyTheme(newTheme);
-
-    try {
-      const userRef = doc(
-        db,
-        "users",
-        firebaseUser.uid
-      );
+      if (
+        newTheme !== "light" &&
+        newTheme !== "dark"
+      ) {
+        return;
+      }
 
       /*
-        Save the theme specifically inside
-        this user's Firestore document.
-      */
+       * User must be logged in.
+       */
 
-      const { setDoc } = await import(
-        "firebase/firestore"
-      );
+      if (!firebaseUser) {
+        return;
+      }
 
-      await setDoc(
-        userRef,
-        {
-          theme: newTheme,
-        },
-        {
-          merge: true,
-        }
-      );
+      /*
+       * Apply immediately.
+       */
 
-      console.log(
-        "Theme saved:",
-        newTheme,
-        "for user:",
-        firebaseUser.uid
-      );
-    } catch (error) {
-      console.error(
-        "Could not save theme:",
-        error
-      );
-    }
-  };
+      setTheme(newTheme);
+
+      applyTheme(newTheme);
+
+      try {
+        const userRef =
+          doc(
+            db,
+            "users",
+            firebaseUser.uid
+          );
+
+        await setDoc(
+          userRef,
+          {
+            theme: newTheme,
+          },
+          {
+            merge: true,
+          }
+        );
+
+        console.log(
+          "Theme saved:",
+          newTheme,
+          "for user:",
+          firebaseUser.uid
+        );
+      } catch (error) {
+        console.error(
+          "Could not save theme:",
+          error
+        );
+      }
+    };
 
   // =========================================================
   // PROVIDER
@@ -473,7 +471,8 @@ export function AuthProvider({ children }) {
         // Loading
         profileLoading,
 
-        loading: profileLoading,
+        loading:
+          profileLoading,
 
         // Authentication
         isAuthenticated:
@@ -489,6 +488,16 @@ export function AuthProvider({ children }) {
         updateTheme,
       }}
     >
+      {/* ===================================================
+          GLOBAL INTERNET MONITOR
+          
+          IMPORTANT:
+          This is outside App's Routes.
+
+          Therefore it stays mounted while navigating
+          through every CampusMart page.
+      =================================================== */}
+
       {children}
     </AuthContext.Provider>
   );
