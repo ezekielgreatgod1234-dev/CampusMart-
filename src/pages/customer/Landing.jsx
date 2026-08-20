@@ -23,10 +23,6 @@ import {
   FiMail,
   FiPhone,
   FiMap,
-  FiInstagram,
-  FiTwitter,
-  FiFacebook,
-  FiMusic,
   FiMenu,
   FiX,
 } from "react-icons/fi";
@@ -1111,45 +1107,7 @@ function Landing() {
                 connect within their campus community.
               </p>
 
-              {/* SOCIALS */}
-
-              <div className="mt-6 flex gap-3">
-                <a
-                  href="#"
-                  onClick={(e) => e.preventDefault()}
-                  className="w-9 h-9 rounded-full border border-white/30 flex items-center justify-center hover:bg-green-600 hover:border-green-600 transition"
-                  aria-label="Facebook"
-                >
-                  <FiFacebook />
-                </a>
-
-                <a
-                  href="#"
-                  onClick={(e) => e.preventDefault()}
-                  className="w-9 h-9 rounded-full border border-white/30 flex items-center justify-center hover:bg-green-600 hover:border-green-600 transition"
-                  aria-label="Twitter"
-                >
-                  <FiTwitter />
-                </a>
-
-                <a
-                  href="#"
-                  onClick={(e) => e.preventDefault()}
-                  className="w-9 h-9 rounded-full border border-white/30 flex items-center justify-center hover:bg-green-600 hover:border-green-600 transition"
-                  aria-label="Instagram"
-                >
-                  <FiInstagram />
-                </a>
-
-                <a
-                  href="#"
-                  onClick={(e) => e.preventDefault()}
-                  className="w-9 h-9 rounded-full border border-white/30 flex items-center justify-center hover:bg-green-600 hover:border-green-600 transition"
-                  aria-label="Music"
-                >
-                  <FiMusic />
-                </a>
-              </div>
+              
             </div>
 
             {/* MARKETPLACE */}
@@ -1240,7 +1198,7 @@ function Landing() {
               <div className="flex flex-wrap gap-5 text-sm text-gray-300">
                 <span className="flex items-center gap-2">
                   <FiPhone className="text-green-400" />
-                  +234 816 123 4567
+                  +234 704 320 5587
                 </span>
 
                 <span className="flex items-center gap-2">
@@ -1255,7 +1213,7 @@ function Landing() {
               </div>
 
               <p className="text-sm text-gray-400">
-                © 2025 CampusMart. All rights reserved.
+                © 2026 CampusMart. All rights reserved.
               </p>
             </div>
           </div>
