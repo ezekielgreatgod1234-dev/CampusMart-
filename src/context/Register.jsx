@@ -615,9 +615,9 @@ function Register() {
                   }
                 >
                   {showPassword ? (
-                    <FiEyeOff size={18} />
-                  ) : (
                     <FiEye size={18} />
+                  ) : (
+                    <FiEyeOff size={18} />
                   )}
                 </button>
 
@@ -673,9 +673,9 @@ function Register() {
                   }
                 >
                   {showConfirmPassword ? (
-                    <FiEyeOff size={18} />
-                  ) : (
                     <FiEye size={18} />
+                  ) : (
+                    <FiEyeOff size={18} />
                   )}
                 </button>
 

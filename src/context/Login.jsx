@@ -347,78 +347,115 @@ function Login() {
 
             {/* Password */}
 
-            <div>
+<div>
 
-              <div className="flex items-center justify-between mb-2">
+  <div className="flex items-center justify-between mb-2">
 
-                <label
-                  htmlFor="password"
-                  className="text-sm font-bold text-gray-700"
-                >
-                  Password
-                </label>
+    <label
+      htmlFor="password"
+      className="text-sm font-bold text-gray-700"
+    >
+      Password
+    </label>
 
-                <button
-  type="button"
-  onClick={() => navigate("/forgot-password")}
-  className="
-    text-sm
-    font-medium
-    text-green-600
-    hover:text-green-700
-    transition
-  "
->
-  Forgot Password?
-</button>
-              </div>
+    <button
+      type="button"
+      onClick={() =>
+        navigate("/forgot-password")
+      }
+      className="
+        text-sm
+        font-medium
+        text-green-600
+        hover:text-green-700
+        transition
+      "
+    >
+      Forgot Password?
+    </button>
 
-              <div className="relative">
+  </div>
 
-                <FiLock
-                  size={18}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
-                />
+  <div className="relative">
 
-                <input
-                  id="password"
-                  name="password"
-                  type={
-                    showPassword
-                      ? "text"
-                      : "password"
-                  }
-                  value={formData.password}
-                  onChange={handleChange}
-                  placeholder="Enter your password"
-                  autoComplete="current-password"
-                  className="w-full h-13 rounded-xl border border-gray-200 bg-white pl-11 pr-12 text-sm outline-none focus:border-green-500 focus:ring-4 focus:ring-green-50 transition"
-                />
+    <FiLock
+      size={18}
+      className="
+        absolute
+        left-4
+        top-1/2
+        -translate-y-1/2
+        text-gray-400
+      "
+    />
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    setShowPassword(
-                      (current) => !current
-                    )
-                  }
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
-                  aria-label={
-                    showPassword
-                      ? "Hide password"
-                      : "Show password"
-                  }
-                >
-                  {showPassword ? (
-                    <FiEyeOff size={18} />
-                  ) : (
-                    <FiEye size={18} />
-                  )}
-                </button>
+    <input
+      id="password"
+      name="password"
+      type={
+        showPassword
+          ? "text"
+          : "password"
+      }
+      value={formData.password}
+      onChange={handleChange}
+      placeholder="Enter your password"
+      autoComplete="current-password"
+      className="
+        w-full
+        h-13
+        rounded-xl
+        border
+        border-gray-200
+        bg-white
+        pl-11
+        pr-12
+        text-sm
+        outline-none
+        focus:border-green-500
+        focus:ring-4
+        focus:ring-green-50
+        transition
+      "
+    />
 
-              </div>
+    <button
+      type="button"
+      onClick={() =>
+        setShowPassword(
+          (current) => !current
+        )
+      }
+      className="
+        absolute
+        right-4
+        top-1/2
+        -translate-y-1/2
+        text-gray-400
+        hover:text-green-600
+        transition
+      "
+      aria-label={
+        showPassword
+          ? "Hide password"
+          : "Show password"
+      }
+      title={
+        showPassword
+          ? "Hide password"
+          : "Show password"
+      }
+    >
+      {showPassword ? (
+        <FiEye size={18} />
+      ) : (
+        <FiEyeOff size={18} />
+      )}
+    </button>
 
-            </div>
+  </div>
+
+</div>
 
             {/* Submit */}
 

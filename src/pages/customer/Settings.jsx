@@ -2165,7 +2165,7 @@ const PasswordField = ({
         <button
           type="button"
           onClick={() =>
-            setShow(!show)
+            setShow((current) => !current)
           }
           className="
             absolute
@@ -2174,17 +2174,27 @@ const PasswordField = ({
             -translate-y-1/2
             text-gray-400
             hover:text-green-600
+            transition
           "
           aria-label={
             show
               ? "Hide password"
               : "Show password"
           }
+          title={
+            show
+              ? "Hide password"
+              : "Show password"
+          }
         >
           {show ? (
-            <FiEyeOff />
+            <FiEye
+              size={18}
+            />
           ) : (
-            <FiEye />
+            <FiEyeOff
+              size={18}
+            />
           )}
         </button>
       </div>
