@@ -1,9 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { useEffect, useState } from "react";
 
 import {
   Routes,
@@ -306,6 +301,9 @@ function App() {
   const [profile, setProfile] =
     useState(emptyProfile);
 
+  const [profileFetching, setProfileFetching] =
+    useState(false);
+
   // =======================================================
   // CUSTOMER DATA
   // =======================================================
@@ -325,20 +323,8 @@ function App() {
   const [messages, setMessages] =
     useState([]);
 
-  /*
-   * IMPORTANT:
-   *
-   * Messages are intentionally NOT allowed to block
-   * the entire application anymore.
-   */
-  const [messagesLoading, setMessagesLoading] =
-    useState(false);
-
   // =======================================================
   // LOAD USER PROFILE
-  //
-  // This happens in the background.
-  // It NEVER blocks sidebar navigation.
   // =======================================================
 
   useEffect(() => {
@@ -347,10 +333,13 @@ function App() {
     const loadUserProfile = async () => {
       if (!firebaseUser) {
         setProfile(emptyProfile);
+        setProfileFetching(false);
         return;
       }
 
       try {
+        setProfileFetching(true);
+
         const userRef = doc(
           db,
           "users",
@@ -418,10 +407,8 @@ function App() {
 
           setProfile(newProfile);
 
-          /*
-           * Do not make the user wait for this.
-           */
-          setDoc(
+          // Create the profile in the background.
+          await setDoc(
             userRef,
             {
               ...newProfile,
@@ -434,12 +421,7 @@ function App() {
             {
               merge: true,
             }
-          ).catch((error) => {
-            console.error(
-              "Error creating user profile:",
-              error
-            );
-          });
+          );
         }
       } catch (error) {
         console.error(
@@ -464,6 +446,10 @@ function App() {
             role: "",
           });
         }
+      } finally {
+        if (!cancelled) {
+          setProfileFetching(false);
+        }
       }
     };
 
@@ -475,10 +461,15 @@ function App() {
   }, [firebaseUser]);
 
   // =======================================================
-  // LOAD CUSTOMER DATA
+  // CUSTOMER DATA LISTENER
   //
   // IMPORTANT:
-  // This listener runs in the background.
+  // This ONLY READS Firebase.
+  //
+  // It DOES NOT automatically write back whenever the
+  // listener changes.
+  //
+  // This removes the Firestore write loop.
   // =======================================================
 
   useEffect(() => {
@@ -502,60 +493,63 @@ function App() {
       customerDataRef,
 
       (snapshot) => {
-        if (!snapshot.exists()) {
-          /*
-           * Do not await this.
-           * The UI should continue immediately.
-           */
+        try {
+          if (!snapshot.exists()) {
+            // Create initial data once.
+            setCart([]);
+            setWishlist([]);
+            setOrders([]);
 
-          setCart([]);
-          setWishlist([]);
-          setOrders([]);
+            setDoc(
+              customerDataRef,
+              {
+                cart: [],
+                wishlist: [],
+                orders: [],
+                createdAt:
+                  serverTimestamp(),
+                updatedAt:
+                  serverTimestamp(),
+              },
+              {
+                merge: true,
+              }
+            ).catch((error) => {
+              console.error(
+                "Error initializing customer data:",
+                error
+              );
+            });
 
-          setDoc(
-            customerDataRef,
-            {
-              cart: [],
-              wishlist: [],
-              orders: [],
-              createdAt:
-                serverTimestamp(),
-              updatedAt:
-                serverTimestamp(),
-            },
-            {
-              merge: true,
-            }
-          ).catch((error) => {
-            console.error(
-              "Error initializing customer data:",
-              error
-            );
-          });
+            return;
+          }
 
-          return;
+          const data =
+            snapshot.data();
+
+          setCart(
+            Array.isArray(data.cart)
+              ? data.cart
+              : []
+          );
+
+          setWishlist(
+            Array.isArray(data.wishlist)
+              ? data.wishlist
+              : []
+          );
+
+          setOrders(
+            Array.isArray(data.orders)
+              ? data.orders
+              : []
+          );
+        } catch (error) {
+          console.error(
+            "Error processing customer data:",
+            error
+          );
         }
-
-        const data =
-          snapshot.data();
-
-        setCart(
-          Array.isArray(data.cart)
-            ? data.cart
-            : []
-        );
-
-        setWishlist(
-          Array.isArray(data.wishlist)
-            ? data.wishlist
-            : []
-        );
-
-        setOrders(
-          Array.isArray(data.orders)
-            ? data.orders
-            : []
-        );
       },
 
       (error) => {
@@ -572,79 +566,533 @@ function App() {
   }, [firebaseUser]);
 
   // =======================================================
-  // SAVE CUSTOMER DATA
+  // SAVE CUSTOMER DATA DIRECTLY
   //
-  // DEBOUNCED
+  // IMPORTANT:
+  // This function is called ONLY after a real user action.
   //
-  // This prevents Firestore writes from happening
-  // immediately every time cart/wishlist/orders change.
+  // We do NOT have a useEffect watching cart/wishlist/orders.
   // =======================================================
 
-  useEffect(() => {
+  const saveCustomerData = async ({
+    nextCart,
+    nextWishlist,
+    nextOrders,
+  }) => {
     if (!firebaseUser) {
-      return undefined;
+      return;
     }
 
-    const timer = setTimeout(() => {
-      const customerDataRef = doc(
-        db,
-        "users",
-        firebaseUser.uid,
-        "customerData",
-        "main"
-      );
+    const customerDataRef = doc(
+      db,
+      "users",
+      firebaseUser.uid,
+      "customerData",
+      "main"
+    );
 
-      setDoc(
+    try {
+      await setDoc(
         customerDataRef,
         {
-          cart,
-          wishlist,
-          orders,
+          cart:
+            Array.isArray(nextCart)
+              ? nextCart
+              : cart,
+
+          wishlist:
+            Array.isArray(nextWishlist)
+              ? nextWishlist
+              : wishlist,
+
+          orders:
+            Array.isArray(nextOrders)
+              ? nextOrders
+              : orders,
+
           updatedAt:
             serverTimestamp(),
         },
         {
           merge: true,
         }
-      ).catch((error) => {
-        console.error(
-          "Error saving customer data:",
-          error
-        );
-      });
-    }, 700);
-
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [
-    firebaseUser,
-    cart,
-    wishlist,
-    orders,
-  ]);
+      );
+    } catch (error) {
+      console.error(
+        "Error saving customer data:",
+        error
+      );
+    }
+  };
 
   // =======================================================
-  // REAL-TIME CONVERSATIONS
-  //
-  // IMPORTANT PERFORMANCE CHANGE:
-  //
-  // We don't allow Firebase message processing to
-  // immediately block the browser.
-  //
-  // The snapshot is received first.
-  // Processing is deferred.
+  // UPDATE PROFILE
+  // =======================================================
+
+  const updateProfile = async (
+    updates
+  ) => {
+    if (!firebaseUser) {
+      return;
+    }
+
+    const newProfile = {
+      ...profile,
+      ...updates,
+    };
+
+    // Update UI immediately.
+    setProfile(newProfile);
+
+    try {
+      const userRef = doc(
+        db,
+        "users",
+        firebaseUser.uid
+      );
+
+      await setDoc(
+        userRef,
+        {
+          ...updates,
+
+          uid:
+            firebaseUser.uid,
+
+          email:
+            newProfile.email ||
+            firebaseUser.email ||
+            "",
+
+          updatedAt:
+            serverTimestamp(),
+        },
+        {
+          merge: true,
+        }
+      );
+    } catch (error) {
+      console.error(
+        "Error updating profile:",
+        error
+      );
+    }
+  };
+
+  // =======================================================
+  // ADD TO CART
+  // =======================================================
+
+  const addToCart = (
+    product,
+    quantity = 1
+  ) => {
+    if (!product || !firebaseUser) {
+      return;
+    }
+
+    setCart((currentCart) => {
+      const existingProduct =
+        currentCart.find(
+          (item) =>
+            item.id === product.id
+        );
+
+      let nextCart;
+
+      if (existingProduct) {
+        nextCart =
+          currentCart.map(
+            (item) =>
+              item.id === product.id
+                ? {
+                    ...item,
+                    quantity:
+                      Number(
+                        item.quantity || 0
+                      ) +
+                      Number(
+                        quantity || 0
+                      ),
+                  }
+                : item
+          );
+      } else {
+        nextCart = [
+          ...currentCart,
+          {
+            ...product,
+            quantity:
+              Number(quantity) || 1,
+          },
+        ];
+      }
+
+      // Save in background.
+      saveCustomerData({
+        nextCart,
+        nextWishlist: wishlist,
+        nextOrders: orders,
+      });
+
+      return nextCart;
+    });
+  };
+
+  // =======================================================
+  // INCREASE QUANTITY
+  // =======================================================
+
+  const increaseQuantity = (
+    productId
+  ) => {
+    setCart((currentCart) => {
+      const nextCart =
+        currentCart.map(
+          (item) =>
+            item.id === productId
+              ? {
+                  ...item,
+                  quantity:
+                    Number(
+                      item.quantity || 0
+                    ) + 1,
+                }
+              : item
+        );
+
+      saveCustomerData({
+        nextCart,
+        nextWishlist: wishlist,
+        nextOrders: orders,
+      });
+
+      return nextCart;
+    });
+  };
+
+  // =======================================================
+  // DECREASE QUANTITY
+  // =======================================================
+
+  const decreaseQuantity = (
+    productId
+  ) => {
+    setCart((currentCart) => {
+      const nextCart =
+        currentCart.map(
+          (item) =>
+            item.id === productId
+              ? {
+                  ...item,
+                  quantity:
+                    Math.max(
+                      1,
+                      Number(
+                        item.quantity || 1
+                      ) - 1
+                    ),
+                }
+              : item
+        );
+
+      saveCustomerData({
+        nextCart,
+        nextWishlist: wishlist,
+        nextOrders: orders,
+      });
+
+      return nextCart;
+    });
+  };
+
+  // =======================================================
+  // REMOVE FROM CART
+  // =======================================================
+
+  const removeFromCart = (
+    productId
+  ) => {
+    setCart((currentCart) => {
+      const nextCart =
+        currentCart.filter(
+          (item) =>
+            item.id !== productId
+        );
+
+      saveCustomerData({
+        nextCart,
+        nextWishlist: wishlist,
+        nextOrders: orders,
+      });
+
+      return nextCart;
+    });
+  };
+
+  // =======================================================
+  // REMOVE PURCHASED ITEMS
+  // =======================================================
+
+  const removePurchasedItems = (
+    purchasedItems
+  ) => {
+    if (
+      !Array.isArray(
+        purchasedItems
+      )
+    ) {
+      return;
+    }
+
+    const purchasedIds =
+      purchasedItems.map(
+        (item) => item.id
+      );
+
+    setCart((currentCart) => {
+      const nextCart =
+        currentCart.filter(
+          (item) =>
+            !purchasedIds.includes(
+              item.id
+            )
+        );
+
+      saveCustomerData({
+        nextCart,
+        nextWishlist: wishlist,
+        nextOrders: orders,
+      });
+
+      return nextCart;
+    });
+  };
+
+  // =======================================================
+  // CART COUNT
+  // =======================================================
+
+  const cartCount =
+    cart.reduce(
+      (total, item) =>
+        total +
+        Number(
+          item.quantity || 0
+        ),
+      0
+    );
+
+  // =======================================================
+  // TOGGLE WISHLIST
+  // =======================================================
+
+  const toggleWishlist = (
+    productId
+  ) => {
+    if (!firebaseUser) {
+      return;
+    }
+
+    setWishlist(
+      (currentWishlist) => {
+        let nextWishlist;
+
+        if (
+          currentWishlist.includes(
+            productId
+          )
+        ) {
+          nextWishlist =
+            currentWishlist.filter(
+              (id) =>
+                id !== productId
+            );
+        } else {
+          nextWishlist = [
+            ...currentWishlist,
+            productId,
+          ];
+        }
+
+        // Save in background.
+        saveCustomerData({
+          nextCart: cart,
+          nextWishlist,
+          nextOrders: orders,
+        });
+
+        return nextWishlist;
+      }
+    );
+  };
+
+  // =======================================================
+  // REMOVE FROM WISHLIST
+  // =======================================================
+
+  const removeFromWishlist = (
+    productId
+  ) => {
+    setWishlist(
+      (currentWishlist) => {
+        const nextWishlist =
+          currentWishlist.filter(
+            (id) =>
+              id !== productId
+          );
+
+        saveCustomerData({
+          nextCart: cart,
+          nextWishlist,
+          nextOrders: orders,
+        });
+
+        return nextWishlist;
+      }
+    );
+  };
+
+  // =======================================================
+  // PLACE ORDER
+  // =======================================================
+
+  const placeOrder = (
+    orderData
+  ) => {
+    if (
+      !orderData ||
+      !firebaseUser
+    ) {
+      return null;
+    }
+
+    const timestamp =
+      Date.now();
+
+    const newOrder = {
+      id:
+        timestamp
+          .toString()
+          .slice(-8),
+
+      orderNumber:
+        `CM-${timestamp
+          .toString()
+          .slice(-8)}`,
+
+      items:
+        orderData.items || [],
+
+      total:
+        orderData.total || 0,
+
+      paymentMethod:
+        orderData.paymentMethod ||
+        "",
+
+      type:
+        orderData.type ||
+        "",
+
+      fullName:
+        orderData.customer
+          ?.fullName || "",
+
+      phone:
+        orderData.customer
+          ?.phone || "",
+
+      campus:
+        orderData.customer
+          ?.campus || "",
+
+      address:
+        orderData.customer
+          ?.address || "",
+
+      note:
+        orderData.customer
+          ?.note || "",
+
+      customer:
+        orderData.customer || {},
+
+      date:
+        new Date().toLocaleDateString(),
+
+      createdAt:
+        new Date().toISOString(),
+
+      status:
+        "Placed",
+    };
+
+    // =====================================================
+    // UPDATE ORDERS IMMEDIATELY
+    // =====================================================
+
+    setOrders((currentOrders) => {
+      const nextOrders = [
+        ...currentOrders,
+        newOrder,
+      ];
+
+      const purchasedIds =
+        Array.isArray(
+          orderData.items
+        )
+          ? orderData.items.map(
+              (item) => item.id
+            )
+          : [];
+
+      const nextCart =
+        cart.filter(
+          (item) =>
+            !purchasedIds.includes(
+              item.id
+            )
+        );
+
+      setCart(nextCart);
+
+      // Save both changes in background.
+      saveCustomerData({
+        nextCart,
+        nextWishlist: wishlist,
+        nextOrders,
+      });
+
+      return nextOrders;
+    });
+
+    return newOrder;
+  };
+
+  // =======================================================
+  // UNREAD MESSAGE COUNT
+  // =======================================================
+
+  const unreadMessages =
+    messages.reduce(
+      (total, message) =>
+        total +
+        Number(
+          message.unread || 0
+        ),
+      0
+    );
+
+  // =======================================================
+  // REAL-TIME FIREBASE CONVERSATIONS
   // =======================================================
 
   useEffect(() => {
     if (!firebaseUser) {
       setMessages([]);
-      setMessagesLoading(false);
-
       return undefined;
     }
-
-    setMessagesLoading(true);
 
     const conversationsRef =
       collection(
@@ -666,1115 +1114,56 @@ function App() {
       conversationsQuery,
 
       (snapshot) => {
-        /*
-         * Let the browser finish the current work
-         * before processing all conversations.
-         *
-         * This is important for sidebar navigation.
-         */
-        setTimeout(() => {
-          try {
-            const conversationList =
-              snapshot.docs.map(
-                (conversationDoc) => {
-                  const data =
-                    conversationDoc.data();
+        try {
+          const conversationList =
+            snapshot.docs.map(
+              (conversationDoc) => {
+                const data =
+                  conversationDoc.data();
 
-                  const participantNames =
-                    data.participantNames ||
-                    {};
+                const participantNames =
+                  data.participantNames ||
+                  {};
 
-                  const participantImages =
-                    data.participantImages ||
-                    {};
+                const participantImages =
+                  data.participantImages ||
+                  {};
 
-                  const participants =
-                    Array.isArray(
-                      data.participants
-                    )
-                      ? data.participants
-                      : [];
-
-                  const otherParticipantId =
-                    participants.find(
-                      (uid) =>
-                        String(uid) !==
-                        String(
-                          firebaseUser.uid
-                        )
-                    );
-
-                  const otherName =
-                    participantNames[
-                      otherParticipantId
-                    ] ||
-                    "CampusMart User";
-
-                  const unreadCount =
-                    Number(
-                      data.unreadCounts?.[
-                        firebaseUser.uid
-                      ] || 0
-                    );
-
-                  const conversationMessages =
-                    Array.isArray(
-                      data.messages
-                    )
-                      ? data.messages
-                      : [];
-
-                  // ===========================================
-                  // FILTER MESSAGES
-                  // ===========================================
-
-                  const visibleMessages =
-                    conversationMessages.filter(
-                      (message) => {
-                        const deletedFor =
-                          Array.isArray(
-                            message.deletedFor
-                          )
-                            ? message.deletedFor
-                            : [];
-
-                        if (
-                          deletedFor.includes(
+                const otherParticipantId =
+                  Array.isArray(
+                    data.participants
+                  )
+                    ? data.participants.find(
+                        (uid) =>
+                          String(uid) !==
+                          String(
                             firebaseUser.uid
                           )
-                        ) {
-                          return false;
-                        }
+                      )
+                    : null;
 
-                        if (
-                          message.deletedForEveryone ===
-                          true
-                        ) {
-                          return false;
-                        }
+                const otherName =
+                  participantNames[
+                    otherParticipantId
+                  ] ||
+                  "CampusMart User";
 
-                        return true;
-                      }
-                    );
-
-                  // ===========================================
-                  // SORT MESSAGES
-                  // ===========================================
-
-                  const sortedVisibleMessages =
-                    [...visibleMessages].sort(
-                      (a, b) => {
-                        const aTime =
-                          a.createdAt?.toMillis
-                            ? a.createdAt.toMillis()
-                            : Number(
-                                a.createdAt || 0
-                              );
-
-                        const bTime =
-                          b.createdAt?.toMillis
-                            ? b.createdAt.toMillis()
-                            : Number(
-                                b.createdAt || 0
-                              );
-
-                        return (
-                          aTime - bTime
-                        );
-                      }
-                    );
-
-                  // ===========================================
-                  // LAST MESSAGE
-                  // ===========================================
-
-                  const lastVisibleMessage =
-                    sortedVisibleMessages.length >
-                    0
-                      ? sortedVisibleMessages[
-                          sortedVisibleMessages.length -
-                            1
-                        ]
-                      : null;
-
-                  const lastMessage =
-                    lastVisibleMessage?.text ||
-                    "";
-
-                  const lastMessageAt =
-                    lastVisibleMessage?.createdAt ||
-                    0;
-
-                  // ===========================================
-                  // TIME
-                  // ===========================================
-
-                  let displayTime = "";
-
-                  if (lastMessageAt) {
-                    try {
-                      const date =
-                        lastMessageAt?.toDate
-                          ? lastMessageAt.toDate()
-                          : new Date(
-                              lastMessageAt
-                            );
-
-                      displayTime =
-                        date.toLocaleTimeString(
-                          [],
-                          {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          }
-                        );
-                    } catch {
-                      displayTime = "";
-                    }
-                  }
-
-                  return {
-                    id:
-                      conversationDoc.id,
-
-                    conversationId:
-                      conversationDoc.id,
-
-                    otherParticipantId,
-
-                    name:
-                      otherName,
-
-                    profileImage:
-                      participantImages[
-                        otherParticipantId
-                      ] || null,
-
-                    lastMessage,
-
-                    time:
-                      displayTime,
-
-                    unread:
-                      unreadCount,
-
-                    online:
-                      data.onlineStatus?.[
-                        otherParticipantId
-                      ] === true,
-
-                    conversation:
-                      sortedVisibleMessages,
-
-                    allMessages:
-                      conversationMessages,
-                  };
-                }
-              );
-
-            // ===========================================
-            // SORT CONVERSATIONS
-            // ===========================================
-
-            conversationList.sort(
-              (a, b) => {
-                const aMessages =
-                  a.conversation || [];
-
-                const bMessages =
-                  b.conversation || [];
-
-                const aLast =
-                  aMessages[
-                    aMessages.length - 1
-                  ]?.createdAt || 0;
-
-                const bLast =
-                  bMessages[
-                    bMessages.length - 1
-                  ]?.createdAt || 0;
-
-                const aTime =
-                  aLast?.toMillis
-                    ? aLast.toMillis()
-                    : Number(aLast) || 0;
-
-                const bTime =
-                  bLast?.toMillis
-                    ? bLast.toMillis()
-                    : Number(bLast) || 0;
-
-                return (
-                  bTime - aTime
-                );
-              }
-            );
-
-            setMessages(
-              conversationList
-            );
-
-            setMessagesLoading(false);
-          } catch (error) {
-            console.error(
-              "Error processing conversations:",
-              error
-            );
-
-            setMessages([]);
-            setMessagesLoading(false);
-          }
-        }, 0);
-      },
-
-      (error) => {
-        console.error(
-          "Conversation listener error:",
-          error
-        );
-
-        setMessages([]);
-        setMessagesLoading(false);
-      }
-    );
-
-    return () => {
-      unsubscribe();
-    };
-  }, [firebaseUser]);
-
-  // =======================================================
-  // UPDATE PROFILE
-  // =======================================================
-
-  const updateProfile =
-    useCallback(
-      async (updates) => {
-        if (!firebaseUser) {
-          return;
-        }
-
-        const newProfile = {
-          ...profile,
-          ...updates,
-        };
-
-        setProfile(newProfile);
-
-        try {
-          const userRef = doc(
-            db,
-            "users",
-            firebaseUser.uid
-          );
-
-          await setDoc(
-            userRef,
-            {
-              ...updates,
-
-              uid:
-                firebaseUser.uid,
-
-              email:
-                newProfile.email ||
-                firebaseUser.email ||
-                "",
-
-              updatedAt:
-                serverTimestamp(),
-            },
-            {
-              merge: true,
-            }
-          );
-        } catch (error) {
-          console.error(
-            "Error updating profile:",
-            error
-          );
-        }
-      },
-      [
-        firebaseUser,
-        profile,
-      ]
-    );
-
-  // =======================================================
-  // ADD TO CART
-  // =======================================================
-
-  const addToCart =
-    useCallback(
-      (
-        product,
-        quantity = 1
-      ) => {
-        if (
-          !product ||
-          !firebaseUser
-        ) {
-          return;
-        }
-
-        setCart(
-          (currentCart) => {
-            const existingProduct =
-              currentCart.find(
-                (item) =>
-                  item.id ===
-                  product.id
-              );
-
-            if (existingProduct) {
-              return currentCart.map(
-                (item) =>
-                  item.id ===
-                  product.id
-                    ? {
-                        ...item,
-
-                        quantity:
-                          Number(
-                            item.quantity ||
-                              0
-                          ) +
-                          Number(
-                            quantity || 0
-                          ),
-                      }
-                    : item
-              );
-            }
-
-            return [
-              ...currentCart,
-
-              {
-                ...product,
-
-                quantity:
+                const unreadCount =
                   Number(
-                    quantity
-                  ) || 1,
-              },
-            ];
-          }
-        );
-      },
-      [firebaseUser]
-    );
-
-  // =======================================================
-  // INCREASE QUANTITY
-  // =======================================================
-
-  const increaseQuantity =
-    useCallback(
-      (productId) => {
-        setCart(
-          (currentCart) =>
-            currentCart.map(
-              (item) =>
-                item.id ===
-                productId
-                  ? {
-                      ...item,
-
-                      quantity:
-                        Number(
-                          item.quantity ||
-                            0
-                        ) + 1,
-                    }
-                  : item
-            )
-        );
-      },
-      []
-    );
-
-  // =======================================================
-  // DECREASE QUANTITY
-  // =======================================================
-
-  const decreaseQuantity =
-    useCallback(
-      (productId) => {
-        setCart(
-          (currentCart) =>
-            currentCart.map(
-              (item) =>
-                item.id ===
-                productId
-                  ? {
-                      ...item,
-
-                      quantity:
-                        Math.max(
-                          1,
-                          Number(
-                            item.quantity ||
-                              1
-                          ) - 1
-                        ),
-                    }
-                  : item
-            )
-        );
-      },
-      []
-    );
-
-  // =======================================================
-  // REMOVE FROM CART
-  // =======================================================
-
-  const removeFromCart =
-    useCallback(
-      (productId) => {
-        setCart(
-          (currentCart) =>
-            currentCart.filter(
-              (item) =>
-                item.id !==
-                productId
-            )
-        );
-      },
-      []
-    );
-
-  // =======================================================
-  // REMOVE PURCHASED ITEMS
-  // =======================================================
-
-  const removePurchasedItems =
-    useCallback(
-      (purchasedItems) => {
-        if (
-          !Array.isArray(
-            purchasedItems
-          )
-        ) {
-          return;
-        }
-
-        const purchasedIds =
-          purchasedItems.map(
-            (item) => item.id
-          );
-
-        setCart(
-          (currentCart) =>
-            currentCart.filter(
-              (item) =>
-                !purchasedIds.includes(
-                  item.id
-                )
-            )
-        );
-      },
-      []
-    );
-
-  // =======================================================
-  // CART COUNT
-  // =======================================================
-
-  const cartCount = useMemo(
-    () =>
-      cart.reduce(
-        (total, item) =>
-          total +
-          Number(
-            item.quantity || 0
-          ),
-        0
-      ),
-    [cart]
-  );
-
-  // =======================================================
-  // TOGGLE WISHLIST
-  // =======================================================
-
-  const toggleWishlist =
-    useCallback(
-      (productId) => {
-        if (!firebaseUser) {
-          return;
-        }
-
-        setWishlist(
-          (currentWishlist) => {
-            if (
-              currentWishlist.includes(
-                productId
-              )
-            ) {
-              return currentWishlist.filter(
-                (id) =>
-                  id !== productId
-              );
-            }
-
-            return [
-              ...currentWishlist,
-              productId,
-            ];
-          }
-        );
-      },
-      [firebaseUser]
-    );
-
-  // =======================================================
-  // REMOVE FROM WISHLIST
-  // =======================================================
-
-  const removeFromWishlist =
-    useCallback(
-      (productId) => {
-        setWishlist(
-          (currentWishlist) =>
-            currentWishlist.filter(
-              (id) =>
-                id !== productId
-            )
-        );
-      },
-      []
-    );
-
-  // =======================================================
-  // PLACE ORDER
-  // =======================================================
-
-  const placeOrder =
-    useCallback(
-      (orderData) => {
-        if (
-          !orderData ||
-          !firebaseUser
-        ) {
-          return null;
-        }
-
-        const timestamp =
-          Date.now();
-
-        const newOrder = {
-          id:
-            timestamp
-              .toString()
-              .slice(-8),
-
-          orderNumber:
-            `CM-${timestamp
-              .toString()
-              .slice(-8)}`,
-
-          items:
-            orderData.items || [],
-
-          total:
-            orderData.total || 0,
-
-          paymentMethod:
-            orderData.paymentMethod ||
-            "",
-
-          type:
-            orderData.type ||
-            "",
-
-          fullName:
-            orderData.customer
-              ?.fullName || "",
-
-          phone:
-            orderData.customer
-              ?.phone || "",
-
-          campus:
-            orderData.customer
-              ?.campus || "",
-
-          address:
-            orderData.customer
-              ?.address || "",
-
-          note:
-            orderData.customer
-              ?.note || "",
-
-          customer:
-            orderData.customer || {},
-
-          date:
-            new Date().toLocaleDateString(),
-
-          createdAt:
-            new Date().toISOString(),
-
-          status:
-            "Placed",
-        };
-
-        setOrders(
-          (currentOrders) => [
-            ...currentOrders,
-            newOrder,
-          ]
-        );
-
-        removePurchasedItems(
-          orderData.items || []
-        );
-
-        return newOrder;
-      },
-      [
-        firebaseUser,
-        removePurchasedItems,
-      ]
-    );
-
-  // =======================================================
-  // UNREAD MESSAGE COUNT
-  // =======================================================
-
-  const unreadMessages =
-    useMemo(
-      () =>
-        messages.reduce(
-          (total, message) =>
-            total +
-            Number(
-              message.unread || 0
-            ),
-          0
-        ),
-      [messages]
-    );
-
-  // =======================================================
-  // MARK MESSAGE AS READ
-  // =======================================================
-
-  const markMessageAsRead =
-    useCallback(
-      async (messageId) => {
-        if (
-          !firebaseUser ||
-          !messageId
-        ) {
-          return;
-        }
-
-        try {
-          const conversationRef =
-            doc(
-              db,
-              "conversations",
-              String(messageId)
-            );
-
-          await updateDoc(
-            conversationRef,
-            {
-              [`unreadCounts.${firebaseUser.uid}`]:
-                0,
-            }
-          );
-        } catch (error) {
-          console.error(
-            "Error marking conversation as read:",
-            error
-          );
-        }
-      },
-      [firebaseUser]
-    );
-
-  // =======================================================
-  // SEND MESSAGE
-  // =======================================================
-
-  const sendMessage =
-    useCallback(
-      async (
-        messageId,
-        text
-      ) => {
-        const cleanText =
-          String(
-            text || ""
-          ).trim();
-
-        if (
-          !cleanText ||
-          !firebaseUser ||
-          !messageId
-        ) {
-          return false;
-        }
-
-        try {
-          const conversationRef =
-            doc(
-              db,
-              "conversations",
-              String(messageId)
-            );
-
-          let success = false;
-
-          await runTransaction(
-            db,
-            async (
-              transaction
-            ) => {
-              const conversationSnapshot =
-                await transaction.get(
-                  conversationRef
-                );
-
-              if (
-                !conversationSnapshot.exists()
-              ) {
-                throw new Error(
-                  "Conversation not found."
-                );
-              }
-
-              const data =
-                conversationSnapshot.data();
-
-              const participants =
-                Array.isArray(
-                  data.participants
-                )
-                  ? data.participants
-                  : [];
-
-              const receiverId =
-                participants.find(
-                  (uid) =>
-                    String(uid) !==
-                    String(
+                    data.unreadCounts?.[
                       firebaseUser.uid
-                    )
-                );
-
-              if (!receiverId) {
-                throw new Error(
-                  "Receiver ID is missing."
-                );
-              }
-
-              const existingMessages =
-                Array.isArray(
-                  data.messages
-                )
-                  ? data.messages
-                  : [];
-
-              const newMessage = {
-                id:
-                  `${firebaseUser.uid}_${Date.now()}_${Math.random()
-                    .toString(36)
-                    .slice(2, 8)}`,
-
-                senderId:
-                  firebaseUser.uid,
-
-                sender:
-                  "me",
-
-                text:
-                  cleanText,
-
-                createdAt:
-                  Date.now(),
-
-                deletedFor: [],
-              };
-
-              const currentUnread =
-                Number(
-                  data.unreadCounts?.[
-                    receiverId
-                  ] || 0
-                );
-
-              transaction.update(
-                conversationRef,
-                {
-                  messages: [
-                    ...existingMessages,
-                    newMessage,
-                  ],
-
-                  lastMessage:
-                    cleanText,
-
-                  lastMessageAt:
-                    Date.now(),
-
-                  [`unreadCounts.${receiverId}`]:
-                    currentUnread +
-                    1,
-
-                  [`unreadCounts.${firebaseUser.uid}`]:
-                    0,
-
-                  updatedAt:
-                    serverTimestamp(),
-                }
-              );
-
-              success = true;
-            }
-          );
-
-          return success;
-        } catch (error) {
-          console.error(
-            "Error sending message:",
-            error
-          );
-
-          return false;
-        }
-      },
-      [firebaseUser]
-    );
-
-  // =======================================================
-  // DELETE MESSAGES
-  // =======================================================
-
-  const deleteMessages =
-    useCallback(
-      async (
-        conversationId,
-        messageIds,
-        deleteType
-      ) => {
-        if (
-          !firebaseUser ||
-          !conversationId ||
-          !Array.isArray(
-            messageIds
-          ) ||
-          messageIds.length === 0
-        ) {
-          return false;
-        }
-
-        if (
-          deleteType !== "me" &&
-          deleteType !==
-            "everyone"
-        ) {
-          console.error(
-            "Invalid delete type. Choose 'me' or 'everyone'."
-          );
-
-          return false;
-        }
-
-        try {
-          const conversationRef =
-            doc(
-              db,
-              "conversations",
-              String(
-                conversationId
-              )
-            );
-
-          const result =
-            await runTransaction(
-              db,
-              async (
-                transaction
-              ) => {
-                const snapshot =
-                  await transaction.get(
-                    conversationRef
+                    ] || 0
                   );
 
-                if (
-                  !snapshot.exists()
-                ) {
-                  throw new Error(
-                    "Conversation not found."
-                  );
-                }
-
-                const data =
-                  snapshot.data();
-
-                const existingMessages =
+                const conversationMessages =
                   Array.isArray(
                     data.messages
                   )
                     ? data.messages
                     : [];
 
-                const selectedIds =
-                  new Set(
-                    messageIds.map(
-                      (messageId) =>
-                        String(
-                          messageId
-                        )
-                    )
-                  );
-
-                // =============================================
-                // DELETE FOR EVERYONE
-                // =============================================
-
-                if (
-                  deleteType ===
-                  "everyone"
-                ) {
-                  const updatedMessages =
-                    existingMessages.filter(
-                      (message) => {
-                        const messageId =
-                          String(
-                            message.id
-                          );
-
-                        if (
-                          !selectedIds.has(
-                            messageId
-                          )
-                        ) {
-                          return true;
-                        }
-
-                        const isMine =
-                          String(
-                            message.senderId
-                          ) ===
-                          String(
-                            firebaseUser.uid
-                          );
-
-                        if (!isMine) {
-                          return true;
-                        }
-
-                        return false;
-                      }
-                    );
-
-                  const visibleMessages =
-                    updatedMessages.filter(
-                      (message) => {
-                        const deletedFor =
-                          Array.isArray(
-                            message.deletedFor
-                          )
-                            ? message.deletedFor
-                            : [];
-
-                        return (
-                          !deletedFor.includes(
-                            firebaseUser.uid
-                          ) &&
-                          message.deletedForEveryone !==
-                            true
-                        );
-                      }
-                    );
-
-                  const lastMessage =
-                    visibleMessages.length >
-                    0
-                      ? visibleMessages[
-                          visibleMessages.length -
-                            1
-                        ]
-                      : null;
-
-                  transaction.update(
-                    conversationRef,
-                    {
-                      messages:
-                        updatedMessages,
-
-                      lastMessage:
-                        lastMessage?.text ||
-                        "",
-
-                      lastMessageAt:
-                        lastMessage?.createdAt ||
-                        0,
-
-                      updatedAt:
-                        serverTimestamp(),
-                    }
-                  );
-
-                  return true;
-                }
-
-                // =============================================
-                // DELETE FOR ME
-                // =============================================
-
-                const updatedMessages =
-                  existingMessages.map(
-                    (message) => {
-                      const messageId =
-                        String(
-                          message.id
-                        );
-
-                      if (
-                        !selectedIds.has(
-                          messageId
-                        )
-                      ) {
-                        return message;
-                      }
-
-                      const deletedFor =
-                        Array.isArray(
-                          message.deletedFor
-                        )
-                          ? message.deletedFor
-                          : [];
-
-                      if (
-                        deletedFor.includes(
-                          firebaseUser.uid
-                        )
-                      ) {
-                        return message;
-                      }
-
-                      return {
-                        ...message,
-
-                        deletedFor: [
-                          ...deletedFor,
-                          firebaseUser.uid,
-                        ],
-                      };
-                    }
-                  );
-
-                const visibleForCurrentUser =
-                  updatedMessages.filter(
+                const visibleMessages =
+                  conversationMessages.filter(
                     (message) => {
                       const deletedFor =
                         Array.isArray(
@@ -1802,11 +1191,496 @@ function App() {
                     }
                   );
 
-                const lastMessage =
-                  visibleForCurrentUser.length >
+                const sortedVisibleMessages =
+                  [
+                    ...visibleMessages,
+                  ].sort(
+                    (a, b) => {
+                      const aTime =
+                        a.createdAt?.toMillis
+                          ? a.createdAt.toMillis()
+                          : Number(
+                              a.createdAt || 0
+                            );
+
+                      const bTime =
+                        b.createdAt?.toMillis
+                          ? b.createdAt.toMillis()
+                          : Number(
+                              b.createdAt || 0
+                            );
+
+                      return (
+                        aTime -
+                        bTime
+                      );
+                    }
+                  );
+
+                const lastVisibleMessage =
+                  sortedVisibleMessages.length >
                   0
-                    ? visibleForCurrentUser[
-                        visibleForCurrentUser.length -
+                    ? sortedVisibleMessages[
+                        sortedVisibleMessages.length -
+                          1
+                      ]
+                    : null;
+
+                const lastMessage =
+                  lastVisibleMessage?.text ||
+                  (
+                    lastVisibleMessage?.imageUrl
+                      ? "📷 Photo"
+                      : ""
+                  ) ||
+                  "";
+
+                const lastMessageAt =
+                  lastVisibleMessage?.createdAt ||
+                  0;
+
+                let displayTime = "";
+
+                if (lastMessageAt) {
+                  try {
+                    const date =
+                      lastMessageAt?.toDate
+                        ? lastMessageAt.toDate()
+                        : new Date(
+                            lastMessageAt
+                          );
+
+                    displayTime =
+                      date.toLocaleTimeString(
+                        [],
+                        {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        }
+                      );
+                  } catch {
+                    displayTime = "";
+                  }
+                }
+
+                return {
+                  id:
+                    conversationDoc.id,
+
+                  conversationId:
+                    conversationDoc.id,
+
+                  otherParticipantId,
+
+                  name:
+                    otherName,
+
+                  profileImage:
+                    participantImages[
+                      otherParticipantId
+                    ] || null,
+
+                  lastMessage,
+
+                  time:
+                    displayTime,
+
+                  unread:
+                    unreadCount,
+
+                  online:
+                    data.onlineStatus?.[
+                      otherParticipantId
+                    ] === true,
+
+                  conversation:
+                    sortedVisibleMessages,
+
+                  allMessages:
+                    conversationMessages,
+                };
+              }
+            );
+
+          conversationList.sort(
+            (a, b) => {
+              const aMessages =
+                a.conversation || [];
+
+              const bMessages =
+                b.conversation || [];
+
+              const aLast =
+                aMessages[
+                  aMessages.length - 1
+                ]?.createdAt || 0;
+
+              const bLast =
+                bMessages[
+                  bMessages.length - 1
+                ]?.createdAt || 0;
+
+              const aTime =
+                aLast?.toMillis
+                  ? aLast.toMillis()
+                  : Number(aLast) || 0;
+
+              const bTime =
+                bLast?.toMillis
+                  ? bLast.toMillis()
+                  : Number(bLast) || 0;
+
+              return (
+                bTime - aTime
+              );
+            }
+          );
+
+          setMessages(
+            conversationList
+          );
+        } catch (error) {
+          console.error(
+            "Error processing conversations:",
+            error
+          );
+
+          setMessages([]);
+        }
+      },
+
+      (error) => {
+        console.error(
+          "Conversation listener error:",
+          error
+        );
+
+        setMessages([]);
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [firebaseUser]);
+
+  // =======================================================
+  // MARK MESSAGE AS READ
+  // =======================================================
+
+  const markMessageAsRead =
+    async (messageId) => {
+      if (
+        !firebaseUser ||
+        !messageId
+      ) {
+        return;
+      }
+
+      try {
+        const conversationRef =
+          doc(
+            db,
+            "conversations",
+            String(messageId)
+          );
+
+        await updateDoc(
+          conversationRef,
+          {
+            [`unreadCounts.${firebaseUser.uid}`]: 0,
+          }
+        );
+      } catch (error) {
+        console.error(
+          "Error marking conversation as read:",
+          error
+        );
+      }
+    };
+
+  // =======================================================
+  // SEND MESSAGE
+  // =======================================================
+
+  const sendMessage =
+    async (
+      messageId,
+      text
+    ) => {
+      const cleanText =
+        String(text || "").trim();
+
+      if (
+        !cleanText ||
+        !firebaseUser ||
+        !messageId
+      ) {
+        return false;
+      }
+
+      try {
+        const conversationRef =
+          doc(
+            db,
+            "conversations",
+            String(messageId)
+          );
+
+        let success = false;
+
+        await runTransaction(
+          db,
+          async (transaction) => {
+            const conversationSnapshot =
+              await transaction.get(
+                conversationRef
+              );
+
+            if (
+              !conversationSnapshot.exists()
+            ) {
+              throw new Error(
+                "Conversation not found."
+              );
+            }
+
+            const data =
+              conversationSnapshot.data();
+
+            const participants =
+              Array.isArray(
+                data.participants
+              )
+                ? data.participants
+                : [];
+
+            const receiverId =
+              participants.find(
+                (uid) =>
+                  String(uid) !==
+                  String(
+                    firebaseUser.uid
+                  )
+              );
+
+            if (!receiverId) {
+              throw new Error(
+                "Receiver ID is missing."
+              );
+            }
+
+            const existingMessages =
+              Array.isArray(
+                data.messages
+              )
+                ? data.messages
+                : [];
+
+            const newMessage = {
+              id:
+                `${firebaseUser.uid}_${Date.now()}_${Math.random()
+                  .toString(36)
+                  .slice(2, 8)}`,
+
+              senderId:
+                firebaseUser.uid,
+
+              sender:
+                "me",
+
+              text:
+                cleanText,
+
+              createdAt:
+                Date.now(),
+
+              deletedFor: [],
+            };
+
+            const currentUnread =
+              Number(
+                data.unreadCounts?.[
+                  receiverId
+                ] || 0
+              );
+
+            transaction.update(
+              conversationRef,
+              {
+                messages: [
+                  ...existingMessages,
+                  newMessage,
+                ],
+
+                lastMessage:
+                  cleanText,
+
+                lastMessageAt:
+                  Date.now(),
+
+                [`unreadCounts.${receiverId}`]:
+                  currentUnread + 1,
+
+                [`unreadCounts.${firebaseUser.uid}`]:
+                  0,
+
+                updatedAt:
+                  serverTimestamp(),
+              }
+            );
+
+            success = true;
+          }
+        );
+
+        return success;
+      } catch (error) {
+        console.error(
+          "Error sending message:",
+          error
+        );
+
+        return false;
+      }
+    };
+
+  // =======================================================
+  // DELETE MESSAGES
+  // =======================================================
+
+  const deleteMessages =
+    async (
+      conversationId,
+      messageIds,
+      deleteType
+    ) => {
+      if (
+        !firebaseUser ||
+        !conversationId ||
+        !Array.isArray(messageIds) ||
+        messageIds.length === 0
+      ) {
+        return false;
+      }
+
+      if (
+        deleteType !== "me" &&
+        deleteType !== "everyone"
+      ) {
+        return false;
+      }
+
+      try {
+        const conversationRef =
+          doc(
+            db,
+            "conversations",
+            String(conversationId)
+          );
+
+        const result =
+          await runTransaction(
+            db,
+            async (transaction) => {
+              const snapshot =
+                await transaction.get(
+                  conversationRef
+                );
+
+              if (
+                !snapshot.exists()
+              ) {
+                throw new Error(
+                  "Conversation not found."
+                );
+              }
+
+              const data =
+                snapshot.data();
+
+              const existingMessages =
+                Array.isArray(
+                  data.messages
+                )
+                  ? data.messages
+                  : [];
+
+              const selectedIds =
+                new Set(
+                  messageIds.map(
+                    (messageId) =>
+                      String(
+                        messageId
+                      )
+                  )
+                );
+
+              // =============================================
+              // DELETE FOR EVERYONE
+              // =============================================
+
+              if (
+                deleteType ===
+                "everyone"
+              ) {
+                const updatedMessages =
+                  existingMessages.filter(
+                    (message) => {
+                      const messageId =
+                        String(
+                          message.id
+                        );
+
+                      if (
+                        !selectedIds.has(
+                          messageId
+                        )
+                      ) {
+                        return true;
+                      }
+
+                      const isMine =
+                        String(
+                          message.senderId
+                        ) ===
+                        String(
+                          firebaseUser.uid
+                        );
+
+                      if (!isMine) {
+                        return true;
+                      }
+
+                      return false;
+                    }
+                  );
+
+                const visibleMessages =
+                  updatedMessages.filter(
+                    (message) => {
+                      const deletedFor =
+                        Array.isArray(
+                          message.deletedFor
+                        )
+                          ? message.deletedFor
+                          : [];
+
+                      return (
+                        !deletedFor.includes(
+                          firebaseUser.uid
+                        ) &&
+                        message.deletedForEveryone !==
+                          true
+                      );
+                    }
+                  );
+
+                const lastMessage =
+                  visibleMessages.length >
+                  0
+                    ? visibleMessages[
+                        visibleMessages.length -
                           1
                       ]
                     : null;
@@ -1832,194 +1706,270 @@ function App() {
 
                 return true;
               }
-            );
 
-          return result === true;
-        } catch (error) {
-          console.error(
-            "Error deleting messages:",
-            error
+              // =============================================
+              // DELETE FOR ME
+              // =============================================
+
+              const updatedMessages =
+                existingMessages.map(
+                  (message) => {
+                    const messageId =
+                      String(
+                        message.id
+                      );
+
+                    if (
+                      !selectedIds.has(
+                        messageId
+                      )
+                    ) {
+                      return message;
+                    }
+
+                    const deletedFor =
+                      Array.isArray(
+                        message.deletedFor
+                      )
+                        ? message.deletedFor
+                        : [];
+
+                    if (
+                      deletedFor.includes(
+                        firebaseUser.uid
+                      )
+                    ) {
+                      return message;
+                    }
+
+                    return {
+                      ...message,
+
+                      deletedFor: [
+                        ...deletedFor,
+                        firebaseUser.uid,
+                      ],
+                    };
+                  }
+                );
+
+              const visibleForCurrentUser =
+                updatedMessages.filter(
+                  (message) => {
+                    const deletedFor =
+                      Array.isArray(
+                        message.deletedFor
+                      )
+                        ? message.deletedFor
+                        : [];
+
+                    if (
+                      deletedFor.includes(
+                        firebaseUser.uid
+                      )
+                    ) {
+                      return false;
+                    }
+
+                    if (
+                      message.deletedForEveryone ===
+                      true
+                    ) {
+                      return false;
+                    }
+
+                    return true;
+                  }
+                );
+
+              const lastMessage =
+                visibleForCurrentUser.length >
+                0
+                  ? visibleForCurrentUser[
+                      visibleForCurrentUser.length -
+                        1
+                    ]
+                    : null;
+
+              transaction.update(
+                conversationRef,
+                {
+                  messages:
+                    updatedMessages,
+
+                  lastMessage:
+                    lastMessage?.text ||
+                    "",
+
+                  lastMessageAt:
+                    lastMessage?.createdAt ||
+                    0,
+
+                  updatedAt:
+                    serverTimestamp(),
+                }
+              );
+
+              return true;
+            }
           );
 
-          return false;
-        }
-      },
-      [firebaseUser]
-    );
+        return result === true;
+      } catch (error) {
+        console.error(
+          "Error deleting messages:",
+          error
+        );
+
+        return false;
+      }
+    };
 
   // =======================================================
   // OPEN SELLER CHAT
   // =======================================================
 
   const openSellerChat =
-    useCallback(
-      async (product) => {
-        if (
-          !product ||
-          !firebaseUser
-        ) {
-          return;
-        }
+    async (product) => {
+      if (
+        !product ||
+        !firebaseUser
+      ) {
+        return;
+      }
 
-        const sellerId =
-          product.sellerId;
+      const sellerId =
+        product.sellerId;
 
-        if (!sellerId) {
-          console.error(
-            "This product does not have a sellerId."
-          );
+      if (!sellerId) {
+        console.error(
+          "This product does not have a sellerId."
+        );
 
-          return;
-        }
+        return;
+      }
 
-        if (
-          String(sellerId) ===
-          String(firebaseUser.uid)
-        ) {
-          return;
-        }
+      if (
+        String(sellerId) ===
+        String(firebaseUser.uid)
+      ) {
+        return;
+      }
 
-        const existingConversation =
-          messages.find(
-            (message) =>
-              String(
-                message.otherParticipantId
-              ) ===
-              String(sellerId)
-          );
+      const existingConversation =
+        messages.find(
+          (message) =>
+            String(
+              message.otherParticipantId
+            ) ===
+            String(sellerId)
+        );
 
-        if (
-          existingConversation
-        ) {
-          navigate(
-            `/messages/${existingConversation.id}`
-          );
+      if (existingConversation) {
+        navigate(
+          `/messages/${existingConversation.id}`
+        );
 
-          return;
-        }
+        return;
+      }
 
-        const participantIds = [
-          String(firebaseUser.uid),
-          String(sellerId),
-        ].sort();
+      const participantIds = [
+        String(firebaseUser.uid),
+        String(sellerId),
+      ].sort();
 
-        const conversationId =
-          participantIds.join("_");
+      const conversationId =
+        participantIds.join("_");
 
-        const conversationRef =
-          doc(
-            db,
-            "conversations",
-            conversationId
-          );
+      const conversationRef =
+        doc(
+          db,
+          "conversations",
+          conversationId
+        );
 
-        try {
-          await setDoc(
-            conversationRef,
-            {
-              participants:
-                participantIds,
+      try {
+        await setDoc(
+          conversationRef,
+          {
+            participants:
+              participantIds,
 
-              participantNames: {
-                [firebaseUser.uid]:
-                  profile.fullName ||
-                  firebaseUser.displayName ||
-                  "CampusMart User",
+            participantNames: {
+              [firebaseUser.uid]:
+                profile.fullName ||
+                firebaseUser.displayName ||
+                "CampusMart User",
 
-                [sellerId]:
-                  product.sellerName ||
-                  "CampusMart Seller",
-              },
+              [sellerId]:
+                product.sellerName ||
+                "CampusMart Seller",
+            },
 
-              participantImages: {
-                [firebaseUser.uid]:
-                  profile.profileImage ||
-                  null,
-
-                [sellerId]:
-                  product.sellerImage ||
-                  null,
-              },
-
-              unreadCounts: {
-                [firebaseUser.uid]:
-                  0,
-
-                [sellerId]:
-                  0,
-              },
-
-              onlineStatus: {
-                [firebaseUser.uid]:
-                  true,
-
-                [sellerId]:
-                  false,
-              },
-
-              lastMessage:
-                "",
-
-              lastMessageAt:
-                0,
-
-              messages: [],
-
-              productId:
-                product.id ||
+            participantImages: {
+              [firebaseUser.uid]:
+                profile.profileImage ||
                 null,
 
-              productName:
-                product.name ||
-                "",
-
-              createdAt:
-                serverTimestamp(),
-
-              updatedAt:
-                serverTimestamp(),
+              [sellerId]:
+                product.sellerImage ||
+                null,
             },
-            {
-              merge: true,
-            }
-          );
 
-          navigate(
-            `/messages/${conversationId}`
-          );
-        } catch (error) {
-          console.error(
-            "Error creating conversation:",
-            error
-          );
-        }
-      },
-      [
-        firebaseUser,
-        messages,
-        profile,
-        navigate,
-      ]
-    );
+            unreadCounts: {
+              [firebaseUser.uid]:
+                0,
+
+              [sellerId]:
+                0,
+            },
+
+            onlineStatus: {
+              [firebaseUser.uid]:
+                true,
+
+              [sellerId]:
+                false,
+            },
+
+            lastMessage:
+              "",
+
+            lastMessageAt:
+              0,
+
+            messages: [],
+
+            productId:
+              product.id || null,
+
+            productName:
+              product.name || "",
+
+            createdAt:
+              serverTimestamp(),
+
+            updatedAt:
+              serverTimestamp(),
+          },
+          {
+            merge: true,
+          }
+        );
+
+        navigate(
+          `/messages/${conversationId}`
+        );
+      } catch (error) {
+        console.error(
+          "Error creating conversation:",
+          error
+        );
+      }
+    };
 
   // =======================================================
-  // ONLY AUTHENTICATION BLOCKS THE APPLICATION
-  //
-  // THIS IS THE MOST IMPORTANT CHANGE.
-  //
-  // BEFORE:
-  //
-  // profileLoading ||
-  // profileFetching ||
-  // customerDataLoading ||
-  // messagesLoading
-  //
-  // caused the whole website to wait.
-  //
-  // NOW:
-  //
-  // Only AuthContext authentication loading
-  // can display the global loading screen.
+  // ONLY AUTH INITIALIZATION BLOCKS THE APP
   // =======================================================
 
   if (profileLoading) {
@@ -2037,9 +1987,7 @@ function App() {
   return (
     <Routes>
 
-      {/* =================================================
-          LANDING
-      ================================================= */}
+      {/* LANDING */}
 
       <Route
         path="/"
@@ -2048,9 +1996,7 @@ function App() {
         }
       />
 
-      {/* =================================================
-          LOGIN
-      ================================================= */}
+      {/* LOGIN */}
 
       <Route
         path="/login"
@@ -2061,9 +2007,7 @@ function App() {
         }
       />
 
-      {/* =================================================
-          REGISTER
-      ================================================= */}
+      {/* REGISTER */}
 
       <Route
         path="/register"
@@ -2074,9 +2018,7 @@ function App() {
         }
       />
 
-      {/* =================================================
-          DASHBOARD
-      ================================================= */}
+      {/* DASHBOARD */}
 
       <Route
         path="/dashboard"
@@ -2116,9 +2058,7 @@ function App() {
         }
       />
 
-      {/* =================================================
-          BROWSE PRODUCTS
-      ================================================= */}
+      {/* BROWSE PRODUCTS */}
 
       <Route
         path="/browse-products"
@@ -2149,9 +2089,7 @@ function App() {
         }
       />
 
-      {/* =================================================
-          PRODUCT DETAILS
-      ================================================= */}
+      {/* PRODUCT DETAILS */}
 
       <Route
         path="/products/:id"
@@ -2185,9 +2123,7 @@ function App() {
         }
       />
 
-      {/* =================================================
-          CART
-      ================================================= */}
+      {/* CART */}
 
       <Route
         path="/cart"
@@ -2224,9 +2160,7 @@ function App() {
         }
       />
 
-      {/* =================================================
-          ORDERS
-      ================================================= */}
+      {/* ORDERS */}
 
       <Route
         path="/orders"
@@ -2251,9 +2185,7 @@ function App() {
         }
       />
 
-      {/* =================================================
-          ORDER DETAILS
-      ================================================= */}
+      {/* ORDER DETAILS */}
 
       <Route
         path="/orders/:id"
@@ -2278,9 +2210,7 @@ function App() {
         }
       />
 
-      {/* =================================================
-          MESSAGES
-      ================================================= */}
+      {/* MESSAGES */}
 
       <Route
         path="/messages"
@@ -2314,9 +2244,7 @@ function App() {
         }
       />
 
-      {/* =================================================
-          CHAT
-      ================================================= */}
+      {/* CHAT */}
 
       <Route
         path="/messages/:id"
@@ -2356,9 +2284,7 @@ function App() {
         }
       />
 
-      {/* =================================================
-          CHECKOUT
-      ================================================= */}
+      {/* CHECKOUT */}
 
       <Route
         path="/checkout"
@@ -2386,9 +2312,7 @@ function App() {
         }
       />
 
-      {/* =================================================
-          ORDER SUCCESS
-      ================================================= */}
+      {/* ORDER SUCCESS */}
 
       <Route
         path="/order-success"
@@ -2407,9 +2331,7 @@ function App() {
         }
       />
 
-      {/* =================================================
-          WISHLIST
-      ================================================= */}
+      {/* WISHLIST */}
 
       <Route
         path="/wishlist"
@@ -2440,9 +2362,7 @@ function App() {
         }
       />
 
-      {/* =================================================
-          PAYMENT
-      ================================================= */}
+      {/* PAYMENT */}
 
       <Route
         path="/payment"
@@ -2464,9 +2384,7 @@ function App() {
         }
       />
 
-      {/* =================================================
-          PROFILE
-      ================================================= */}
+      {/* PROFILE */}
 
       <Route
         path="/profile"
@@ -2497,9 +2415,7 @@ function App() {
         }
       />
 
-      {/* =================================================
-          SETTINGS
-      ================================================= */}
+      {/* SETTINGS */}
 
       <Route
         path="/settings"
@@ -2530,9 +2446,7 @@ function App() {
         }
       />
 
-      {/* =================================================
-          LOGOUT
-      ================================================= */}
+      {/* LOGOUT */}
 
       <Route
         path="/logout"
@@ -2553,9 +2467,7 @@ function App() {
         }
       />
 
-      {/* =================================================
-          SELLER DASHBOARD
-      ================================================= */}
+      {/* SELLER DASHBOARD */}
 
       <Route
         path="/seller-dashboard"
@@ -2570,9 +2482,7 @@ function App() {
         }
       />
 
-      {/* =================================================
-          FALLBACK
-      ================================================= */}
+      {/* FALLBACK */}
 
       <Route
         path="*"
