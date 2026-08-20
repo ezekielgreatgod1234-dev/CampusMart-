@@ -60,6 +60,8 @@ import Login from "./context/Login";
 import Register from "./context/Register";
 import Landing from "./pages/customer/Landing";
 import ForgotPassword from "./pages/customer/ForgotPassword";
+import PrivacyPolicy from "./pages/customer/PrivacyPolicy";
+import TermsAndConditions from "./pages/customer/TermsAndConditions";
 
 // =========================================================
 // DEFAULT PROFILE
@@ -2729,6 +2731,22 @@ function App() {
           }
         />
 
+        {/* ================================================= */}
+{/* PRIVACY POLICY */}
+{/* ================================================= */}
+
+<Route
+  path="/privacy-policy"
+  element={
+    <PrivacyPolicy />
+  }
+/>
+
+
+<Route
+  path="/terms-and-conditions"
+  element={<TermsAndConditions />}
+/>
       </Routes>
     </>
   );

@@ -43,6 +43,8 @@ function Register() {
     role: "buyer",
   });
 
+  const [agreeToTerms, setAgreeToTerms] = useState(false);
+
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
@@ -65,6 +67,12 @@ function Register() {
       role,
     }));
 
+    setError("");
+    setSuccess("");
+  };
+
+  const handleTermsChange = (e) => {
+    setAgreeToTerms(e.target.checked);
     setError("");
     setSuccess("");
   };
@@ -128,6 +136,13 @@ function Register() {
       return;
     }
 
+    if (!agreeToTerms) {
+      setError(
+        "Please agree to the CampusMart Terms & Conditions and Privacy Policy before creating your account."
+      );
+      return;
+    }
+
     try {
       setLoading(true);
 
@@ -155,6 +170,10 @@ function Register() {
         role,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
+
+        // Records that the user accepted the terms
+        termsAccepted: true,
+        termsAcceptedAt: serverTimestamp(),
       });
 
       setSuccess(
@@ -683,6 +702,66 @@ function Register() {
 
             </div>
 
+            {/* =====================================================
+                TERMS & CONDITIONS
+            ====================================================== */}
+
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+
+              <label className="flex items-start gap-3 cursor-pointer">
+
+                {/* Custom checkbox */}
+
+                <input
+                  type="checkbox"
+                  checked={agreeToTerms}
+                  onChange={handleTermsChange}
+                  className="mt-1 h-4 w-4 shrink-0 accent-green-600 cursor-pointer"
+                />
+
+                <span className="text-sm leading-6 text-gray-600">
+
+                  I agree to the{" "}
+
+                  <Link
+                    to="/terms"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-bold text-green-600 hover:text-green-700 hover:underline"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    Terms & Conditions
+                  </Link>
+
+                  {" "}and{" "}
+
+                  <Link
+                    to="/privacy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-bold text-green-600 hover:text-green-700 hover:underline"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    Privacy Policy
+                  </Link>
+
+                  {" "}of CampusMart.
+
+                </span>
+
+              </label>
+
+              <div className="mt-3 flex items-center gap-2 text-xs text-gray-400">
+
+                <FiShield size={14} className="shrink-0" />
+
+                Your information is handled according to our
+                privacy and security policies.
+
+              </div>
+
+            </div>
+
             {/* Submit */}
 
             <button
@@ -690,17 +769,21 @@ function Register() {
               disabled={loading}
               className="w-full h-13 rounded-xl bg-green-600 text-white font-bold text-sm flex items-center justify-center gap-2 hover:bg-green-700 active:bg-green-800 transition shadow-lg shadow-green-600/10 disabled:opacity-60 disabled:cursor-not-allowed"
             >
+
               {loading ? (
                 <>
                   <span className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+
                   Creating account...
                 </>
               ) : (
                 <>
                   Create account
+
                   <FiArrowRight size={18} />
                 </>
               )}
+
             </button>
 
           </form>
@@ -710,6 +793,7 @@ function Register() {
           <div className="mt-7 text-center">
 
             <p className="text-sm text-gray-500">
+
               Already have an account?{" "}
 
               <Link
@@ -718,7 +802,30 @@ function Register() {
               >
                 Log in
               </Link>
+
             </p>
+
+          </div>
+
+          {/* Legal links */}
+
+          <div className="mt-5 flex items-center justify-center gap-4 text-xs text-gray-400">
+
+            <Link
+              to="/terms"
+              className="hover:text-green-600 transition"
+            >
+              Terms & Conditions
+            </Link>
+
+            <span>•</span>
+
+            <Link
+              to="/privacy"
+              className="hover:text-green-600 transition"
+            >
+              Privacy Policy
+            </Link>
 
           </div>
 

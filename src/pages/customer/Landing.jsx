@@ -223,20 +223,20 @@ function Landing() {
   const testimonials = [
     {
       name: "David Okafor",
-      school: "UNN, Enugu",
-      image: "https://i.pravatar.cc/150?img=12",
+      school: "ABSU, Uturu",
+      image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS_FHz8TBochu8ZUUCaB-7pUlc22lMft0oiyTl7NPWmhQ&s=10",
       text: "I sold my laptop within a day! CampusMart is super safe and easy to use.",
     },
     {
       name: "Precious Nnamani",
       school: "ABSU, Uturu",
-      image: "https://i.pravatar.cc/150?img=47",
-      text: "Found all my textbooks for the semester at affordable prices.",
+      image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSe5-sy75bSj_DrG5YmeqYwal1wHGucvbzk0bpbzP_5Qg&s=10",
+      text: "Found the products i needed at great prices. Highly recommend CampusMart to all students!",
     },
     {
-      name: "Ibrahim Musa",
-      school: "Bayero University, Kano",
-      image: "https://i.pravatar.cc/150?img=11",
+      name: "John Chinedu",
+      school: "ABSU, Uturu",
+      image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTm2b8ffmsmNApUaKZKgI-JwxKLCmMHYOomqF14d9_tMg&s=10",
       text: "The best marketplace for students. Highly recommend!",
     },
   ];
@@ -274,7 +274,7 @@ function Landing() {
 
   const stats = [
     {
-      number: "5,000+",
+      number: "1,000+",
       label: "Active Students",
       icon: <FiUserPlus size={25} />,
     },
@@ -289,8 +289,8 @@ function Landing() {
       icon: <FiMessageCircle size={25} />,
     },
     {
-      number: "50+",
-      label: "Campuses Connected",
+      number: "100%",
+      label: "Secure",
       icon: <FiMap size={25} />,
     },
   ];
@@ -604,7 +604,7 @@ function Landing() {
 
                 <div>
                   <p className="font-bold text-gray-900 text-xs sm:text-sm">
-                    Join 5,000+ students
+                    Join students
                   </p>
 
                   <p className="text-xs sm:text-sm text-gray-500">
@@ -1198,101 +1198,37 @@ function Landing() {
               </ul>
             </div>
 
-            {/* COMPANY */}
-
-            <div>
-              <h3 className="font-bold mb-5">
-                Company
-              </h3>
-
-              <ul className="space-y-3 text-sm text-gray-300">
-                <li>
-                  <a
-                    href="#about"
-                    className="hover:text-green-400"
-                  >
-                    About Us
-                  </a>
-                </li>
-
-                <li>
-                  <a
-                    href="#contact"
-                    className="hover:text-green-400"
-                  >
-                    Contact Us
-                  </a>
-                </li>
-
-                <li>
-                  <a
-                    href="#"
-                    onClick={(e) => e.preventDefault()}
-                    className="hover:text-green-400"
-                  >
-                    Safety Tips
-                  </a>
-                </li>
-
-                <li>
-                  <a
-                    href="#"
-                    onClick={(e) => e.preventDefault()}
-                    className="hover:text-green-400"
-                  >
-                    Terms of Service
-                  </a>
-                </li>
-              </ul>
-            </div>
+            
 
             {/* SUPPORT */}
 
             <div>
               <h3 className="font-bold mb-5">
-                Support
+                Condictions & Support
               </h3>
 
               <ul className="space-y-3 text-sm text-gray-300">
-                <li>
-                  <a
-                    href="#"
-                    onClick={(e) => e.preventDefault()}
-                    className="hover:text-green-400"
-                  >
-                    Help Center
-                  </a>
-                </li>
+                
+
+                
 
                 <li>
-                  <a
-                    href="#"
-                    onClick={(e) => e.preventDefault()}
-                    className="hover:text-green-400"
-                  >
-                    FAQ
-                  </a>
-                </li>
+  <Link
+    to="/privacy-policy"
+    className="hover:text-green-400 transition"
+  >
+    Privacy Policy
+  </Link>
+</li>
 
-                <li>
-                  <a
-                    href="#"
-                    onClick={(e) => e.preventDefault()}
-                    className="hover:text-green-400"
-                  >
-                    Report a Problem
-                  </a>
-                </li>
-
-                <li>
-                  <a
-                    href="#"
-                    onClick={(e) => e.preventDefault()}
-                    className="hover:text-green-400"
-                  >
-                    Privacy Policy
-                  </a>
-                </li>
+<li>
+  <Link
+    to="/terms-and-conditions"
+    className="hover:text-green-400 transition"
+  >
+    Terms & Conditions
+  </Link>
+</li>
               </ul>
             </div>
           </div>

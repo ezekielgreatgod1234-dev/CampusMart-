@@ -20,6 +20,8 @@ import {
   FiSend,
   FiKey,
   FiEyeOff,
+  FiFileText,
+  FiBookOpen,
 } from "react-icons/fi";
 
 import {
@@ -139,17 +141,6 @@ function Settings({
 
   /* =======================================================
      LOAD USER SETTINGS
-
-     Every account uses its own Firebase UID.
-
-     Account A:
-     users/ACCOUNT_A_UID
-
-     Account B:
-     users/ACCOUNT_B_UID
-
-     Therefore Account A's settings cannot be loaded
-     into Account B's account.
   ======================================================= */
 
   useEffect(() => {
@@ -223,10 +214,6 @@ function Settings({
               "campus"
           );
         } else {
-          /* -----------------------------------------------
-             BRAND-NEW ACCOUNT
-          ------------------------------------------------ */
-
           const newProfile = {
             fullName: "",
             email:
@@ -390,6 +377,28 @@ function Settings({
         },
       ],
     },
+
+    /* =====================================================
+       LEGAL
+    ===================================================== */
+
+    {
+      title: "Legal",
+
+      items: [
+        {
+          id: "terms",
+          label: "Terms & Conditions",
+          icon: FiFileText,
+        },
+
+        {
+          id: "privacy",
+          label: "Privacy Policy",
+          icon: FiBookOpen,
+        },
+      ],
+    },
   ];
 
   /* =======================================================
@@ -499,10 +508,6 @@ function Settings({
     async () => {
       setPasswordMessage("");
 
-      /* -----------------------------------------------
-         CHECK CURRENT USER
-      ------------------------------------------------ */
-
       if (!firebaseUser) {
         setPasswordMessage(
           "Your account session has expired. Please log in again."
@@ -510,10 +515,6 @@ function Settings({
 
         return;
       }
-
-      /* -----------------------------------------------
-         CHECK EMPTY FIELDS
-      ------------------------------------------------ */
 
       if (
         !passwordForm.currentPassword ||
@@ -527,10 +528,6 @@ function Settings({
         return;
       }
 
-      /* -----------------------------------------------
-         CHECK PASSWORD LENGTH
-      ------------------------------------------------ */
-
       if (
         passwordForm.newPassword.length < 8
       ) {
@@ -540,10 +537,6 @@ function Settings({
 
         return;
       }
-
-      /* -----------------------------------------------
-         CHECK UPPERCASE
-      ------------------------------------------------ */
 
       if (
         !/[A-Z]/.test(
@@ -557,10 +550,6 @@ function Settings({
         return;
       }
 
-      /* -----------------------------------------------
-         CHECK NUMBER
-      ------------------------------------------------ */
-
       if (
         !/[0-9]/.test(
           passwordForm.newPassword
@@ -573,10 +562,6 @@ function Settings({
         return;
       }
 
-      /* -----------------------------------------------
-         CHECK PASSWORD MATCH
-      ------------------------------------------------ */
-
       if (
         passwordForm.newPassword !==
         passwordForm.confirmPassword
@@ -588,10 +573,6 @@ function Settings({
         return;
       }
 
-      /* -----------------------------------------------
-         CHECK EMAIL
-      ------------------------------------------------ */
-
       if (!firebaseUser.email) {
         setPasswordMessage(
           "No email address is associated with this account."
@@ -599,10 +580,6 @@ function Settings({
 
         return;
       }
-
-      /* -----------------------------------------------
-         CHECK LOGIN PROVIDER
-      ------------------------------------------------ */
 
       const passwordProvider =
         firebaseUser.providerData?.some(
@@ -622,10 +599,6 @@ function Settings({
       try {
         setPasswordUpdating(true);
 
-        /* ---------------------------------------------
-           RE-AUTHENTICATE USER
-        --------------------------------------------- */
-
         const credential =
           EmailAuthProvider.credential(
             firebaseUser.email,
@@ -637,18 +610,10 @@ function Settings({
           credential
         );
 
-        /* ---------------------------------------------
-           UPDATE FIREBASE AUTH PASSWORD
-        --------------------------------------------- */
-
         await updatePassword(
           firebaseUser,
           passwordForm.newPassword
         );
-
-        /* ---------------------------------------------
-           SUCCESS
-        --------------------------------------------- */
 
         setPasswordForm({
           currentPassword: "",
@@ -667,7 +632,6 @@ function Settings({
 
         switch (error.code) {
           case "auth/wrong-password":
-
           case "auth/invalid-credential":
             setPasswordMessage(
               "Your current password is incorrect."
@@ -768,33 +732,12 @@ function Settings({
 
   /* =======================================================
      CONTACT SUBMIT
-
-     The message is saved directly to:
-
-     supportMessages/{automatically generated ID}
-
-     The future Admin Dashboard can listen to this
-     collection and display all support messages.
-
-     Each message contains:
-
-     - userId
-     - userName
-     - userEmail
-     - subject
-     - message
-     - status
-     - createdAt
   ======================================================= */
 
   const handleContactSubmit =
     async () => {
       setContactError("");
       setContactSent(false);
-
-      /* -----------------------------------------------
-         CHECK USER
-      ------------------------------------------------ */
 
       if (!firebaseUser?.uid) {
         setContactError(
@@ -803,10 +746,6 @@ function Settings({
 
         return;
       }
-
-      /* -----------------------------------------------
-         CHECK SUBJECT
-      ------------------------------------------------ */
 
       if (
         !contactForm.subject.trim()
@@ -817,10 +756,6 @@ function Settings({
 
         return;
       }
-
-      /* -----------------------------------------------
-         CHECK MESSAGE
-      ------------------------------------------------ */
 
       if (
         !contactForm.message.trim()
@@ -834,17 +769,6 @@ function Settings({
 
       try {
         setContactSending(true);
-
-        /* ---------------------------------------------
-           SAVE MESSAGE TO FIRESTORE
-
-           Collection:
-
-           supportMessages
-
-           Firestore automatically creates
-           the document ID.
-        --------------------------------------------- */
 
         await addDoc(
           collection(
@@ -878,17 +802,12 @@ function Settings({
           }
         );
 
-        /* ---------------------------------------------
-           SUCCESS
-        --------------------------------------------- */
-
         setContactSent(true);
 
         setContactForm({
           subject: "",
           message: "",
         });
-
       } catch (error) {
         console.error(
           "Could not send support message:",
@@ -1926,15 +1845,11 @@ function Settings({
                     icon={FiMail}
                   />
 
-                  {/* SUCCESS MESSAGE */}
-
                   {contactSent && (
                     <SuccessMessage
                       message="Your message has been sent to CampusMart support."
                     />
                   )}
-
-                  {/* ERROR MESSAGE */}
 
                   {contactError && (
                     <div
@@ -1973,10 +1888,6 @@ function Settings({
                   )}
 
                   <div className="mt-6 max-w-2xl space-y-5">
-
-                    {/* -----------------------------------------
-                        SUBJECT
-                    ----------------------------------------- */}
 
                     <div>
 
@@ -2025,10 +1936,6 @@ function Settings({
                       />
 
                     </div>
-
-                    {/* -----------------------------------------
-                        MESSAGE
-                    ----------------------------------------- */}
 
                     <div>
 
@@ -2079,10 +1986,6 @@ function Settings({
 
                     </div>
 
-                    {/* -----------------------------------------
-                        SEND
-                    ----------------------------------------- */}
-
                     <div
                       className="
                         flex
@@ -2128,6 +2031,447 @@ function Settings({
 
                       </button>
 
+                    </div>
+
+                  </div>
+
+                </section>
+              )}
+
+              {/* =================================================
+                  TERMS & CONDITIONS
+              ================================================= */}
+
+              {activeSection ===
+                "terms" && (
+                <section>
+
+                  <SettingsHeader
+                    title="Terms & Conditions"
+                    description="Please read the rules that apply when using CampusMart."
+                    icon={FiFileText}
+                  />
+
+                  <div
+                    className="
+                      mt-6
+                      space-y-6
+                      text-sm
+                      leading-7
+                      text-gray-600
+                    "
+                  >
+
+                    <LegalSection
+                      number="1"
+                      title="Acceptance of Terms"
+                    >
+                      By creating an account or using
+                      CampusMart, you agree to comply
+                      with these Terms & Conditions.
+                      If you do not agree with these
+                      terms, please do not use the
+                      platform.
+                    </LegalSection>
+
+                    <LegalSection
+                      number="2"
+                      title="Using CampusMart"
+                    >
+                      CampusMart is a marketplace
+                      designed to help students and
+                      members of campus communities
+                      buy and sell products. You agree
+                      to use the platform responsibly
+                      and only for lawful purposes.
+                    </LegalSection>
+
+                    <LegalSection
+                      number="3"
+                      title="Accounts"
+                    >
+                      You are responsible for providing
+                      accurate information when creating
+                      your account and for keeping your
+                      account credentials secure. You
+                      should not share your password with
+                      other people.
+                    </LegalSection>
+
+                    <LegalSection
+                      number="4"
+                      title="Buying and Selling"
+                    >
+                      Buyers and sellers are responsible
+                      for the information they provide
+                      about products, prices, availability
+                      and transactions. CampusMart does
+                      not permit fraudulent, illegal,
+                      dangerous or prohibited items.
+                    </LegalSection>
+
+                    <LegalSection
+                      number="5"
+                      title="Seller Responsibility"
+                    >
+                      Sellers must provide honest and
+                      accurate descriptions of their
+                      products. Sellers are responsible
+                      for fulfilling legitimate orders
+                      and communicating appropriately
+                      with buyers.
+                    </LegalSection>
+
+                    <LegalSection
+                      number="6"
+                      title="Buyer Responsibility"
+                    >
+                      Buyers should review product
+                      information carefully before making
+                      a purchase. Buyers are responsible
+                      for communicating with sellers and
+                      following CampusMart's applicable
+                      ordering and payment procedures.
+                    </LegalSection>
+
+                    <LegalSection
+                      number="7"
+                      title="Prohibited Activities"
+                    >
+                      Users must not use CampusMart for
+                      scams, impersonation, harassment,
+                      abuse, unauthorized access, spam,
+                      illegal transactions or activities
+                      that could harm other users or the
+                      platform.
+                    </LegalSection>
+
+                    <LegalSection
+                      number="8"
+                      title="Content"
+                    >
+                      You are responsible for the content
+                      you post, including product
+                      descriptions, images and messages.
+                      Content must not violate applicable
+                      laws or the rights of other people.
+                    </LegalSection>
+
+                    <LegalSection
+                      number="9"
+                      title="Account Suspension"
+                    >
+                      CampusMart may restrict, suspend or
+                      terminate an account where there is
+                      a violation of these terms, misuse
+                      of the platform, fraudulent activity
+                      or conduct that creates a risk to
+                      other users.
+                    </LegalSection>
+
+                    <LegalSection
+                      number="10"
+                      title="Changes to These Terms"
+                    >
+                      We may update these Terms &
+                      Conditions from time to time.
+                      Continued use of CampusMart after
+                      an update means that you accept the
+                      updated terms.
+                    </LegalSection>
+
+                    <div
+                      className="
+                        rounded-2xl
+                        border
+                        border-green-100
+                        bg-green-50
+                        p-5
+                      "
+                    >
+                      <div className="flex items-start gap-3">
+
+                        <FiShield
+                          className="
+                            text-green-600
+                            mt-1
+                            shrink-0
+                          "
+                          size={18}
+                        />
+
+                        <div>
+
+                          <h3
+                            className="
+                              font-bold
+                              text-gray-800
+                            "
+                          >
+                            Questions about our terms?
+                          </h3>
+
+                          <p
+                            className="
+                              mt-1
+                              text-sm
+                              leading-6
+                              text-gray-600
+                            "
+                          >
+                            If you have questions about
+                            these Terms & Conditions,
+                            please contact the CampusMart
+                            support team.
+                          </p>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setActiveSection(
+                                "contact"
+                              )
+                            }
+                            className="
+                              mt-4
+                              inline-flex
+                              items-center
+                              gap-2
+                              text-sm
+                              font-semibold
+                              text-green-600
+                              hover:text-green-700
+                            "
+                          >
+                            Contact CampusMart
+                            <FiChevronRight
+                              size={15}
+                            />
+                          </button>
+
+                        </div>
+
+                      </div>
+                    </div>
+
+                  </div>
+
+                </section>
+              )}
+
+              {/* =================================================
+                  PRIVACY POLICY
+              ================================================= */}
+
+              {activeSection ===
+                "privacy" && (
+                <section>
+
+                  <SettingsHeader
+                    title="Privacy Policy"
+                    description="Learn how CampusMart handles your information."
+                    icon={FiBookOpen}
+                  />
+
+                  <div
+                    className="
+                      mt-6
+                      space-y-6
+                      text-sm
+                      leading-7
+                      text-gray-600
+                    "
+                  >
+
+                    <LegalSection
+                      number="1"
+                      title="Information We Collect"
+                    >
+                      When you create and use a CampusMart
+                      account, we may collect information
+                      such as your name, email address,
+                      phone number, campus information,
+                      account details and information you
+                      provide while using the platform.
+                    </LegalSection>
+
+                    <LegalSection
+                      number="2"
+                      title="How We Use Your Information"
+                    >
+                      Your information may be used to
+                      create and manage your account,
+                      provide marketplace functionality,
+                      process orders, facilitate
+                      communication between users, provide
+                      support and improve CampusMart.
+                    </LegalSection>
+
+                    <LegalSection
+                      number="3"
+                      title="Account Information"
+                    >
+                      Your account information is associated
+                      with your CampusMart account. Some
+                      information may be displayed to other
+                      users depending on your profile
+                      visibility settings and the features
+                      you use.
+                    </LegalSection>
+
+                    <LegalSection
+                      number="4"
+                      title="Messages and Communications"
+                    >
+                      Messages sent through CampusMart may
+                      be stored so that the messaging
+                      features can operate and so that we
+                      can address support, safety or
+                      platform-related issues where
+                      appropriate.
+                    </LegalSection>
+
+                    <LegalSection
+                      number="5"
+                      title="Firebase and Service Providers"
+                    >
+                      CampusMart uses third-party services
+                      such as Firebase to provide
+                      authentication, database and other
+                      technical services. Information
+                      required for these services may be
+                      processed by those providers according
+                      to their applicable policies.
+                    </LegalSection>
+
+                    <LegalSection
+                      number="6"
+                      title="Security"
+                    >
+                      We take reasonable steps to protect
+                      information associated with your
+                      CampusMart account. However, no
+                      internet service can guarantee
+                      absolute security.
+                    </LegalSection>
+
+                    <LegalSection
+                      number="7"
+                      title="Your Choices"
+                    >
+                      You can update certain account
+                      information through Settings. You
+                      can also manage your profile
+                      visibility using the privacy controls
+                      provided by CampusMart.
+                    </LegalSection>
+
+                    <LegalSection
+                      number="8"
+                      title="Data Retention"
+                    >
+                      We may retain information for as long
+                      as reasonably necessary to provide
+                      CampusMart services, maintain security,
+                      resolve disputes, comply with
+                      applicable requirements and improve
+                      the platform.
+                    </LegalSection>
+
+                    <LegalSection
+                      number="9"
+                      title="Children and Minors"
+                    >
+                      CampusMart is intended for users who
+                      are legally permitted to use online
+                      marketplace services. If you are not
+                      legally permitted to use the service
+                      in your location, you should not create
+                      an account.
+                    </LegalSection>
+
+                    <LegalSection
+                      number="10"
+                      title="Changes to This Privacy Policy"
+                    >
+                      We may update this Privacy Policy as
+                      CampusMart develops. When changes are
+                      made, the updated version will be made
+                      available through the platform.
+                    </LegalSection>
+
+                    <div
+                      className="
+                        rounded-2xl
+                        border
+                        border-green-100
+                        bg-green-50
+                        p-5
+                      "
+                    >
+                      <div className="flex items-start gap-3">
+
+                        <FiShield
+                          className="
+                            text-green-600
+                            mt-1
+                            shrink-0
+                          "
+                          size={18}
+                        />
+
+                        <div>
+
+                          <h3
+                            className="
+                              font-bold
+                              text-gray-800
+                            "
+                          >
+                            Your privacy matters
+                          </h3>
+
+                          <p
+                            className="
+                              mt-1
+                              text-sm
+                              leading-6
+                              text-gray-600
+                            "
+                          >
+                            If you have questions about
+                            how your information is handled,
+                            you can contact the CampusMart
+                            support team.
+                          </p>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setActiveSection(
+                                "contact"
+                              )
+                            }
+                            className="
+                              mt-4
+                              inline-flex
+                              items-center
+                              gap-2
+                              text-sm
+                              font-semibold
+                              text-green-600
+                              hover:text-green-700
+                            "
+                          >
+                            Contact CampusMart
+                            <FiChevronRight
+                              size={15}
+                            />
+                          </button>
+
+                        </div>
+
+                      </div>
                     </div>
 
                   </div>
@@ -2719,6 +3063,69 @@ const FAQ = ({
       </div>
 
     </details>
+  );
+};
+
+/* =========================================================
+   LEGAL SECTION
+========================================================= */
+
+const LegalSection = ({
+  number,
+  title,
+  children,
+}) => {
+  return (
+    <div>
+
+      <div className="flex items-start gap-3">
+
+        <div
+          className="
+            w-8
+            h-8
+            rounded-lg
+            bg-green-50
+            text-green-600
+            flex
+            items-center
+            justify-center
+            shrink-0
+            text-xs
+            font-bold
+          "
+        >
+          {number}
+        </div>
+
+        <div>
+
+          <h3
+            className="
+              text-base
+              font-bold
+              text-gray-800
+            "
+          >
+            {title}
+          </h3>
+
+          <p
+            className="
+              mt-2
+              text-sm
+              leading-7
+              text-gray-600
+            "
+          >
+            {children}
+          </p>
+
+        </div>
+
+      </div>
+
+    </div>
   );
 };
 
