@@ -22,8 +22,6 @@ import { useAuth } from "../../context/AuthContext";
 import {
   FiArrowLeft,
   FiSend,
-  FiMoreVertical,
-  FiPaperclip,
   FiTrash2,
   FiX,
   FiCheck,
@@ -104,12 +102,6 @@ function Chat({
 
   // =====================================================
   // MOBILE CHAT VIEWPORT
-  // =====================================================
-  //
-  // Prevent the entire page from scrolling while
-  // the user is inside the chat.
-  //
-  // This makes the chat behave more like WhatsApp.
   // =====================================================
 
   useEffect(() => {
@@ -785,11 +777,6 @@ function Chat({
     >
       {/* =================================================
           MOBILE/WEB CHAT CONTAINER
-
-          100dvh is important here.
-
-          Unlike 100vh, 100dvh adjusts to the actual
-          visible mobile browser viewport.
       ================================================= */}
 
       <div
@@ -822,9 +809,6 @@ function Chat({
       >
         {/* =================================================
             HEADER
-
-            flex-shrink-0 prevents the header from being
-            pushed away when there are many messages.
         ================================================= */}
 
         <div
@@ -850,6 +834,8 @@ function Chat({
           {selectedMessageIds.length >
           0 ? (
             <>
+              {/* CANCEL SELECTION */}
+
               <button
                 type="button"
                 onClick={
@@ -888,6 +874,8 @@ function Chat({
                 </p>
               </div>
 
+              {/* DELETE SELECTED */}
+
               <button
                 type="button"
                 onClick={
@@ -923,6 +911,8 @@ function Chat({
             </>
           ) : (
             <>
+              {/* BACK */}
+
               <button
                 type="button"
                 onClick={() =>
@@ -947,6 +937,8 @@ function Chat({
                   size={19}
                 />
               </button>
+
+              {/* PROFILE IMAGE */}
 
               <div className="relative shrink-0">
                 {personImage ? (
@@ -988,6 +980,8 @@ function Chat({
                 )}
               </div>
 
+              {/* PERSON NAME */}
+
               <div className="flex-1 min-w-0">
                 <h2 className="font-bold text-gray-800 truncate text-sm sm:text-base">
                   {personName}
@@ -998,41 +992,12 @@ function Chat({
                   conversation
                 </p>
               </div>
-
-              <button
-                type="button"
-                className="
-                  w-10
-                  h-10
-                  rounded-full
-                  hover:bg-green-50
-                  flex
-                  items-center
-                  justify-center
-                  text-green-700
-                  transition
-                  shrink-0
-                "
-              >
-                <FiMoreVertical
-                  size={19}
-                />
-              </button>
             </>
           )}
         </div>
 
         {/* =================================================
             CHAT BODY
-
-            IMPORTANT:
-
-            min-h-0 allows this flex child to actually
-            shrink.
-
-            overflow-y-auto means ONLY the messages scroll.
-
-            The input below NEVER gets pushed downward.
         ================================================= */}
 
         <div
@@ -1059,6 +1024,8 @@ function Chat({
             [scrollbar-width:thin]
           "
         >
+          {/* CONVERSATION LABEL */}
+
           <div className="text-center mb-4 sm:mb-5">
             <span
               className="
@@ -1080,6 +1047,8 @@ function Chat({
               {personName}
             </span>
           </div>
+
+          {/* EMPTY CHAT */}
 
           {visibleMessages.length ===
             0 && (
@@ -1111,6 +1080,8 @@ function Chat({
               </p>
             </div>
           )}
+
+          {/* MESSAGES */}
 
           {visibleMessages.map(
             (message) => {
@@ -1181,6 +1152,8 @@ function Chat({
                       }
                     `}
                   >
+                    {/* SELECTED CHECK */}
+
                     {selected && (
                       <div className="flex justify-end mb-1">
                         <span
@@ -1202,6 +1175,8 @@ function Chat({
                       </div>
                     )}
 
+                    {/* MESSAGE TEXT */}
+
                     <p
                       className="
                         text-sm
@@ -1212,6 +1187,8 @@ function Chat({
                     >
                       {message.text}
                     </p>
+
+                    {/* MESSAGE TIME */}
 
                     <p
                       className={`
@@ -1234,21 +1211,13 @@ function Chat({
             }
           )}
 
-          {/* Small bottom space so the final message
-              never touches the input area. */}
+          {/* BOTTOM SPACE */}
+
           <div className="h-1 shrink-0" />
         </div>
 
         {/* =================================================
             INPUT
-
-            flex-shrink-0 is VERY IMPORTANT.
-
-            This prevents the input from being pushed
-            below the message area.
-
-            It is always the bottom section of the
-            chat container.
         ================================================= */}
 
         {selectedMessageIds.length ===
@@ -1272,35 +1241,6 @@ function Chat({
             "
           >
             <div className="flex items-center gap-2">
-              {/* ATTACHMENT */}
-
-              <button
-                type="button"
-                disabled={sending}
-                className="
-                  w-10
-                  h-10
-
-                  rounded-full
-
-                  hover:bg-green-50
-
-                  text-green-700
-
-                  flex
-                  items-center
-                  justify-center
-
-                  shrink-0
-
-                  disabled:opacity-50
-                "
-              >
-                <FiPaperclip
-                  size={18}
-                />
-              </button>
-
               {/* INPUT */}
 
               <input
