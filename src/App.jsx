@@ -495,27 +495,22 @@ function App() {
   // =======================================================
   // INTERNET CONNECTION
   //
-  // THIS LISTENER IS ALWAYS ACTIVE.
+  // IMPORTANT:
   //
-  // It does NOT depend on:
-  // - route
-  // - Firebase auth
-  // - dashboard
-  // - messages
-  // - user clicking anything
+  // We start with TRUE instead of navigator.onLine.
   //
-  // As soon as the browser reports that the network is
-  // offline, InternetRequired is shown.
+  // This prevents InternetRequired from flashing during
+  // page refresh while the browser is reconnecting.
   //
-  // As soon as the browser reports that the network is
-  // back, InternetRequired disappears automatically.
+  // We then check navigator.onLine shortly after startup.
   // =======================================================
 
-  const [isOnline, setIsOnline] = useState(
-    () => navigator.onLine
-  );
+  const [isOnline, setIsOnline] =
+    useState(true);
 
   useEffect(() => {
+    let startupTimer;
+
     // =====================================================
     // ONLINE
     // =====================================================
@@ -533,7 +528,7 @@ function App() {
     };
 
     // =====================================================
-    // LISTEN CONTINUOUSLY
+    // LISTEN FOR NETWORK CHANGES
     // =====================================================
 
     window.addEventListener(
@@ -547,10 +542,30 @@ function App() {
     );
 
     // =====================================================
+    // STARTUP NETWORK CHECK
+    //
+    // Give the browser a little time to establish the
+    // network after a refresh before showing the offline
+    // screen.
+    //
+    // This is what prevents the brief flash.
+    // =====================================================
+
+    startupTimer = window.setTimeout(() => {
+      setIsOnline(
+        navigator.onLine
+      );
+    }, 1000);
+
+    // =====================================================
     // CLEANUP
     // =====================================================
 
     return () => {
+      window.clearTimeout(
+        startupTimer
+      );
+
       window.removeEventListener(
         "online",
         handleOnline
@@ -1984,7 +1999,7 @@ function App() {
     return (
       <>
         {/* =================================================
-            INTERNET OVERLAY
+            INTERNET REQUIRED
             ================================================= */}
 
         {!isOnline && (
@@ -2005,30 +2020,17 @@ function App() {
   return (
     <>
       {/* ===================================================
-          INTERNET REQUIRED OVERLAY
+          INTERNET REQUIRED
 
-          This is deliberately OUTSIDE Routes.
+          This is outside Routes so it works globally.
 
-          Therefore it can appear immediately on:
-          - Landing
-          - Login
-          - Register
-          - Dashboard
-          - Products
-          - Cart
-          - Orders
-          - Messages
-          - Chat
-          - Settings
-          - Profile
-          - Checkout
-          - Payment
-          - Seller dashboard
-          - Any future route
+          IMPORTANT:
+          isOnline starts as TRUE to prevent the
+          InternetRequired screen from flashing during
+          refresh.
 
-          It does not wait for a click.
-          It does not wait for Firebase.
-          It does not require a refresh.
+          If the browser confirms that the connection
+          is actually offline, it will appear.
           =================================================== */}
 
       {!isOnline && (

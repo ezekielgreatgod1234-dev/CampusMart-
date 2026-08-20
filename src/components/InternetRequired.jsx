@@ -751,7 +751,7 @@ function InternetRequired() {
         height: "100%",
 
         minHeight: "100vh",
-        minHeight: "100dvh",
+       
 
         display: "flex",
         alignItems: "center",
@@ -1344,69 +1344,7 @@ function InternetRequired() {
             RETRY BUTTON
         =================================================== */}
 
-        {isOffline && (
-          <button
-            type="button"
-            onClick={handleRetry}
-            disabled={isChecking}
-            style={{
-              width: "100%",
-
-              marginTop: "20px",
-
-              padding:
-                "14px 20px",
-
-              border: "none",
-
-              borderRadius:
-                "14px",
-
-              display: "flex",
-
-              alignItems: "center",
-
-              justifyContent:
-                "center",
-
-              gap: "8px",
-
-              backgroundColor:
-                "#16a34a",
-
-              color: "#ffffff",
-
-              fontSize: "14px",
-
-              fontWeight: 700,
-
-              cursor: isChecking
-                ? "not-allowed"
-                : "pointer",
-
-              boxShadow:
-                "0 8px 20px rgba(22, 163, 74, 0.20)",
-
-              transition:
-                "all 0.2s ease",
-
-              opacity: isChecking
-                ? 0.7
-                : 1,
-            }}
-          >
-            <FiRefreshCw
-              size={17}
-              style={{
-                animation: isChecking
-                  ? "internetRequiredSpin 0.8s linear infinite"
-                  : "none",
-              }}
-            />
-
-            Check connection
-          </button>
-        )}
+        
 
         {/* ===================================================
             SECURITY MESSAGE
