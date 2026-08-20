@@ -58,28 +58,38 @@ function Chat({
   // LIVE CONVERSATION
   // =====================================================
 
-  const [liveConversation, setLiveConversation] =
-    useState(null);
+  const [
+    liveConversation,
+    setLiveConversation,
+  ] = useState(null);
 
-  const [conversationLoading, setConversationLoading] =
-    useState(true);
+  const [
+    conversationLoading,
+    setConversationLoading,
+  ] = useState(true);
 
   // =====================================================
   // SELECTED MESSAGES
   // =====================================================
 
-  const [selectedMessageIds, setSelectedMessageIds] =
-    useState([]);
+  const [
+    selectedMessageIds,
+    setSelectedMessageIds,
+  ] = useState([]);
 
   // =====================================================
   // DELETE MENU
   // =====================================================
 
-  const [showDeleteMenu, setShowDeleteMenu] =
-    useState(false);
+  const [
+    showDeleteMenu,
+    setShowDeleteMenu,
+  ] = useState(false);
 
-  const [deleting, setDeleting] =
-    useState(false);
+  const [
+    deleting,
+    setDeleting,
+  ] = useState(false);
 
   // =====================================================
   // FALLBACK PERSON
@@ -91,6 +101,35 @@ function Chat({
         String(message.id) ===
         String(id)
     );
+
+  // =====================================================
+  // MOBILE CHAT VIEWPORT
+  // =====================================================
+  //
+  // Prevent the entire page from scrolling while
+  // the user is inside the chat.
+  //
+  // This makes the chat behave more like WhatsApp.
+  // =====================================================
+
+  useEffect(() => {
+    const originalOverflow =
+      document.body.style.overflow;
+
+    const originalHeight =
+      document.body.style.height;
+
+    document.body.style.overflow = "hidden";
+    document.body.style.height = "100%";
+
+    return () => {
+      document.body.style.overflow =
+        originalOverflow;
+
+      document.body.style.height =
+        originalHeight;
+    };
+  }, []);
 
   // =====================================================
   // LOAD LIVE CONVERSATION
@@ -244,9 +283,22 @@ function Chat({
             ? message.deletedFor
             : [];
 
-        return !deletedFor.includes(
-          firebaseUser?.uid
-        );
+        if (
+          deletedFor.includes(
+            firebaseUser?.uid
+          )
+        ) {
+          return false;
+        }
+
+        if (
+          message.deletedForEveryone ===
+          true
+        ) {
+          return false;
+        }
+
+        return true;
       }
     );
 
@@ -436,14 +488,10 @@ function Chat({
 
     setDeleting(true);
 
-    // =================================================
-    // CLOSE MENU IMMEDIATELY
-    // =================================================
-
     setShowDeleteMenu(false);
 
     // =================================================
-    // REMOVE FROM LOCAL UI IMMEDIATELY
+    // REMOVE LOCALLY FIRST
     // =================================================
 
     setLiveConversation(
@@ -524,8 +572,6 @@ function Chat({
         );
 
       if (!success) {
-        // Firebase listener will restore
-        // the actual data if necessary.
         console.error(
           "Message deletion failed."
         );
@@ -558,10 +604,6 @@ function Chat({
         return;
       }
 
-      // =================================================
-      // CLEAR INPUT IMMEDIATELY
-      // =================================================
-
       setMessageText("");
 
       setSending(true);
@@ -577,7 +619,6 @@ function Chat({
           error
         );
 
-        // Put text back only if sending failed.
         setMessageText(text);
       } finally {
         setSending(false);
@@ -742,22 +783,48 @@ function Chat({
         unreadMessages
       }
     >
+      {/* =================================================
+          MOBILE/WEB CHAT CONTAINER
+
+          100dvh is important here.
+
+          Unlike 100vh, 100dvh adjusts to the actual
+          visible mobile browser viewport.
+      ================================================= */}
+
       <div
         className="
+          fixed
+          inset-0
+          md:static
+          md:h-[calc(100vh-140px)]
+
+          z-20
+          md:z-auto
+
           bg-white
-          rounded-2xl
+          md:rounded-2xl
+
           border
           border-green-100
+
           overflow-hidden
+
           flex
           flex-col
-          h-[calc(100vh-140px)]
-          min-h-[550px]
+
           shadow-sm
+
+          h-[100dvh]
+
+          min-h-0
         "
       >
         {/* =================================================
             HEADER
+
+            flex-shrink-0 prevents the header from being
+            pushed away when there are many messages.
         ================================================= */}
 
         <div
@@ -765,12 +832,19 @@ function Chat({
             flex
             items-center
             gap-3
-            px-4
+            px-3
             sm:px-6
-            py-4
+            py-3
+            sm:py-4
+
             border-b
             border-green-100
+
             bg-white
+
+            flex-shrink-0
+
+            z-10
           "
         >
           {selectedMessageIds.length >
@@ -793,6 +867,7 @@ function Chat({
                   text-green-700
                   transition
                   disabled:opacity-50
+                  shrink-0
                 "
                 title="Cancel"
               >
@@ -807,7 +882,7 @@ function Chat({
                   selected
                 </p>
 
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-gray-400 truncate">
                   Choose delete to
                   continue
                 </p>
@@ -821,7 +896,8 @@ function Chat({
                 disabled={deleting}
                 className="
                   h-10
-                  px-4
+                  px-3
+                  sm:px-4
                   rounded-xl
                   bg-green-600
                   hover:bg-green-700
@@ -835,6 +911,7 @@ function Chat({
                   transition
                   shadow-sm
                   disabled:bg-green-300
+                  shrink-0
                 "
               >
                 <FiTrash2 size={17} />
@@ -863,6 +940,7 @@ function Chat({
                   justify-center
                   text-green-700
                   transition
+                  shrink-0
                 "
               >
                 <FiArrowLeft
@@ -876,8 +954,10 @@ function Chat({
                     src={personImage}
                     alt={personName}
                     className="
-                      w-11
-                      h-11
+                      w-10
+                      h-10
+                      sm:w-11
+                      sm:h-11
                       rounded-full
                       object-cover
                       ring-2
@@ -887,8 +967,10 @@ function Chat({
                 ) : (
                   <div
                     className="
-                      w-11
-                      h-11
+                      w-10
+                      h-10
+                      sm:w-11
+                      sm:h-11
                       rounded-full
                       bg-green-100
                       text-green-700
@@ -907,11 +989,11 @@ function Chat({
               </div>
 
               <div className="flex-1 min-w-0">
-                <h2 className="font-bold text-gray-800 truncate">
+                <h2 className="font-bold text-gray-800 truncate text-sm sm:text-base">
                   {personName}
                 </h2>
 
-                <p className="text-xs text-green-600">
+                <p className="text-xs text-green-600 truncate">
                   CampusMart
                   conversation
                 </p>
@@ -929,6 +1011,7 @@ function Chat({
                   justify-center
                   text-green-700
                   transition
+                  shrink-0
                 "
               >
                 <FiMoreVertical
@@ -941,27 +1024,49 @@ function Chat({
 
         {/* =================================================
             CHAT BODY
+
+            IMPORTANT:
+
+            min-h-0 allows this flex child to actually
+            shrink.
+
+            overflow-y-auto means ONLY the messages scroll.
+
+            The input below NEVER gets pushed downward.
         ================================================= */}
 
         <div
           className="
             flex-1
+            min-h-0
+
             overflow-y-auto
-            p-4
+
+            overscroll-contain
+
+            p-3
             sm:p-6
-            space-y-4
+
+            space-y-3
+            sm:space-y-4
+
             bg-gradient-to-b
             from-green-50/40
             to-gray-50
+
+            scroll-smooth
+
+            [scrollbar-width:thin]
           "
         >
-          <div className="text-center mb-5">
+          <div className="text-center mb-4 sm:mb-5">
             <span
               className="
                 inline-block
                 bg-white
                 text-green-600
-                text-xs
+                text-[11px]
+                sm:text-xs
                 font-medium
                 px-3
                 py-1.5
@@ -1045,20 +1150,30 @@ function Chat({
                     }
                     disabled={deleting}
                     className={`
-                      max-w-[80%]
+                      max-w-[85%]
                       sm:max-w-[65%]
+
                       text-left
-                      px-4
-                      py-3
+
+                      px-3.5
+                      py-2.5
+                      sm:px-4
+                      sm:py-3
+
                       rounded-2xl
+
                       transition
+
                       focus:outline-none
+
                       disabled:opacity-70
+
                       ${
                         selected
                           ? "ring-2 ring-green-500 ring-offset-2"
                           : ""
                       }
+
                       ${
                         mine
                           ? "bg-green-600 text-white rounded-br-md shadow-sm"
@@ -1092,6 +1207,7 @@ function Chat({
                         text-sm
                         leading-5
                         break-words
+                        whitespace-pre-wrap
                       "
                     >
                       {message.text}
@@ -1117,37 +1233,66 @@ function Chat({
               );
             }
           )}
+
+          {/* Small bottom space so the final message
+              never touches the input area. */}
+          <div className="h-1 shrink-0" />
         </div>
 
         {/* =================================================
             INPUT
+
+            flex-shrink-0 is VERY IMPORTANT.
+
+            This prevents the input from being pushed
+            below the message area.
+
+            It is always the bottom section of the
+            chat container.
         ================================================= */}
 
         {selectedMessageIds.length ===
           0 && (
           <div
             className="
+              flex-shrink-0
+
               border-t
               border-green-100
-              p-3
+
+              p-2.5
               sm:p-4
+
               bg-white
+
+              z-20
+
+              pb-[calc(0.625rem+env(safe-area-inset-bottom))]
+              sm:pb-4
             "
           >
             <div className="flex items-center gap-2">
+              {/* ATTACHMENT */}
+
               <button
                 type="button"
                 disabled={sending}
                 className="
                   w-10
                   h-10
+
                   rounded-full
+
                   hover:bg-green-50
+
                   text-green-700
+
                   flex
                   items-center
                   justify-center
+
                   shrink-0
+
                   disabled:opacity-50
                 "
               >
@@ -1155,6 +1300,8 @@ function Chat({
                   size={18}
                 />
               </button>
+
+              {/* INPUT */}
 
               <input
                 type="text"
@@ -1171,21 +1318,39 @@ function Chat({
                 placeholder={`Message ${personName}...`}
                 className="
                   flex-1
+
+                  min-w-0
+
                   bg-gray-100
+
                   rounded-full
+
                   px-4
                   py-3
+
                   text-sm
+
                   outline-none
+
                   border
                   border-transparent
+
                   focus:ring-2
                   focus:ring-green-100
+
                   focus:border-green-500
+
                   focus:bg-white
+
                   disabled:opacity-60
+
+                  transition
+
+                  appearance-none
                 "
               />
+
+              {/* SEND */}
 
               <button
                 type="button"
@@ -1199,15 +1364,24 @@ function Chat({
                 className="
                   w-11
                   h-11
+
                   rounded-full
+
                   bg-green-600
+
                   hover:bg-green-700
+
                   disabled:bg-gray-300
+
                   text-white
+
                   flex
                   items-center
                   justify-center
+
                   shrink-0
+
+                  transition
                 "
               >
                 {sending ? (
@@ -1242,12 +1416,15 @@ function Chat({
               fixed
               inset-0
               z-50
+
               bg-black/40
               backdrop-blur-[2px]
+
               flex
               items-end
               sm:items-center
               justify-center
+
               p-4
             "
             onClick={() => {
@@ -1262,10 +1439,15 @@ function Chat({
               className="
                 w-full
                 max-w-sm
+
                 bg-white
+
                 rounded-2xl
+
                 shadow-2xl
+
                 overflow-hidden
+
                 border
                 border-green-100
               "
@@ -1425,7 +1607,7 @@ function Chat({
                 </button>
               )}
 
-              {/* BOTTOM */}
+              {/* CANCEL */}
 
               <div
                 className="
