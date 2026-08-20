@@ -7,9 +7,10 @@ import products from "../../data/products";
 
 import {
   FiSearch,
-  FiSliders,
   FiX,
   FiStar,
+  FiChevronDown,
+  FiCheck,
 } from "react-icons/fi";
 
 function BrowseProducts({
@@ -23,11 +24,20 @@ function BrowseProducts({
 
   // ================= STATES =================
 
-  const [sortBy, setSortBy] = useState("Newest");
-  const [filterOpen, setFilterOpen] = useState(false);
+  const [sortBy, setSortBy] =
+    useState("Newest");
+
+  const [sortOpen, setSortOpen] =
+    useState(false);
+
+  const [filterOpen, setFilterOpen] =
+    useState(false);
+
   const [maxPrice, setMaxPrice] =
     useState(1000000);
-  const [minRating, setMinRating] = useState(0);
+
+  const [minRating, setMinRating] =
+    useState(0);
 
   // ================= CATEGORIES =================
 
@@ -41,6 +51,15 @@ function BrowseProducts({
     "Accessories",
     "Audio",
     "Gifts",
+  ];
+
+  // ================= SORT OPTIONS =================
+
+  const sortOptions = [
+    "Newest",
+    "Lowest Price",
+    "Highest Price",
+    "Top Rated",
   ];
 
   // ================= URL SEARCH =================
@@ -75,7 +94,9 @@ function BrowseProducts({
 
   // ================= CATEGORY =================
 
-  const handleCategoryChange = (category) => {
+  const handleCategoryChange = (
+    category
+  ) => {
     const params =
       new URLSearchParams(searchParams);
 
@@ -88,10 +109,17 @@ function BrowseProducts({
     setSearchParams(params);
   };
 
+  // ================= SORT CHANGE =================
+
+  const handleSortChange = (option) => {
+    setSortBy(option);
+    setSortOpen(false);
+  };
+
   // ================= FILTER PRODUCTS =================
 
-  let filteredProducts = products.filter(
-    (product) => {
+  let filteredProducts =
+    products.filter((product) => {
       const price = Number(
         String(product.price).replace(
           /[₦,]/g,
@@ -101,7 +129,8 @@ function BrowseProducts({
 
       const matchesCategory =
         selectedCategory === "All" ||
-        product.category === selectedCategory;
+        product.category ===
+          selectedCategory;
 
       const matchesSearch =
         product.name
@@ -122,15 +151,17 @@ function BrowseProducts({
         matchesPrice &&
         matchesRating
       );
-    }
-  );
+    });
 
   // ================= SORT PRODUCTS =================
 
   filteredProducts =
     [...filteredProducts].sort(
       (a, b) => {
-        if (sortBy === "Lowest Price") {
+        if (
+          sortBy ===
+          "Lowest Price"
+        ) {
           return (
             Number(
               String(a.price).replace(
@@ -147,7 +178,10 @@ function BrowseProducts({
           );
         }
 
-        if (sortBy === "Highest Price") {
+        if (
+          sortBy ===
+          "Highest Price"
+        ) {
           return (
             Number(
               String(b.price).replace(
@@ -164,7 +198,9 @@ function BrowseProducts({
           );
         }
 
-        if (sortBy === "Top Rated") {
+        if (
+          sortBy === "Top Rated"
+        ) {
           return b.rating - a.rating;
         }
 
@@ -183,11 +219,13 @@ function BrowseProducts({
     setMaxPrice(1000000);
     setMinRating(0);
     setSortBy("Newest");
+    setSortOpen(false);
   };
 
   return (
-    <CustomerLayout cartCount={cartCount}>
-
+    <CustomerLayout
+      cartCount={cartCount}
+    >
       <div className="space-y-6">
 
         {/* =====================================================
@@ -204,23 +242,41 @@ function BrowseProducts({
             gap-4
           "
         >
-
           <div>
-
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
+            <h1
+              className="
+                text-2xl
+                sm:text-3xl
+                font-bold
+                text-gray-800
+              "
+            >
               Browse Products
             </h1>
 
-            <p className="text-sm sm:text-base text-gray-500 mt-1">
-              Discover products from students around campus.
+            <p
+              className="
+                text-sm
+                sm:text-base
+                text-gray-500
+                mt-1
+              "
+            >
+              Discover products from
+              students around campus.
             </p>
-
           </div>
 
           {/* SEARCH */}
 
-          <div className="relative w-full lg:w-80 xl:w-96">
-
+          <div
+            className="
+              relative
+              w-full
+              lg:w-80
+              xl:w-96
+            "
+          >
             <FiSearch
               className="
                 absolute
@@ -234,7 +290,9 @@ function BrowseProducts({
             <input
               type="text"
               value={search}
-              onChange={handleSearchChange}
+              onChange={
+                handleSearchChange
+              }
               placeholder="Search products..."
               className="
                 w-full
@@ -250,11 +308,10 @@ function BrowseProducts({
                 focus:border-green-500
                 focus:ring-2
                 focus:ring-green-100
+                transition
               "
             />
-
           </div>
-
         </div>
 
         {/* =====================================================
@@ -262,23 +319,36 @@ function BrowseProducts({
         ===================================================== */}
 
         {search && (
-          <div className="bg-green-50 border border-green-100 rounded-xl px-4 py-3">
-
-            <p className="text-sm text-green-700">
-
+          <div
+            className="
+              bg-green-50
+              border
+              border-green-100
+              rounded-xl
+              px-4
+              py-3
+            "
+          >
+            <p
+              className="
+                text-sm
+                text-green-700
+              "
+            >
               Search results for{" "}
 
               <span className="font-semibold">
                 "{search}"
               </span>
 
-              {" "}— {filteredProducts.length} product
-              {filteredProducts.length !== 1
+              {" "}—{" "}
+              {filteredProducts.length}{" "}
+              product
+              {filteredProducts.length !==
+              1
                 ? "s"
                 : ""}
-
             </p>
-
           </div>
         )}
 
@@ -296,17 +366,32 @@ function BrowseProducts({
             sm:p-5
           "
         >
-
-          <div className="flex items-center justify-between mb-4">
-
-            <h2 className="font-bold text-gray-800">
+          <div
+            className="
+              flex
+              items-center
+              justify-between
+              mb-4
+            "
+          >
+            <h2
+              className="
+                font-bold
+                text-gray-800
+              "
+            >
               Categories
             </h2>
 
-            <span className="text-sm text-gray-500">
-              {filteredProducts.length} products
+            <span
+              className="
+                text-sm
+                text-gray-500
+              "
+            >
+              {filteredProducts.length}{" "}
+              products
             </span>
-
           </div>
 
           <div
@@ -318,10 +403,8 @@ function BrowseProducts({
               pb-2
             "
           >
-
             {categories.map(
               (category) => (
-
                 <button
                   key={category}
                   type="button"
@@ -337,24 +420,22 @@ function BrowseProducts({
                     rounded-xl
                     text-sm
                     font-medium
-                    transition
+                    transition-all
+                    duration-200
 
                     ${
                       selectedCategory ===
                       category
-                        ? "bg-green-600 text-white"
+                        ? "bg-green-600 text-white shadow-sm"
                         : "bg-gray-100 text-gray-600 hover:bg-green-50 hover:text-green-600"
                     }
                   `}
                 >
                   {category}
                 </button>
-
               )
             )}
-
           </div>
-
         </section>
 
         {/* =====================================================
@@ -376,95 +457,218 @@ function BrowseProducts({
             gap-4
           "
         >
-
           <div>
-
-            <h2 className="font-semibold text-gray-800">
-
-              {selectedCategory === "All"
+            <h2
+              className="
+                font-semibold
+                text-gray-800
+              "
+            >
+              {selectedCategory ===
+              "All"
                 ? search
                   ? "Search Results"
                   : "All Products"
                 : selectedCategory}
-
             </h2>
 
-            <p className="text-sm text-gray-500">
-              Showing {filteredProducts.length} products
+            <p
+              className="
+                text-sm
+                text-gray-500
+              "
+            >
+              Showing{" "}
+              {filteredProducts.length}{" "}
+              products
             </p>
-
           </div>
 
-          <div className="flex items-center gap-3">
+          <div
+            className="
+              flex
+              items-center
+              gap-3
+              w-full
+              sm:w-auto
+            "
+          >
+            {/* =================================================
+                CUSTOM CAMPUSMART SORT DROPDOWN
+            ================================================= */}
 
-            {/* SORT */}
-
-            <select
-              value={sortBy}
-              onChange={(e) =>
-                setSortBy(e.target.value)
-              }
+            <div
               className="
-                bg-gray-50
-                border
-                border-gray-200
-                rounded-xl
-                px-4
-                py-3
-                text-sm
-                outline-none
-                focus:border-green-500
+                relative
+                w-full
+                sm:w-auto
               "
             >
+              {/* SELECTED SORT BUTTON */}
 
-              <option>Newest</option>
-              <option>Lowest Price</option>
-              <option>Highest Price</option>
-              <option>Top Rated</option>
+              <button
+                type="button"
+                onClick={() =>
+                  setSortOpen(
+                    (current) =>
+                      !current
+                  )
+                }
+                className="
+                  w-full
+                  sm:min-w-[190px]
+                  flex
+                  items-center
+                  justify-between
+                  gap-4
+                  bg-green-50
+                  border
+                  border-green-200
+                  rounded-xl
+                  px-4
+                  py-3
+                  text-sm
+                  font-semibold
+                  text-green-700
+                  outline-none
+                  cursor-pointer
+                  shadow-sm
+                  hover:bg-green-100
+                  hover:border-green-300
+                  focus:ring-2
+                  focus:ring-green-100
+                  transition-all
+                  duration-200
+                "
+              >
+                <span>
+                  {sortBy}
+                </span>
 
-            </select>
+                <FiChevronDown
+                  size={17}
+                  className={`
+                    text-green-600
+                    transition-transform
+                    duration-200
+                    ${
+                      sortOpen
+                        ? "rotate-180"
+                        : ""
+                    }
+                  `}
+                />
+              </button>
 
-            {/* FILTER */}
+              {/* =================================================
+                  DROPDOWN OPTIONS
+              ================================================= */}
 
-            <button
-              type="button"
-              onClick={() =>
-                setFilterOpen(true)
-              }
-              className="
-                flex
-                items-center
-                gap-2
-                bg-green-600
-                hover:bg-green-700
-                text-white
-                px-4
-                py-3
-                rounded-xl
-                text-sm
-                font-medium
-                transition
-              "
-            >
+              {sortOpen && (
+                <>
+                  {/* Invisible backdrop for closing dropdown */}
 
-              <FiSliders />
+                  <button
+                    type="button"
+                    aria-label="Close sort menu"
+                    onClick={() =>
+                      setSortOpen(
+                        false
+                      )
+                    }
+                    className="
+                      fixed
+                      inset-0
+                      z-40
+                      cursor-default
+                    "
+                  />
 
-              <span className="hidden sm:inline">
-                Filters
-              </span>
+                  <div
+                    className="
+                      absolute
+                      z-50
+                      top-full
+                      left-0
+                      right-0
+                      mt-2
+                      bg-white
+                      border
+                      border-green-100
+                      rounded-xl
+                      shadow-xl
+                      shadow-green-100/60
+                      overflow-hidden
+                      p-1.5
+                    "
+                  >
+                    {sortOptions.map(
+                      (option) => {
+                        const isSelected =
+                          sortBy ===
+                          option;
 
-            </button>
+                        return (
+                          <button
+                            key={option}
+                            type="button"
+                            onClick={() =>
+                              handleSortChange(
+                                option
+                              )
+                            }
+                            className={`
+                              w-full
+                              flex
+                              items-center
+                              justify-between
+                              text-left
+                              px-4
+                              py-3
+                              rounded-lg
+                              text-sm
+                              font-medium
+                              transition-all
+                              duration-150
 
+                              ${
+                                isSelected
+                                  ? "bg-green-600 text-white shadow-sm"
+                                  : "text-gray-700 hover:bg-green-50 hover:text-green-700"
+                              }
+                            `}
+                          >
+                            <span>
+                              {option}
+                            </span>
+
+                            {isSelected && (
+                              <FiCheck
+                                size={
+                                  17
+                                }
+                                strokeWidth={
+                                  2.5
+                                }
+                              />
+                            )}
+                          </button>
+                        );
+                      }
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
-
         </div>
 
         {/* =====================================================
             PRODUCTS
         ===================================================== */}
 
-        {filteredProducts.length > 0 ? (
-
+        {filteredProducts.length >
+        0 ? (
           <section
             className="
               grid
@@ -476,10 +680,8 @@ function BrowseProducts({
               sm:gap-5
             "
           >
-
             {filteredProducts.map(
               (product) => (
-
                 <ProductCard
                   key={product.id}
                   product={product}
@@ -489,14 +691,10 @@ function BrowseProducts({
                     toggleWishlist
                   }
                 />
-
               )
             )}
-
           </section>
-
         ) : (
-
           <div
             className="
               bg-white
@@ -507,7 +705,6 @@ function BrowseProducts({
               text-center
             "
           >
-
             <div
               className="
                 w-16
@@ -520,19 +717,30 @@ function BrowseProducts({
                 justify-center
               "
             >
-
               <FiSearch
                 size={26}
                 className="text-gray-400"
               />
-
             </div>
 
-            <h3 className="text-lg font-semibold text-gray-800 mt-4">
+            <h3
+              className="
+                text-lg
+                font-semibold
+                text-gray-800
+                mt-4
+              "
+            >
               No products found
             </h3>
 
-            <p className="text-gray-500 text-sm mt-2">
+            <p
+              className="
+                text-gray-500
+                text-sm
+                mt-2
+              "
+            >
               {search
                 ? `We couldn't find any products matching "${search}".`
                 : "Try changing your search or filters."}
@@ -550,15 +758,14 @@ function BrowseProducts({
                 py-2.5
                 rounded-xl
                 text-sm
+                font-medium
+                transition
               "
             >
               Clear Filters
             </button>
-
           </div>
-
         )}
-
       </div>
 
       {/* =====================================================
@@ -566,9 +773,13 @@ function BrowseProducts({
       ===================================================== */}
 
       {filterOpen && (
-
-        <div className="fixed inset-0 z-[100]">
-
+        <div
+          className="
+            fixed
+            inset-0
+            z-[100]
+          "
+        >
           {/* BACKGROUND */}
 
           <div
@@ -598,21 +809,35 @@ function BrowseProducts({
               overflow-y-auto
             "
           >
-
             {/* HEADER */}
 
-            <div className="flex items-center justify-between">
-
+            <div
+              className="
+                flex
+                items-center
+                justify-between
+              "
+            >
               <div>
-
-                <h2 className="text-xl font-bold text-gray-800">
+                <h2
+                  className="
+                    text-xl
+                    font-bold
+                    text-gray-800
+                  "
+                >
                   Filters
                 </h2>
 
-                <p className="text-sm text-gray-500 mt-1">
+                <p
+                  className="
+                    text-sm
+                    text-gray-500
+                    mt-1
+                  "
+                >
                   Refine your search
                 </p>
-
               </div>
 
               <button
@@ -625,32 +850,39 @@ function BrowseProducts({
                   h-10
                   rounded-full
                   bg-gray-100
+                  text-gray-600
                   flex
                   items-center
                   justify-center
-                  hover:bg-gray-200
+                  hover:bg-green-50
+                  hover:text-green-600
+                  transition
                 "
               >
-
                 <FiX size={20} />
-
               </button>
-
             </div>
 
             {/* CATEGORY */}
 
             <div className="mt-8">
-
-              <h3 className="font-semibold text-gray-800">
+              <h3
+                className="
+                  font-semibold
+                  text-gray-800
+                "
+              >
                 Category
               </h3>
 
-              <div className="space-y-3 mt-4">
-
+              <div
+                className="
+                  space-y-3
+                  mt-4
+                "
+              >
                 {categories.map(
                   (category) => (
-
                     <label
                       key={category}
                       className="
@@ -658,9 +890,9 @@ function BrowseProducts({
                         items-center
                         gap-3
                         cursor-pointer
+                        group
                       "
                     >
-
                       <input
                         type="radio"
                         name="category"
@@ -673,36 +905,55 @@ function BrowseProducts({
                             category
                           )
                         }
-                        className="accent-green-600"
+                        className="
+                          accent-green-600
+                        "
                       />
 
-                      <span className="text-sm text-gray-600">
+                      <span
+                        className="
+                          text-sm
+                          text-gray-600
+                          group-hover:text-green-600
+                          transition
+                        "
+                      >
                         {category}
                       </span>
-
                     </label>
-
                   )
                 )}
-
               </div>
-
             </div>
 
             {/* PRICE */}
 
             <div className="mt-8">
-
-              <div className="flex justify-between">
-
-                <h3 className="font-semibold text-gray-800">
+              <div
+                className="
+                  flex
+                  justify-between
+                "
+              >
+                <h3
+                  className="
+                    font-semibold
+                    text-gray-800
+                  "
+                >
                   Maximum Price
                 </h3>
 
-                <span className="text-sm text-green-600 font-medium">
-                  ₦{maxPrice.toLocaleString()}
+                <span
+                  className="
+                    text-sm
+                    text-green-600
+                    font-medium
+                  "
+                >
+                  ₦
+                  {maxPrice.toLocaleString()}
                 </span>
-
               </div>
 
               <input
@@ -713,36 +964,58 @@ function BrowseProducts({
                 value={maxPrice}
                 onChange={(e) =>
                   setMaxPrice(
-                    Number(e.target.value)
+                    Number(
+                      e.target.value
+                    )
                   )
                 }
                 className="
                   w-full
                   mt-5
                   accent-green-600
+                  cursor-pointer
                 "
               />
 
-              <div className="flex justify-between text-xs text-gray-400 mt-2">
-                <span>₦0</span>
-                <span>₦1,000,000</span>
-              </div>
+              <div
+                className="
+                  flex
+                  justify-between
+                  text-xs
+                  text-gray-400
+                  mt-2
+                "
+              >
+                <span>
+                  ₦0
+                </span>
 
+                <span>
+                  ₦1,000,000
+                </span>
+              </div>
             </div>
 
             {/* RATING */}
 
             <div className="mt-8">
-
-              <h3 className="font-semibold text-gray-800">
+              <h3
+                className="
+                  font-semibold
+                  text-gray-800
+                "
+              >
                 Minimum Rating
               </h3>
 
-              <div className="space-y-3 mt-4">
-
+              <div
+                className="
+                  space-y-3
+                  mt-4
+                "
+              >
                 {[4, 3, 2, 1].map(
                   (rating) => (
-
                     <label
                       key={rating}
                       className="
@@ -750,9 +1023,9 @@ function BrowseProducts({
                         items-center
                         gap-3
                         cursor-pointer
+                        group
                       "
                     >
-
                       <input
                         type="radio"
                         name="rating"
@@ -765,36 +1038,48 @@ function BrowseProducts({
                             rating
                           )
                         }
-                        className="accent-green-600"
+                        className="
+                          accent-green-600
+                        "
                       />
 
-                      <div className="flex items-center gap-1">
-
+                      <div
+                        className="
+                          flex
+                          items-center
+                          gap-1
+                        "
+                      >
                         {Array.from({
                           length: rating,
                         }).map(
                           (_, index) => (
-
                             <FiStar
-                              key={index}
+                              key={
+                                index
+                              }
                               className="
                                 text-yellow-500
                                 fill-yellow-500
                               "
                               size={15}
                             />
-
                           )
                         )}
 
-                        <span className="text-sm text-gray-500 ml-1">
+                        <span
+                          className="
+                            text-sm
+                            text-gray-500
+                            ml-1
+                            group-hover:text-green-600
+                            transition
+                          "
+                        >
                           & up
                         </span>
-
                       </div>
-
                     </label>
-
                   )
                 )}
 
@@ -806,9 +1091,9 @@ function BrowseProducts({
                     items-center
                     gap-3
                     cursor-pointer
+                    group
                   "
                 >
-
                   <input
                     type="radio"
                     name="rating"
@@ -818,23 +1103,34 @@ function BrowseProducts({
                     onChange={() =>
                       setMinRating(0)
                     }
-                    className="accent-green-600"
+                    className="
+                      accent-green-600
+                    "
                   />
 
-                  <span className="text-sm text-gray-600">
+                  <span
+                    className="
+                      text-sm
+                      text-gray-600
+                      group-hover:text-green-600
+                      transition
+                    "
+                  >
                     All ratings
                   </span>
-
                 </label>
-
               </div>
-
             </div>
 
             {/* BUTTONS */}
 
-            <div className="flex gap-3 mt-10">
-
+            <div
+              className="
+                flex
+                gap-3
+                mt-10
+              "
+            >
               <button
                 type="button"
                 onClick={clearFilters}
@@ -846,7 +1142,10 @@ function BrowseProducts({
                   py-3
                   rounded-xl
                   font-medium
-                  hover:bg-gray-50
+                  hover:bg-green-50
+                  hover:border-green-200
+                  hover:text-green-600
+                  transition
                 "
               >
                 Reset
@@ -865,19 +1164,17 @@ function BrowseProducts({
                   py-3
                   rounded-xl
                   font-medium
+                  transition
+                  shadow-sm
+                  shadow-green-100
                 "
               >
                 Apply Filters
               </button>
-
             </div>
-
           </div>
-
         </div>
-
       )}
-
     </CustomerLayout>
   );
 }
