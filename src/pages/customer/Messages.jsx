@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import CustomerLayout from "../../layouts/CustomerLayout";
@@ -12,65 +12,553 @@ import {
   FiUsers,
 } from "react-icons/fi";
 
+import {
+  collection,
+  onSnapshot,
+  query,
+  where,
+} from "firebase/firestore";
+
+import { db } from "../../context/firebase";
+
+import { useAuth } from "../../context/AuthContext";
+
 
 function Messages({
   cartCount = 0,
   wishlist = [],
-  messages = [],
-  unreadMessages = 0,
-  markMessageAsRead,
 }) {
 
   const navigate = useNavigate();
 
+  const { firebaseUser, profileLoading } = useAuth();
+
   const [search, setSearch] = useState("");
 
+  const [conversations, setConversations] =
+    useState([]);
 
-  // =====================================================
-  // SEARCH
-  // =====================================================
-
-  const filteredMessages = messages.filter((message) => {
-
-    const searchText = search.toLowerCase();
-
-    return (
-      message.name
-        .toLowerCase()
-        .includes(searchText) ||
-
-      message.lastMessage
-        .toLowerCase()
-        .includes(searchText)
-    );
-
-  });
+  const [loading, setLoading] =
+    useState(true);
 
 
-  // =====================================================
-  // ONLINE USERS
-  // =====================================================
+  // =========================================================
+  // LOAD FIREBASE CONVERSATIONS
+  // =========================================================
 
-  const onlineUsers = messages.filter(
-    (message) => message.online
-  ).length;
+  useEffect(() => {
 
-
-  // =====================================================
-  // OPEN CHAT
-  // =====================================================
-
-  const openChat = (messageId) => {
-
-    // Mark this conversation as read
-    if (markMessageAsRead) {
-      markMessageAsRead(messageId);
+    if (profileLoading) {
+      return;
     }
 
-    // Then open the chat
-    navigate(`/messages/${messageId}`);
+    if (!firebaseUser?.uid) {
+
+      setConversations([]);
+      setLoading(false);
+
+      return;
+    }
+
+
+    setLoading(true);
+
+
+    const conversationsRef =
+      collection(db, "conversations");
+
+
+    const conversationsQuery =
+      query(
+        conversationsRef,
+        where(
+          "participants",
+          "array-contains",
+          firebaseUser.uid
+        )
+      );
+
+
+    const unsubscribe =
+      onSnapshot(
+        conversationsQuery,
+
+        (snapshot) => {
+
+          const loadedConversations =
+            snapshot.docs.map((conversationDoc) => {
+
+              const data =
+                conversationDoc.data();
+
+
+              const conversationId =
+                conversationDoc.id;
+
+
+              const participants =
+                Array.isArray(data.participants)
+                  ? data.participants
+                  : [];
+
+
+              // ==========================================
+              // FIND THE OTHER PERSON
+              // ==========================================
+
+              const otherUserId =
+                participants.find(
+                  (uid) =>
+                    uid !== firebaseUser.uid
+                );
+
+
+              const participantNames =
+                data.participantNames || {};
+
+
+              const participantImages =
+                data.participantImages || {};
+
+
+              const participantOnline =
+                data.participantOnline || {};
+
+
+              const otherUserName =
+                otherUserId &&
+                participantNames[
+                  otherUserId
+                ]
+                  ? participantNames[
+                      otherUserId
+                    ]
+                  : "CampusMart User";
+
+
+              const otherUserImage =
+                otherUserId &&
+                participantImages[
+                  otherUserId
+                ]
+                  ? participantImages[
+                      otherUserId
+                    ]
+                  : null;
+
+
+              const otherUserOnline =
+                otherUserId
+                  ? Boolean(
+                      participantOnline[
+                        otherUserId
+                      ]
+                    )
+                  : false;
+
+
+              // ==========================================
+              // UNREAD COUNT
+              // ==========================================
+
+              const unreadData =
+                data.unread || {};
+
+
+              const unread =
+                Number(
+                  unreadData[
+                    firebaseUser.uid
+                  ] || 0
+                );
+
+
+              // ==========================================
+              // LAST MESSAGE
+              // ==========================================
+
+              const lastMessage =
+                data.lastMessage ||
+                "No messages yet";
+
+
+              // ==========================================
+              // TIME
+              // ==========================================
+
+              const lastMessageAt =
+                data.lastMessageAt;
+
+
+              let time = "";
+
+
+              if (
+                lastMessageAt &&
+                typeof lastMessageAt.toDate ===
+                  "function"
+              ) {
+
+                const date =
+                  lastMessageAt.toDate();
+
+
+                time =
+                  date.toLocaleTimeString(
+                    [],
+                    {
+                      hour: "numeric",
+                      minute: "2-digit",
+                    }
+                  );
+
+              }
+
+
+              return {
+
+                id: conversationId,
+
+                name: otherUserName,
+
+                image: otherUserImage,
+
+                online: otherUserOnline,
+
+                lastMessage,
+
+                unread,
+
+                time,
+
+                lastMessageAt,
+
+                otherUserId,
+
+              };
+
+            });
+
+
+          // ==========================================
+          // SORT NEWEST FIRST
+          // ==========================================
+
+          loadedConversations.sort(
+            (a, b) => {
+
+              const aTime =
+                a.lastMessageAt?.toMillis
+                  ? a.lastMessageAt.toMillis()
+                  : 0;
+
+
+              const bTime =
+                b.lastMessageAt?.toMillis
+                  ? b.lastMessageAt.toMillis()
+                  : 0;
+
+
+              return bTime - aTime;
+
+            }
+          );
+
+
+          setConversations(
+            loadedConversations
+          );
+
+          setLoading(false);
+
+        },
+
+        (error) => {
+
+          console.error(
+            "Error loading conversations:",
+            error
+          );
+
+          setConversations([]);
+
+          setLoading(false);
+
+        }
+      );
+
+
+    return () => unsubscribe();
+
+  }, [
+    firebaseUser,
+    profileLoading,
+  ]);
+
+
+  // =========================================================
+  // SEARCH
+  // =========================================================
+
+  const filteredMessages =
+    useMemo(() => {
+
+      const searchText =
+        search.trim().toLowerCase();
+
+
+      if (!searchText) {
+        return conversations;
+      }
+
+
+      return conversations.filter(
+        (message) => {
+
+          const name =
+            String(
+              message.name || ""
+            ).toLowerCase();
+
+
+          const lastMessage =
+            String(
+              message.lastMessage || ""
+            ).toLowerCase();
+
+
+          return (
+            name.includes(searchText) ||
+            lastMessage.includes(searchText)
+          );
+
+        }
+      );
+
+    }, [
+      conversations,
+      search,
+    ]);
+
+
+  // =========================================================
+  // UNREAD MESSAGES
+  // =========================================================
+
+  const unreadMessages =
+    useMemo(() => {
+
+      return conversations.reduce(
+        (total, conversation) =>
+          total +
+          Number(
+            conversation.unread || 0
+          ),
+        0
+      );
+
+    }, [conversations]);
+
+
+  // =========================================================
+  // ONLINE USERS
+  // =========================================================
+
+  const onlineUsers =
+    useMemo(() => {
+
+      return conversations.filter(
+        (message) =>
+          message.online === true
+      ).length;
+
+    }, [conversations]);
+
+
+  // =========================================================
+  // OPEN CHAT
+  // =========================================================
+
+  const openChat = (
+    conversationId
+  ) => {
+
+    navigate(
+      `/messages/${conversationId}`
+    );
 
   };
+
+
+  // =========================================================
+  // LOADING
+  // =========================================================
+
+  if (
+    profileLoading ||
+    loading
+  ) {
+
+    return (
+      <CustomerLayout
+        cartCount={cartCount}
+        wishlist={wishlist}
+        unreadMessages={0}
+      >
+
+        <div className="space-y-6">
+
+          <div>
+
+            <div
+              className="
+                h-8
+                w-32
+                rounded-lg
+                bg-gray-200
+                animate-pulse
+              "
+            />
+
+            <div
+              className="
+                mt-2
+                h-4
+                w-72
+                max-w-full
+                rounded
+                bg-gray-100
+                animate-pulse
+              "
+            />
+
+          </div>
+
+
+          <div
+            className="
+              grid
+              grid-cols-2
+              lg:grid-cols-3
+              gap-4
+            "
+          >
+
+            {[1, 2, 3].map(
+              (item) => (
+
+                <div
+                  key={item}
+                  className="
+                    bg-white
+                    border
+                    border-gray-100
+                    rounded-2xl
+                    p-5
+                    animate-pulse
+                  "
+                >
+
+                  <div
+                    className="
+                      h-10
+                      w-32
+                      rounded
+                      bg-gray-100
+                    "
+                  />
+
+                </div>
+
+              )
+            )}
+
+          </div>
+
+
+          <div
+            className="
+              h-12
+              rounded-xl
+              bg-gray-100
+              animate-pulse
+            "
+          />
+
+
+          <div
+            className="
+              bg-white
+              rounded-2xl
+              border
+              border-gray-100
+              overflow-hidden
+            "
+          >
+
+            {[1, 2, 3].map(
+              (item) => (
+
+                <div
+                  key={item}
+                  className="
+                    flex
+                    items-center
+                    gap-4
+                    p-5
+                    border-b
+                    border-gray-100
+                  "
+                >
+
+                  <div
+                    className="
+                      w-12
+                      h-12
+                      rounded-full
+                      bg-gray-100
+                      animate-pulse
+                    "
+                  />
+
+                  <div className="flex-1">
+
+                    <div
+                      className="
+                        h-4
+                        w-32
+                        rounded
+                        bg-gray-100
+                        animate-pulse
+                      "
+                    />
+
+                    <div
+                      className="
+                        mt-2
+                        h-3
+                        w-48
+                        rounded
+                        bg-gray-100
+                        animate-pulse
+                      "
+                    />
+
+                  </div>
+
+                </div>
+
+              )
+            )}
+
+          </div>
+
+        </div>
+
+      </CustomerLayout>
+    );
+
+  }
 
 
   return (
@@ -138,9 +626,11 @@ function Messages({
               transition
             "
           >
+
             <FiMessageCircle />
 
             New Message
+
           </button>
 
         </div>
@@ -186,8 +676,11 @@ function Messages({
                   justify-center
                 "
               >
+
                 <FiMessageCircle size={19} />
+
               </div>
+
 
               <div>
 
@@ -196,7 +689,7 @@ function Messages({
                 </p>
 
                 <p className="text-xl font-bold text-gray-800">
-                  {messages.length}
+                  {conversations.length}
                 </p>
 
               </div>
@@ -233,8 +726,11 @@ function Messages({
                   justify-center
                 "
               >
+
                 <FiCheckCircle size={19} />
+
               </div>
+
 
               <div>
 
@@ -282,8 +778,11 @@ function Messages({
                   justify-center
                 "
               >
+
                 <FiUsers size={19} />
+
               </div>
+
 
               <div>
 
@@ -321,10 +820,13 @@ function Messages({
             size={18}
           />
 
+
           <input
             type="text"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) =>
+              setSearch(e.target.value)
+            }
             placeholder="Search conversations..."
             className="
               w-full
@@ -361,7 +863,6 @@ function Messages({
           "
         >
 
-
           {/* CARD HEADER */}
 
           <div
@@ -389,8 +890,11 @@ function Messages({
                   justify-center
                 "
               >
+
                 <FiMessageCircle size={21} />
+
               </div>
+
 
               <div>
 
@@ -399,10 +903,13 @@ function Messages({
                 </h2>
 
                 <p className="text-sm text-gray-400 mt-0.5">
+
                   {filteredMessages.length}{" "}
+
                   {filteredMessages.length === 1
                     ? "conversation"
                     : "conversations"}
+
                 </p>
 
               </div>
@@ -425,7 +932,9 @@ function Messages({
                 transition
               "
             >
+
               <FiMoreVertical />
+
             </button>
 
           </div>
@@ -439,165 +948,199 @@ function Messages({
 
             <div>
 
-              {filteredMessages.map((message) => (
+              {filteredMessages.map(
+                (message) => (
 
-                <button
-                  key={message.id}
-                  type="button"
-                  onClick={() => openChat(message.id)}
-                  className="
-                    w-full
-                    flex
-                    items-center
-                    gap-4
-                    p-4
-                    sm:p-5
-                    text-left
-                    hover:bg-gray-50
-                    transition
-                    border-b
-                    border-gray-100
-                    last:border-b-0
-                  "
-                >
+                  <button
+                    key={message.id}
+                    type="button"
+                    onClick={() =>
+                      openChat(message.id)
+                    }
+                    className="
+                      w-full
+                      flex
+                      items-center
+                      gap-4
+                      p-4
+                      sm:p-5
+                      text-left
+                      hover:bg-gray-50
+                      transition
+                      border-b
+                      border-gray-100
+                      last:border-b-0
+                    "
+                  >
+
+                    {/* AVATAR */}
+
+                    <div className="relative shrink-0">
+
+                      {message.image ? (
+
+                        <img
+                          src={message.image}
+                          alt={message.name}
+                          className="
+                            w-12
+                            h-12
+                            sm:w-13
+                            sm:h-13
+                            rounded-full
+                            object-cover
+                          "
+                        />
+
+                      ) : (
+
+                        <div
+                          className="
+                            w-12
+                            h-12
+                            sm:w-13
+                            sm:h-13
+                            rounded-full
+                            bg-green-100
+                            text-green-700
+                            flex
+                            items-center
+                            justify-center
+                            font-bold
+                            text-lg
+                          "
+                        >
+
+                          {message.name
+                            ?.charAt(0)
+                            ?.toUpperCase() || "U"}
+
+                        </div>
+
+                      )}
 
 
-                  {/* AVATAR */}
+                      {message.online && (
 
-                  <div className="relative shrink-0">
+                        <span
+                          className="
+                            absolute
+                            bottom-0
+                            right-0
+                            w-3
+                            h-3
+                            bg-green-500
+                            border-2
+                            border-white
+                            rounded-full
+                          "
+                        />
 
-                    <div
-                      className="
-                        w-12
-                        h-12
-                        sm:w-13
-                        sm:h-13
-                        rounded-full
-                        bg-green-100
-                        text-green-700
-                        flex
-                        items-center
-                        justify-center
-                        font-bold
-                        text-lg
-                      "
-                    >
-                      {message.name.charAt(0)}
+                      )}
+
                     </div>
 
 
-                    {message.online && (
+                    {/* DETAILS */}
 
-                      <span
+                    <div className="flex-1 min-w-0">
+
+                      <div
                         className="
-                          absolute
-                          bottom-0
-                          right-0
-                          w-3
-                          h-3
-                          bg-green-500
-                          border-2
-                          border-white
-                          rounded-full
-                        "
-                      />
-
-                    )}
-
-                  </div>
-
-
-                  {/* DETAILS */}
-
-                  <div className="flex-1 min-w-0">
-
-                    <div
-                      className="
-                        flex
-                        items-center
-                        justify-between
-                        gap-3
-                      "
-                    >
-
-                      <h3
-                        className="
-                          font-semibold
-                          text-gray-800
-                          truncate
+                          flex
+                          items-center
+                          justify-between
+                          gap-3
                         "
                       >
-                        {message.name}
-                      </h3>
 
+                        <h3
+                          className="
+                            font-semibold
+                            text-gray-800
+                            truncate
+                          "
+                        >
+
+                          {message.name}
+
+                        </h3>
+
+
+                        <span
+                          className="
+                            text-xs
+                            text-gray-400
+                            shrink-0
+                          "
+                        >
+
+                          {message.time}
+
+                        </span>
+
+                      </div>
+
+
+                      <p
+                        className={`
+                          text-sm
+                          truncate
+                          mt-1
+                          ${
+                            message.unread > 0
+                              ? "font-semibold text-gray-700"
+                              : "text-gray-500"
+                          }
+                        `}
+                      >
+
+                        {message.lastMessage}
+
+                      </p>
+
+                    </div>
+
+
+                    {/* UNREAD COUNT */}
+
+                    {message.unread > 0 && (
 
                       <span
                         className="
-                          text-xs
-                          text-gray-400
+                          min-w-5
+                          h-5
+                          px-1.5
+                          rounded-full
+                          bg-green-600
+                          text-white
+                          text-[11px]
+                          font-bold
+                          flex
+                          items-center
+                          justify-center
                           shrink-0
                         "
                       >
-                        {message.time}
+
+                        {message.unread}
+
                       </span>
 
-                    </div>
+                    )}
 
 
-                    <p
-                      className={`
-                        text-sm
-                        truncate
-                        mt-1
-                        ${
-                          message.unread > 0
-                            ? "font-semibold text-gray-700"
-                            : "text-gray-500"
-                        }
-                      `}
-                    >
-                      {message.lastMessage}
-                    </p>
+                    {/* ARROW */}
 
-                  </div>
+                    <FiChevronRight
+                      className="text-gray-300 shrink-0"
+                      size={18}
+                    />
 
+                  </button>
 
-                  {/* UNREAD COUNT */}
-
-                  {message.unread > 0 && (
-
-                    <span
-                      className="
-                        min-w-5
-                        h-5
-                        px-1.5
-                        rounded-full
-                        bg-green-600
-                        text-white
-                        text-[11px]
-                        font-bold
-                        flex
-                        items-center
-                        justify-center
-                        shrink-0
-                      "
-                    >
-                      {message.unread}
-                    </span>
-
-                  )}
-
-
-                  {/* ARROW */}
-
-                  <FiChevronRight
-                    className="text-gray-300 shrink-0"
-                    size={18}
-                  />
-
-                </button>
-
-              ))}
+                )
+              )}
 
             </div>
 
@@ -641,7 +1184,11 @@ function Messages({
                   mt-4
                 "
               >
-                No messages found
+
+                {search
+                  ? "No messages found"
+                  : "No conversations yet"}
+
               </h3>
 
 
@@ -654,8 +1201,11 @@ function Messages({
                   mx-auto
                 "
               >
-                We couldn't find any conversations matching
-                your search.
+
+                {search
+                  ? "We couldn't find any conversations matching your search."
+                  : "Your conversations with buyers and sellers will appear here."}
+
               </p>
 
 
@@ -672,7 +1222,9 @@ function Messages({
                     hover:underline
                   "
                 >
+
                   Clear search
+
                 </button>
 
               )}
@@ -706,9 +1258,11 @@ function Messages({
             transition
           "
         >
+
           <FiMessageCircle />
 
           New Message
+
         </button>
 
       </div>

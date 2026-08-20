@@ -1,13 +1,32 @@
-import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import {
+  useEffect,
+  useState,
+} from "react";
+
+import {
+  useNavigate,
+  useParams,
+} from "react-router-dom";
 
 import CustomerLayout from "../../layouts/CustomerLayout";
+
+import {
+  doc,
+  onSnapshot,
+} from "firebase/firestore";
+
+import { db } from "../../context/firebase";
+
+import { useAuth } from "../../context/AuthContext";
 
 import {
   FiArrowLeft,
   FiSend,
   FiMoreVertical,
   FiPaperclip,
+  FiTrash2,
+  FiX,
+  FiCheck,
 } from "react-icons/fi";
 
 function Chat({
@@ -17,66 +36,632 @@ function Chat({
   unreadMessages = 0,
   markMessageAsRead,
   sendMessage,
+  deleteMessages,
 }) {
+  const { firebaseUser } = useAuth();
+
   const { id } = useParams();
+
   const navigate = useNavigate();
-
-  // =====================================================
-  // FIND PERSON
-  // =====================================================
-
-  const person = messages.find(
-    (message) => message.id === Number(id)
-  );
 
   // =====================================================
   // MESSAGE INPUT
   // =====================================================
 
-  const [messageText, setMessageText] = useState("");
+  const [messageText, setMessageText] =
+    useState("");
+
+  const [sending, setSending] =
+    useState(false);
 
   // =====================================================
-  // MARK AS READ WHEN CHAT OPENS
+  // LIVE CONVERSATION
+  // =====================================================
+
+  const [liveConversation, setLiveConversation] =
+    useState(null);
+
+  const [conversationLoading, setConversationLoading] =
+    useState(true);
+
+  // =====================================================
+  // SELECTED MESSAGES
+  // =====================================================
+
+  const [selectedMessageIds, setSelectedMessageIds] =
+    useState([]);
+
+  // =====================================================
+  // DELETE MENU
+  // =====================================================
+
+  const [showDeleteMenu, setShowDeleteMenu] =
+    useState(false);
+
+  const [deleting, setDeleting] =
+    useState(false);
+
+  // =====================================================
+  // FALLBACK PERSON
+  // =====================================================
+
+  const fallbackPerson =
+    messages.find(
+      (message) =>
+        String(message.id) ===
+        String(id)
+    );
+
+  // =====================================================
+  // LOAD LIVE CONVERSATION
   // =====================================================
 
   useEffect(() => {
-    if (person && person.unread > 0 && markMessageAsRead) {
-      markMessageAsRead(person.id);
+    if (!id) {
+      setLiveConversation(null);
+      setConversationLoading(false);
+
+      return undefined;
     }
-  }, [person?.id]);
+
+    setConversationLoading(true);
+
+    const conversationRef =
+      doc(
+        db,
+        "conversations",
+        String(id)
+      );
+
+    const unsubscribe =
+      onSnapshot(
+        conversationRef,
+        (snapshot) => {
+          if (!snapshot.exists()) {
+            setLiveConversation(null);
+            setConversationLoading(false);
+            return;
+          }
+
+          setLiveConversation({
+            id: snapshot.id,
+            ...snapshot.data(),
+          });
+
+          setConversationLoading(false);
+        },
+        (error) => {
+          console.error(
+            "Chat listener error:",
+            error
+          );
+
+          setLiveConversation(null);
+          setConversationLoading(false);
+        }
+      );
+
+    return () => unsubscribe();
+  }, [id]);
 
   // =====================================================
-  // PERSON NOT FOUND
+  // OTHER PARTICIPANT
   // =====================================================
 
-  if (!person) {
+  const otherParticipantId =
+    liveConversation?.participants?.find(
+      (uid) =>
+        String(uid) !==
+        String(firebaseUser?.uid)
+    ) ||
+    fallbackPerson?.otherParticipantId ||
+    null;
+
+  // =====================================================
+  // PERSON
+  // =====================================================
+
+  const personName =
+    liveConversation
+      ?.participantNames?.[
+        otherParticipantId
+      ] ||
+    fallbackPerson?.name ||
+    "CampusMart User";
+
+  const personImage =
+    liveConversation
+      ?.participantImages?.[
+        otherParticipantId
+      ] ||
+    fallbackPerson?.profileImage ||
+    null;
+
+  // =====================================================
+  // MARK AS READ
+  // =====================================================
+
+  useEffect(() => {
+    if (
+      id &&
+      markMessageAsRead
+    ) {
+      markMessageAsRead(id);
+    }
+  }, [
+    id,
+    markMessageAsRead,
+  ]);
+
+  // =====================================================
+  // CHAT MESSAGES
+  // =====================================================
+
+  const chatMessages =
+    liveConversation &&
+    Array.isArray(
+      liveConversation.messages
+    )
+      ? liveConversation.messages
+      : fallbackPerson?.conversation ||
+        [];
+
+  // =====================================================
+  // SORT MESSAGES
+  // =====================================================
+
+  const sortedMessages = [
+    ...chatMessages,
+  ].sort((a, b) => {
+    const aTime =
+      a.createdAt?.toMillis
+        ? a.createdAt.toMillis()
+        : Number(
+            a.createdAt || 0
+          );
+
+    const bTime =
+      b.createdAt?.toMillis
+        ? b.createdAt.toMillis()
+        : Number(
+            b.createdAt || 0
+          );
+
+    return aTime - bTime;
+  });
+
+  // =====================================================
+  // VISIBLE MESSAGES
+  // =====================================================
+
+  const visibleMessages =
+    sortedMessages.filter(
+      (message) => {
+        const deletedFor =
+          Array.isArray(
+            message.deletedFor
+          )
+            ? message.deletedFor
+            : [];
+
+        return !deletedFor.includes(
+          firebaseUser?.uid
+        );
+      }
+    );
+
+  // =====================================================
+  // FORMAT TIME
+  // =====================================================
+
+  const formatMessageTime = (
+    message
+  ) => {
+    if (message.time) {
+      return message.time;
+    }
+
+    if (!message.createdAt) {
+      return "";
+    }
+
+    try {
+      const date =
+        message.createdAt?.toDate
+          ? message.createdAt.toDate()
+          : new Date(
+              message.createdAt
+            );
+
+      return date.toLocaleTimeString(
+        [],
+        {
+          hour: "2-digit",
+          minute: "2-digit",
+        }
+      );
+    } catch {
+      return "";
+    }
+  };
+
+  // =====================================================
+  // IS MY MESSAGE
+  // =====================================================
+
+  const isMyMessage = (
+    message
+  ) => {
+    if (
+      message.senderId &&
+      firebaseUser?.uid
+    ) {
+      return (
+        String(
+          message.senderId
+        ) ===
+        String(
+          firebaseUser.uid
+        )
+      );
+    }
+
+    return (
+      message.sender === "me"
+    );
+  };
+
+  // =====================================================
+  // SELECT MESSAGE
+  // =====================================================
+
+  const toggleMessageSelection =
+    (messageId) => {
+      if (deleting) {
+        return;
+      }
+
+      setSelectedMessageIds(
+        (current) => {
+          const idString =
+            String(messageId);
+
+          if (
+            current.includes(
+              idString
+            )
+          ) {
+            return current.filter(
+              (item) =>
+                item !== idString
+            );
+          }
+
+          return [
+            ...current,
+            idString,
+          ];
+        }
+      );
+    };
+
+  // =====================================================
+  // CLEAR SELECTION
+  // =====================================================
+
+  const clearSelection = () => {
+    if (deleting) {
+      return;
+    }
+
+    setSelectedMessageIds([]);
+
+    setShowDeleteMenu(false);
+  };
+
+  // =====================================================
+  // SELECTED MESSAGES
+  // =====================================================
+
+  const selectedMessages =
+    visibleMessages.filter(
+      (message) =>
+        selectedMessageIds.includes(
+          String(message.id)
+        )
+    );
+
+  // =====================================================
+  // CAN DELETE FOR EVERYONE
+  // =====================================================
+
+  const canDeleteForEveryone =
+    selectedMessages.length > 0 &&
+    selectedMessages.every(
+      (message) =>
+        isMyMessage(message)
+    );
+
+  // =====================================================
+  // OPEN DELETE OPTIONS
+  // =====================================================
+
+  const openDeleteOptions = () => {
+    if (
+      selectedMessageIds.length ===
+        0 ||
+      deleting
+    ) {
+      return;
+    }
+
+    setShowDeleteMenu(true);
+  };
+
+  // =====================================================
+  // DELETE
+  // =====================================================
+
+  const handleDelete = async (
+    deleteType
+  ) => {
+    if (
+      deleting ||
+      selectedMessageIds.length ===
+        0 ||
+      !firebaseUser?.uid ||
+      !id ||
+      !deleteMessages
+    ) {
+      return;
+    }
+
+    if (
+      deleteType !== "me" &&
+      deleteType !== "everyone"
+    ) {
+      return;
+    }
+
+    if (
+      deleteType === "everyone" &&
+      !canDeleteForEveryone
+    ) {
+      return;
+    }
+
+    const idsToDelete = [
+      ...selectedMessageIds,
+    ];
+
+    setDeleting(true);
+
+    // =================================================
+    // CLOSE MENU IMMEDIATELY
+    // =================================================
+
+    setShowDeleteMenu(false);
+
+    // =================================================
+    // REMOVE FROM LOCAL UI IMMEDIATELY
+    // =================================================
+
+    setLiveConversation(
+      (current) => {
+        if (!current) {
+          return current;
+        }
+
+        const currentMessages =
+          Array.isArray(
+            current.messages
+          )
+            ? current.messages
+            : [];
+
+        let updatedMessages;
+
+        if (
+          deleteType === "everyone"
+        ) {
+          updatedMessages =
+            currentMessages.filter(
+              (message) => {
+                const messageId =
+                  String(
+                    message.id
+                  );
+
+                if (
+                  !idsToDelete.includes(
+                    messageId
+                  )
+                ) {
+                  return true;
+                }
+
+                return !isMyMessage(
+                  message
+                );
+              }
+            );
+        } else {
+          updatedMessages =
+            currentMessages.filter(
+              (message) => {
+                const messageId =
+                  String(
+                    message.id
+                  );
+
+                return !idsToDelete.includes(
+                  messageId
+                );
+              }
+            );
+        }
+
+        return {
+          ...current,
+          messages:
+            updatedMessages,
+        };
+      }
+    );
+
+    setSelectedMessageIds([]);
+
+    // =================================================
+    // FIREBASE
+    // =================================================
+
+    try {
+      const success =
+        await deleteMessages(
+          id,
+          idsToDelete,
+          deleteType
+        );
+
+      if (!success) {
+        // Firebase listener will restore
+        // the actual data if necessary.
+        console.error(
+          "Message deletion failed."
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Delete message error:",
+        error
+      );
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // =====================================================
+  // SEND MESSAGE
+  // =====================================================
+
+  const handleSendMessage =
+    async () => {
+      const text =
+        messageText.trim();
+
+      if (
+        !text ||
+        sending ||
+        !sendMessage ||
+        !id
+      ) {
+        return;
+      }
+
+      // =================================================
+      // CLEAR INPUT IMMEDIATELY
+      // =================================================
+
+      setMessageText("");
+
+      setSending(true);
+
+      try {
+        await sendMessage(
+          id,
+          text
+        );
+      } catch (error) {
+        console.error(
+          "Send message error:",
+          error
+        );
+
+        // Put text back only if sending failed.
+        setMessageText(text);
+      } finally {
+        setSending(false);
+      }
+    };
+
+  // =====================================================
+  // ENTER TO SEND
+  // =====================================================
+
+  const handleKeyDown = (
+    e
+  ) => {
+    if (
+      e.key === "Enter" &&
+      !e.shiftKey
+    ) {
+      e.preventDefault();
+
+      handleSendMessage();
+    }
+  };
+
+  // =====================================================
+  // CONVERSATION NOT FOUND
+  // =====================================================
+
+  if (
+    !conversationLoading &&
+    !liveConversation &&
+    !fallbackPerson
+  ) {
     return (
       <CustomerLayout
         cartCount={cartCount}
         wishlist={wishlist}
-        unreadMessages={unreadMessages}
+        unreadMessages={
+          unreadMessages
+        }
       >
         <div
           className="
             bg-white
             rounded-2xl
             border
-            border-gray-100
+            border-green-100
             p-10
             text-center
+            shadow-sm
           "
         >
+          <div
+            className="
+              w-16
+              h-16
+              mx-auto
+              rounded-full
+              bg-green-50
+              text-green-600
+              flex
+              items-center
+              justify-center
+              mb-4
+            "
+          >
+            <FiX size={28} />
+          </div>
+
           <h2 className="text-xl font-bold text-gray-800">
             Conversation not found
           </h2>
 
           <p className="text-gray-500 mt-2">
-            The conversation you're looking for doesn't exist.
+            The conversation you're
+            looking for doesn't exist.
           </p>
 
           <button
             type="button"
-            onClick={() => navigate("/messages")}
+            onClick={() =>
+              navigate(
+                "/messages"
+              )
+            }
             className="
               mt-5
               bg-green-600
@@ -85,8 +670,9 @@ function Chat({
               px-5
               py-2.5
               rounded-xl
-              font-medium
+              font-semibold
               transition
+              shadow-sm
             "
           >
             Back to Messages
@@ -97,62 +683,82 @@ function Chat({
   }
 
   // =====================================================
-  // CHAT MESSAGES
+  // LOADING
   // =====================================================
 
-  const chatMessages = person.conversation || [];
+  if (
+    conversationLoading &&
+    !fallbackPerson
+  ) {
+    return (
+      <CustomerLayout
+        cartCount={cartCount}
+        wishlist={wishlist}
+        unreadMessages={
+          unreadMessages
+        }
+      >
+        <div
+          className="
+            bg-white
+            rounded-2xl
+            border
+            border-green-100
+            p-10
+            text-center
+            shadow-sm
+          "
+        >
+          <div
+            className="
+              w-10
+              h-10
+              mx-auto
+              rounded-full
+              border-4
+              border-green-100
+              border-t-green-600
+              animate-spin
+            "
+          />
+
+          <p className="mt-4 text-sm text-gray-500">
+            Loading conversation...
+          </p>
+        </div>
+      </CustomerLayout>
+    );
+  }
 
   // =====================================================
-  // SEND MESSAGE
+  // RENDER
   // =====================================================
-
-  const handleSendMessage = () => {
-    const text = messageText.trim();
-
-    if (!text) return;
-
-    if (sendMessage) {
-      sendMessage(person.id, text);
-    }
-
-    setMessageText("");
-  };
-
-  // =====================================================
-  // ENTER TO SEND
-  // =====================================================
-
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  };
 
   return (
     <CustomerLayout
       cartCount={cartCount}
       wishlist={wishlist}
-      unreadMessages={unreadMessages}
+      unreadMessages={
+        unreadMessages
+      }
     >
-
       <div
         className="
           bg-white
           rounded-2xl
           border
-          border-gray-100
+          border-green-100
           overflow-hidden
           flex
           flex-col
           h-[calc(100vh-140px)]
           min-h-[550px]
+          shadow-sm
         "
       >
-
-        {/* =====================================================
-            CHAT HEADER
-        ===================================================== */}
+        {/* =================================================
+            HEADER
+        ================================================= */}
 
         <div
           className="
@@ -163,114 +769,179 @@ function Chat({
             sm:px-6
             py-4
             border-b
-            border-gray-100
+            border-green-100
             bg-white
           "
         >
-
-          {/* BACK */}
-
-          <button
-            type="button"
-            onClick={() => navigate("/messages")}
-            className="
-              w-10
-              h-10
-              rounded-full
-              hover:bg-gray-100
-              flex
-              items-center
-              justify-center
-              text-gray-600
-              transition
-            "
-          >
-            <FiArrowLeft size={19} />
-          </button>
-
-          {/* AVATAR */}
-
-          <div className="relative shrink-0">
-
-            <div
-              className="
-                w-11
-                h-11
-                rounded-full
-                bg-green-100
-                text-green-700
-                flex
-                items-center
-                justify-center
-                font-bold
-                text-lg
-              "
-            >
-              {person.name?.charAt(0)?.toUpperCase()}
-            </div>
-
-            {person.online && (
-              <span
+          {selectedMessageIds.length >
+          0 ? (
+            <>
+              <button
+                type="button"
+                onClick={
+                  clearSelection
+                }
+                disabled={deleting}
                 className="
-                  absolute
-                  bottom-0
-                  right-0
-                  w-3
-                  h-3
-                  bg-green-500
-                  border-2
-                  border-white
+                  w-10
+                  h-10
                   rounded-full
+                  hover:bg-green-50
+                  flex
+                  items-center
+                  justify-center
+                  text-green-700
+                  transition
+                  disabled:opacity-50
                 "
-              />
-            )}
+                title="Cancel"
+              >
+                <FiX size={20} />
+              </button>
 
-          </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-gray-800">
+                  {
+                    selectedMessageIds.length
+                  }{" "}
+                  selected
+                </p>
 
-          {/* PERSON */}
+                <p className="text-xs text-gray-400">
+                  Choose delete to
+                  continue
+                </p>
+              </div>
 
-          <div className="flex-1 min-w-0">
+              <button
+                type="button"
+                onClick={
+                  openDeleteOptions
+                }
+                disabled={deleting}
+                className="
+                  h-10
+                  px-4
+                  rounded-xl
+                  bg-green-600
+                  hover:bg-green-700
+                  text-white
+                  flex
+                  items-center
+                  justify-center
+                  gap-2
+                  font-semibold
+                  text-sm
+                  transition
+                  shadow-sm
+                  disabled:bg-green-300
+                "
+              >
+                <FiTrash2 size={17} />
 
-            <h2 className="font-bold text-gray-800 truncate">
-              {person.name}
-            </h2>
+                <span className="hidden sm:inline">
+                  Delete
+                </span>
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() =>
+                  navigate(
+                    "/messages"
+                  )
+                }
+                className="
+                  w-10
+                  h-10
+                  rounded-full
+                  hover:bg-green-50
+                  flex
+                  items-center
+                  justify-center
+                  text-green-700
+                  transition
+                "
+              >
+                <FiArrowLeft
+                  size={19}
+                />
+              </button>
 
-            <p
-              className={`text-xs ${
-                person.online
-                  ? "text-green-600"
-                  : "text-gray-400"
-              }`}
-            >
-              {person.online ? "Online" : "Offline"}
-            </p>
+              <div className="relative shrink-0">
+                {personImage ? (
+                  <img
+                    src={personImage}
+                    alt={personName}
+                    className="
+                      w-11
+                      h-11
+                      rounded-full
+                      object-cover
+                      ring-2
+                      ring-green-100
+                    "
+                  />
+                ) : (
+                  <div
+                    className="
+                      w-11
+                      h-11
+                      rounded-full
+                      bg-green-100
+                      text-green-700
+                      flex
+                      items-center
+                      justify-center
+                      font-bold
+                      text-lg
+                    "
+                  >
+                    {personName
+                      ?.charAt(0)
+                      ?.toUpperCase()}
+                  </div>
+                )}
+              </div>
 
-          </div>
+              <div className="flex-1 min-w-0">
+                <h2 className="font-bold text-gray-800 truncate">
+                  {personName}
+                </h2>
 
-          {/* MORE */}
+                <p className="text-xs text-green-600">
+                  CampusMart
+                  conversation
+                </p>
+              </div>
 
-          <button
-            type="button"
-            className="
-              w-10
-              h-10
-              rounded-full
-              hover:bg-gray-100
-              flex
-              items-center
-              justify-center
-              text-gray-500
-              transition
-            "
-          >
-            <FiMoreVertical size={19} />
-          </button>
-
+              <button
+                type="button"
+                className="
+                  w-10
+                  h-10
+                  rounded-full
+                  hover:bg-green-50
+                  flex
+                  items-center
+                  justify-center
+                  text-green-700
+                  transition
+                "
+              >
+                <FiMoreVertical
+                  size={19}
+                />
+              </button>
+            </>
+          )}
         </div>
 
-        {/* =====================================================
+        {/* =================================================
             CHAT BODY
-        ===================================================== */}
+        ================================================= */}
 
         <div
           className="
@@ -279,200 +950,518 @@ function Chat({
             p-4
             sm:p-6
             space-y-4
-            bg-gray-50
+            bg-gradient-to-b
+            from-green-50/40
+            to-gray-50
           "
         >
-
-          {/* CONVERSATION LABEL */}
-
           <div className="text-center mb-5">
-
             <span
               className="
                 inline-block
                 bg-white
-                text-gray-400
+                text-green-600
                 text-xs
+                font-medium
                 px-3
                 py-1.5
                 rounded-full
                 border
-                border-gray-100
+                border-green-100
+                shadow-sm
               "
             >
-              Conversation with {person.name}
+              Conversation with{" "}
+              {personName}
             </span>
-
           </div>
 
-          {/* NO MESSAGES */}
-
-          {chatMessages.length === 0 && (
+          {visibleMessages.length ===
+            0 && (
             <div className="text-center py-10">
+              <div
+                className="
+                  w-14
+                  h-14
+                  mx-auto
+                  rounded-full
+                  bg-green-100
+                  text-green-600
+                  flex
+                  items-center
+                  justify-center
+                  mb-3
+                "
+              >
+                <FiSend size={22} />
+              </div>
 
-              <p className="text-sm text-gray-400">
+              <p className="text-sm font-medium text-gray-500">
                 No messages yet.
               </p>
 
               <p className="text-xs text-gray-400 mt-1">
-                Send a message to start the conversation.
+                Send a message to start
+                the conversation.
               </p>
-
             </div>
           )}
 
-          {/* MESSAGES */}
+          {visibleMessages.map(
+            (message) => {
+              const mine =
+                isMyMessage(
+                  message
+                );
 
-          {chatMessages.map((message) => (
+              const messageId =
+                String(
+                  message.id
+                );
 
-            <div
-              key={message.id}
-              className={`
-                flex
-                ${
-                  message.sender === "me"
-                    ? "justify-end"
-                    : "justify-start"
+              const selected =
+                selectedMessageIds.includes(
+                  messageId
+                );
+
+              return (
+                <div
+                  key={
+                    message.id ||
+                    `${message.createdAt}-${message.text}`
+                  }
+                  className={`flex ${
+                    mine
+                      ? "justify-end"
+                      : "justify-start"
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() =>
+                      toggleMessageSelection(
+                        messageId
+                      )
+                    }
+                    disabled={deleting}
+                    className={`
+                      max-w-[80%]
+                      sm:max-w-[65%]
+                      text-left
+                      px-4
+                      py-3
+                      rounded-2xl
+                      transition
+                      focus:outline-none
+                      disabled:opacity-70
+                      ${
+                        selected
+                          ? "ring-2 ring-green-500 ring-offset-2"
+                          : ""
+                      }
+                      ${
+                        mine
+                          ? "bg-green-600 text-white rounded-br-md shadow-sm"
+                          : "bg-white text-gray-700 rounded-bl-md shadow-sm border border-green-50"
+                      }
+                    `}
+                  >
+                    {selected && (
+                      <div className="flex justify-end mb-1">
+                        <span
+                          className="
+                            w-5
+                            h-5
+                            rounded-full
+                            bg-white
+                            text-green-600
+                            flex
+                            items-center
+                            justify-center
+                          "
+                        >
+                          <FiCheck
+                            size={13}
+                          />
+                        </span>
+                      </div>
+                    )}
+
+                    <p
+                      className="
+                        text-sm
+                        leading-5
+                        break-words
+                      "
+                    >
+                      {message.text}
+                    </p>
+
+                    <p
+                      className={`
+                        text-[10px]
+                        mt-1
+                        ${
+                          mine
+                            ? "text-green-100"
+                            : "text-gray-400"
+                        }
+                      `}
+                    >
+                      {formatMessageTime(
+                        message
+                      )}
+                    </p>
+                  </button>
+                </div>
+              );
+            }
+          )}
+        </div>
+
+        {/* =================================================
+            INPUT
+        ================================================= */}
+
+        {selectedMessageIds.length ===
+          0 && (
+          <div
+            className="
+              border-t
+              border-green-100
+              p-3
+              sm:p-4
+              bg-white
+            "
+          >
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={sending}
+                className="
+                  w-10
+                  h-10
+                  rounded-full
+                  hover:bg-green-50
+                  text-green-700
+                  flex
+                  items-center
+                  justify-center
+                  shrink-0
+                  disabled:opacity-50
+                "
+              >
+                <FiPaperclip
+                  size={18}
+                />
+              </button>
+
+              <input
+                type="text"
+                value={messageText}
+                onChange={(e) =>
+                  setMessageText(
+                    e.target.value
+                  )
                 }
-              `}
-            >
-
-              <div
-                className={`
-                  max-w-[80%]
-                  sm:max-w-[65%]
+                onKeyDown={
+                  handleKeyDown
+                }
+                disabled={sending}
+                placeholder={`Message ${personName}...`}
+                className="
+                  flex-1
+                  bg-gray-100
+                  rounded-full
                   px-4
                   py-3
-                  rounded-2xl
-                  ${
-                    message.sender === "me"
-                      ? "bg-green-600 text-white rounded-br-md"
-                      : "bg-white text-gray-700 rounded-bl-md shadow-sm"
-                  }
-                `}
+                  text-sm
+                  outline-none
+                  border
+                  border-transparent
+                  focus:ring-2
+                  focus:ring-green-100
+                  focus:border-green-500
+                  focus:bg-white
+                  disabled:opacity-60
+                "
+              />
+
+              <button
+                type="button"
+                onClick={
+                  handleSendMessage
+                }
+                disabled={
+                  !messageText.trim() ||
+                  sending
+                }
+                className="
+                  w-11
+                  h-11
+                  rounded-full
+                  bg-green-600
+                  hover:bg-green-700
+                  disabled:bg-gray-300
+                  text-white
+                  flex
+                  items-center
+                  justify-center
+                  shrink-0
+                "
               >
+                {sending ? (
+                  <span
+                    className="
+                      w-4
+                      h-4
+                      rounded-full
+                      border-2
+                      border-white/40
+                      border-t-white
+                      animate-spin
+                    "
+                  />
+                ) : (
+                  <FiSend
+                    size={18}
+                  />
+                )}
+              </button>
+            </div>
+          </div>
+        )}
 
-                <p className="text-sm leading-5 break-words">
-                  {message.text}
-                </p>
+        {/* =================================================
+            DELETE OPTIONS
+        ================================================= */}
 
-                <p
-                  className={`
-                    text-[10px]
-                    mt-1
-                    ${
-                      message.sender === "me"
-                        ? "text-green-100"
-                        : "text-gray-400"
-                    }
-                  `}
-                >
-                  {message.time}
-                </p>
+        {showDeleteMenu && (
+          <div
+            className="
+              fixed
+              inset-0
+              z-50
+              bg-black/40
+              backdrop-blur-[2px]
+              flex
+              items-end
+              sm:items-center
+              justify-center
+              p-4
+            "
+            onClick={() => {
+              if (!deleting) {
+                setShowDeleteMenu(
+                  false
+                );
+              }
+            }}
+          >
+            <div
+              className="
+                w-full
+                max-w-sm
+                bg-white
+                rounded-2xl
+                shadow-2xl
+                overflow-hidden
+                border
+                border-green-100
+              "
+              onClick={(e) =>
+                e.stopPropagation()
+              }
+            >
+              {/* TITLE */}
 
+              <div
+                className="
+                  p-5
+                  border-b
+                  border-green-100
+                  bg-green-50
+                "
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className="
+                      w-10
+                      h-10
+                      rounded-full
+                      bg-green-100
+                      text-green-700
+                      flex
+                      items-center
+                      justify-center
+                    "
+                  >
+                    <FiTrash2
+                      size={18}
+                    />
+                  </div>
+
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">
+                      Delete message
+                      {selectedMessageIds.length >
+                      1
+                        ? "s"
+                        : ""}
+                    </h3>
+
+                    <p className="text-sm text-gray-500">
+                      Choose an option
+                    </p>
+                  </div>
+                </div>
               </div>
 
+              {/* DELETE FOR ME */}
+
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() =>
+                  handleDelete("me")
+                }
+                className="
+                  w-full
+                  text-left
+                  px-5
+                  py-4
+                  hover:bg-green-50
+                  transition
+                  border-b
+                  border-gray-100
+                  disabled:opacity-50
+                "
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className="
+                      w-9
+                      h-9
+                      rounded-full
+                      bg-green-100
+                      text-green-700
+                      flex
+                      items-center
+                      justify-center
+                    "
+                  >
+                    <FiTrash2
+                      size={16}
+                    />
+                  </div>
+
+                  <div>
+                    <p className="font-semibold text-gray-800">
+                      Delete for me
+                    </p>
+
+                    <p className="text-xs text-gray-500 mt-1">
+                      Remove from your
+                      chat only.
+                    </p>
+                  </div>
+                </div>
+              </button>
+
+              {/* DELETE FOR EVERYONE */}
+
+              {canDeleteForEveryone && (
+                <button
+                  type="button"
+                  disabled={deleting}
+                  onClick={() =>
+                    handleDelete(
+                      "everyone"
+                    )
+                  }
+                  className="
+                    w-full
+                    text-left
+                    px-5
+                    py-4
+                    hover:bg-green-50
+                    transition
+                    border-b
+                    border-gray-100
+                    disabled:opacity-50
+                  "
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="
+                        w-9
+                        h-9
+                        rounded-full
+                        bg-green-100
+                        text-green-700
+                        flex
+                        items-center
+                        justify-center
+                      "
+                    >
+                      <FiTrash2
+                        size={16}
+                      />
+                    </div>
+
+                    <div>
+                      <p className="font-semibold text-green-700">
+                        Delete for
+                        everyone
+                      </p>
+
+                      <p className="text-xs text-gray-500 mt-1">
+                        Permanently remove
+                        this message for
+                        everyone.
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              )}
+
+              {/* BOTTOM */}
+
+              <div
+                className="
+                  p-4
+                  bg-gray-50
+                "
+              >
+                <button
+                  type="button"
+                  disabled={deleting}
+                  onClick={() =>
+                    setShowDeleteMenu(
+                      false
+                    )
+                  }
+                  className="
+                    w-full
+                    h-11
+                    rounded-xl
+                    border
+                    border-gray-200
+                    bg-white
+                    text-gray-600
+                    font-semibold
+                    hover:bg-gray-100
+                    transition
+                    disabled:opacity-50
+                  "
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
-
-          ))}
-
-        </div>
-
-        {/* =====================================================
-            INPUT
-        ===================================================== */}
-
-        <div
-          className="
-            border-t
-            border-gray-100
-            p-3
-            sm:p-4
-            bg-white
-          "
-        >
-
-          <div className="flex items-center gap-2">
-
-            {/* ATTACHMENT */}
-
-            <button
-              type="button"
-              className="
-                w-10
-                h-10
-                rounded-full
-                hover:bg-gray-100
-                text-gray-500
-                flex
-                items-center
-                justify-center
-                shrink-0
-                transition
-              "
-            >
-              <FiPaperclip size={18} />
-            </button>
-
-            {/* INPUT */}
-
-            <input
-              type="text"
-              value={messageText}
-              onChange={(e) =>
-                setMessageText(e.target.value)
-              }
-              onKeyDown={handleKeyDown}
-              placeholder={`Message ${person.name}...`}
-              className="
-                flex-1
-                bg-gray-100
-                rounded-full
-                px-4
-                py-3
-                text-sm
-                outline-none
-                border
-                border-transparent
-                focus:ring-2
-                focus:ring-green-100
-                focus:border-green-500
-                focus:bg-white
-                transition
-              "
-            />
-
-            {/* SEND */}
-
-            <button
-              type="button"
-              onClick={handleSendMessage}
-              disabled={!messageText.trim()}
-              className="
-                w-11
-                h-11
-                rounded-full
-                bg-green-600
-                hover:bg-green-700
-                disabled:bg-gray-300
-                disabled:cursor-not-allowed
-                text-white
-                flex
-                items-center
-                justify-center
-                transition
-                shrink-0
-              "
-            >
-              <FiSend size={18} />
-            </button>
-
           </div>
-
-        </div>
-
+        )}
       </div>
-
     </CustomerLayout>
   );
 }
