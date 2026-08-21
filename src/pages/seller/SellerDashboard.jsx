@@ -188,10 +188,14 @@ function SellerDashboard({ unreadMessages = 0 }) {
     <div
       className="
         min-h-screen
+        w-full
+
         bg-gray-50
         text-gray-800
         font-sans
+
         flex
+
         overflow-hidden
       "
     >
@@ -204,8 +208,11 @@ function SellerDashboard({ unreadMessages = 0 }) {
           className="
             fixed
             inset-0
-            bg-black/40
+
+            bg-black/50
+
             z-40
+
             lg:hidden
           "
           onClick={() => setSidebarOpen(false)}
@@ -226,18 +233,30 @@ function SellerDashboard({ unreadMessages = 0 }) {
 
           z-50
 
-          w-[230px]
-          min-w-[230px]
+          /*
+           * Wider sidebar on mobile and desktop.
+           * Mobile: 285px
+           * Desktop: 250px
+           */
+          w-[285px]
+          min-w-[285px]
 
-          bg-[#00a63e]
+          lg:w-[250px]
+          lg:min-w-[250px]
+
+          bg-[#008f36]
 
           text-white
 
           flex
           flex-col
 
+          shadow-2xl
+          lg:shadow-none
+
           transition-transform
           duration-300
+          ease-in-out
 
           ${
             sidebarOpen
@@ -247,14 +266,14 @@ function SellerDashboard({ unreadMessages = 0 }) {
         `}
       >
         {/* =================================================
-            SIDEBAR HEADER / LOGO
+            SIDEBAR HEADER
         ================================================= */}
 
         <div
           className="
             relative
 
-            px-4
+            px-5
             pt-5
             pb-4
 
@@ -263,7 +282,6 @@ function SellerDashboard({ unreadMessages = 0 }) {
         >
           {/* =================================================
               MOBILE CLOSE BUTTON
-              TOP-RIGHT EDGE OF SIDEBAR
           ================================================= */}
 
           <button
@@ -276,7 +294,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
               absolute
 
               top-3
-              right-1
+              right-3
 
               w-9
               h-9
@@ -291,8 +309,6 @@ function SellerDashboard({ unreadMessages = 0 }) {
               flex
               items-center
               justify-center
-
-              flex-shrink-0
 
               transition
 
@@ -314,22 +330,20 @@ function SellerDashboard({ unreadMessages = 0 }) {
               flex
               items-center
 
-              gap-2.5
+              gap-3
 
               pr-10
             "
           >
-            {/* =================================================
-                CM LOGO
-            ================================================= */}
+            {/* CM LOGO */}
 
             <div
               className="
-                w-9
-                h-9
-                min-w-[36px]
+                w-10
+                h-10
+                min-w-[40px]
 
-                rounded-lg
+                rounded-xl
 
                 bg-[#008236]
 
@@ -337,8 +351,8 @@ function SellerDashboard({ unreadMessages = 0 }) {
                 items-center
                 justify-center
 
-                shadow-xl
-                shadow-black/50
+                shadow-lg
+                shadow-black/30
 
                 border
                 border-white/10
@@ -355,27 +369,18 @@ function SellerDashboard({ unreadMessages = 0 }) {
                   font-black
 
                   tracking-tight
-
-                  drop-shadow-sm
                 "
               >
                 CM
               </span>
             </div>
 
-            {/* =================================================
-                CAMPUSMART BRAND TEXT
-            ================================================= */}
+            {/* BRAND */}
 
-            <div
-              className="
-                min-w-0
-              "
-            >
+            <div className="min-w-0">
               <h1
                 className="
-                  text-[18px]
-                  sm:text-[20px]
+                  text-[20px]
 
                   font-extrabold
 
@@ -386,19 +391,11 @@ function SellerDashboard({ unreadMessages = 0 }) {
                   whitespace-nowrap
                 "
               >
-                <span
-                  className="
-                    text-white
-                  "
-                >
+                <span className="text-white">
                   Campus
                 </span>
 
-                <span
-                  className="
-                    text-green-300
-                  "
-                >
+                <span className="text-green-300">
                   Mart
                 </span>
               </h1>
@@ -428,12 +425,14 @@ function SellerDashboard({ unreadMessages = 0 }) {
           className="
             flex-1
 
-            px-3
+            px-4
             py-2
 
             overflow-y-auto
 
             space-y-1
+
+            overscroll-contain
           "
         >
           {menuItems.map(
@@ -450,18 +449,20 @@ function SellerDashboard({ unreadMessages = 0 }) {
                 <button
                   key={label}
                   type="button"
-                  onClick={() => handleNavigation(path)}
+                  onClick={() =>
+                    handleNavigation(path)
+                  }
                   className={`
                     w-full
 
                     flex
                     items-center
-                    gap-2.5
+                    gap-3
 
-                    px-3
-                    py-2.5
+                    px-3.5
+                    py-3
 
-                    rounded-lg
+                    rounded-xl
 
                     text-left
 
@@ -478,6 +479,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
                         : `
                           text-white
                           hover:bg-white/10
+                          active:bg-white/20
                         `
                     }
                   `}
@@ -485,8 +487,10 @@ function SellerDashboard({ unreadMessages = 0 }) {
                   {/* ICON */}
 
                   <Icon
-                    size={18}
-                    strokeWidth={active ? 2.5 : 2}
+                    size={19}
+                    strokeWidth={
+                      active ? 2.5 : 2
+                    }
                     className="
                       flex-shrink-0
                     "
@@ -511,8 +515,8 @@ function SellerDashboard({ unreadMessages = 0 }) {
                   {badge > 0 && (
                     <span
                       className="
-                        min-w-[20px]
-                        h-[20px]
+                        min-w-[21px]
+                        h-[21px]
 
                         px-1.5
 
@@ -573,7 +577,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
 
         <div
           className="
-            px-3
+            px-4
             pb-3
 
             flex-shrink-0
@@ -588,7 +592,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
 
               rounded-xl
 
-              p-3
+              p-3.5
 
               text-center
             "
@@ -626,7 +630,9 @@ function SellerDashboard({ unreadMessages = 0 }) {
             <button
               type="button"
               onClick={() =>
-                handleNavigation("/seller/promotions")
+                handleNavigation(
+                  "/seller/promotions"
+                )
               }
               className="
                 w-full
@@ -647,6 +653,8 @@ function SellerDashboard({ unreadMessages = 0 }) {
 
                 hover:bg-green-50
 
+                active:bg-green-100
+
                 transition
               "
             >
@@ -661,7 +669,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
 
         <div
           className="
-            px-3
+            px-4
             pb-4
 
             flex-shrink-0
@@ -675,23 +683,24 @@ function SellerDashboard({ unreadMessages = 0 }) {
 
               flex
               items-center
-              gap-2.5
+              gap-3
 
-              px-3
-              py-2.5
+              px-3.5
+              py-3
 
-              rounded-lg
+              rounded-xl
 
               text-white
 
               hover:bg-white/10
+              active:bg-white/20
 
               transition
 
               text-left
             "
           >
-            <FiLogOut size={18} />
+            <FiLogOut size={19} />
 
             <span
               className="
@@ -718,6 +727,8 @@ function SellerDashboard({ unreadMessages = 0 }) {
           flex-col
 
           min-h-screen
+
+          w-full
         "
       >
         {/* =================================================
@@ -726,7 +737,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
 
         <header
           className="
-            h-[70px]
+            min-h-[70px]
 
             bg-[#007233]
 
@@ -735,11 +746,14 @@ function SellerDashboard({ unreadMessages = 0 }) {
             flex
             items-center
 
-            px-4
-            sm:px-6
+            px-3
+            sm:px-5
             lg:px-8
 
-            gap-4
+            py-3
+
+            gap-2
+            sm:gap-4
 
             flex-shrink-0
           "
@@ -758,9 +772,12 @@ function SellerDashboard({ unreadMessages = 0 }) {
               w-10
               h-10
 
+              min-w-[40px]
+
               rounded-lg
 
               hover:bg-white/10
+              active:bg-white/20
 
               flex
               items-center
@@ -780,12 +797,15 @@ function SellerDashboard({ unreadMessages = 0 }) {
             className="
               flex-1
 
+              min-w-0
+
               max-w-[620px]
             "
           >
             <div
               className="
-                h-11
+                h-10
+                sm:h-11
 
                 bg-white
 
@@ -794,15 +814,17 @@ function SellerDashboard({ unreadMessages = 0 }) {
                 flex
                 items-center
 
-                px-4
+                px-3
+                sm:px-4
 
-                gap-3
+                gap-2
+                sm:gap-3
 
                 text-gray-400
               "
             >
               <FiSearch
-                size={19}
+                size={18}
                 className="
                   flex-shrink-0
                 "
@@ -810,7 +832,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
 
               <input
                 type="text"
-                placeholder="Search products, services, orders, customers..."
+                placeholder="Search products, services..."
                 className="
                   flex-1
 
@@ -841,8 +863,8 @@ function SellerDashboard({ unreadMessages = 0 }) {
               flex
               items-center
 
-              gap-1.5
-              sm:gap-3
+              gap-0.5
+              sm:gap-2
             "
           >
             {/* =================================================
@@ -856,21 +878,27 @@ function SellerDashboard({ unreadMessages = 0 }) {
               className="
                 relative
 
-                w-10
-                h-10
+                w-9
+                h-9
+
+                sm:w-10
+                sm:h-10
 
                 rounded-full
 
                 hover:bg-white/10
+                active:bg-white/20
 
                 flex
                 items-center
                 justify-center
 
                 transition
+
+                flex-shrink-0
               "
             >
-              <FiBell size={21} />
+              <FiBell size={20} />
 
               <span
                 className="
@@ -879,8 +907,8 @@ function SellerDashboard({ unreadMessages = 0 }) {
                   -top-0.5
                   -right-0.5
 
-                  min-w-[18px]
-                  h-[18px]
+                  min-w-[17px]
+                  h-[17px]
 
                   px-1
 
@@ -889,7 +917,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
                   bg-red-500
                   text-white
 
-                  text-[10px]
+                  text-[9px]
                   font-bold
 
                   flex
@@ -908,27 +936,35 @@ function SellerDashboard({ unreadMessages = 0 }) {
             <button
               type="button"
               onClick={() =>
-                handleNavigation("/seller/messages")
+                handleNavigation(
+                  "/seller/messages"
+                )
               }
               aria-label="Messages"
               className="
                 relative
 
-                w-10
-                h-10
+                w-9
+                h-9
+
+                sm:w-10
+                sm:h-10
 
                 rounded-full
 
                 hover:bg-white/10
+                active:bg-white/20
 
                 flex
                 items-center
                 justify-center
 
                 transition
+
+                flex-shrink-0
               "
             >
-              <FiMessageCircle size={21} />
+              <FiMessageCircle size={20} />
 
               {unreadMessages > 0 && (
                 <span
@@ -938,8 +974,8 @@ function SellerDashboard({ unreadMessages = 0 }) {
                     -top-0.5
                     -right-0.5
 
-                    min-w-[18px]
-                    h-[18px]
+                    min-w-[17px]
+                    h-[17px]
 
                     px-1
 
@@ -948,7 +984,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
                     bg-red-500
                     text-white
 
-                    text-[10px]
+                    text-[9px]
                     font-bold
 
                     flex
@@ -968,25 +1004,31 @@ function SellerDashboard({ unreadMessages = 0 }) {
             <button
               type="button"
               onClick={() =>
-                handleNavigation("/seller/profile")
+                handleNavigation(
+                  "/seller/profile"
+                )
               }
               className="
                 flex
                 items-center
 
                 gap-2
-                sm:gap-2.5
 
-                ml-1
+                ml-0.5
 
                 hover:bg-white/10
+                active:bg-white/20
 
                 rounded-lg
 
-                px-1.5
+                px-1
+                sm:px-1.5
+
                 py-1.5
 
                 transition
+
+                flex-shrink-0
               "
             >
               {/* AVATAR */}
@@ -996,8 +1038,11 @@ function SellerDashboard({ unreadMessages = 0 }) {
                   src={sellerImage}
                   alt={sellerFullName}
                   className="
-                    w-9
-                    h-9
+                    w-8
+                    h-8
+
+                    sm:w-9
+                    sm:h-9
 
                     rounded-full
 
@@ -1010,8 +1055,11 @@ function SellerDashboard({ unreadMessages = 0 }) {
               ) : (
                 <div
                   className="
-                    w-9
-                    h-9
+                    w-8
+                    h-8
+
+                    sm:w-9
+                    sm:h-9
 
                     rounded-full
 
@@ -1094,15 +1142,17 @@ function SellerDashboard({ unreadMessages = 0 }) {
             flex-1
 
             overflow-y-auto
+            overflow-x-hidden
 
             bg-gray-50
 
-            px-4
-            sm:px-6
+            px-3
+            sm:px-5
+            md:px-6
             lg:px-8
 
-            py-6
-            sm:py-7
+            py-5
+            sm:py-6
             lg:py-8
 
             font-sans
@@ -1124,19 +1174,23 @@ function SellerDashboard({ unreadMessages = 0 }) {
 
               gap-5
 
-              mb-7
+              mb-6
+              sm:mb-7
             "
           >
             {/* WELCOME */}
 
-            <div>
+            <div className="min-w-0">
               <h1
                 className="
-                  text-3xl
+                  text-2xl
+                  sm:text-3xl
 
                   font-bold
 
                   text-gray-800
+
+                  break-words
                 "
               >
                 Welcome back, {sellerFirstName}!
@@ -1144,14 +1198,14 @@ function SellerDashboard({ unreadMessages = 0 }) {
 
               <p
                 className="
-                  font-sans
-
                   text-sm
                   sm:text-base
 
                   text-gray-500
 
                   mt-1.5
+
+                  leading-6
                 "
               >
                 Here's what's happening with your
@@ -1165,11 +1219,16 @@ function SellerDashboard({ unreadMessages = 0 }) {
               className="
                 flex
 
-                flex-wrap
+                flex-col
+                sm:flex-row
 
-                items-center
+                items-stretch
+                sm:items-center
 
                 gap-3
+
+                w-full
+                lg:w-auto
               "
             >
               {/* DATE */}
@@ -1178,6 +1237,9 @@ function SellerDashboard({ unreadMessages = 0 }) {
                 type="button"
                 className="
                   h-11
+
+                  w-full
+                  sm:w-auto
 
                   px-4
 
@@ -1190,6 +1252,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
 
                   flex
                   items-center
+                  justify-center
                   gap-3
 
                   text-sm
@@ -1202,13 +1265,11 @@ function SellerDashboard({ unreadMessages = 0 }) {
                   transition
 
                   shadow-sm
+
+                  whitespace-nowrap
                 "
               >
-                <span
-                  className="
-                    text-gray-500
-                  "
-                >
+                <span className="text-gray-500">
                   📅
                 </span>
 
@@ -1227,11 +1288,15 @@ function SellerDashboard({ unreadMessages = 0 }) {
                 className="
                   h-11
 
+                  w-full
+                  sm:w-auto
+
                   px-5
 
                   bg-[#008236]
 
                   hover:bg-[#006f2e]
+                  active:bg-[#005c26]
 
                   text-white
 
@@ -1249,6 +1314,8 @@ function SellerDashboard({ unreadMessages = 0 }) {
                   transition
 
                   shadow-sm
+
+                  whitespace-nowrap
                 "
               >
                 <FiDownload size={18} />
@@ -1269,11 +1336,15 @@ function SellerDashboard({ unreadMessages = 0 }) {
               grid
 
               grid-cols-1
-              sm:grid-cols-2
+
+              min-[420px]:grid-cols-2
+
               lg:grid-cols-3
+
               xl:grid-cols-5
 
-              gap-4
+              gap-3
+              sm:gap-4
             "
           >
             {[
@@ -1293,15 +1364,19 @@ function SellerDashboard({ unreadMessages = 0 }) {
                   border
                   border-gray-100
 
-                  p-5
+                  p-4
+                  sm:p-5
 
-                  min-h-[125px]
+                  min-h-[120px]
+                  sm:min-h-[125px]
 
                   shadow-sm
 
                   flex
                   flex-col
                   justify-center
+
+                  min-w-0
                 "
               >
                 <p
@@ -1309,6 +1384,8 @@ function SellerDashboard({ unreadMessages = 0 }) {
                     text-sm
 
                     text-gray-500
+
+                    truncate
                   "
                 >
                   {title}
@@ -1336,6 +1413,8 @@ function SellerDashboard({ unreadMessages = 0 }) {
                     text-gray-300
 
                     mt-2
+
+                    truncate
                   "
                 >
                   Statistics coming next
@@ -1350,7 +1429,8 @@ function SellerDashboard({ unreadMessages = 0 }) {
 
           <div
             className="
-              mt-5
+              mt-4
+              sm:mt-5
 
               bg-white
 
@@ -1359,20 +1439,27 @@ function SellerDashboard({ unreadMessages = 0 }) {
 
               rounded-2xl
 
-              min-h-[360px]
+              min-h-[320px]
+              sm:min-h-[360px]
 
               flex
               items-center
               justify-center
 
               shadow-sm
+
+              px-4
+              sm:px-6
             "
           >
             <div
               className="
                 text-center
 
-                px-6
+                w-full
+                max-w-md
+
+                px-2
               "
             >
               <div
@@ -1421,6 +1508,8 @@ function SellerDashboard({ unreadMessages = 0 }) {
                   max-w-md
 
                   mx-auto
+
+                  leading-6
                 "
               >
                 Your sales chart, recent orders,
