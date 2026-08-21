@@ -50,6 +50,11 @@ import OrderDetails from "./pages/customer/OrderDetails";
 import Payment from "./pages/customer/Payment";
 import Profile from "./pages/customer/Profile";
 import Settings from "./pages/customer/Settings";
+
+// =========================================================
+// SELLER PAGES
+// =========================================================
+
 import SellerDashboard from "./pages/seller/SellerDashboard";
 
 // =========================================================
@@ -80,15 +85,6 @@ const emptyProfile = {
 
 // =========================================================
 // CUSTOMER DATA SAVE DELAY
-//
-// Rapid cart/wishlist changes are grouped together.
-// Example:
-//
-// + + + + +
-//
-// Instead of 5 immediate writes, the latest state is
-// saved once after the user stops clicking.
-//
 // =========================================================
 
 const CUSTOMER_DATA_SAVE_DELAY = 800;
@@ -125,16 +121,37 @@ function LoadingScreen({
 }
 
 // =========================================================
-// GUEST ROUTE
+// GET NORMALIZED ROLE
 // =========================================================
 
-function GuestRoute({ children }) {
-  const {
-    firebaseUser,
-    profileLoading,
-  } = useAuth();
+function getUserRole(profile) {
+  return String(profile?.role || "")
+    .trim()
+    .toLowerCase();
+}
 
-  if (profileLoading) {
+// =========================================================
+// GUEST ROUTE
+//
+// IMPORTANT:
+// We do NOT automatically send an authenticated user to
+// /dashboard anymore.
+//
+// The app first waits until the current user's profile has
+// been resolved, then sends:
+//
+// seller -> /seller-dashboard
+// buyer  -> /dashboard
+// =========================================================
+
+function GuestRoute({
+  children,
+  profile,
+  profileResolved,
+}) {
+  const { firebaseUser, profileLoading } = useAuth();
+
+  if (profileLoading || (firebaseUser && !profileResolved)) {
     return (
       <LoadingScreen
         text="Checking your account..."
@@ -143,10 +160,32 @@ function GuestRoute({ children }) {
   }
 
   if (firebaseUser) {
+    const role = getUserRole(profile);
+
+    if (role === "seller") {
+      return (
+        <Navigate
+          to="/seller-dashboard"
+          replace
+        />
+      );
+    }
+
+    if (role === "buyer") {
+      return (
+        <Navigate
+          to="/dashboard"
+          replace
+        />
+      );
+    }
+
+    // If the account has no valid role yet,
+    // keep the user on a loading screen rather than
+    // incorrectly treating them as a buyer.
     return (
-      <Navigate
-        to="/dashboard"
-        replace
+      <LoadingScreen
+        text="Preparing your account..."
       />
     );
   }
@@ -158,7 +197,10 @@ function GuestRoute({ children }) {
 // PROTECTED ROUTE
 // =========================================================
 
-function ProtectedRoute({ children }) {
+function ProtectedRoute({
+  children,
+  profileResolved,
+}) {
   const {
     firebaseUser,
     profileLoading,
@@ -181,6 +223,14 @@ function ProtectedRoute({ children }) {
     );
   }
 
+  if (!profileResolved) {
+    return (
+      <LoadingScreen
+        text="Loading your profile..."
+      />
+    );
+  }
+
   return children;
 }
 
@@ -191,18 +241,31 @@ function ProtectedRoute({ children }) {
 function CustomerRoute({
   children,
   profile,
+  profileResolved,
 }) {
-  const role = String(
-    profile?.role || ""
-  )
-    .trim()
-    .toLowerCase();
+  if (!profileResolved) {
+    return (
+      <LoadingScreen
+        text="Loading your profile..."
+      />
+    );
+  }
+
+  const role = getUserRole(profile);
 
   if (role === "seller") {
     return (
       <Navigate
         to="/seller-dashboard"
         replace
+      />
+    );
+  }
+
+  if (role !== "buyer") {
+    return (
+      <LoadingScreen
+        text="Preparing your account..."
       />
     );
   }
@@ -217,18 +280,31 @@ function CustomerRoute({
 function SellerRoute({
   children,
   profile,
+  profileResolved,
 }) {
-  const role = String(
-    profile?.role || ""
-  )
-    .trim()
-    .toLowerCase();
+  if (!profileResolved) {
+    return (
+      <LoadingScreen
+        text="Loading your seller account..."
+      />
+    );
+  }
+
+  const role = getUserRole(profile);
 
   if (role !== "seller") {
+    if (role === "buyer") {
+      return (
+        <Navigate
+          to="/dashboard"
+          replace
+        />
+      );
+    }
+
     return (
-      <Navigate
-        to="/dashboard"
-        replace
+      <LoadingScreen
+        text="Preparing your account..."
       />
     );
   }
@@ -237,15 +313,14 @@ function SellerRoute({
 }
 
 // =========================================================
-// CONVERT FIRESTORE CONVERSATION INTO APP DATA
+// CONVERT FIRESTORE CONVERSATION
 // =========================================================
 
 function formatConversation(
   conversationDoc,
   currentUserId
 ) {
-  const data =
-    conversationDoc.data();
+  const data = conversationDoc.data();
 
   const participantNames =
     data.participantNames || {};
@@ -366,16 +441,14 @@ function formatConversation(
   }
 
   return {
-    id:
-      conversationDoc.id,
+    id: conversationDoc.id,
 
     conversationId:
       conversationDoc.id,
 
     otherParticipantId,
 
-    name:
-      otherName,
+    name: otherName,
 
     profileImage:
       participantImages[
@@ -384,11 +457,9 @@ function formatConversation(
 
     lastMessage,
 
-    time:
-      displayTime,
+    time: displayTime,
 
-    unread:
-      unreadCount,
+    unread: unreadCount,
 
     online:
       data.onlineStatus?.[
@@ -452,7 +523,7 @@ function App() {
   const location = useLocation();
 
   // =======================================================
-  // INTERNET CONNECTION
+  // INTERNET
   // =======================================================
 
   const [isOnline, setIsOnline] =
@@ -515,35 +586,200 @@ function App() {
 
   // =======================================================
   // PROFILE
+  //
+  // IMPORTANT FIX:
+  //
+  // We no longer do:
+  //
+  // role: "buyer"
+  //
+  // when authProfile is temporarily null.
+  //
+  // Instead we explicitly fetch the CURRENT user's profile
+  // using firebaseUser.uid.
   // =======================================================
 
   const [profile, setProfile] =
     useState(emptyProfile);
 
-  const [profileFetching, setProfileFetching] =
+  const [profileResolved, setProfileResolved] =
     useState(false);
 
+  const profileRequestId =
+    useRef(0);
+
   useEffect(() => {
-    if (!firebaseUser) {
-      setProfile(emptyProfile);
-      setProfileFetching(false);
-      return;
-    }
+    let cancelled = false;
 
-    setProfile(
-      authProfile || {
-        ...emptyProfile,
-        fullName:
-          firebaseUser.displayName || "",
-        email:
-          firebaseUser.email || "",
-        role: "buyer",
-      }
-    );
+    const currentRequest =
+      ++profileRequestId.current;
 
-    setProfileFetching(false);
+    const loadCurrentUserProfile =
+      async () => {
+        // ---------------------------------------------------
+        // NO USER
+        // ---------------------------------------------------
+
+        if (!firebaseUser) {
+          if (!cancelled) {
+            setProfile(emptyProfile);
+            setProfileResolved(true);
+          }
+
+          return;
+        }
+
+        // ---------------------------------------------------
+        // VERY IMPORTANT:
+        // Clear the previous account immediately.
+        // ---------------------------------------------------
+
+        setProfileResolved(false);
+
+        setProfile(emptyProfile);
+
+        try {
+          const userRef = doc(
+            db,
+            "users",
+            firebaseUser.uid
+          );
+
+          const snapshot =
+            await getDoc(userRef);
+
+          // Ignore stale requests.
+          if (
+            cancelled ||
+            currentRequest !==
+              profileRequestId.current
+          ) {
+            return;
+          }
+
+          if (snapshot.exists()) {
+            const firestoreProfile =
+              snapshot.data();
+
+            const resolvedProfile = {
+              ...emptyProfile,
+              ...firestoreProfile,
+
+              uid:
+                firebaseUser.uid,
+
+              email:
+                firestoreProfile.email ||
+                firebaseUser.email ||
+                "",
+
+              fullName:
+                firestoreProfile.fullName ||
+                firebaseUser.displayName ||
+                "",
+            };
+
+            setProfile(
+              resolvedProfile
+            );
+          } else {
+            // ------------------------------------------------
+            // DO NOT ASSUME BUYER HERE.
+            //
+            // If the document doesn't exist, we can use the
+            // auth profile only if it actually contains a
+            // valid role.
+            // ------------------------------------------------
+
+            const authRole =
+              getUserRole(authProfile);
+
+            if (
+              authRole === "seller" ||
+              authRole === "buyer"
+            ) {
+              setProfile({
+                ...emptyProfile,
+                ...authProfile,
+
+                uid:
+                  firebaseUser.uid,
+
+                email:
+                  authProfile?.email ||
+                  firebaseUser.email ||
+                  "",
+
+                fullName:
+                  authProfile?.fullName ||
+                  firebaseUser.displayName ||
+                  "",
+              });
+            } else {
+              // Keep role empty.
+              // This prevents accidentally sending a seller
+              // to the buyer dashboard.
+              setProfile({
+                ...emptyProfile,
+
+                uid:
+                  firebaseUser.uid,
+
+                email:
+                  firebaseUser.email ||
+                  "",
+
+                fullName:
+                  firebaseUser.displayName ||
+                  "",
+
+                role: "",
+              });
+            }
+          }
+
+          setProfileResolved(true);
+        } catch (error) {
+          console.error(
+            "Error loading current user profile:",
+            error
+          );
+
+          if (
+            !cancelled &&
+            currentRequest ===
+              profileRequestId.current
+          ) {
+            // Do NOT fall back to buyer.
+            setProfile({
+              ...emptyProfile,
+
+              uid:
+                firebaseUser.uid,
+
+              email:
+                firebaseUser.email ||
+                "",
+
+              fullName:
+                firebaseUser.displayName ||
+                "",
+
+              role: "",
+            });
+
+            setProfileResolved(true);
+          }
+        }
+      };
+
+    loadCurrentUserProfile();
+
+    return () => {
+      cancelled = true;
+    };
   }, [
-    firebaseUser,
+    firebaseUser?.uid,
     authProfile,
   ]);
 
@@ -569,8 +805,6 @@ function App() {
 
   // =======================================================
   // CUSTOMER DATA SAVE REF
-  //
-  // Keeps the latest data waiting to be saved.
   // =======================================================
 
   const customerDataSaveTimer =
@@ -660,26 +894,6 @@ function App() {
 
   // =======================================================
   // QUEUE CUSTOMER DATA SAVE
-  //
-  // This prevents many rapid writes.
-  //
-  // Example:
-  //
-  // User clicks + 5 times quickly.
-  //
-  // Instead of:
-  //
-  // WRITE
-  // WRITE
-  // WRITE
-  // WRITE
-  // WRITE
-  //
-  // We normally do:
-  //
-  // WRITE
-  //
-  // with the latest state.
   // =======================================================
 
   const queueCustomerDataSave =
@@ -745,8 +959,6 @@ function App() {
 
   // =======================================================
   // LOAD CUSTOMER DATA
-  //
-  // ONE READ WHEN THE USER SESSION STARTS.
   // =======================================================
 
   useEffect(() => {
@@ -783,7 +995,6 @@ function App() {
             setWishlist([]);
             setOrders([]);
 
-            // Only create the document once.
             await setDoc(
               customerDataRef,
               {
@@ -842,10 +1053,10 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [firebaseUser]);
+  }, [firebaseUser?.uid]);
 
   // =======================================================
-  // CLEAN UP PENDING CUSTOMER SAVE
+  // CLEAN UP CUSTOMER SAVE
   // =======================================================
 
   useEffect(() => {
@@ -881,7 +1092,6 @@ function App() {
         ...updates,
       };
 
-      // Update UI immediately.
       setProfile(newProfile);
 
       try {
@@ -1174,8 +1384,6 @@ function App() {
 
   // =======================================================
   // PLACE ORDER
-  //
-  // Orders are saved immediately.
   // =======================================================
 
   const placeOrder = (
@@ -1274,7 +1482,6 @@ function App() {
     setOrders(nextOrders);
     setCart(nextCart);
 
-    // Save immediately because this is a critical action.
     queueCustomerDataSave({
       nextCart,
       nextWishlist: wishlist,
@@ -1320,8 +1527,6 @@ function App() {
 
     // =====================================================
     // MESSAGES PAGE
-    //
-    // Realtime listener is active only here.
     // =====================================================
 
     if (isMessagesPage) {
@@ -1372,8 +1577,6 @@ function App() {
 
     // =====================================================
     // OTHER PAGES
-    //
-    // Only one read when needed.
     // =====================================================
 
     let cancelled = false;
@@ -1422,7 +1625,7 @@ function App() {
       cancelled = true;
     };
   }, [
-    firebaseUser,
+    firebaseUser?.uid,
     isMessagesPage,
   ]);
 
@@ -1633,14 +1836,6 @@ function App() {
 
   // =======================================================
   // DELETE MESSAGES
-  //
-  // deleteType:
-  //
-  // "me"
-  // "everyone"
-  //
-  // Delete for everyone only removes messages sent
-  // by the current user.
   // =======================================================
 
   const deleteMessages =
@@ -1727,9 +1922,9 @@ function App() {
                   )
                 );
 
-              // =============================================
+              // ============================================
               // DELETE FOR EVERYONE
-              // =============================================
+              // ============================================
 
               if (
                 deleteType ===
@@ -1820,9 +2015,9 @@ function App() {
                 return true;
               }
 
-              // =============================================
+              // ============================================
               // DELETE FOR ME
-              // =============================================
+              // ============================================
 
               const updatedMessages =
                 existingMessages.map(
@@ -1987,7 +2182,6 @@ function App() {
         );
 
       try {
-        // One read to check if chat already exists.
         const existingSnapshot =
           await getDoc(
             conversationRef
@@ -2003,7 +2197,6 @@ function App() {
           return;
         }
 
-        // Only create if it does not exist.
         await setDoc(
           conversationRef,
           {
@@ -2085,9 +2278,17 @@ function App() {
 
   // =======================================================
   // AUTH INITIALIZATION
+  //
+  // IMPORTANT:
+  // Wait for BOTH Firebase auth AND the CURRENT user's
+  // Firestore profile before rendering protected pages.
   // =======================================================
 
-  if (profileLoading) {
+  if (
+    profileLoading ||
+    (firebaseUser &&
+      !profileResolved)
+  ) {
     return (
       <>
         {!isOnline && (
@@ -2095,7 +2296,11 @@ function App() {
         )}
 
         <LoadingScreen
-          text="Checking your account..."
+          text={
+            firebaseUser
+              ? "Loading your CampusMart account..."
+              : "Checking your account..."
+          }
         />
       </>
     );
@@ -2131,7 +2336,12 @@ function App() {
         <Route
           path="/login"
           element={
-            <GuestRoute>
+            <GuestRoute
+              profile={profile}
+              profileResolved={
+                profileResolved
+              }
+            >
               <Login />
             </GuestRoute>
           }
@@ -2144,22 +2354,34 @@ function App() {
         <Route
           path="/register"
           element={
-            <GuestRoute>
+            <GuestRoute
+              profile={profile}
+              profileResolved={
+                profileResolved
+              }
+            >
               <Register />
             </GuestRoute>
           }
         />
 
         {/* ================================================= */}
-        {/* DASHBOARD */}
+        {/* CUSTOMER DASHBOARD */}
         {/* ================================================= */}
 
         <Route
           path="/dashboard"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute
+              profileResolved={
+                profileResolved
+              }
+            >
               <CustomerRoute
                 profile={profile}
+                profileResolved={
+                  profileResolved
+                }
               >
                 <Dashboard
                   addToCart={
@@ -2199,9 +2421,16 @@ function App() {
         <Route
           path="/browse-products"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute
+              profileResolved={
+                profileResolved
+              }
+            >
               <CustomerRoute
                 profile={profile}
+                profileResolved={
+                  profileResolved
+                }
               >
                 <BrowseProducts
                   addToCart={
@@ -2232,9 +2461,16 @@ function App() {
         <Route
           path="/products/:id"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute
+              profileResolved={
+                profileResolved
+              }
+            >
               <CustomerRoute
                 profile={profile}
+                profileResolved={
+                  profileResolved
+                }
               >
                 <ProductDetails
                   addToCart={
@@ -2268,9 +2504,16 @@ function App() {
         <Route
           path="/cart"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute
+              profileResolved={
+                profileResolved
+              }
+            >
               <CustomerRoute
                 profile={profile}
+                profileResolved={
+                  profileResolved
+                }
               >
                 <Cart
                   cart={
@@ -2307,9 +2550,16 @@ function App() {
         <Route
           path="/orders"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute
+              profileResolved={
+                profileResolved
+              }
+            >
               <CustomerRoute
                 profile={profile}
+                profileResolved={
+                  profileResolved
+                }
               >
                 <Orders
                   orders={
@@ -2334,9 +2584,16 @@ function App() {
         <Route
           path="/orders/:id"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute
+              profileResolved={
+                profileResolved
+              }
+            >
               <CustomerRoute
                 profile={profile}
+                profileResolved={
+                  profileResolved
+                }
               >
                 <OrderDetails
                   orders={
@@ -2361,9 +2618,16 @@ function App() {
         <Route
           path="/messages"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute
+              profileResolved={
+                profileResolved
+              }
+            >
               <CustomerRoute
                 profile={profile}
+                profileResolved={
+                  profileResolved
+                }
               >
                 <Messages
                   cartCount={
@@ -2397,9 +2661,16 @@ function App() {
         <Route
           path="/messages/:id"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute
+              profileResolved={
+                profileResolved
+              }
+            >
               <CustomerRoute
                 profile={profile}
+                profileResolved={
+                  profileResolved
+                }
               >
                 <Chat
                   cartCount={
@@ -2439,9 +2710,16 @@ function App() {
         <Route
           path="/checkout"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute
+              profileResolved={
+                profileResolved
+              }
+            >
               <CustomerRoute
                 profile={profile}
+                profileResolved={
+                  profileResolved
+                }
               >
                 <Checkout
                   cart={
@@ -2469,9 +2747,16 @@ function App() {
         <Route
           path="/order-success"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute
+              profileResolved={
+                profileResolved
+              }
+            >
               <CustomerRoute
                 profile={profile}
+                profileResolved={
+                  profileResolved
+                }
               >
                 <OrderSuccess
                   profile={
@@ -2490,9 +2775,16 @@ function App() {
         <Route
           path="/wishlist"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute
+              profileResolved={
+                profileResolved
+              }
+            >
               <CustomerRoute
                 profile={profile}
+                profileResolved={
+                  profileResolved
+                }
               >
                 <Wishlist
                   wishlist={
@@ -2523,9 +2815,16 @@ function App() {
         <Route
           path="/payment"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute
+              profileResolved={
+                profileResolved
+              }
+            >
               <CustomerRoute
                 profile={profile}
+                profileResolved={
+                  profileResolved
+                }
               >
                 <Payment
                   cartCount={
@@ -2547,9 +2846,16 @@ function App() {
         <Route
           path="/profile"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute
+              profileResolved={
+                profileResolved
+              }
+            >
               <CustomerRoute
                 profile={profile}
+                profileResolved={
+                  profileResolved
+                }
               >
                 <Profile
                   profile={
@@ -2580,9 +2886,16 @@ function App() {
         <Route
           path="/settings"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute
+              profileResolved={
+                profileResolved
+              }
+            >
               <CustomerRoute
                 profile={profile}
+                profileResolved={
+                  profileResolved
+                }
               >
                 <Settings
                   profile={
@@ -2613,7 +2926,11 @@ function App() {
         <Route
           path="/logout"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute
+              profileResolved={
+                profileResolved
+              }
+            >
               <Logout
                 cartCount={
                   cartCount
@@ -2636,20 +2953,34 @@ function App() {
         <Route
           path="/seller-dashboard"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute
+              profileResolved={
+                profileResolved
+              }
+            >
               <SellerRoute
                 profile={profile}
+                profileResolved={
+                  profileResolved
+                }
               >
                 <SellerDashboard
                   profile={profile}
-                  cartCount={cartCount}
-                  wishlist={wishlist}
-                  unreadMessages={unreadMessages}
+                  cartCount={
+                    cartCount
+                  }
+                  wishlist={
+                    wishlist
+                  }
+                  unreadMessages={
+                    unreadMessages
+                  }
                 />
               </SellerRoute>
             </ProtectedRoute>
           }
         />
+
         {/* ================================================= */}
         {/* FORGOT PASSWORD */}
         {/* ================================================= */}
@@ -2657,9 +2988,36 @@ function App() {
         <Route
           path="/forgot-password"
           element={
-            <GuestRoute>
+            <GuestRoute
+              profile={profile}
+              profileResolved={
+                profileResolved
+              }
+            >
               <ForgotPassword />
             </GuestRoute>
+          }
+        />
+
+        {/* ================================================= */}
+        {/* PRIVACY POLICY */}
+        {/* ================================================= */}
+
+        <Route
+          path="/privacy-policy"
+          element={
+            <PrivacyPolicy />
+          }
+        />
+
+        {/* ================================================= */}
+        {/* TERMS */}
+        {/* ================================================= */}
+
+        <Route
+          path="/terms-and-conditions"
+          element={
+            <TermsAndConditions />
           }
         />
 
@@ -2677,22 +3035,6 @@ function App() {
           }
         />
 
-        {/* ================================================= */}
-{/* PRIVACY POLICY */}
-{/* ================================================= */}
-
-<Route
-  path="/privacy-policy"
-  element={
-    <PrivacyPolicy />
-  }
-/>
-
-
-<Route
-  path="/terms-and-conditions"
-  element={<TermsAndConditions />}
-/>
       </Routes>
     </>
   );
