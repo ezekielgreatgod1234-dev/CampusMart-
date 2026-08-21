@@ -14,7 +14,6 @@ import {
 } from "firebase/firestore";
 
 import {
-  FiShoppingBag,
   FiUser,
   FiMail,
   FiLock,
@@ -215,17 +214,41 @@ function Register() {
 
         <div className="relative z-10 w-full flex flex-col justify-between p-12 xl:p-16">
 
-          {/* Logo */}
+          {/* =====================================================
+              LEFT LOGO
+          ====================================================== */}
 
           <Link
             to="/"
-            className="inline-flex items-center gap-3 w-fit"
+            className="inline-flex items-center gap-3 w-fit group"
           >
-            <div className="w-12 h-12 rounded-xl bg-green-500 flex items-center justify-center shadow-lg">
-              <FiShoppingBag size={24} />
+
+            {/* CM Logo */}
+
+            <div
+              className="
+                w-12
+                h-12
+                rounded-xl
+                bg-green-500
+                text-white
+                flex
+                items-center
+                justify-center
+                text-lg
+                font-black
+                tracking-tight
+                shadow-[0_8px_20px_rgba(34,197,94,0.25)]
+                transition
+                group-hover:scale-105
+                group-hover:shadow-[0_10px_25px_rgba(34,197,94,0.35)]
+              "
+            >
+              CM
             </div>
 
             <div>
+
               <div className="text-2xl font-black">
                 Campus
                 <span className="text-green-400">
@@ -236,10 +259,14 @@ function Register() {
               <p className="text-xs text-green-100/70">
                 Your Campus Marketplace
               </p>
+
             </div>
+
           </Link>
 
-          {/* Main content */}
+          {/* =====================================================
+              MAIN CONTENT
+          ====================================================== */}
 
           <div className="max-w-lg">
 
@@ -267,13 +294,16 @@ function Register() {
               <div className="flex items-center gap-4">
 
                 <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center">
+
                   <FiShoppingCart
                     className="text-green-400"
                     size={21}
                   />
+
                 </div>
 
                 <div>
+
                   <p className="font-bold">
                     Find great deals
                   </p>
@@ -281,6 +311,7 @@ function Register() {
                   <p className="text-sm text-green-100/60">
                     Shop directly from students around you.
                   </p>
+
                 </div>
 
               </div>
@@ -290,13 +321,16 @@ function Register() {
               <div className="flex items-center gap-4">
 
                 <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center">
+
                   <FiTag
                     className="text-green-400"
                     size={21}
                   />
+
                 </div>
 
                 <div>
+
                   <p className="font-bold">
                     Sell your items
                   </p>
@@ -304,6 +338,7 @@ function Register() {
                   <p className="text-sm text-green-100/60">
                     List your unused items and reach buyers.
                   </p>
+
                 </div>
 
               </div>
@@ -313,13 +348,16 @@ function Register() {
               <div className="flex items-center gap-4">
 
                 <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center">
+
                   <FiShield
                     className="text-green-400"
                     size={21}
                   />
+
                 </div>
 
                 <div>
+
                   <p className="font-bold">
                     Campus focused
                   </p>
@@ -328,6 +366,7 @@ function Register() {
                     Connect with people in your student
                     community.
                   </p>
+
                 </div>
 
               </div>
@@ -353,29 +392,55 @@ function Register() {
 
         <div className="w-full max-w-[500px]">
 
-          {/* Mobile logo */}
+          {/* =====================================================
+              CM LOGO ABOVE REGISTER FORM
+          ====================================================== */}
 
-          <div className="lg:hidden text-center mb-8">
+          <div className="mb-8">
 
             <Link
               to="/"
-              className="inline-flex items-center gap-3"
+              className="inline-flex items-center gap-3 group"
             >
 
-              <div className="w-11 h-11 rounded-xl bg-green-600 text-white flex items-center justify-center">
-                <FiShoppingBag size={22} />
+              {/* CM LOGO */}
+
+              <div
+                className="
+                  w-14
+                  h-14
+                  rounded-2xl
+                  bg-green-600
+                  text-white
+                  flex
+                  items-center
+                  justify-center
+                  text-xl
+                  font-black
+                  tracking-tight
+                  shadow-[0_8px_20px_rgba(22,163,74,0.25)]
+                  ring-4
+                  ring-green-100
+                  transition
+                  group-hover:scale-105
+                  group-hover:shadow-[0_10px_25px_rgba(22,163,74,0.35)]
+                "
+              >
+                CM
               </div>
 
-              <div className="text-left">
+              {/* Brand */}
 
-                <div className="text-2xl font-black text-gray-900">
+              <div>
+
+                <div className="text-2xl font-black text-gray-900 tracking-tight">
                   Campus
                   <span className="text-green-600">
                     Mart
                   </span>
                 </div>
 
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-gray-500 mt-0.5">
                   Your Campus Marketplace
                 </p>
 
@@ -385,7 +450,9 @@ function Register() {
 
           </div>
 
-          {/* Heading */}
+          {/* =====================================================
+              HEADING
+          ====================================================== */}
 
           <div className="mb-7">
 
@@ -404,7 +471,9 @@ function Register() {
 
           </div>
 
-          {/* Error */}
+          {/* =====================================================
+              ERROR
+          ====================================================== */}
 
           {error && (
             <div className="mb-5 rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-600">
@@ -412,7 +481,9 @@ function Register() {
             </div>
           )}
 
-          {/* Success */}
+          {/* =====================================================
+              SUCCESS
+          ====================================================== */}
 
           {success && (
             <div className="mb-5 rounded-xl bg-green-50 border border-green-100 px-4 py-3 text-sm text-green-700 flex items-start gap-3">
@@ -427,7 +498,9 @@ function Register() {
             </div>
           )}
 
-          {/* Form */}
+          {/* =====================================================
+              FORM
+          ====================================================== */}
 
           <form
             onSubmit={handleSubmit}
@@ -460,7 +533,22 @@ function Register() {
                   onChange={handleChange}
                   placeholder="e.g. John Doe"
                   autoComplete="name"
-                  className="w-full h-13 rounded-xl border border-gray-200 bg-white pl-11 pr-4 text-sm outline-none focus:border-green-500 focus:ring-4 focus:ring-green-50 transition"
+                  className="
+                    w-full
+                    h-13
+                    rounded-xl
+                    border
+                    border-gray-200
+                    bg-white
+                    pl-11
+                    pr-4
+                    text-sm
+                    outline-none
+                    focus:border-green-500
+                    focus:ring-4
+                    focus:ring-green-50
+                    transition
+                  "
                 />
 
               </div>
@@ -493,14 +581,31 @@ function Register() {
                   onChange={handleChange}
                   placeholder="you@example.com"
                   autoComplete="email"
-                  className="w-full h-13 rounded-xl border border-gray-200 bg-white pl-11 pr-4 text-sm outline-none focus:border-green-500 focus:ring-4 focus:ring-green-50 transition"
+                  className="
+                    w-full
+                    h-13
+                    rounded-xl
+                    border
+                    border-gray-200
+                    bg-white
+                    pl-11
+                    pr-4
+                    text-sm
+                    outline-none
+                    focus:border-green-500
+                    focus:ring-4
+                    focus:ring-green-50
+                    transition
+                  "
                 />
 
               </div>
 
             </div>
 
-            {/* Role */}
+            {/* =====================================================
+                ROLE
+            ====================================================== */}
 
             <div>
 
@@ -590,7 +695,9 @@ function Register() {
 
             </div>
 
-            {/* Password */}
+            {/* =====================================================
+                PASSWORD
+            ====================================================== */}
 
             <div>
 
@@ -611,12 +718,31 @@ function Register() {
                 <input
                   id="password"
                   name="password"
-                  type={showPassword ? "text" : "password"}
+                  type={
+                    showPassword
+                      ? "text"
+                      : "password"
+                  }
                   value={formData.password}
                   onChange={handleChange}
                   placeholder="At least 6 characters"
                   autoComplete="new-password"
-                  className="w-full h-13 rounded-xl border border-gray-200 bg-white pl-11 pr-12 text-sm outline-none focus:border-green-500 focus:ring-4 focus:ring-green-50 transition"
+                  className="
+                    w-full
+                    h-13
+                    rounded-xl
+                    border
+                    border-gray-200
+                    bg-white
+                    pl-11
+                    pr-12
+                    text-sm
+                    outline-none
+                    focus:border-green-500
+                    focus:ring-4
+                    focus:ring-green-50
+                    transition
+                  "
                 />
 
                 <button
@@ -633,18 +759,22 @@ function Register() {
                       : "Show password"
                   }
                 >
+
                   {showPassword ? (
                     <FiEye size={18} />
                   ) : (
                     <FiEyeOff size={18} />
                   )}
+
                 </button>
 
               </div>
 
             </div>
 
-            {/* Confirm password */}
+            {/* =====================================================
+                CONFIRM PASSWORD
+            ====================================================== */}
 
             <div>
 
@@ -674,7 +804,22 @@ function Register() {
                   onChange={handleChange}
                   placeholder="Repeat your password"
                   autoComplete="new-password"
-                  className="w-full h-13 rounded-xl border border-gray-200 bg-white pl-11 pr-12 text-sm outline-none focus:border-green-500 focus:ring-4 focus:ring-green-50 transition"
+                  className="
+                    w-full
+                    h-13
+                    rounded-xl
+                    border
+                    border-gray-200
+                    bg-white
+                    pl-11
+                    pr-12
+                    text-sm
+                    outline-none
+                    focus:border-green-500
+                    focus:ring-4
+                    focus:ring-green-50
+                    transition
+                  "
                 />
 
                 <button
@@ -691,11 +836,13 @@ function Register() {
                       : "Show password"
                   }
                 >
+
                   {showConfirmPassword ? (
                     <FiEye size={18} />
                   ) : (
                     <FiEyeOff size={18} />
                   )}
+
                 </button>
 
               </div>
@@ -710,8 +857,6 @@ function Register() {
 
               <label className="flex items-start gap-3 cursor-pointer">
 
-                {/* Custom checkbox */}
-
                 <input
                   type="checkbox"
                   checked={agreeToTerms}
@@ -724,7 +869,7 @@ function Register() {
                   I agree to the{" "}
 
                   <Link
-                    to="/terms"
+                    to="/terms-and-conditions"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="font-bold text-green-600 hover:text-green-700 hover:underline"
@@ -736,7 +881,7 @@ function Register() {
                   {" "}and{" "}
 
                   <Link
-                    to="/privacy"
+                    to="/privacy-policy"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="font-bold text-green-600 hover:text-green-700 hover:underline"
@@ -753,7 +898,10 @@ function Register() {
 
               <div className="mt-3 flex items-center gap-2 text-xs text-gray-400">
 
-                <FiShield size={14} className="shrink-0" />
+                <FiShield
+                  size={14}
+                  className="shrink-0"
+                />
 
                 Your information is handled according to our
                 privacy and security policies.
@@ -762,12 +910,33 @@ function Register() {
 
             </div>
 
-            {/* Submit */}
+            {/* =====================================================
+                SUBMIT
+            ====================================================== */}
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full h-13 rounded-xl bg-green-600 text-white font-bold text-sm flex items-center justify-center gap-2 hover:bg-green-700 active:bg-green-800 transition shadow-lg shadow-green-600/10 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="
+                w-full
+                h-13
+                rounded-xl
+                bg-green-600
+                text-white
+                font-bold
+                text-sm
+                flex
+                items-center
+                justify-center
+                gap-2
+                hover:bg-green-700
+                active:bg-green-800
+                transition
+                shadow-lg
+                shadow-green-600/10
+                disabled:opacity-60
+                disabled:cursor-not-allowed
+              "
             >
 
               {loading ? (
@@ -788,7 +957,9 @@ function Register() {
 
           </form>
 
-          {/* Login */}
+          {/* =====================================================
+              LOGIN
+          ====================================================== */}
 
           <div className="mt-7 text-center">
 
@@ -812,7 +983,7 @@ function Register() {
           <div className="mt-5 flex items-center justify-center gap-4 text-xs text-gray-400">
 
             <Link
-              to="/terms"
+              to="/terms-and-conditions"
               className="hover:text-green-600 transition"
             >
               Terms & Conditions
@@ -821,7 +992,7 @@ function Register() {
             <span>•</span>
 
             <Link
-              to="/privacy"
+              to="/privacy-policy"
               className="hover:text-green-600 transition"
             >
               Privacy Policy

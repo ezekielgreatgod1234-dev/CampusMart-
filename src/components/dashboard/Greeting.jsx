@@ -15,4 +15,4 @@ function Greeting({ profile }) {
   );
 }
 
-export default Greeting;
+export default Greeting; 

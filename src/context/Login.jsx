@@ -6,7 +6,6 @@ import {
 } from "firebase/auth";
 
 import {
-  FiShoppingBag,
   FiMail,
   FiLock,
   FiEye,
@@ -116,21 +115,45 @@ function Login() {
 
       <div className="hidden lg:flex lg:w-[46%] xl:w-[48%] bg-[#073b2f] text-white relative overflow-hidden">
 
+        {/* Decorative circles */}
+
         <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-green-500/10" />
 
         <div className="absolute -bottom-40 -right-40 w-[500px] h-[500px] rounded-full bg-green-400/10" />
 
         <div className="relative z-10 w-full flex flex-col justify-between p-12 xl:p-16">
 
-          {/* Logo */}
+          {/* =====================================================
+              LEFT LOGO
+          ====================================================== */}
 
           <Link
             to="/"
-            className="inline-flex items-center gap-3 w-fit"
+            className="inline-flex items-center gap-3 w-fit group"
           >
 
-            <div className="w-12 h-12 rounded-xl bg-green-500 flex items-center justify-center shadow-lg">
-              <FiShoppingBag size={24} />
+            {/* CM Logo */}
+
+            <div
+              className="
+                w-12
+                h-12
+                rounded-xl
+                bg-green-500
+                text-white
+                flex
+                items-center
+                justify-center
+                text-lg
+                font-black
+                tracking-tight
+                shadow-[0_8px_20px_rgba(34,197,94,0.25)]
+                transition
+                group-hover:scale-105
+                group-hover:shadow-[0_10px_25px_rgba(34,197,94,0.35)]
+              "
+            >
+              CM
             </div>
 
             <div>
@@ -150,7 +173,9 @@ function Login() {
 
           </Link>
 
-          {/* Main */}
+          {/* =====================================================
+              MAIN
+          ====================================================== */}
 
           <div className="max-w-lg">
 
@@ -231,6 +256,8 @@ function Login() {
 
           </div>
 
+          {/* Bottom */}
+
           <p className="text-sm text-green-100/50">
             © 2026 CampusMart. Built for students.
           </p>
@@ -246,29 +273,55 @@ function Login() {
 
         <div className="w-full max-w-[500px]">
 
-          {/* Mobile Logo */}
+          {/* =====================================================
+              CM LOGO ABOVE LOGIN FORM
+          ====================================================== */}
 
-          <div className="lg:hidden text-center mb-8">
+          <div className="mb-8">
 
             <Link
               to="/"
-              className="inline-flex items-center gap-3"
+              className="inline-flex items-center gap-3 group"
             >
 
-              <div className="w-11 h-11 rounded-xl bg-green-600 text-white flex items-center justify-center">
-                <FiShoppingBag size={22} />
+              {/* CM LOGO */}
+
+              <div
+                className="
+                  w-14
+                  h-14
+                  rounded-2xl
+                  bg-green-600
+                  text-white
+                  flex
+                  items-center
+                  justify-center
+                  text-xl
+                  font-black
+                  tracking-tight
+                  shadow-[0_8px_20px_rgba(22,163,74,0.25)]
+                  ring-4
+                  ring-green-100
+                  transition
+                  group-hover:scale-105
+                  group-hover:shadow-[0_10px_25px_rgba(22,163,74,0.35)]
+                "
+              >
+                CM
               </div>
 
-              <div className="text-left">
+              {/* Brand */}
 
-                <div className="text-2xl font-black text-gray-900">
+              <div>
+
+                <div className="text-2xl font-black text-gray-900 tracking-tight">
                   Campus
                   <span className="text-green-600">
                     Mart
                   </span>
                 </div>
 
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-gray-500 mt-0.5">
                   Your Campus Marketplace
                 </p>
 
@@ -278,7 +331,9 @@ function Login() {
 
           </div>
 
-          {/* Header */}
+          {/* =====================================================
+              HEADER
+          ====================================================== */}
 
           <div className="mb-7">
 
@@ -297,7 +352,9 @@ function Login() {
 
           </div>
 
-          {/* Error */}
+          {/* =====================================================
+              ERROR
+          ====================================================== */}
 
           {error && (
             <div className="mb-5 rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-600">
@@ -305,7 +362,9 @@ function Login() {
             </div>
           )}
 
-          {/* Form */}
+          {/* =====================================================
+              FORM
+          ====================================================== */}
 
           <form
             onSubmit={handleSubmit}
@@ -338,7 +397,22 @@ function Login() {
                   onChange={handleChange}
                   placeholder="you@example.com"
                   autoComplete="email"
-                  className="w-full h-13 rounded-xl border border-gray-200 bg-white pl-11 pr-4 text-sm outline-none focus:border-green-500 focus:ring-4 focus:ring-green-50 transition"
+                  className="
+                    w-full
+                    h-13
+                    rounded-xl
+                    border
+                    border-gray-200
+                    bg-white
+                    pl-11
+                    pr-4
+                    text-sm
+                    outline-none
+                    focus:border-green-500
+                    focus:ring-4
+                    focus:ring-green-50
+                    transition
+                  "
                 />
 
               </div>
@@ -446,11 +520,13 @@ function Login() {
                       : "Show password"
                   }
                 >
+
                   {showPassword ? (
                     <FiEye size={18} />
                   ) : (
                     <FiEyeOff size={18} />
                   )}
+
                 </button>
 
               </div>
@@ -462,17 +538,38 @@ function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full h-13 rounded-xl bg-green-600 text-white font-bold text-sm flex items-center justify-center gap-2 hover:bg-green-700 active:bg-green-800 transition shadow-lg shadow-green-600/10 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="
+                w-full
+                h-13
+                rounded-xl
+                bg-green-600
+                text-white
+                font-bold
+                text-sm
+                flex
+                items-center
+                justify-center
+                gap-2
+                hover:bg-green-700
+                active:bg-green-800
+                transition
+                shadow-lg
+                shadow-green-600/10
+                disabled:opacity-60
+                disabled:cursor-not-allowed
+              "
             >
 
               {loading ? (
                 <>
                   <span className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+
                   Logging in...
                 </>
               ) : (
                 <>
                   Log in
+
                   <FiArrowRight size={18} />
                 </>
               )}
@@ -481,7 +578,9 @@ function Login() {
 
           </form>
 
-          {/* Divider */}
+          {/* =====================================================
+              DIVIDER
+          ====================================================== */}
 
           <div className="flex items-center gap-4 my-7">
 
@@ -499,7 +598,24 @@ function Login() {
 
           <Link
             to="/register"
-            className="w-full h-12 rounded-xl border border-gray-200 bg-white flex items-center justify-center text-sm font-bold text-gray-700 hover:border-green-300 hover:text-green-700 hover:bg-green-50 transition"
+            className="
+              w-full
+              h-12
+              rounded-xl
+              border
+              border-gray-200
+              bg-white
+              flex
+              items-center
+              justify-center
+              text-sm
+              font-bold
+              text-gray-700
+              hover:border-green-300
+              hover:text-green-700
+              hover:bg-green-50
+              transition
+            "
           >
             Create a new account
           </Link>

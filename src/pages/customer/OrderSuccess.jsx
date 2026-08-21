@@ -11,7 +11,7 @@ function OrderSuccess() {
   const navigate = useNavigate();
 
   // Generate a simple order reference
-  const orderNumber = "CM-20260810";
+  const orderNumber = "CM";
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -88,7 +88,7 @@ function OrderSuccess() {
 
               <div>
                 <p className="text-xs text-gray-400 uppercase tracking-wide">
-                  Order Number
+                  
                 </p>
 
                 <p className="

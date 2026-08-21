@@ -50,6 +50,7 @@ import OrderDetails from "./pages/customer/OrderDetails";
 import Payment from "./pages/customer/Payment";
 import Profile from "./pages/customer/Profile";
 import Settings from "./pages/customer/Settings";
+import SellerDashboard from "./pages/seller/SellerDashboard";
 
 // =========================================================
 // OTHER PAGES
@@ -233,65 +234,6 @@ function SellerRoute({
   }
 
   return children;
-}
-
-// =========================================================
-// SELLER DASHBOARD
-// =========================================================
-
-function SellerDashboardComingSoon() {
-  const navigate = useNavigate();
-
-  return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-5">
-      <div className="max-w-md w-full bg-white rounded-3xl border border-gray-100 shadow-sm p-8 text-center">
-        <div
-          className="
-            mx-auto
-            w-16
-            h-16
-            rounded-2xl
-            bg-green-50
-            text-green-600
-            flex
-            items-center
-            justify-center
-            text-2xl
-            font-bold
-          "
-        >
-          CM
-        </div>
-
-        <h1 className="mt-6 text-2xl font-bold text-gray-900">
-          Seller Dashboard
-        </h1>
-
-        <p className="mt-3 text-sm leading-6 text-gray-500">
-          The seller dashboard is currently being built.
-          Your seller account has been created successfully.
-        </p>
-
-        <button
-          type="button"
-          onClick={() => navigate("/logout")}
-          className="
-            mt-7
-            w-full
-            py-3
-            rounded-xl
-            bg-green-600
-            text-white
-            font-semibold
-            hover:bg-green-700
-            transition
-          "
-        >
-          Log out
-        </button>
-      </div>
-    </div>
-  );
 }
 
 // =========================================================
@@ -2698,12 +2640,16 @@ function App() {
               <SellerRoute
                 profile={profile}
               >
-                <SellerDashboardComingSoon />
+                <SellerDashboard
+                  profile={profile}
+                  cartCount={cartCount}
+                  wishlist={wishlist}
+                  unreadMessages={unreadMessages}
+                />
               </SellerRoute>
             </ProtectedRoute>
           }
         />
-
         {/* ================================================= */}
         {/* FORGOT PASSWORD */}
         {/* ================================================= */}
