@@ -46,11 +46,9 @@ function SellerDashboard({ unreadMessages = 0 }) {
   // SELLER PROFILE
   // =====================================================
 
-  const sellerFullName =
-    firebaseUser?.displayName || "GreatGod Ezekiel";
+  const sellerFullName = firebaseUser?.displayName || "GreatGod Ezekiel";
 
-  const sellerFirstName =
-    sellerFullName.trim().split(/\s+/)[0] || "GreatGod";
+  const sellerFirstName = sellerFullName.trim().split(/\s+/)[0] || "GreatGod";
 
   const sellerImage = firebaseUser?.photoURL || null;
 
@@ -238,13 +236,13 @@ function SellerDashboard({ unreadMessages = 0 }) {
            * Mobile: 285px
            * Desktop: 250px
            */
-          w-[285px]
+          w-[291px]
           min-w-[285px]
 
-          lg:w-[250px]
+          lg:w-[291px]
           lg:min-w-[250px]
 
-          bg-[#008f36]
+           bg-green-700
 
           text-white
 
@@ -259,9 +257,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
           ease-in-out
 
           ${
-            sidebarOpen
-              ? "translate-x-0"
-              : "-translate-x-full lg:translate-x-0"
+            sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
           }
         `}
       >
@@ -274,7 +270,8 @@ function SellerDashboard({ unreadMessages = 0 }) {
             relative
 
             px-5
-            pt-5
+            pt-19
+            lg:pt-5
             pb-4
 
             flex-shrink-0
@@ -315,10 +312,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
               z-20
             "
           >
-            <FiX
-              size={21}
-              strokeWidth={2.5}
-            />
+            <FiX size={21} strokeWidth={2.5} />
           </button>
 
           {/* =================================================
@@ -380,7 +374,8 @@ function SellerDashboard({ unreadMessages = 0 }) {
             <div className="min-w-0">
               <h1
                 className="
-                  text-[20px]
+                  text-[30px]
+
 
                   font-extrabold
 
@@ -391,13 +386,9 @@ function SellerDashboard({ unreadMessages = 0 }) {
                   whitespace-nowrap
                 "
               >
-                <span className="text-white">
-                  Campus
-                </span>
+                <span className="text-white">Campus</span>
 
-                <span className="text-green-300">
-                  Mart
-                </span>
+                <span className="text-green-300">Mart</span>
               </h1>
 
               <p
@@ -435,24 +426,15 @@ function SellerDashboard({ unreadMessages = 0 }) {
             overscroll-contain
           "
         >
-          {menuItems.map(
-            ({
-              label,
-              icon: Icon,
-              path,
-              badge,
-              new: isNew,
-            }) => {
-              const active = isActive(path);
+          {menuItems.map(({ label, icon: Icon, path, badge, new: isNew }) => {
+            const active = isActive(path);
 
-              return (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() =>
-                    handleNavigation(path)
-                  }
-                  className={`
+            return (
+              <button
+                key={label}
+                type="button"
+                onClick={() => handleNavigation(path)}
+                className={`
                     w-full
 
                     flex
@@ -483,38 +465,36 @@ function SellerDashboard({ unreadMessages = 0 }) {
                         `
                     }
                   `}
-                >
-                  {/* ICON */}
+              >
+                {/* ICON */}
 
-                  <Icon
-                    size={19}
-                    strokeWidth={
-                      active ? 2.5 : 2
-                    }
-                    className="
+                <Icon
+                  size={19}
+                  strokeWidth={active ? 2.5 : 2}
+                  className="
                       flex-shrink-0
                     "
-                  />
+                />
 
-                  {/* LABEL */}
+                {/* LABEL */}
 
-                  <span
-                    className="
+                <span
+                  className="
                       flex-1
 
                       text-[14px]
 
                       whitespace-nowrap
                     "
-                  >
-                    {label}
-                  </span>
+                >
+                  {label}
+                </span>
 
-                  {/* MESSAGE BADGE */}
+                {/* MESSAGE BADGE */}
 
-                  {badge > 0 && (
-                    <span
-                      className="
+                {badge > 0 && (
+                  <span
+                    className="
                         min-w-[21px]
                         h-[21px]
 
@@ -534,16 +514,16 @@ function SellerDashboard({ unreadMessages = 0 }) {
 
                         flex-shrink-0
                       "
-                    >
-                      {badge}
-                    </span>
-                  )}
+                  >
+                    {badge}
+                  </span>
+                )}
 
-                  {/* NEW BADGE */}
+                {/* NEW BADGE */}
 
-                  {isNew && (
-                    <span
-                      className={`
+                {isNew && (
+                  <span
+                    className={`
                         px-1.5
                         py-0.5
 
@@ -561,14 +541,13 @@ function SellerDashboard({ unreadMessages = 0 }) {
                             : "bg-green-500 text-white"
                         }
                       `}
-                    >
-                      New
-                    </span>
-                  )}
-                </button>
-              );
-            }
-          )}
+                  >
+                    New
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </nav>
 
         {/* =================================================
@@ -623,17 +602,12 @@ function SellerDashboard({ unreadMessages = 0 }) {
                 mt-1
               "
             >
-              Boost your products and services
-              and reach more students.
+              Boost your products and services and reach more students.
             </p>
 
             <button
               type="button"
-              onClick={() =>
-                handleNavigation(
-                  "/seller/promotions"
-                )
-              }
+              onClick={() => handleNavigation("/seller/promotions")}
               className="
                 w-full
 
@@ -935,11 +909,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
 
             <button
               type="button"
-              onClick={() =>
-                handleNavigation(
-                  "/seller/messages"
-                )
-              }
+              onClick={() => handleNavigation("/seller/messages")}
               aria-label="Messages"
               className="
                 relative
@@ -1003,11 +973,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
 
             <button
               type="button"
-              onClick={() =>
-                handleNavigation(
-                  "/seller/profile"
-                )
-              }
+              onClick={() => handleNavigation("/seller/profile")}
               className="
                 flex
                 items-center
@@ -1077,9 +1043,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
                     border-white/30
                   "
                 >
-                  {sellerFirstName
-                    ?.charAt(0)
-                    ?.toUpperCase()}
+                  {sellerFirstName?.charAt(0)?.toUpperCase()}
                 </div>
               )}
 
@@ -1208,8 +1172,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
                   leading-6
                 "
               >
-                Here's what's happening with your
-                business today.
+                Here's what's happening with your business today.
               </p>
             </div>
 
@@ -1269,13 +1232,9 @@ function SellerDashboard({ unreadMessages = 0 }) {
                   whitespace-nowrap
                 "
               >
-                <span className="text-gray-500">
-                  📅
-                </span>
+                <span className="text-gray-500">📅</span>
 
-                <span>
-                  May 19 – May 25, 2025
-                </span>
+                <span>May 19 – May 25, 2025</span>
 
                 <FiChevronDown size={16} />
               </button>
@@ -1320,9 +1279,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
               >
                 <FiDownload size={18} />
 
-                <span>
-                  Export Report
-                </span>
+                <span>Export Report</span>
               </button>
             </div>
           </div>
@@ -1512,9 +1469,8 @@ function SellerDashboard({ unreadMessages = 0 }) {
                   leading-6
                 "
               >
-                Your sales chart, recent orders,
-                earnings, bookings, products and
-                store performance will appear here.
+                Your sales chart, recent orders, earnings, bookings, products
+                and store performance will appear here.
               </p>
             </div>
           </div>
