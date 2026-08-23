@@ -870,8 +870,8 @@ function Register() {
 
                   <Link
                     to="/terms-and-conditions"
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    
+                    
                     className="font-bold text-green-600 hover:text-green-700 hover:underline"
                     onClick={(e) => e.stopPropagation()}
                   >
@@ -882,8 +882,7 @@ function Register() {
 
                   <Link
                     to="/privacy-policy"
-                    target="_blank"
-                    rel="noopener noreferrer"
+                   
                     className="font-bold text-green-600 hover:text-green-700 hover:underline"
                     onClick={(e) => e.stopPropagation()}
                   >

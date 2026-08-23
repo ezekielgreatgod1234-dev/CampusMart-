@@ -33,9 +33,11 @@ function ForgotPassword() {
   // =========================================================
 
   const handleEmailChange = (e) => {
-    setEmail(e.target.value);
+    const value = e.target.value;
 
-    // Clear validation/error as soon as the user starts typing
+    setEmail(value);
+
+    // Clear the custom error when the user starts typing
     if (error) {
       setError("");
     }
@@ -94,7 +96,10 @@ function ForgotPassword() {
     try {
       setLoading(true);
 
-      await sendPasswordResetEmail(auth, trimmedEmail);
+      await sendPasswordResetEmail(
+        auth,
+        trimmedEmail
+      );
 
       // =====================================================
       // SUCCESS
@@ -103,7 +108,10 @@ function ForgotPassword() {
       setSuccess(true);
       setEmail("");
     } catch (error) {
-      console.error("Password reset error:", error);
+      console.error(
+        "Password reset error:",
+        error
+      );
 
       // =====================================================
       // FIREBASE ERRORS
@@ -111,7 +119,9 @@ function ForgotPassword() {
 
       switch (error.code) {
         case "auth/invalid-email":
-          setError("Please enter a valid email address.");
+          setError(
+            "Please enter a valid email address."
+          );
           break;
 
         case "auth/user-not-found":
@@ -339,6 +349,7 @@ function ForgotPassword() {
             <form
               onSubmit={handleSubmit}
               className="mt-6"
+              noValidate
             >
 
               {/* =================================================
@@ -362,6 +373,7 @@ function ForgotPassword() {
                 </label>
 
                 <div className="relative">
+
                   <FiMail
                     size={19}
                     className="
@@ -372,7 +384,9 @@ function ForgotPassword() {
                       pointer-events-none
                     "
                     style={{
-                      color: error ? "#ef4444" : "#9ca3af",
+                      color: error
+                        ? "#ef4444"
+                        : "#9ca3af",
                     }}
                   />
 
@@ -385,8 +399,12 @@ function ForgotPassword() {
                     placeholder="Enter your registered email"
                     autoComplete="email"
                     disabled={loading}
-                    required
                     aria-invalid={Boolean(error)}
+                    aria-describedby={
+                      error
+                        ? "email-error"
+                        : "email-help"
+                    }
                     className="
                       w-full
                       pl-11
@@ -403,7 +421,9 @@ function ForgotPassword() {
                     style={{
                       backgroundColor: "#f9fafb",
                       color: "#1f2937",
-                      borderColor: error ? "#fca5a5" : "#e5e7eb",
+                      borderColor: error
+                        ? "#fca5a5"
+                        : "#e5e7eb",
                       colorScheme: "light",
                       "--tw-ring-color": error
                         ? "rgba(239,68,68,0.10)"
@@ -418,6 +438,7 @@ function ForgotPassword() {
 
                 {error ? (
                   <div
+                    id="email-error"
                     className="
                       mt-2.5
                       flex
@@ -455,6 +476,7 @@ function ForgotPassword() {
                   </div>
                 ) : (
                   <p
+                    id="email-help"
                     className="
                       mt-2
                       text-xs
