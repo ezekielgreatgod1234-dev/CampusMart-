@@ -17,12 +17,10 @@ import {
   FiSettings,
   FiLogOut,
   FiMenu,
-  FiSearch,
   FiChevronDown,
   FiDownload,
   FiX,
   FiBell,
-  FiMoreHorizontal,
   FiPlus,
   FiTrendingUp,
   FiClock,
@@ -49,14 +47,21 @@ function SellerDashboard({ unreadMessages = 0 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // =====================================================
+  // SALES PERIOD
+  // =====================================================
+
+  const [salesPeriod, setSalesPeriod] = useState("week");
+
+  // =====================================================
   // SELLER PROFILE
   // =====================================================
 
   const sellerFullName =
-    firebaseUser?.displayName || "GreatGod Ezekiel";
+    firebaseUser?.displayName?.trim() || "GreatGod Ezekiel";
 
+  // First name is ONLY used for the welcome message
   const sellerFirstName =
-    sellerFullName.trim().split(/\s+/)[0] || "GreatGod";
+    sellerFullName.split(/\s+/)[0] || "GreatGod";
 
   const sellerImage = firebaseUser?.photoURL || null;
 
@@ -179,78 +184,133 @@ function SellerDashboard({ unreadMessages = 0 }) {
   // DASHBOARD STATISTICS
   // =====================================================
 
-  const statistics = [
-    {
-      title: "Total Sales",
-      value: "₦248,500",
-      icon: FiDollarSign,
-      iconBg: "bg-green-50",
-      iconColor: "text-[#008236]",
-    },
-    {
-      title: "Total Orders",
-      value: "128",
-      icon: FiShoppingBag,
-      iconBg: "bg-blue-50",
-      iconColor: "text-blue-600",
-    },
-    {
-      title: "Total Bookings",
-      value: "46",
-      icon: FiCalendar,
-      iconBg: "bg-purple-50",
-      iconColor: "text-purple-600",
-    },
-    {
-      title: "Total Earnings",
-      value: "₦186,200",
-      icon: FiCreditCard,
-      iconBg: "bg-orange-50",
-      iconColor: "text-orange-600",
-    },
-  ];
+  const statistics =
+    salesPeriod === "month"
+      ? [
+          {
+            title: "Monthly Sales",
+            value: "₦2,856,400",
+            change: "+18.4%",
+            icon: FiDollarSign,
+            iconBg: "bg-green-50",
+            iconColor: "text-[#008236]",
+          },
+          {
+            title: "Monthly Orders",
+            value: "342",
+            change: "+14.7%",
+            icon: FiShoppingBag,
+            iconBg: "bg-blue-50",
+            iconColor: "text-blue-600",
+          },
+          {
+            title: "Monthly Bookings",
+            value: "118",
+            change: "+11.2%",
+            icon: FiCalendar,
+            iconBg: "bg-purple-50",
+            iconColor: "text-purple-600",
+          },
+          {
+            title: "Monthly Earnings",
+            value: "₦2,142,300",
+            change: "+16.8%",
+            icon: FiCreditCard,
+            iconBg: "bg-orange-50",
+            iconColor: "text-orange-600",
+          },
+        ]
+      : [
+          {
+            title: "Weekly Sales",
+            value: "₦248,500",
+            change: "+12.5%",
+            icon: FiDollarSign,
+            iconBg: "bg-green-50",
+            iconColor: "text-[#008236]",
+          },
+          {
+            title: "Weekly Orders",
+            value: "128",
+            change: "+8.2%",
+            icon: FiShoppingBag,
+            iconBg: "bg-blue-50",
+            iconColor: "text-blue-600",
+          },
+          {
+            title: "Weekly Bookings",
+            value: "46",
+            change: "+5.4%",
+            icon: FiCalendar,
+            iconBg: "bg-purple-50",
+            iconColor: "text-purple-600",
+          },
+          {
+            title: "Weekly Earnings",
+            value: "₦186,200",
+            change: "+10.8%",
+            icon: FiCreditCard,
+            iconBg: "bg-orange-50",
+            iconColor: "text-orange-600",
+          },
+        ];
 
   // =====================================================
-  // MODERN SALES GRAPH DATA
+  // SALES GRAPH DATA
   // =====================================================
 
-  const salesData = [
-    {
-      day: "Mon",
-      value: 42,
-      revenue: "₦32,500",
-    },
-    {
-      day: "Tue",
-      value: 58,
-      revenue: "₦41,800",
-    },
-    {
-      day: "Wed",
-      value: 47,
-      revenue: "₦36,200",
-    },
-    {
-      day: "Thu",
-      value: 76,
-      revenue: "₦52,400",
-    },
-    {
-      day: "Fri",
-      value: 63,
-      revenue: "₦44,900",
-    },
-    {
-      day: "Sat",
-      value: 91,
-      revenue: "₦68,700",
-    },
-    {
-      day: "Sun",
-      value: 82,
-      revenue: "₦61,900",
-    },
+  const weekSalesData = [
+    { day: "Mon", value: 42, revenue: 32500 },
+    { day: "Tue", value: 58, revenue: 41800 },
+    { day: "Wed", value: 47, revenue: 36200 },
+    { day: "Thu", value: 76, revenue: 52400 },
+    { day: "Fri", value: 63, revenue: 44900 },
+    { day: "Sat", value: 91, revenue: 68700 },
+    { day: "Sun", value: 82, revenue: 61900 },
   ];
+
+  const monthSalesData = [
+    { day: "Jan", value: 54, revenue: 186000 },
+    { day: "Feb", value: 62, revenue: 214500 },
+    { day: "Mar", value: 49, revenue: 172300 },
+    { day: "Apr", value: 71, revenue: 248700 },
+    { day: "May", value: 66, revenue: 231400 },
+    { day: "Jun", value: 78, revenue: 276800 },
+    { day: "Jul", value: 73, revenue: 259600 },
+    { day: "Aug", value: 88, revenue: 312500 },
+    { day: "Sep", value: 69, revenue: 244900 },
+    { day: "Oct", value: 82, revenue: 291300 },
+    { day: "Nov", value: 91, revenue: 328700 },
+    { day: "Dec", value: 86, revenue: 304200 },
+  ];
+
+  const salesData =
+    salesPeriod === "month" ? monthSalesData : weekSalesData;
+
+  const formatNaira = (amount) =>
+    `₦${Number(amount || 0).toLocaleString("en-NG")}`;
+
+  const totalRevenue = salesData.reduce(
+    (total, item) => total + Number(item.revenue || 0),
+    0
+  );
+
+  const bestSalesPoint = salesData.reduce(
+    (best, item) =>
+      Number(item.value || 0) > Number(best.value || 0) ? item : best,
+    salesData[0]
+  );
+
+  const periodLabel =
+    salesPeriod === "month" ? "This Month" : "This Week";
+
+  const periodDescription =
+    salesPeriod === "month"
+      ? "Revenue movement across the current year."
+      : "Revenue movement across the current week.";
+
+  const periodComparison =
+    salesPeriod === "month" ? "vs. last month" : "vs. last week";
 
   // =====================================================
   // RECENT ORDERS
@@ -324,7 +384,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
   ];
 
   // =====================================================
-  // MODERN GRAPH HELPERS
+  // GRAPH HELPERS
   // =====================================================
 
   const graphWidth = 1000;
@@ -336,28 +396,22 @@ function SellerDashboard({ unreadMessages = 0 }) {
   const graphPaddingBottom = 35;
 
   const usableWidth =
-    graphWidth -
-    graphPaddingLeft -
-    graphPaddingRight;
+    graphWidth - graphPaddingLeft - graphPaddingRight;
 
   const usableHeight =
-    graphHeight -
-    graphPaddingTop -
-    graphPaddingBottom;
+    graphHeight - graphPaddingTop - graphPaddingBottom;
 
   const maxValue = 100;
 
   const points = salesData.map((item, index) => {
     const x =
       graphPaddingLeft +
-      (index * usableWidth) /
-        (salesData.length - 1);
+      (index * usableWidth) / (salesData.length - 1);
 
     const y =
       graphPaddingTop +
       usableHeight -
-      (item.value / maxValue) *
-        usableHeight;
+      (item.value / maxValue) * usableHeight;
 
     return {
       ...item,
@@ -365,10 +419,6 @@ function SellerDashboard({ unreadMessages = 0 }) {
       y,
     };
   });
-
-  // =====================================================
-  // SMOOTH CURVE PATH
-  // =====================================================
 
   const createSmoothPath = (dataPoints) => {
     if (!dataPoints.length) return "";
@@ -379,8 +429,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
       const current = dataPoints[i];
       const next = dataPoints[i + 1];
 
-      const controlPointX =
-        (current.x + next.x) / 2;
+      const controlPointX = (current.x + next.x) / 2;
 
       path += `
         C
@@ -395,8 +444,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
 
   const linePath = createSmoothPath(points);
 
-  const baselineY =
-    graphHeight - graphPaddingBottom;
+  const baselineY = graphHeight - graphPaddingBottom;
 
   const areaPath = `
     ${linePath}
@@ -410,65 +458,39 @@ function SellerDashboard({ unreadMessages = 0 }) {
   // =====================================================
 
   return (
-    <div
-      className="
-        min-h-screen
-        w-full
-        bg-gray-50
-        text-gray-800
-        font-sans
-        flex
-        overflow-hidden
-      "
-    >
-      {/* =================================================
-          MOBILE SIDEBAR OVERLAY
-      ================================================= */}
+    <div className="h-screen w-full bg-gray-50 text-gray-800 font-sans overflow-hidden">
+      {/* MOBILE SIDEBAR OVERLAY */}
 
       {sidebarOpen && (
         <div
-          className="
-            fixed
-            inset-0
-            bg-black/50
-            z-40
-            lg:hidden
-          "
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* =================================================
-          SIDEBAR
-      ================================================= */}
+      {/* SIDEBAR */}
 
       <aside
         className={`
           fixed
-          lg:static
           inset-y-0
           left-0
           z-50
-
           w-[291px]
           min-w-[285px]
-
           lg:w-[291px]
           lg:min-w-[250px]
-
           bg-green-700
           text-white
-
           flex
           flex-col
-
+          h-screen
+          overflow-hidden
           shadow-2xl
           lg:shadow-none
-
           transition-transform
           duration-300
           ease-in-out
-
           ${
             sidebarOpen
               ? "translate-x-0"
@@ -476,20 +498,9 @@ function SellerDashboard({ unreadMessages = 0 }) {
           }
         `}
       >
-        {/* =================================================
-            SIDEBAR HEADER
-        ================================================= */}
+        {/* SIDEBAR HEADER */}
 
-        <div
-          className="
-            relative
-            px-5
-            pt-19
-            lg:pt-5
-            pb-4
-            flex-shrink-0
-          "
-        >
+        <div className="relative px-5 pt-19 lg:pt-5 pb-4 flex-shrink-0">
           <button
             type="button"
             onClick={() => setSidebarOpen(false)}
@@ -512,22 +523,10 @@ function SellerDashboard({ unreadMessages = 0 }) {
               z-20
             "
           >
-            <FiX
-              size={21}
-              strokeWidth={2.5}
-            />
+            <FiX size={21} strokeWidth={2.5} />
           </button>
 
-          {/* BRAND */}
-
-          <div
-            className="
-              flex
-              items-center
-              gap-3
-              pr-10
-            "
-          >
+          <div className="flex items-center gap-3 pr-10">
             <div
               className="
                 w-10
@@ -545,140 +544,74 @@ function SellerDashboard({ unreadMessages = 0 }) {
                 flex-shrink-0
               "
             >
-              <span
-                className="
-                  text-white
-                  text-[16px]
-                  font-black
-                  tracking-tight
-                "
-              >
+              <span className="text-white text-[16px] font-black tracking-tight">
                 CM
               </span>
             </div>
 
             <div className="min-w-0">
-              <h1
-                className="
-                  text-[30px]
-                  font-extrabold
-                  tracking-tight
-                  leading-none
-                  whitespace-nowrap
-                "
-              >
-                <span className="text-white">
-                  Campus
-                </span>
-
-                <span className="text-green-300">
-                  Mart
-                </span>
+              <h1 className="text-[30px] font-extrabold tracking-tight leading-none whitespace-nowrap">
+                <span className="text-white">Campus</span>
+                <span className="text-green-300">Mart</span>
               </h1>
 
-              <p
-                className="
-                  text-[10px]
-                  text-green-100
-                  mt-1
-                  whitespace-nowrap
-                "
-              >
+              <p className="text-[10px] text-green-100 mt-1 whitespace-nowrap">
                 Sell. Connect. Grow.
               </p>
             </div>
           </div>
         </div>
 
-        {/* =================================================
-            NAVIGATION
-        ================================================= */}
+        {/* NAVIGATION */}
 
         <nav
           className="
             flex-1
             px-4
             py-3
-
             overflow-y-auto
             overflow-x-hidden
-
             overscroll-contain
-
             flex
             flex-col
-
             justify-start
-
             gap-1
           "
         >
           {menuItems.map(
-            ({
-              label,
-              icon: Icon,
-              path,
-              badge,
-              new: isNew,
-            }) => {
+            ({ label, icon: Icon, path, badge, new: isNew }) => {
               const active = isActive(path);
 
               return (
                 <button
                   key={label}
                   type="button"
-                  onClick={() =>
-                    handleNavigation(path)
-                  }
+                  onClick={() => handleNavigation(path)}
                   className={`
                     w-full
-
                     flex
                     items-center
                     gap-3
-
                     px-3.5
                     py-3
-
                     rounded-xl
-
                     text-left
-
                     transition-all
-
                     flex-shrink-0
-
                     ${
                       active
-                        ? `
-                          bg-white
-                          text-[#008236]
-                          shadow-sm
-                          font-semibold
-                        `
-                        : `
-                          text-white
-                          hover:bg-white/10
-                          active:bg-white/20
-                        `
+                        ? "bg-white text-[#008236] shadow-sm font-semibold"
+                        : "text-white hover:bg-white/10 active:bg-white/20"
                     }
                   `}
                 >
                   <Icon
                     size={19}
-                    strokeWidth={
-                      active ? 2.5 : 2
-                    }
+                    strokeWidth={active ? 2.5 : 2}
                     className="flex-shrink-0"
                   />
 
-                  <span
-                    className="
-                      flex-1
-                      text-[14px]
-                      whitespace-nowrap
-                    "
-                  >
+                  <span className="flex-1 text-[14px] whitespace-nowrap">
                     {label}
                   </span>
 
@@ -712,7 +645,6 @@ function SellerDashboard({ unreadMessages = 0 }) {
                         text-[9px]
                         font-bold
                         flex-shrink-0
-
                         ${
                           active
                             ? "bg-green-100 text-green-700"
@@ -729,85 +661,9 @@ function SellerDashboard({ unreadMessages = 0 }) {
           )}
         </nav>
 
-        {/* =================================================
-            PREMIUM CARD
-        ================================================= */}
+        {/* LOGOUT */}
 
-        <div
-          className="
-            px-4
-            pb-3
-            flex-shrink-0
-          "
-        >
-          <div
-            className="
-              border
-              border-green-300/30
-              bg-green-900/20
-              rounded-xl
-              p-3.5
-              text-center
-            "
-          >
-            <div className="text-2xl mb-1">
-              👑
-            </div>
-
-            <h3 className="font-bold text-sm">
-              Go Premium
-            </h3>
-
-            <p
-              className="
-                text-[10px]
-                text-green-100
-                leading-4
-                mt-1
-              "
-            >
-              Boost your products and
-              services and reach more
-              students.
-            </p>
-
-            <button
-              type="button"
-              onClick={() =>
-                handleNavigation(
-                  "/seller/promotions"
-                )
-              }
-              className="
-                w-full
-                mt-2
-                h-9
-                rounded-lg
-                bg-white
-                text-[#008236]
-                font-bold
-                text-xs
-                hover:bg-green-50
-                active:bg-green-100
-                transition
-              "
-            >
-              Upgrade Now
-            </button>
-          </div>
-        </div>
-
-        {/* =================================================
-            LOGOUT
-        ================================================= */}
-
-        <div
-          className="
-            px-4
-            pb-4
-            flex-shrink-0
-          "
-        >
+        <div className="px-4 pb-4 flex-shrink-0">
           <button
             type="button"
             onClick={handleLogout}
@@ -828,49 +684,84 @@ function SellerDashboard({ unreadMessages = 0 }) {
           >
             <FiLogOut size={19} />
 
-            <span className="text-[14px]">
-              Logout
-            </span>
+            <span className="text-[14px]">Logout</span>
           </button>
+        </div>
+
+        {/* PREMIUM CARD */}
+
+        <div className="px-4 pb-3 flex-shrink-0">
+          <div
+            className="
+              border
+              border-green-300/30
+              bg-green-900/20
+              rounded-xl
+              p-3.5
+              text-center
+            "
+          >
+            <div className="text-2xl mb-1">👑</div>
+
+            <h3 className="font-bold text-sm">Go Premium</h3>
+
+            <p className="text-[10px] text-green-100 leading-4 mt-1">
+              Boost your products and services and reach more students.
+            </p>
+
+            <button
+              type="button"
+              onClick={() =>
+                handleNavigation("/seller/promotions")
+              }
+              className="
+                w-full
+                mt-2
+                h-9
+                rounded-lg
+                bg-white
+                text-[#008236]
+                font-bold
+                text-xs
+                hover:bg-green-50
+                active:bg-green-100
+                transition
+              "
+            >
+              Upgrade Now
+            </button>
+          </div>
         </div>
       </aside>
 
-      {/* =================================================
-          MAIN AREA
-      ================================================= */}
+      {/* MAIN AREA */}
 
       <div
         className="
-          flex-1
           min-w-0
           flex
           flex-col
-          min-h-screen
+          h-screen
           w-full
+          lg:ml-[291px]
+          lg:w-[calc(100%-291px)]
         "
       >
-        {/* =================================================
-            TOP BAR
-        ================================================= */}
+        {/* TOP BAR */}
 
         <header
           className="
             min-h-[70px]
             bg-[#007233]
             text-white
-
             flex
             items-center
-
             px-3
             sm:px-5
             lg:px-8
-
             py-3
-
             gap-2
             sm:gap-4
-
             flex-shrink-0
           "
         >
@@ -878,80 +769,51 @@ function SellerDashboard({ unreadMessages = 0 }) {
 
           <button
             type="button"
-            onClick={() =>
-              setSidebarOpen(true)
-            }
+            onClick={() => setSidebarOpen(true)}
             aria-label="Open sidebar"
             className="
               lg:hidden
-
               w-10
               h-10
               min-w-[40px]
-
               rounded-lg
-
               hover:bg-white/10
               active:bg-white/20
-
               flex
               items-center
               justify-center
-
               flex-shrink-0
             "
           >
             <FiMenu size={24} />
           </button>
 
-          {/* SEARCH */}
+          {/* YOUR STORE */}
 
           <div
             className="
-              flex-1
-              min-w-0
-              max-w-[620px]
+              flex
+              items-center
+              gap-2
+              text-white
+              flex-shrink-0
             "
           >
-            <div
+            <FiShoppingBag
+              size={19}
+              className="text-green-200"
+            />
+
+            <span
               className="
-                h-10
-                sm:h-11
-
-                bg-white
-                rounded-full
-
-                flex
-                items-center
-
-                px-3
-                sm:px-4
-
-                gap-2
-                sm:gap-3
-
-                text-gray-400
+                text-sm
+                sm:text-base
+                font-semibold
+                whitespace-nowrap
               "
             >
-              <FiSearch
-                size={18}
-                className="flex-shrink-0"
-              />
-
-              <input
-                type="text"
-                placeholder="Search products, services..."
-                className="
-                  flex-1
-                  min-w-0
-                  bg-transparent
-                  outline-none
-                  text-sm
-                  text-gray-700
-                  placeholder:text-gray-400
-                "
-              />
-            </div>
+              Your Store
+            </span>
           </div>
 
           {/* RIGHT SIDE */}
@@ -969,9 +831,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
 
             <button
               type="button"
-              onClick={
-                handleNotifications
-              }
+              onClick={handleNotifications}
               aria-label="Notifications"
               className="
                 relative
@@ -996,20 +856,14 @@ function SellerDashboard({ unreadMessages = 0 }) {
                   absolute
                   -top-0.5
                   -right-0.5
-
                   min-w-[17px]
                   h-[17px]
-
                   px-1
-
                   rounded-full
-
                   bg-red-500
                   text-white
-
                   text-[9px]
                   font-bold
-
                   flex
                   items-center
                   justify-center
@@ -1024,9 +878,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
             <button
               type="button"
               onClick={() =>
-                handleNavigation(
-                  "/seller/messages"
-                )
+                handleNavigation("/seller/messages")
               }
               aria-label="Messages"
               className="
@@ -1053,20 +905,14 @@ function SellerDashboard({ unreadMessages = 0 }) {
                     absolute
                     -top-0.5
                     -right-0.5
-
                     min-w-[17px]
                     h-[17px]
-
                     px-1
-
                     rounded-full
-
                     bg-red-500
                     text-white
-
                     text-[9px]
                     font-bold
-
                     flex
                     items-center
                     justify-center
@@ -1082,9 +928,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
             <button
               type="button"
               onClick={() =>
-                handleNavigation(
-                  "/seller/profile"
-                )
+                handleNavigation("/seller/profile")
               }
               className="
                 flex
@@ -1123,21 +967,17 @@ function SellerDashboard({ unreadMessages = 0 }) {
                     h-8
                     sm:w-9
                     sm:h-9
-
                     rounded-full
-
                     bg-gray-200
                     text-gray-700
-
                     flex
                     items-center
                     justify-center
-
                     font-bold
                     text-sm
-
                     border-2
                     border-white/30
+                    flex-shrink-0
                   "
                 >
                   {sellerFirstName
@@ -1145,6 +985,8 @@ function SellerDashboard({ unreadMessages = 0 }) {
                     ?.toUpperCase()}
                 </div>
               )}
+
+              {/* FULL NAME IN PROFILE */}
 
               <div
                 className="
@@ -1158,11 +1000,12 @@ function SellerDashboard({ unreadMessages = 0 }) {
                     text-xs
                     font-bold
                     leading-4
-                    max-w-[120px]
+                    max-w-[180px]
                     truncate
                   "
+                  title={sellerFullName}
                 >
-                  {sellerFirstName}
+                  {sellerFullName}
                 </p>
 
                 <p
@@ -1184,34 +1027,25 @@ function SellerDashboard({ unreadMessages = 0 }) {
           </div>
         </header>
 
-        {/* =================================================
-            DASHBOARD CONTENT
-        ================================================= */}
+        {/* DASHBOARD CONTENT */}
 
         <main
           className="
             flex-1
-
             overflow-y-auto
             overflow-x-hidden
-
             bg-gray-50
-
             px-3
             sm:px-5
             md:px-6
             lg:px-8
-
             py-5
             sm:py-6
             lg:py-8
-
             font-sans
           "
         >
-          {/* =================================================
-              WELCOME HEADER
-          ================================================= */}
+          {/* WELCOME HEADER */}
 
           <section className="mb-6 sm:mb-7">
             <div
@@ -1219,17 +1053,12 @@ function SellerDashboard({ unreadMessages = 0 }) {
                 bg-gradient-to-r
                 from-[#007233]
                 to-[#008f3f]
-
                 rounded-2xl
-
                 p-5
                 sm:p-6
                 lg:p-7
-
                 text-white
-
                 shadow-sm
-
                 relative
                 overflow-hidden
               "
@@ -1262,14 +1091,11 @@ function SellerDashboard({ unreadMessages = 0 }) {
                 className="
                   relative
                   z-10
-
                   flex
                   flex-col
                   lg:flex-row
-
                   lg:items-center
                   lg:justify-between
-
                   gap-5
                 "
               >
@@ -1279,20 +1105,14 @@ function SellerDashboard({ unreadMessages = 0 }) {
                       inline-flex
                       items-center
                       gap-2
-
                       px-3
                       py-1
-
                       rounded-full
-
                       bg-white/10
-
                       border
                       border-white/10
-
                       text-[11px]
                       font-medium
-
                       mb-3
                     "
                   >
@@ -1308,37 +1128,31 @@ function SellerDashboard({ unreadMessages = 0 }) {
                     Seller Dashboard
                   </div>
 
+                  {/* FIRST NAME ONLY */}
+
                   <h1
                     className="
                       text-2xl
                       sm:text-3xl
-
                       font-bold
-
                       tracking-tight
                     "
                   >
-                    Welcome back,{" "}
-                    {sellerFirstName}!
+                    Welcome back, {sellerFirstName}!
                   </h1>
 
                   <p
                     className="
                       text-sm
                       sm:text-base
-
                       text-green-50
-
                       mt-1.5
-
                       max-w-xl
-
                       leading-6
                     "
                   >
-                    Here's what's happening
-                    with your CampusMart
-                    business today.
+                    Here's what's happening with your
+                    CampusMart business today.
                   </p>
                 </div>
 
@@ -1350,42 +1164,74 @@ function SellerDashboard({ unreadMessages = 0 }) {
                     gap-3
                   "
                 >
-                  <button
-                    type="button"
+                  {/* PERIOD SWITCHER */}
+
+                  <div
                     className="
                       h-11
-                      px-4
-
-                      bg-white
-
-                      text-[#007233]
-
+                      p-1
                       rounded-xl
-
+                      bg-white/10
+                      border
+                      border-white/20
+                      backdrop-blur-sm
                       flex
                       items-center
-                      justify-center
-
-                      gap-2
-
-                      text-sm
-                      font-semibold
-
-                      hover:bg-green-50
-
-                      transition
-
-                      whitespace-nowrap
+                      gap-1
                     "
                   >
-                    <span>📅</span>
+                    <button
+                      type="button"
+                      onClick={() => setSalesPeriod("week")}
+                      aria-pressed={salesPeriod === "week"}
+                      className={`
+                        h-9
+                        px-4
+                        rounded-lg
+                        flex
+                        items-center
+                        justify-center
+                        gap-2
+                        text-xs
+                        sm:text-sm
+                        font-semibold
+                        transition-all
+                        ${
+                          salesPeriod === "week"
+                            ? "bg-white text-[#007233] shadow-sm"
+                            : "text-white hover:bg-white/10"
+                        }
+                      `}
+                    >
+                      Week
+                    </button>
 
-                    This Week
-
-                    <FiChevronDown
-                      size={15}
-                    />
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => setSalesPeriod("month")}
+                      aria-pressed={salesPeriod === "month"}
+                      className={`
+                        h-9
+                        px-4
+                        rounded-lg
+                        flex
+                        items-center
+                        justify-center
+                        gap-2
+                        text-xs
+                        sm:text-sm
+                        font-semibold
+                        transition-all
+                        ${
+                          salesPeriod === "month"
+                            ? "bg-white text-[#007233] shadow-sm"
+                            : "text-white hover:bg-white/10"
+                        }
+                      `}
+                    >
+                      Month
+                    </button>
+                  </div>
 
                   <button
                     type="button"
@@ -1393,36 +1239,23 @@ function SellerDashboard({ unreadMessages = 0 }) {
                     className="
                       h-11
                       px-4
-
                       bg-white/10
-
                       border
                       border-white/20
-
                       text-white
-
                       rounded-xl
-
                       flex
                       items-center
                       justify-center
-
                       gap-2
-
                       text-sm
                       font-semibold
-
                       hover:bg-white/20
-
                       transition
-
                       whitespace-nowrap
                     "
                   >
-                    <FiDownload
-                      size={17}
-                    />
-
+                    <FiDownload size={17} />
                     Export Report
                   </button>
                 </div>
@@ -1430,21 +1263,15 @@ function SellerDashboard({ unreadMessages = 0 }) {
             </div>
           </section>
 
-          {/* =================================================
-              STATISTICS
-          ================================================= */}
+          {/* STATISTICS */}
 
           <section
             className="
               grid
-
-              grid-cols-1
-              min-[420px]:grid-cols-2
+              grid-cols-2
               lg:grid-cols-4
-
               gap-3
               sm:gap-4
-
               mb-5
               sm:mb-6
             "
@@ -1453,6 +1280,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
               ({
                 title,
                 value,
+                change,
                 icon: Icon,
                 iconBg,
                 iconColor,
@@ -1460,27 +1288,41 @@ function SellerDashboard({ unreadMessages = 0 }) {
                 <div
                   key={title}
                   className="
+                    group
+                    relative
+                    overflow-hidden
                     bg-white
-
                     rounded-2xl
-
                     border
                     border-gray-100
-
                     p-4
                     sm:p-5
-
-                    shadow-sm
-
-                    hover:shadow-md
-
-                    transition-shadow
-
+                    shadow-[0_2px_10px_rgba(15,23,42,0.04)]
+                    hover:-translate-y-0.5
+                    hover:shadow-[0_12px_30px_rgba(15,23,42,0.08)]
+                    transition-all
+                    duration-200
                     min-w-0
                   "
                 >
                   <div
                     className="
+                      absolute
+                      right-0
+                      top-0
+                      w-24
+                      h-24
+                      rounded-full
+                      bg-gray-50
+                      -translate-y-1/2
+                      translate-x-1/2
+                      opacity-80
+                    "
+                  />
+
+                  <div
+                    className="
+                      relative
                       flex
                       items-start
                       justify-between
@@ -1489,131 +1331,114 @@ function SellerDashboard({ unreadMessages = 0 }) {
                   >
                     <div
                       className={`
-                        w-10
-                        h-10
-
-                        rounded-xl
-
+                        w-11
+                        h-11
+                        rounded-2xl
                         ${iconBg}
                         ${iconColor}
-
                         flex
                         items-center
                         justify-center
-
                         flex-shrink-0
+                        ring-4
+                        ring-white
                       `}
                     >
-                      <Icon
-                        size={19}
-                        strokeWidth={2.3}
-                      />
+                      <Icon size={20} strokeWidth={2.2} />
                     </div>
 
-                    <button
-                      type="button"
+                    <span
                       className="
-                        text-gray-400
-                        hover:text-gray-600
-                        transition
+                        inline-flex
+                        items-center
+                        rounded-full
+                        bg-green-50
+                        px-2
+                        py-1
+                        text-[10px]
+                        font-bold
+                        text-[#008236]
                       "
                     >
-                      <FiMoreHorizontal
-                        size={18}
-                      />
-                    </button>
+                      {change}
+                    </span>
                   </div>
 
-                  <p
-                    className="
-                      text-xs
-                      sm:text-sm
+                  <div className="relative mt-5">
+                    <p
+                      className="
+                        text-[11px]
+                        sm:text-xs
+                        font-medium
+                        text-gray-500
+                      "
+                    >
+                      {title}
+                    </p>
 
-                      text-gray-500
+                    <h2
+                      className="
+                        text-xl
+                        sm:text-2xl
+                        font-bold
+                        text-gray-900
+                        tracking-tight
+                        truncate
+                        mt-1
+                      "
+                    >
+                      {value}
+                    </h2>
 
-                      mt-4
-                    "
-                  >
-                    {title}
-                  </p>
+                    <div className="mt-3 flex items-center gap-2">
+                      <span className="h-1.5 w-8 rounded-full bg-[#008236]" />
 
-                  <h2
-                    className="
-                      text-xl
-                      sm:text-2xl
-
-                      font-bold
-
-                      text-gray-800
-
-                      tracking-tight
-
-                      truncate
-
-                      mt-1
-                    "
-                  >
-                    {value}
-                  </h2>
+                      <span className="text-[10px] text-gray-400">
+                        {salesPeriod === "month"
+                          ? "Compared with last month"
+                          : "Compared with last week"}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               )
             )}
           </section>
 
-          {/* =================================================
-              MODERN SALES GRAPH
-          ================================================= */}
+          {/* SALES OVERVIEW */}
 
           <section className="mb-5 sm:mb-6">
             <div
               className="
                 bg-white
-
                 rounded-2xl
-
                 border
                 border-gray-100
-
                 shadow-sm
-
                 overflow-hidden
               "
             >
-              {/* GRAPH HEADER */}
-
               <div
                 className="
                   p-5
                   sm:p-6
-
                   border-b
                   border-gray-100
-
                   flex
                   flex-col
                   sm:flex-row
-
                   sm:items-center
                   sm:justify-between
-
                   gap-4
                 "
               >
                 <div>
-                  <div
-                    className="
-                      flex
-                      items-center
-                      gap-2
-                    "
-                  >
+                  <div className="flex items-center gap-2">
                     <h2
                       className="
                         text-base
                         sm:text-lg
-
                         font-bold
-
                         text-gray-800
                       "
                     >
@@ -1624,29 +1449,21 @@ function SellerDashboard({ unreadMessages = 0 }) {
                       className="
                         hidden
                         sm:inline-flex
-
                         items-center
                         gap-1
-
                         px-2
                         py-1
-
                         rounded-full
-
                         bg-green-50
-
                         text-[#008236]
-
                         text-[10px]
-
                         font-bold
                       "
                     >
-                      <FiTrendingUp
-                        size={11}
-                      />
-
-                      12.5%
+                      <FiTrendingUp size={11} />
+                      {salesPeriod === "month"
+                        ? "18.4%"
+                        : "12.5%"}
                     </span>
                   </div>
 
@@ -1654,85 +1471,32 @@ function SellerDashboard({ unreadMessages = 0 }) {
                     className="
                       text-xs
                       sm:text-sm
-
                       text-gray-500
-
                       mt-1
                     "
                   >
-                    Revenue movement across
-                    the current week.
+                    {periodDescription}
                   </p>
                 </div>
 
                 <div
                   className="
-                    flex
+                    inline-flex
                     items-center
                     gap-2
+                    rounded-xl
+                    bg-gray-50
+                    border
+                    border-gray-100
+                    px-3
+                    h-9
                   "
                 >
-                  <button
-                    type="button"
-                    className="
-                      flex
-                      items-center
-                      gap-1.5
+                  <span className="h-2 w-2 rounded-full bg-[#008236]" />
 
-                      px-3
-
-                      h-9
-
-                      rounded-lg
-
-                      bg-gray-50
-
-                      text-xs
-                      font-medium
-
-                      text-gray-600
-
-                      hover:bg-green-50
-                      hover:text-[#008236]
-
-                      transition
-                    "
-                  >
-                    7 Days
-
-                    <FiChevronDown
-                      size={14}
-                    />
-                  </button>
-
-                  <button
-                    type="button"
-                    className="
-                      hidden
-                      sm:flex
-
-                      items-center
-                      justify-center
-
-                      w-9
-                      h-9
-
-                      rounded-lg
-
-                      bg-gray-50
-
-                      text-gray-500
-
-                      hover:bg-green-50
-                      hover:text-[#008236]
-
-                      transition
-                    "
-                  >
-                    <FiMoreHorizontal
-                      size={17}
-                    />
-                  </button>
+                  <span className="text-xs font-semibold text-gray-600">
+                    {periodLabel}
+                  </span>
                 </div>
               </div>
 
@@ -1744,42 +1508,25 @@ function SellerDashboard({ unreadMessages = 0 }) {
                     flex
                     flex-col
                     sm:flex-row
-
                     sm:items-end
                     sm:justify-between
-
                     gap-4
-
                     mb-5
                   "
                 >
                   <div>
-                    <div
-                      className="
-                        flex
-                        items-center
-                        gap-2
-                      "
-                    >
+                    <div className="flex items-center gap-2">
                       <span
                         className="
                           w-2
                           h-2
-
                           rounded-full
-
                           bg-[#008236]
-
                           shadow-[0_0_0_4px_rgba(0,130,54,0.10)]
                         "
                       />
 
-                      <p
-                        className="
-                          text-xs
-                          text-gray-500
-                        "
-                      >
+                      <p className="text-xs text-gray-500">
                         Total revenue
                       </p>
                     </div>
@@ -1788,17 +1535,13 @@ function SellerDashboard({ unreadMessages = 0 }) {
                       className="
                         text-2xl
                         sm:text-3xl
-
                         font-bold
-
                         text-gray-800
-
                         tracking-tight
-
                         mt-1
                       "
                     >
-                      ₦248,500
+                      {formatNaira(totalRevenue)}
                     </h3>
 
                     <div
@@ -1806,7 +1549,6 @@ function SellerDashboard({ unreadMessages = 0 }) {
                         flex
                         items-center
                         gap-1.5
-
                         mt-1.5
                       "
                     >
@@ -1815,54 +1557,35 @@ function SellerDashboard({ unreadMessages = 0 }) {
                           inline-flex
                           items-center
                           gap-1
-
                           px-1.5
                           py-0.5
-
                           rounded-md
-
                           bg-green-50
-
                           text-[#008236]
-
                           text-[10px]
-
                           font-bold
                         "
                       >
-                        <FiTrendingUp
-                          size={11}
-                        />
+                        <FiTrendingUp size={11} />
 
-                        12.5%
+                        {salesPeriod === "month"
+                          ? "18.4%"
+                          : "12.5%"}
                       </span>
 
-                      <span
-                        className="
-                          text-xs
-                          text-gray-400
-                        "
-                      >
-                        vs. last week
+                      <span className="text-xs text-gray-400">
+                        {periodComparison}
                       </span>
                     </div>
                   </div>
 
-                  <div
-                    className="
-                      flex
-                      items-center
-                      gap-4
-                    "
-                  >
+                  <div className="flex items-center gap-4">
                     <div>
-                      <p
-                        className="
-                          text-[10px]
-                          text-gray-400
-                        "
-                      >
-                        Best day
+                      <p className="text-[10px] text-gray-400">
+                        Best{" "}
+                        {salesPeriod === "month"
+                          ? "month"
+                          : "day"}
                       </p>
 
                       <p
@@ -1873,26 +1596,17 @@ function SellerDashboard({ unreadMessages = 0 }) {
                           mt-0.5
                         "
                       >
-                        Saturday
+                        {bestSalesPoint?.day || "—"}
                       </p>
                     </div>
 
-                    <div
-                      className="
-                        w-px
-                        h-8
-                        bg-gray-100
-                      "
-                    />
+                    <div className="w-px h-8 bg-gray-100" />
 
                     <div>
-                      <p
-                        className="
-                          text-[10px]
-                          text-gray-400
-                        "
-                      >
-                        Peak sales
+                      <p className="text-[10px] text-gray-400">
+                        {salesPeriod === "month"
+                          ? "Peak activity"
+                          : "Peak sales"}
                       </p>
 
                       <p
@@ -1903,7 +1617,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
                           mt-0.5
                         "
                       >
-                        91%
+                        {bestSalesPoint?.value || 0}%
                       </p>
                     </div>
                   </div>
@@ -1915,9 +1629,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
                   className="
                     w-full
                     h-[280px]
-
                     relative
-
                     overflow-hidden
                   "
                 >
@@ -1927,16 +1639,12 @@ function SellerDashboard({ unreadMessages = 0 }) {
                     className="
                       absolute
                       inset-0
-
                       w-full
                       h-full
-
                       overflow-visible
                     "
                   >
                     <defs>
-                      {/* AREA GRADIENT */}
-
                       <linearGradient
                         id="salesAreaGradient"
                         x1="0"
@@ -1963,8 +1671,6 @@ function SellerDashboard({ unreadMessages = 0 }) {
                         />
                       </linearGradient>
 
-                      {/* LINE GRADIENT */}
-
                       <linearGradient
                         id="salesLineGradient"
                         x1="0"
@@ -1988,8 +1694,6 @@ function SellerDashboard({ unreadMessages = 0 }) {
                         />
                       </linearGradient>
 
-                      {/* SHADOW */}
-
                       <filter
                         id="salesLineShadow"
                         x="-20%"
@@ -2007,63 +1711,44 @@ function SellerDashboard({ unreadMessages = 0 }) {
                       </filter>
                     </defs>
 
-                    {/* HORIZONTAL GRID */}
+                    {[0, 25, 50, 75, 100].map((value) => {
+                      const y =
+                        graphPaddingTop +
+                        usableHeight -
+                        (value / maxValue) *
+                          usableHeight;
 
-                    {[0, 25, 50, 75, 100].map(
-                      (value) => {
-                        const y =
-                          graphPaddingTop +
-                          usableHeight -
-                          (value / maxValue) *
-                            usableHeight;
-
-                        return (
-                          <line
-                            key={value}
-                            x1={
-                              graphPaddingLeft
-                            }
-                            x2={
-                              graphWidth -
-                              graphPaddingRight
-                            }
-                            y1={y}
-                            y2={y}
-                            stroke="#eef2f3"
-                            strokeWidth="1"
-                            strokeDasharray="3 6"
-                          />
-                        );
-                      }
-                    )}
-
-                    {/* VERTICAL GRID */}
-
-                    {points.map(
-                      (point) => (
+                      return (
                         <line
-                          key={`vertical-${point.day}`}
-                          x1={point.x}
-                          x2={point.x}
-                          y1={
-                            graphPaddingTop
-                          }
-                          y2={baselineY}
-                          stroke="#f5f7f7"
+                          key={value}
+                          x1={graphPaddingLeft}
+                          x2={graphWidth - graphPaddingRight}
+                          y1={y}
+                          y2={y}
+                          stroke="#eef2f3"
                           strokeWidth="1"
-                          strokeDasharray="2 7"
+                          strokeDasharray="3 6"
                         />
-                      )
-                    )}
+                      );
+                    })}
 
-                    {/* AREA */}
+                    {points.map((point) => (
+                      <line
+                        key={`vertical-${point.day}`}
+                        x1={point.x}
+                        x2={point.x}
+                        y1={graphPaddingTop}
+                        y2={baselineY}
+                        stroke="#f5f7f7"
+                        strokeWidth="1"
+                        strokeDasharray="2 7"
+                      />
+                    ))}
 
                     <path
                       d={areaPath}
                       fill="url(#salesAreaGradient)"
                     />
-
-                    {/* SHADOW LINE */}
 
                     <path
                       d={linePath}
@@ -2076,8 +1761,6 @@ function SellerDashboard({ unreadMessages = 0 }) {
                       filter="url(#salesLineShadow)"
                     />
 
-                    {/* MAIN LINE */}
-
                     <path
                       d={linePath}
                       fill="none"
@@ -2087,62 +1770,38 @@ function SellerDashboard({ unreadMessages = 0 }) {
                       strokeLinejoin="round"
                     />
 
-                    {/* DATA POINTS */}
+                    {points.map((point, index) => {
+                      const isLast =
+                        index === points.length - 1;
 
-                    {points.map(
-                      (point, index) => {
-                        const isLast =
-                          index ===
-                          points.length - 1;
+                      return (
+                        <g key={point.day}>
+                          <circle
+                            cx={point.x}
+                            cy={point.y}
+                            r={isLast ? 11 : 8}
+                            fill="#008236"
+                            opacity={isLast ? 0.1 : 0.06}
+                          />
 
-                        return (
-                          <g
-                            key={point.day}
-                          >
-                            {/* Outer glow */}
+                          <circle
+                            cx={point.x}
+                            cy={point.y}
+                            r={isLast ? 5 : 4}
+                            fill="white"
+                            stroke="#008236"
+                            strokeWidth="2.5"
+                          />
 
-                            <circle
-                              cx={point.x}
-                              cy={point.y}
-                              r={
-                                isLast
-                                  ? 11
-                                  : 8
-                              }
-                              fill="#008236"
-                              opacity={
-                                isLast
-                                  ? 0.10
-                                  : 0.06
-                              }
-                            />
-
-                            {/* White center */}
-
-                            <circle
-                              cx={point.x}
-                              cy={point.y}
-                              r={
-                                isLast
-                                  ? 5
-                                  : 4
-                              }
-                              fill="white"
-                              stroke="#008236"
-                              strokeWidth="2.5"
-                            />
-
-                            <title>
-                              {point.day}:{" "}
-                              {point.revenue}
-                            </title>
-                          </g>
-                        );
-                      }
-                    )}
+                          <title>
+                            {point.day}: {point.revenue}
+                          </title>
+                        </g>
+                      );
+                    })}
                   </svg>
 
-                  {/* Y AXIS LABELS */}
+                  {/* Y AXIS */}
 
                   <div
                     className="
@@ -2150,13 +1809,10 @@ function SellerDashboard({ unreadMessages = 0 }) {
                       left-0
                       top-0
                       bottom-8
-
                       w-8
-
                       flex
                       flex-col
                       justify-between
-
                       pointer-events-none
                     "
                   >
@@ -2177,7 +1833,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
                     )}
                   </div>
 
-                  {/* DAY LABELS */}
+                  {/* X AXIS */}
 
                   <div
                     className="
@@ -2185,30 +1841,24 @@ function SellerDashboard({ unreadMessages = 0 }) {
                       bottom-0
                       left-8
                       right-0
-
                       flex
                       justify-between
-
                       px-1
                     "
                   >
-                    {salesData.map(
-                      ({ day }) => (
-                        <span
-                          key={day}
-                          className="
-                            text-[10px]
-                            sm:text-xs
-
-                            text-gray-400
-
-                            font-medium
-                          "
-                        >
-                          {day}
-                        </span>
-                      )
-                    )}
+                    {salesData.map(({ day }) => (
+                      <span
+                        key={day}
+                        className="
+                          text-[10px]
+                          sm:text-xs
+                          text-gray-400
+                          font-medium
+                        "
+                      >
+                        {day}
+                      </span>
+                    ))}
                   </div>
                 </div>
 
@@ -2218,25 +1868,16 @@ function SellerDashboard({ unreadMessages = 0 }) {
                   className="
                     mt-4
                     pt-4
-
                     border-t
                     border-gray-100
-
                     flex
                     flex-wrap
                     items-center
                     justify-between
-
                     gap-3
                   "
                 >
-                  <div
-                    className="
-                      flex
-                      items-center
-                      gap-2
-                    "
-                  >
+                  <div className="flex items-center gap-2">
                     <span
                       className="
                         w-2
@@ -2246,63 +1887,42 @@ function SellerDashboard({ unreadMessages = 0 }) {
                       "
                     />
 
-                    <span
-                      className="
-                        text-[11px]
-                        text-gray-500
-                      "
-                    >
+                    <span className="text-[11px] text-gray-500">
                       Sales revenue
                     </span>
                   </div>
 
-                  <span
-                    className="
-                      text-[11px]
-                      text-gray-400
-                    "
-                  >
-                    Updated today
+                  <span className="text-[11px] text-gray-400">
+                    Updated for {periodLabel.toLowerCase()}
                   </span>
                 </div>
               </div>
             </div>
           </section>
 
-          {/* =================================================
-              SECOND DASHBOARD ROW
-          ================================================= */}
+          {/* RECENT ORDERS + TOP PRODUCTS */}
 
           <section
             className="
               grid
               grid-cols-1
               xl:grid-cols-3
-
               gap-5
               sm:gap-6
-
               mt-5
               sm:mt-6
             "
           >
-            {/* =================================================
-                RECENT ORDERS
-            ================================================= */}
+            {/* RECENT ORDERS */}
 
             <div
               className="
                 xl:col-span-2
-
                 bg-white
-
                 rounded-2xl
-
                 border
                 border-gray-100
-
                 shadow-sm
-
                 overflow-hidden
               "
             >
@@ -2310,14 +1930,11 @@ function SellerDashboard({ unreadMessages = 0 }) {
                 className="
                   p-5
                   sm:p-6
-
                   border-b
                   border-gray-100
-
                   flex
                   items-center
                   justify-between
-
                   gap-3
                 "
               >
@@ -2326,9 +1943,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
                     className="
                       text-base
                       sm:text-lg
-
                       font-bold
-
                       text-gray-800
                     "
                   >
@@ -2339,34 +1954,25 @@ function SellerDashboard({ unreadMessages = 0 }) {
                     className="
                       text-xs
                       sm:text-sm
-
                       text-gray-500
-
                       mt-1
                     "
                   >
-                    Latest orders from your
-                    customers.
+                    Latest orders from your customers.
                   </p>
                 </div>
 
                 <button
                   type="button"
                   onClick={() =>
-                    handleNavigation(
-                      "/seller/orders"
-                    )
+                    handleNavigation("/seller/orders")
                   }
                   className="
                     text-xs
                     sm:text-sm
-
                     font-semibold
-
                     text-[#008236]
-
                     hover:underline
-
                     whitespace-nowrap
                   "
                 >
@@ -2374,532 +1980,247 @@ function SellerDashboard({ unreadMessages = 0 }) {
                 </button>
               </div>
 
-              {/* =================================================
-                  DESKTOP TABLE
-              ================================================= */}
+              {/* DESKTOP */}
 
               <div className="hidden md:block overflow-x-auto">
                 <table className="w-full min-w-[820px]">
                   <thead>
-                    <tr
-                      className="
-                        border-b
-                        border-gray-100
-
-                        text-left
-                      "
-                    >
-                      <th
-                        className="
-                          px-6
-                          py-3
-
-                          text-[11px]
-
-                          font-semibold
-
-                          text-gray-400
-
-                          uppercase
-                        "
-                      >
-                        Order
-                      </th>
-
-                      <th
-                        className="
-                          px-4
-                          py-3
-
-                          text-[11px]
-
-                          font-semibold
-
-                          text-gray-400
-
-                          uppercase
-                        "
-                      >
-                        Customer
-                      </th>
-
-                      <th
-                        className="
-                          px-4
-                          py-3
-
-                          text-[11px]
-
-                          font-semibold
-
-                          text-gray-400
-
-                          uppercase
-                        "
-                      >
-                        Product
-                      </th>
-
-                      <th
-                        className="
-                          px-4
-                          py-3
-
-                          text-[11px]
-
-                          font-semibold
-
-                          text-gray-400
-
-                          uppercase
-                        "
-                      >
-                        Date
-                      </th>
-
-                      <th
-                        className="
-                          px-4
-                          py-3
-
-                          text-[11px]
-
-                          font-semibold
-
-                          text-gray-400
-
-                          uppercase
-                        "
-                      >
-                        Qty
-                      </th>
-
-                      <th
-                        className="
-                          px-4
-                          py-3
-
-                          text-[11px]
-
-                          font-semibold
-
-                          text-gray-400
-
-                          uppercase
-                        "
-                      >
-                        Amount
-                      </th>
-
-                      <th
-                        className="
-                          px-4
-                          py-3
-
-                          text-[11px]
-
-                          font-semibold
-
-                          text-gray-400
-
-                          uppercase
-                        "
-                      >
-                        Status
-                      </th>
+                    <tr className="border-b border-gray-100 text-left">
+                      {[
+                        "Order",
+                        "Customer",
+                        "Product",
+                        "Date",
+                        "Qty",
+                        "Amount",
+                        "Status",
+                      ].map((heading) => (
+                        <th
+                          key={heading}
+                          className="
+                            px-4
+                            py-3
+                            text-[11px]
+                            font-semibold
+                            text-gray-400
+                            uppercase
+                          "
+                        >
+                          {heading}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
 
                   <tbody>
-                    {recentOrders.map(
-                      (order) => (
-                        <tr
-                          key={order.id}
-                          className="
-                            border-b
-                            border-gray-50
+                    {recentOrders.map((order) => (
+                      <tr
+                        key={order.id}
+                        className="
+                          border-b
+                          border-gray-50
+                          last:border-b-0
+                          hover:bg-gray-50
+                          transition
+                        "
+                      >
+                        <td className="px-6 py-4">
+                          <p className="text-sm font-semibold text-gray-800">
+                            {order.id}
+                          </p>
+                        </td>
 
-                            last:border-b-0
-
-                            hover:bg-gray-50
-
-                            transition
-                          "
-                        >
-                          {/* ORDER */}
-
-                          <td className="px-6 py-4">
-                            <p
-                              className="
-                                text-sm
-                                font-semibold
-                                text-gray-800
-                              "
-                            >
-                              {order.id}
-                            </p>
-                          </td>
-
-                          {/* CUSTOMER */}
-
-                          <td className="px-4 py-4">
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-2.5">
                             <div
                               className="
-                                flex
-                                items-center
-                                gap-2.5
-                              "
-                            >
-                              <div
-                                className="
-                                  w-8
-                                  h-8
-
-                                  rounded-full
-
-                                  bg-green-50
-
-                                  text-[#008236]
-
-                                  flex
-                                  items-center
-                                  justify-center
-
-                                  text-xs
-                                  font-bold
-
-                                  flex-shrink-0
-                                "
-                              >
-                                {order.customer
-                                  .charAt(0)
-                                  .toUpperCase()}
-                              </div>
-
-                              <span
-                                className="
-                                  text-sm
-                                  text-gray-600
-                                  whitespace-nowrap
-                                "
-                              >
-                                {order.customer}
-                              </span>
-                            </div>
-                          </td>
-
-                          {/* PRODUCT */}
-
-                          <td className="px-4 py-4">
-                            <p
-                              className="
-                                text-sm
-                                text-gray-700
-
-                                max-w-[180px]
-
-                                truncate
-                              "
-                              title={
-                                order.product
-                              }
-                            >
-                              {order.product}
-                            </p>
-                          </td>
-
-                          {/* DATE */}
-
-                          <td className="px-4 py-4">
-                            <div
-                              className="
-                                flex
-                                items-center
-                                gap-1.5
-                                whitespace-nowrap
-                              "
-                            >
-                              <FiCalendar
-                                size={13}
-                                className="text-gray-400"
-                              />
-
-                              <span
-                                className="
-                                  text-xs
-                                  text-gray-500
-                                "
-                              >
-                                {order.date}
-                              </span>
-                            </div>
-                          </td>
-
-                          {/* QUANTITY */}
-
-                          <td className="px-4 py-4">
-                            <span
-                              className="
-                                text-sm
-                                font-semibold
-                                text-gray-700
-                              "
-                            >
-                              {order.quantity}
-                            </span>
-                          </td>
-
-                          {/* AMOUNT */}
-
-                          <td className="px-4 py-4">
-                            <p
-                              className="
-                                text-sm
-                                font-semibold
-                                text-gray-800
-                                whitespace-nowrap
-                              "
-                            >
-                              {order.amount}
-                            </p>
-                          </td>
-
-                          {/* STATUS */}
-
-                          <td className="px-4 py-4">
-                            <span
-                              className={`
-                                inline-flex
-                                items-center
-                                gap-1.5
-
-                                px-2.5
-                                py-1
-
+                                w-8
+                                h-8
                                 rounded-full
-
-                                text-[10px]
-
-                                font-semibold
-
-                                ${
-                                  order.status ===
-                                  "Delivered"
-                                    ? "bg-green-50 text-green-700"
-                                    : "bg-yellow-50 text-yellow-700"
-                                }
-                              `}
+                                bg-green-50
+                                text-[#008236]
+                                flex
+                                items-center
+                                justify-center
+                                text-xs
+                                font-bold
+                              "
                             >
-                              {order.status ===
-                              "Delivered" ? (
-                                <FiCheckCircle
-                                  size={11}
-                                />
-                              ) : (
-                                <FiClock
-                                  size={11}
-                                />
-                              )}
+                              {order.customer
+                                .charAt(0)
+                                .toUpperCase()}
+                            </div>
 
-                              {order.status}
+                            <span className="text-sm text-gray-600 whitespace-nowrap">
+                              {order.customer}
                             </span>
-                          </td>
-                        </tr>
-                      )
-                    )}
+                          </div>
+                        </td>
+
+                        <td className="px-4 py-4">
+                          <p
+                            className="
+                              text-sm
+                              text-gray-700
+                              max-w-[180px]
+                              truncate
+                            "
+                            title={order.product}
+                          >
+                            {order.product}
+                          </p>
+                        </td>
+
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-1.5 whitespace-nowrap">
+                            <FiCalendar
+                              size={13}
+                              className="text-gray-400"
+                            />
+
+                            <span className="text-xs text-gray-500">
+                              {order.date}
+                            </span>
+                          </div>
+                        </td>
+
+                        <td className="px-4 py-4">
+                          <span className="text-sm font-semibold text-gray-700">
+                            {order.quantity}
+                          </span>
+                        </td>
+
+                        <td className="px-4 py-4">
+                          <p className="text-sm font-semibold text-gray-800 whitespace-nowrap">
+                            {order.amount}
+                          </p>
+                        </td>
+
+                        <td className="px-4 py-4">
+                          <span
+                            className={`
+                              inline-flex
+                              items-center
+                              gap-1.5
+                              px-2.5
+                              py-1
+                              rounded-full
+                              text-[10px]
+                              font-semibold
+                              ${
+                                order.status ===
+                                "Delivered"
+                                  ? "bg-green-50 text-green-700"
+                                  : "bg-yellow-50 text-yellow-700"
+                              }
+                            `}
+                          >
+                            {order.status === "Delivered" ? (
+                              <FiCheckCircle size={11} />
+                            ) : (
+                              <FiClock size={11} />
+                            )}
+
+                            {order.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
 
-              {/* =================================================
-                  MOBILE ORDERS
-              ================================================= */}
+              {/* MOBILE */}
 
               <div className="md:hidden">
-                {recentOrders.map(
-                  (order) => (
-                    <div
-                      key={order.id}
-                      className="
-                        p-4
+                {recentOrders.map((order) => (
+                  <div
+                    key={order.id}
+                    className="
+                      p-4
+                      border-b
+                      border-gray-100
+                      last:border-b-0
+                    "
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs font-bold text-[#008236]">
+                            {order.id}
+                          </p>
 
-                        border-b
-                        border-gray-100
-
-                        last:border-b-0
-                      "
-                    >
-                      <div
-                        className="
-                          flex
-                          items-start
-                          justify-between
-
-                          gap-3
-                        "
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div
-                            className="
-                              flex
+                          <span
+                            className={`
+                              inline-flex
                               items-center
-                              justify-between
-                              gap-2
-                            "
-                          >
-                            <p
-                              className="
-                                text-xs
-                                font-bold
-                                text-[#008236]
-                              "
-                            >
-                              {order.id}
-                            </p>
-
-                            <span
-                              className={`
-                                inline-flex
-                                items-center
-                                gap-1
-
-                                px-2
-                                py-1
-
-                                rounded-full
-
-                                text-[9px]
-
-                                font-semibold
-
-                                ${
-                                  order.status ===
-                                  "Delivered"
-                                    ? "bg-green-50 text-green-700"
-                                    : "bg-yellow-50 text-yellow-700"
-                                }
-                              `}
-                            >
-                              {order.status ===
-                              "Delivered" ? (
-                                <FiCheckCircle
-                                  size={10}
-                                />
-                              ) : (
-                                <FiClock
-                                  size={10}
-                                />
-                              )}
-
-                              {order.status}
-                            </span>
-                          </div>
-
-                          <p
-                            className="
-                              text-sm
+                              gap-1
+                              px-2
+                              py-1
+                              rounded-full
+                              text-[9px]
                               font-semibold
-                              text-gray-800
-                              mt-1.5
-                            "
+                              ${
+                                order.status ===
+                                "Delivered"
+                                  ? "bg-green-50 text-green-700"
+                                  : "bg-yellow-50 text-yellow-700"
+                              }
+                            `}
                           >
-                            {order.product}
-                          </p>
+                            {order.status === "Delivered" ? (
+                              <FiCheckCircle size={10} />
+                            ) : (
+                              <FiClock size={10} />
+                            )}
 
-                          <p
-                            className="
-                              text-xs
-                              text-gray-500
-                              mt-1
-                            "
-                          >
-                            {order.customer}
-                          </p>
+                            {order.status}
+                          </span>
+                        </div>
 
-                          {/* DATE */}
+                        <p className="text-sm font-semibold text-gray-800 mt-1.5">
+                          {order.product}
+                        </p>
 
-                          <div
-                            className="
-                              flex
-                              flex-wrap
-                              items-center
-                              gap-2
+                        <p className="text-xs text-gray-500 mt-1">
+                          {order.customer}
+                        </p>
 
-                              mt-2
-                            "
-                          >
-                            <span
-                              className="
-                                inline-flex
-                                items-center
-                                gap-1
+                        <div className="flex flex-wrap items-center gap-2 mt-2">
+                          <span className="inline-flex items-center gap-1 text-[10px] text-gray-500">
+                            <FiCalendar size={11} />
+                            {order.date}
+                          </span>
+                        </div>
 
-                                text-[10px]
-                                text-gray-500
-                              "
-                            >
-                              <FiCalendar
-                                size={11}
-                              />
+                        <div className="flex items-center gap-3 mt-2">
+                          <span className="text-xs text-gray-500">
+                            Qty:{" "}
+                            <strong className="text-gray-700">
+                              {order.quantity}
+                            </strong>
+                          </span>
 
-                              {order.date}
-                            </span>
-                          </div>
-
-                          <div
-                            className="
-                              flex
-                              items-center
-                              gap-3
-
-                              mt-2
-                            "
-                          >
-                            <span
-                              className="
-                                text-xs
-                                text-gray-500
-                              "
-                            >
-                              Qty:{" "}
-                              <strong className="text-gray-700">
-                                {order.quantity}
-                              </strong>
-                            </span>
-
-                            <span
-                              className="
-                                text-xs
-                                font-bold
-                                text-gray-800
-                              "
-                            >
-                              {order.amount}
-                            </span>
-                          </div>
+                          <span className="text-xs font-bold text-gray-800">
+                            {order.amount}
+                          </span>
                         </div>
                       </div>
                     </div>
-                  )
-                )}
+                  </div>
+                ))}
               </div>
             </div>
 
-            {/* =================================================
-                TOP PRODUCTS
-            ================================================= */}
+            {/* TOP PRODUCTS */}
 
             <div
               className="
                 bg-white
-
                 rounded-2xl
-
                 border
                 border-gray-100
-
                 shadow-sm
-
                 overflow-hidden
               "
             >
@@ -2907,36 +2228,19 @@ function SellerDashboard({ unreadMessages = 0 }) {
                 className="
                   p-5
                   sm:p-6
-
                   border-b
                   border-gray-100
-
                   flex
                   items-center
                   justify-between
                 "
               >
                 <div>
-                  <h2
-                    className="
-                      text-base
-                      sm:text-lg
-
-                      font-bold
-
-                      text-gray-800
-                    "
-                  >
+                  <h2 className="text-base sm:text-lg font-bold text-gray-800">
                     Top Products
                   </h2>
 
-                  <p
-                    className="
-                      text-xs
-                      text-gray-500
-                      mt-1
-                    "
-                  >
+                  <p className="text-xs text-gray-500 mt-1">
                     Your best performers.
                   </p>
                 </div>
@@ -2947,158 +2251,83 @@ function SellerDashboard({ unreadMessages = 0 }) {
                 />
               </div>
 
-              <div
-                className="
-                  p-5
-                  sm:p-6
-
-                  space-y-5
-                "
-              >
-                {topProducts.map(
-                  (product, index) => (
-                    <div
-                      key={product.name}
-                    >
+              <div className="p-5 sm:p-6 space-y-5">
+                {topProducts.map((product, index) => (
+                  <div key={product.name}>
+                    <div className="flex items-center gap-3">
                       <div
                         className="
+                          w-10
+                          h-10
+                          rounded-xl
+                          bg-green-50
+                          text-[#008236]
                           flex
                           items-center
-                          gap-3
+                          justify-center
+                          font-bold
+                          flex-shrink-0
                         "
                       >
-                        <div
-                          className="
-                            w-10
-                            h-10
+                        {index + 1}
+                      </div>
 
-                            rounded-xl
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-800 truncate">
+                          {product.name}
+                        </p>
 
-                            bg-green-50
-
-                            text-[#008236]
-
-                            flex
-                            items-center
-                            justify-center
-
-                            font-bold
-
-                            flex-shrink-0
-                          "
-                        >
-                          {index + 1}
-                        </div>
-
-                        <div
-                          className="
-                            flex-1
-                            min-w-0
-                          "
-                        >
-                          <p
-                            className="
-                              text-sm
-
-                              font-semibold
-
-                              text-gray-800
-
-                              truncate
-                            "
-                          >
-                            {product.name}
-                          </p>
-
-                          <p
-                            className="
-                              text-[10px]
-
-                              text-gray-400
-
-                              mt-0.5
-                            "
-                          >
-                            {product.category}
-                            {" • "}
-                            {product.sales}
-                          </p>
-                        </div>
-
-                        <p
-                          className="
-                            text-xs
-
-                            font-bold
-
-                            text-gray-700
-
-                            flex-shrink-0
-                          "
-                        >
-                          {product.amount}
+                        <p className="text-[10px] text-gray-400 mt-0.5">
+                          {product.category} • {product.sales}
                         </p>
                       </div>
 
+                      <p className="text-xs font-bold text-gray-700 flex-shrink-0">
+                        {product.amount}
+                      </p>
+                    </div>
+
+                    <div
+                      className="
+                        h-1.5
+                        bg-gray-100
+                        rounded-full
+                        overflow-hidden
+                        mt-3
+                        ml-[52px]
+                      "
+                    >
                       <div
                         className="
-                          h-1.5
-
-                          bg-gray-100
-
+                          h-full
                           rounded-full
-
-                          overflow-hidden
-
-                          mt-3
-
-                          ml-[52px]
+                          bg-[#008236]
                         "
-                      >
-                        <div
-                          className="
-                            h-full
-
-                            rounded-full
-
-                            bg-[#008236]
-                          "
-                          style={{
-                            width: `${product.percentage}%`,
-                          }}
-                        />
-                      </div>
+                        style={{
+                          width: `${product.percentage}%`,
+                        }}
+                      />
                     </div>
-                  )
-                )}
+                  </div>
+                ))}
 
                 <button
                   type="button"
                   onClick={() =>
-                    handleNavigation(
-                      "/seller/products"
-                    )
+                    handleNavigation("/seller/products")
                   }
                   className="
                     w-full
-
                     h-10
-
                     rounded-xl
-
                     border
                     border-gray-200
-
                     text-gray-600
-
                     text-sm
-
                     font-semibold
-
                     hover:border-green-200
                     hover:bg-green-50
                     hover:text-[#008236]
-
                     transition
                   "
                 >
@@ -3108,46 +2337,17 @@ function SellerDashboard({ unreadMessages = 0 }) {
             </div>
           </section>
 
-          {/* =================================================
-              QUICK ACTIONS
-          ================================================= */}
+          {/* QUICK ACTIONS */}
 
           <section className="mt-5 sm:mt-6">
-            <div
-              className="
-                mb-4
-
-                flex
-                items-center
-                justify-between
-              "
-            >
+            <div className="mb-4 flex items-center justify-between">
               <div>
-                <h2
-                  className="
-                    text-base
-                    sm:text-lg
-
-                    font-bold
-
-                    text-gray-800
-                  "
-                >
+                <h2 className="text-base sm:text-lg font-bold text-gray-800">
                   Quick Actions
                 </h2>
 
-                <p
-                  className="
-                    text-xs
-                    sm:text-sm
-
-                    text-gray-500
-
-                    mt-1
-                  "
-                >
-                  Manage your seller account
-                  quickly.
+                <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                  Manage your seller account quickly.
                 </p>
               </div>
             </div>
@@ -3155,568 +2355,197 @@ function SellerDashboard({ unreadMessages = 0 }) {
             <div
               className="
                 grid
-
                 grid-cols-2
-
                 sm:grid-cols-3
-
                 lg:grid-cols-6
-
                 gap-3
                 sm:gap-4
               "
             >
-              {/* ADD PRODUCT */}
-
-              <button
-                type="button"
-                onClick={() =>
-                  handleNavigation(
-                    "/seller/products"
-                  )
-                }
-                className="
-                  bg-white
-
-                  border
-                  border-gray-100
-
-                  rounded-2xl
-
-                  p-4
-
-                  text-left
-
-                  shadow-sm
-
-                  hover:border-green-200
-                  hover:shadow-md
-
-                  transition
-
-                  group
-                "
-              >
-                <div
-                  className="
-                    w-10
-                    h-10
-
-                    rounded-xl
-
-                    bg-green-50
-
-                    text-[#008236]
-
-                    flex
-                    items-center
-                    justify-center
-
-                    group-hover:bg-[#008236]
-                    group-hover:text-white
-
-                    transition
-                  "
-                >
-                  <FiPlus size={19} />
-                </div>
-
-                <p
-                  className="
-                    text-xs
-                    sm:text-sm
-
-                    font-semibold
-
-                    text-gray-800
-
-                    mt-3
-                  "
-                >
-                  Add Product
-                </p>
-              </button>
-
-              {/* ADD SERVICE */}
-
-              <button
-                type="button"
-                onClick={() =>
-                  handleNavigation(
-                    "/seller/services"
-                  )
-                }
-                className="
-                  bg-white
-
-                  border
-                  border-gray-100
-
-                  rounded-2xl
-
-                  p-4
-
-                  text-left
-
-                  shadow-sm
-
-                  hover:border-green-200
-                  hover:shadow-md
-
-                  transition
-
-                  group
-                "
-              >
-                <div
-                  className="
-                    w-10
-                    h-10
-
-                    rounded-xl
-
-                    bg-blue-50
-
-                    text-blue-600
-
-                    flex
-                    items-center
-                    justify-center
-
-                    group-hover:bg-blue-600
-                    group-hover:text-white
-
-                    transition
-                  "
-                >
-                  <FiBriefcase
-                    size={18}
-                  />
-                </div>
-
-                <p
-                  className="
-                    text-xs
-                    sm:text-sm
-
-                    font-semibold
-
-                    text-gray-800
-
-                    mt-3
-                  "
-                >
-                  Add Service
-                </p>
-              </button>
-
-              {/* ORDERS */}
-
-              <button
-                type="button"
-                onClick={() =>
-                  handleNavigation(
-                    "/seller/orders"
-                  )
-                }
-                className="
-                  bg-white
-
-                  border
-                  border-gray-100
-
-                  rounded-2xl
-
-                  p-4
-
-                  text-left
-
-                  shadow-sm
-
-                  hover:border-green-200
-                  hover:shadow-md
-
-                  transition
-
-                  group
-                "
-              >
-                <div
-                  className="
-                    w-10
-                    h-10
-
-                    rounded-xl
-
-                    bg-purple-50
-
-                    text-purple-600
-
-                    flex
-                    items-center
-                    justify-center
-
-                    group-hover:bg-purple-600
-                    group-hover:text-white
-
-                    transition
-                  "
-                >
-                  <FiShoppingBag
-                    size={18}
-                  />
-                </div>
-
-                <p
-                  className="
-                    text-xs
-                    sm:text-sm
-
-                    font-semibold
-
-                    text-gray-800
-
-                    mt-3
-                  "
-                >
-                  View Orders
-                </p>
-              </button>
-
-              {/* MESSAGES */}
-
-              <button
-                type="button"
-                onClick={() =>
-                  handleNavigation(
-                    "/seller/messages"
-                  )
-                }
-                className="
-                  bg-white
-
-                  border
-                  border-gray-100
-
-                  rounded-2xl
-
-                  p-4
-
-                  text-left
-
-                  shadow-sm
-
-                  hover:border-green-200
-                  hover:shadow-md
-
-                  transition
-
-                  group
-                "
-              >
-                <div
-                  className="
-                    w-10
-                    h-10
-
-                    rounded-xl
-
-                    bg-orange-50
-
-                    text-orange-600
-
-                    flex
-                    items-center
-                    justify-center
-
-                    group-hover:bg-orange-600
-                    group-hover:text-white
-
-                    transition
-
-                    relative
-                  "
-                >
-                  <FiMessageCircle
-                    size={18}
-                  />
-
-                  {unreadMessages > 0 && (
-                    <span
-                      className="
-                        absolute
-
-                        -top-1
-                        -right-1
-
-                        min-w-[17px]
-                        h-[17px]
-
-                        rounded-full
-
-                        bg-red-500
-
-                        text-white
-
-                        text-[8px]
-                        font-bold
-
+              {[
+                {
+                  label: "Add Product",
+                  path: "/seller/products",
+                  icon: FiPlus,
+                  bg: "bg-green-50",
+                  color: "text-[#008236]",
+                  hover: "group-hover:bg-[#008236] group-hover:text-white",
+                },
+                {
+                  label: "Add Service",
+                  path: "/seller/services",
+                  icon: FiBriefcase,
+                  bg: "bg-blue-50",
+                  color: "text-blue-600",
+                  hover:
+                    "group-hover:bg-blue-600 group-hover:text-white",
+                },
+                {
+                  label: "View Orders",
+                  path: "/seller/orders",
+                  icon: FiShoppingBag,
+                  bg: "bg-purple-50",
+                  color: "text-purple-600",
+                  hover:
+                    "group-hover:bg-purple-600 group-hover:text-white",
+                },
+                {
+                  label: "Messages",
+                  path: "/seller/messages",
+                  icon: FiMessageCircle,
+                  bg: "bg-orange-50",
+                  color: "text-orange-600",
+                  hover:
+                    "group-hover:bg-orange-600 group-hover:text-white",
+                },
+                {
+                  label: "Promotions",
+                  path: "/seller/promotions",
+                  icon: FiTag,
+                  bg: "bg-pink-50",
+                  color: "text-pink-600",
+                  hover:
+                    "group-hover:bg-pink-600 group-hover:text-white",
+                },
+                {
+                  label: "Analytics",
+                  path: "/seller/analytics",
+                  icon: FiBarChart2,
+                  bg: "bg-indigo-50",
+                  color: "text-indigo-600",
+                  hover:
+                    "group-hover:bg-indigo-600 group-hover:text-white",
+                },
+              ].map(
+                ({
+                  label,
+                  path,
+                  icon: Icon,
+                  bg,
+                  color,
+                  hover,
+                }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => handleNavigation(path)}
+                    className="
+                      bg-white
+                      border
+                      border-gray-100
+                      rounded-2xl
+                      p-4
+                      text-left
+                      shadow-sm
+                      hover:border-green-200
+                      hover:shadow-md
+                      transition
+                      group
+                    "
+                  >
+                    <div
+                      className={`
+                        w-10
+                        h-10
+                        rounded-xl
+                        ${bg}
+                        ${color}
                         flex
                         items-center
                         justify-center
+                        ${hover}
+                        transition
+                        relative
+                      `}
+                    >
+                      <Icon size={18} />
+
+                      {label === "Messages" &&
+                        unreadMessages > 0 && (
+                          <span
+                            className="
+                              absolute
+                              -top-1
+                              -right-1
+                              min-w-[17px]
+                              h-[17px]
+                              rounded-full
+                              bg-red-500
+                              text-white
+                              text-[8px]
+                              font-bold
+                              flex
+                              items-center
+                              justify-center
+                            "
+                          >
+                            {unreadMessages}
+                          </span>
+                        )}
+                    </div>
+
+                    <p
+                      className="
+                        text-xs
+                        sm:text-sm
+                        font-semibold
+                        text-gray-800
+                        mt-3
                       "
                     >
-                      {unreadMessages}
-                    </span>
-                  )}
-                </div>
-
-                <p
-                  className="
-                    text-xs
-                    sm:text-sm
-
-                    font-semibold
-
-                    text-gray-800
-
-                    mt-3
-                  "
-                >
-                  Messages
-                </p>
-              </button>
-
-              {/* PROMOTIONS */}
-
-              <button
-                type="button"
-                onClick={() =>
-                  handleNavigation(
-                    "/seller/promotions"
-                  )
-                }
-                className="
-                  bg-white
-
-                  border
-                  border-gray-100
-
-                  rounded-2xl
-
-                  p-4
-
-                  text-left
-
-                  shadow-sm
-
-                  hover:border-green-200
-                  hover:shadow-md
-
-                  transition
-
-                  group
-                "
-              >
-                <div
-                  className="
-                    w-10
-                    h-10
-
-                    rounded-xl
-
-                    bg-pink-50
-
-                    text-pink-600
-
-                    flex
-                    items-center
-                    justify-center
-
-                    group-hover:bg-pink-600
-                    group-hover:text-white
-
-                    transition
-                  "
-                >
-                  <FiTag size={18} />
-                </div>
-
-                <p
-                  className="
-                    text-xs
-                    sm:text-sm
-
-                    font-semibold
-
-                    text-gray-800
-
-                    mt-3
-                  "
-                >
-                  Promotions
-                </p>
-              </button>
-
-              {/* ANALYTICS */}
-
-              <button
-                type="button"
-                onClick={() =>
-                  handleNavigation(
-                    "/seller/analytics"
-                  )
-                }
-                className="
-                  bg-white
-
-                  border
-                  border-gray-100
-
-                  rounded-2xl
-
-                  p-4
-
-                  text-left
-
-                  shadow-sm
-
-                  hover:border-green-200
-                  hover:shadow-md
-
-                  transition
-
-                  group
-                "
-              >
-                <div
-                  className="
-                    w-10
-                    h-10
-
-                    rounded-xl
-
-                    bg-indigo-50
-
-                    text-indigo-600
-
-                    flex
-                    items-center
-                    justify-center
-
-                    group-hover:bg-indigo-600
-                    group-hover:text-white
-
-                    transition
-                  "
-                >
-                  <FiBarChart2
-                    size={18}
-                  />
-                </div>
-
-                <p
-                  className="
-                    text-xs
-                    sm:text-sm
-
-                    font-semibold
-
-                    text-gray-800
-
-                    mt-3
-                  "
-                >
-                  Analytics
-                </p>
-              </button>
+                      {label}
+                    </p>
+                  </button>
+                )
+              )}
             </div>
           </section>
 
-          {/* =================================================
-              FOOTER NOTE
-          ================================================= */}
+          {/* FOOTER NOTE */}
 
           <div
             className="
               mt-6
-
               rounded-2xl
-
               bg-green-50
-
               border
               border-green-100
-
               p-4
               sm:p-5
-
               flex
               flex-col
               sm:flex-row
-
               sm:items-center
               sm:justify-between
-
               gap-3
             "
           >
-            <div
-              className="
-                flex
-                items-center
-                gap-3
-              "
-            >
+            <div className="flex items-center gap-3">
               <div
                 className="
                   w-9
                   h-9
-
                   rounded-xl
-
                   bg-white
-
                   text-[#008236]
-
                   flex
                   items-center
                   justify-center
-
                   shadow-sm
-
                   flex-shrink-0
                 "
               >
-                <FiCheckCircle
-                  size={18}
-                />
+                <FiCheckCircle size={18} />
               </div>
 
               <div>
-                <p
-                  className="
-                    text-sm
-
-                    font-semibold
-
-                    text-gray-800
-                  "
-                >
+                <p className="text-sm font-semibold text-gray-800">
                   Your store is active
                 </p>
 
-                <p
-                  className="
-                    text-xs
-
-                    text-gray-500
-
-                    mt-0.5
-                  "
-                >
-                  Keep your products updated
-                  to attract more customers.
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Keep your products updated to attract more
+                  customers.
                 </p>
               </div>
             </div>
@@ -3724,29 +2553,18 @@ function SellerDashboard({ unreadMessages = 0 }) {
             <button
               type="button"
               onClick={() =>
-                handleNavigation(
-                  "/seller/profile"
-                )
+                handleNavigation("/seller/profile")
               }
               className="
                 h-9
-
                 px-4
-
                 rounded-lg
-
                 bg-[#008236]
-
                 text-white
-
                 text-xs
-
                 font-semibold
-
                 hover:bg-[#006f2e]
-
                 transition
-
                 whitespace-nowrap
               "
             >

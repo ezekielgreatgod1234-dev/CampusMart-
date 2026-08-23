@@ -1,12 +1,8 @@
 import { useState } from "react";
 
-import {
-  sendPasswordResetEmail,
-} from "firebase/auth";
+import { sendPasswordResetEmail } from "firebase/auth";
 
-import {
-  useNavigate,
-} from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 import {
   FiArrowLeft,
@@ -15,12 +11,10 @@ import {
   FiMail,
   FiRefreshCw,
   FiShield,
+  FiAlertCircle,
 } from "react-icons/fi";
 
-import {
-  auth,
-} from "../../context/firebase";
-
+import { auth } from "../../context/firebase";
 
 function ForgotPassword() {
   const navigate = useNavigate();
@@ -41,7 +35,11 @@ function ForgotPassword() {
   const handleEmailChange = (e) => {
     setEmail(e.target.value);
 
-    setError("");
+    // Clear validation/error as soon as the user starts typing
+    if (error) {
+      setError("");
+    }
+
     setSuccess(false);
   };
 
@@ -55,18 +53,14 @@ function ForgotPassword() {
     setError("");
     setSuccess(false);
 
-    const trimmedEmail =
-      email.trim().toLowerCase();
+    const trimmedEmail = email.trim().toLowerCase();
 
     // =======================================================
     // EMPTY EMAIL
     // =======================================================
 
     if (!trimmedEmail) {
-      setError(
-        "Please enter your email address."
-      );
-
+      setError("Please enter your email address.");
       return;
     }
 
@@ -74,14 +68,10 @@ function ForgotPassword() {
     // EMAIL VALIDATION
     // =======================================================
 
-    const emailRegex =
-      /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     if (!emailRegex.test(trimmedEmail)) {
-      setError(
-        "Please enter a valid email address."
-      );
-
+      setError("Please enter a valid email address.");
       return;
     }
 
@@ -104,10 +94,7 @@ function ForgotPassword() {
     try {
       setLoading(true);
 
-      await sendPasswordResetEmail(
-        auth,
-        trimmedEmail
-      );
+      await sendPasswordResetEmail(auth, trimmedEmail);
 
       // =====================================================
       // SUCCESS
@@ -115,82 +102,54 @@ function ForgotPassword() {
 
       setSuccess(true);
       setEmail("");
-
     } catch (error) {
-      console.error(
-        "Password reset error:",
-        error
-      );
+      console.error("Password reset error:", error);
 
       // =====================================================
       // FIREBASE ERRORS
       // =====================================================
 
       switch (error.code) {
-
         case "auth/invalid-email":
-
-          setError(
-            "Please enter a valid email address."
-          );
-
+          setError("Please enter a valid email address.");
           break;
 
-
         case "auth/user-not-found":
-
           setError(
             "No CampusMart account was found with this email address."
           );
-
           break;
 
-
         case "auth/user-disabled":
-
           setError(
             "This CampusMart account has been disabled. Please contact CampusMart support."
           );
-
           break;
 
-
         case "auth/too-many-requests":
-
           setError(
             "Too many password reset requests have been made. Please wait a little and try again."
           );
-
           break;
 
-
         case "auth/network-request-failed":
-
           setError(
             "Network error. Please check your internet connection and try again."
           );
-
           break;
 
-
         case "auth/operation-not-allowed":
-
           setError(
             "Password reset is not enabled for CampusMart accounts."
           );
-
           break;
 
-
         default:
-
           setError(
             "Unable to send the password reset email. Please check the email address and try again."
           );
-
           break;
       }
-
     } finally {
       setLoading(false);
     }
@@ -220,7 +179,6 @@ function ForgotPassword() {
         colorScheme: "light",
       }}
     >
-
       <div className="w-full max-w-md">
 
         {/* =================================================
@@ -250,7 +208,6 @@ function ForgotPassword() {
           ================================================= */}
 
           <div className="flex justify-center">
-
             <div
               className="
                 w-16
@@ -265,20 +222,15 @@ function ForgotPassword() {
                 color: "#16a34a",
               }}
             >
-
               <FiShield size={30} />
-
             </div>
-
           </div>
-
 
           {/* =================================================
               HEADER
           ================================================= */}
 
           <div className="text-center mt-5">
-
             <h1
               className="
                 text-xl
@@ -291,7 +243,6 @@ function ForgotPassword() {
             >
               Forgot your password?
             </h1>
-
 
             <p
               className="
@@ -308,16 +259,13 @@ function ForgotPassword() {
               and we'll send you a secure password
               reset link.
             </p>
-
           </div>
-
 
           {/* =================================================
               SUCCESS MESSAGE
           ================================================= */}
 
           {success && (
-
             <div
               className="
                 mt-6
@@ -333,7 +281,6 @@ function ForgotPassword() {
                 borderColor: "#dcfce7",
               }}
             >
-
               <div
                 className="
                   w-8
@@ -349,14 +296,10 @@ function ForgotPassword() {
                   color: "#16a34a",
                 }}
               >
-
                 <FiCheck size={17} />
-
               </div>
 
-
               <div>
-
                 <p
                   className="
                     text-sm
@@ -368,7 +311,6 @@ function ForgotPassword() {
                 >
                   Reset email sent
                 </p>
-
 
                 <p
                   className="
@@ -385,56 +327,15 @@ function ForgotPassword() {
                   reset link has been sent. Check
                   your inbox and spam or junk folder.
                 </p>
-
               </div>
-
             </div>
-
           )}
-
-
-          {/* =================================================
-              ERROR MESSAGE
-          ================================================= */}
-
-          {error && (
-
-            <div
-              className="
-                mt-6
-                rounded-xl
-                border
-                p-4
-              "
-              style={{
-                backgroundColor: "#fef2f2",
-                borderColor: "#fee2e2",
-              }}
-            >
-
-              <p
-                className="
-                  text-sm
-                  leading-5
-                "
-                style={{
-                  color: "#dc2626",
-                }}
-              >
-                {error}
-              </p>
-
-            </div>
-
-          )}
-
 
           {/* =================================================
               FORM
           ================================================= */}
 
           {!success && (
-
             <form
               onSubmit={handleSubmit}
               className="mt-6"
@@ -445,7 +346,6 @@ function ForgotPassword() {
               ================================================= */}
 
               <div>
-
                 <label
                   htmlFor="email"
                   className="
@@ -461,9 +361,7 @@ function ForgotPassword() {
                   Registered Email Address
                 </label>
 
-
                 <div className="relative">
-
                   <FiMail
                     size={19}
                     className="
@@ -471,12 +369,12 @@ function ForgotPassword() {
                       left-3
                       top-1/2
                       -translate-y-1/2
+                      pointer-events-none
                     "
                     style={{
-                      color: "#9ca3af",
+                      color: error ? "#ef4444" : "#9ca3af",
                     }}
                   />
-
 
                   <input
                     id="email"
@@ -488,6 +386,7 @@ function ForgotPassword() {
                     autoComplete="email"
                     disabled={loading}
                     required
+                    aria-invalid={Boolean(error)}
                     className="
                       w-full
                       pl-11
@@ -498,34 +397,78 @@ function ForgotPassword() {
                       text-sm
                       outline-none
                       transition
+                      duration-200
+                      focus:ring-2
                     "
                     style={{
                       backgroundColor: "#f9fafb",
                       color: "#1f2937",
-                      borderColor: "#e5e7eb",
+                      borderColor: error ? "#fca5a5" : "#e5e7eb",
                       colorScheme: "light",
+                      "--tw-ring-color": error
+                        ? "rgba(239,68,68,0.10)"
+                        : "rgba(22,163,74,0.10)",
                     }}
                   />
-
                 </div>
 
+                {/* =================================================
+                    STYLED EMAIL ERROR
+                ================================================= */}
 
-                <p
-                  className="
-                    mt-2
-                    text-xs
-                  "
-                  style={{
-                    color: "#9ca3af",
-                  }}
-                >
-                  Use the same email address you
-                  used when creating your CampusMart
-                  account.
-                </p>
+                {error ? (
+                  <div
+                    className="
+                      mt-2.5
+                      flex
+                      items-start
+                      gap-2
+                      rounded-lg
+                      px-3
+                      py-2.5
+                    "
+                    style={{
+                      backgroundColor: "#fef2f2",
+                      border: "1px solid #fee2e2",
+                    }}
+                  >
+                    <FiAlertCircle
+                      size={15}
+                      className="mt-0.5 shrink-0"
+                      style={{
+                        color: "#dc2626",
+                      }}
+                    />
 
+                    <p
+                      className="
+                        text-xs
+                        leading-5
+                        font-medium
+                      "
+                      style={{
+                        color: "#dc2626",
+                      }}
+                    >
+                      {error}
+                    </p>
+                  </div>
+                ) : (
+                  <p
+                    className="
+                      mt-2
+                      text-xs
+                    "
+                    style={{
+                      color: "#9ca3af",
+                    }}
+                  >
+                    Use the same email address you
+                    used when creating your CampusMart
+                    account.
+                  </p>
+                )}
               </div>
-
 
               {/* =================================================
                   SUBMIT BUTTON
@@ -551,23 +494,19 @@ function ForgotPassword() {
                   duration-200
                   disabled:opacity-70
                   disabled:cursor-not-allowed
+                  hover:shadow-md
+                  active:scale-[0.99]
                 "
                 style={{
-                  backgroundColor:
-                    loading
-                      ? "#4ade80"
-                      : "#16a34a",
-
+                  backgroundColor: loading
+                    ? "#4ade80"
+                    : "#16a34a",
                   color: "#ffffff",
-
                   colorScheme: "light",
-
                   appearance: "none",
                 }}
               >
-
                 {loading ? (
-
                   <>
                     <FiRefreshCw
                       size={17}
@@ -576,32 +515,22 @@ function ForgotPassword() {
 
                     Sending reset link...
                   </>
-
                 ) : (
-
                   <>
                     Send Reset Link
 
-                    <FiArrowRight
-                      size={17}
-                    />
+                    <FiArrowRight size={17} />
                   </>
-
                 )}
-
               </button>
-
             </form>
-
           )}
-
 
           {/* =================================================
               TRY ANOTHER EMAIL
           ================================================= */}
 
           {success && (
-
             <button
               type="button"
               onClick={() => {
@@ -620,6 +549,8 @@ function ForgotPassword() {
                 rounded-xl
                 text-sm
                 font-semibold
+                transition
+                hover:bg-green-100
               "
               style={{
                 backgroundColor: "#f0fdf4",
@@ -628,15 +559,11 @@ function ForgotPassword() {
                 colorScheme: "light",
               }}
             >
-
               <FiMail size={16} />
 
               Try another email
-
             </button>
-
           )}
-
 
           {/* =================================================
               BACK TO LOGIN
@@ -660,6 +587,7 @@ function ForgotPassword() {
               text-sm
               font-medium
               transition
+              hover:bg-gray-50
               disabled:opacity-50
               disabled:cursor-not-allowed
             "
@@ -670,13 +598,10 @@ function ForgotPassword() {
               colorScheme: "light",
             }}
           >
-
             <FiArrowLeft size={16} />
 
             Back to Login
-
           </button>
-
 
           {/* =================================================
               FOOTER
@@ -696,9 +621,7 @@ function ForgotPassword() {
           </p>
 
         </div>
-
       </div>
-
     </div>
   );
 }

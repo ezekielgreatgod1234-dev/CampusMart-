@@ -696,7 +696,7 @@ function InternetRequired() {
   // =========================================================
 
   let title =
-    "Waiting for connection...";
+    "You are offline...";
 
   let description =
     "CampusMart is waiting for your internet connection to return.";
