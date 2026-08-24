@@ -1,9 +1,17 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import CustomerLayout from "../../layouts/CustomerLayout";
 import ProductCard from "../../components/dashboard/ProductCard";
-import products from "../../data/products";
+
+import {
+  collection,
+  onSnapshot,
+  query,
+  orderBy,
+} from "firebase/firestore";
+
+import { db } from "../../context/firebase";
 
 import {
   FiSearch,
@@ -19,10 +27,27 @@ function BrowseProducts({
   wishlist = [],
   toggleWishlist,
 }) {
-  const [searchParams, setSearchParams] =
-    useSearchParams();
+  const [
+    searchParams,
+    setSearchParams,
+  ] = useSearchParams();
 
-  // ================= STATES =================
+  // =====================================================
+  // STATES
+  // =====================================================
+
+  const [products, setProducts] =
+    useState([]);
+
+  const [
+    productsLoading,
+    setProductsLoading,
+  ] = useState(true);
+
+  const [
+    productsError,
+    setProductsError,
+  ] = useState("");
 
   const [sortBy, setSortBy] =
     useState("Newest");
@@ -39,7 +64,9 @@ function BrowseProducts({
   const [minRating, setMinRating] =
     useState(0);
 
-  // ================= CATEGORIES =================
+  // =====================================================
+  // CATEGORIES
+  // =====================================================
 
   const categories = [
     "All",
@@ -53,7 +80,9 @@ function BrowseProducts({
     "Gifts",
   ];
 
-  // ================= SORT OPTIONS =================
+  // =====================================================
+  // SORT
+  // =====================================================
 
   const sortOptions = [
     "Newest",
@@ -62,118 +91,679 @@ function BrowseProducts({
     "Top Rated",
   ];
 
-  // ================= URL SEARCH =================
+  // =====================================================
+  // URL
+  // =====================================================
 
   const search =
-    searchParams.get("search") || "";
+    searchParams.get(
+      "search"
+    ) || "";
 
   const urlCategory =
-    searchParams.get("category");
+    searchParams.get(
+      "category"
+    );
 
   const selectedCategory =
-    categories.includes(urlCategory)
+    categories.includes(
+      urlCategory
+    )
       ? urlCategory
       : "All";
 
-  // ================= SEARCH =================
+  // =====================================================
+  // NUMBER HELPER
+  // =====================================================
 
-  const handleSearchChange = (e) => {
-    const value = e.target.value;
-
-    const params =
-      new URLSearchParams(searchParams);
-
-    if (value.trim() === "") {
-      params.delete("search");
-    } else {
-      params.set("search", value);
-    }
-
-    setSearchParams(params);
-  };
-
-  // ================= CATEGORY =================
-
-  const handleCategoryChange = (
-    category
+  const getNumber = (
+    value,
+    fallback = 0
   ) => {
-    const params =
-      new URLSearchParams(searchParams);
-
-    if (category === "All") {
-      params.delete("category");
-    } else {
-      params.set("category", category);
+    if (
+      value === null ||
+      value === undefined ||
+      value === ""
+    ) {
+      return fallback;
     }
 
-    setSearchParams(params);
-  };
+    if (
+      typeof value ===
+      "number"
+    ) {
+      return Number.isFinite(
+        value
+      )
+        ? value
+        : fallback;
+    }
 
-  // ================= SORT CHANGE =================
-
-  const handleSortChange = (option) => {
-    setSortBy(option);
-    setSortOpen(false);
-  };
-
-  // ================= FILTER PRODUCTS =================
-
-  let filteredProducts =
-    products.filter((product) => {
-      const price = Number(
-        String(product.price).replace(
-          /[₦,]/g,
+    const cleaned =
+      String(value)
+        .replace(
+          /[₦,\s]/g,
           ""
+        )
+        .trim();
+
+    const number =
+      Number(cleaned);
+
+    return Number.isFinite(
+      number
+    )
+      ? number
+      : fallback;
+  };
+
+  // =====================================================
+  // STOCK
+  //
+  // SellerProducts saves:
+  //
+  // stock
+  // quantity
+  //
+  // Older products may have other names.
+  // =====================================================
+
+  const getProductStock = (
+    data
+  ) => {
+    const possibleFields = [
+      data.stock,
+      data.stockQuantity,
+      data.quantity,
+      data.inventory,
+      data.availableStock,
+      data.availableQuantity,
+    ];
+
+    for (
+      const value of possibleFields
+    ) {
+      if (
+        value !==
+          undefined &&
+        value !== null &&
+        value !== ""
+      ) {
+        return Math.max(
+          0,
+          getNumber(
+            value,
+            0
+          )
+        );
+      }
+    }
+
+    // ---------------------------------------------------
+    // IMPORTANT
+    //
+    // If an old active product has no stock field,
+    // don't incorrectly display it as out of stock.
+    // ---------------------------------------------------
+
+    const status =
+      String(
+        data.status ||
+          ""
+      ).toLowerCase();
+
+    const availability =
+      String(
+        data.availability ||
+          ""
+      ).toLowerCase();
+
+    if (
+      status ===
+        "out_of_stock" ||
+      status ===
+        "out-of-stock" ||
+      availability ===
+        "unavailable"
+    ) {
+      return 0;
+    }
+
+    if (
+      status === "active"
+    ) {
+      return 1;
+    }
+
+    return 0;
+  };
+
+  // =====================================================
+  // TIMESTAMP
+  // =====================================================
+
+  const getTimestamp = (
+    timestamp
+  ) => {
+    if (!timestamp) {
+      return 0;
+    }
+
+    if (
+      typeof timestamp.toMillis ===
+      "function"
+    ) {
+      return timestamp.toMillis();
+    }
+
+    if (
+      timestamp instanceof
+      Date
+    ) {
+      return timestamp.getTime();
+    }
+
+    if (
+      typeof timestamp ===
+        "object" &&
+      timestamp.seconds !==
+        undefined
+    ) {
+      return (
+        Number(
+          timestamp.seconds
+        ) * 1000
+      );
+    }
+
+    const parsed =
+      new Date(
+        timestamp
+      ).getTime();
+
+    return Number.isNaN(
+      parsed
+    )
+      ? 0
+      : parsed;
+  };
+
+  // =====================================================
+  // FIRESTORE PRODUCTS
+  //
+  // products/{productId}
+  //
+  // REAL-TIME:
+  //
+  // seller adds
+  // seller edits
+  // seller deletes
+  // seller changes stock
+  // =====================================================
+
+  useEffect(() => {
+    setProductsLoading(
+      true
+    );
+
+    setProductsError("");
+
+    const productsQuery =
+      query(
+        collection(
+          db,
+          "products"
+        ),
+        orderBy(
+          "createdAt",
+          "desc"
         )
       );
 
-      const matchesCategory =
-        selectedCategory === "All" ||
-        product.category ===
-          selectedCategory;
+    const unsubscribe =
+      onSnapshot(
+        productsQuery,
+        (snapshot) => {
+          try {
+            const firestoreProducts =
+              snapshot.docs
+                .map(
+                  (
+                    productDoc
+                  ) => {
+                    const data =
+                      productDoc.data();
 
-      const matchesSearch =
-        product.name
-          .toLowerCase()
-          .includes(
-            search.toLowerCase()
+                    // =========================================
+                    // IMAGES
+                    // =========================================
+
+                    let images =
+                      [];
+
+                    if (
+                      Array.isArray(
+                        data.images
+                      )
+                    ) {
+                      images =
+                        data.images.filter(
+                          Boolean
+                        );
+                    }
+
+                    if (
+                      data.image
+                    ) {
+                      images.unshift(
+                        data.image
+                      );
+                    }
+
+                    if (
+                      data.imageUrl
+                    ) {
+                      images.unshift(
+                        data.imageUrl
+                      );
+                    }
+
+                    // Remove duplicate image URLs.
+
+                    images = [
+                      ...new Set(
+                        images.filter(
+                          Boolean
+                        )
+                      ),
+                    ];
+
+                    const primaryImage =
+                      images[0] ||
+                      null;
+
+                    // =========================================
+                    // STOCK
+                    // =========================================
+
+                    const stock =
+                      getProductStock(
+                        data
+                      );
+
+                    // =========================================
+                    // STATUS
+                    // =========================================
+
+                    const status =
+                      String(
+                        data.status ||
+                          "active"
+                      ).toLowerCase();
+
+                    // =========================================
+                    // AVAILABILITY
+                    // =========================================
+
+                    let availability =
+                      String(
+                        data.availability ||
+                          ""
+                      ).toLowerCase();
+
+                    /*
+                     * Stock is the source of truth for
+                     * availability.
+                     */
+
+                    if (
+                      stock >
+                      0
+                    ) {
+                      availability =
+                        "available";
+                    } else {
+                      availability =
+                        "unavailable";
+                    }
+
+                    // =========================================
+                    // NORMALIZED PRODUCT
+                    // =========================================
+
+                    return {
+                      id:
+                        productDoc.id,
+
+                      ...data,
+
+                      name:
+                        data.name ||
+                        "Untitled Product",
+
+                      description:
+                        data.description ||
+                        "",
+
+                      category:
+                        data.category ||
+                        "Other",
+
+                      price:
+                        getNumber(
+                          data.price,
+                          0
+                        ),
+
+                      rating:
+                        getNumber(
+                          data.rating,
+                          0
+                        ),
+
+                      reviews:
+                        getNumber(
+                          data.reviews,
+                          0
+                        ),
+
+                      sales:
+                        getNumber(
+                          data.sales,
+                          0
+                        ),
+
+                      image:
+                        primaryImage,
+
+                      images,
+
+                      sellerId:
+                        data.sellerId ||
+                        "",
+
+                      sellerName:
+                        data.sellerName ||
+                        "CampusMart Seller",
+
+                      sellerImage:
+                        data.sellerImage ||
+                        null,
+
+                      stock,
+
+                      // ProductCard can use either.
+
+                      quantity:
+                        stock,
+
+                      status,
+
+                      availability,
+
+                      createdAt:
+                        data.createdAt ||
+                        null,
+
+                      updatedAt:
+                        data.updatedAt ||
+                        null,
+                    };
+                  }
+                )
+
+                // =========================================
+                // BUYER VISIBILITY
+                //
+                // Do NOT hide products simply because stock
+                // is zero. They should remain visible as
+                // "Out of Stock".
+                // =========================================
+
+                .filter(
+                  (
+                    product
+                  ) => {
+                    const status =
+                      String(
+                        product.status ||
+                          "active"
+                      ).toLowerCase();
+
+                    return (
+                      status !==
+                        "deleted" &&
+                      status !==
+                        "inactive" &&
+                      status !==
+                        "archived"
+                    );
+                  }
+                );
+
+            console.log(
+              "CampusMart products loaded:",
+              firestoreProducts
+            );
+
+            setProducts(
+              firestoreProducts
+            );
+
+            setProductsLoading(
+              false
+            );
+
+            setProductsError(
+              ""
+            );
+          } catch (error) {
+            console.error(
+              "Error processing products:",
+              error
+            );
+
+            setProducts(
+              []
+            );
+
+            setProductsLoading(
+              false
+            );
+
+            setProductsError(
+              "We couldn't process the products right now. Please try again."
+            );
+          }
+        },
+        (error) => {
+          console.error(
+            "Error loading products from Firestore:",
+            error
           );
 
-      const matchesPrice =
-        price <= maxPrice;
+          setProducts(
+            []
+          );
 
-      const matchesRating =
-        product.rating >= minRating;
+          setProductsLoading(
+            false
+          );
 
-      return (
-        matchesCategory &&
-        matchesSearch &&
-        matchesPrice &&
-        matchesRating
+          setProductsError(
+            "We couldn't load products right now. Please check your internet connection and try again."
+          );
+        }
       );
-    });
 
-  // ================= SORT PRODUCTS =================
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  // =====================================================
+  // SEARCH
+  // =====================================================
+
+  const handleSearchChange = (
+    e
+  ) => {
+    const value =
+      e.target.value;
+
+    const params =
+      new URLSearchParams(
+        searchParams
+      );
+
+    if (
+      value.trim() === ""
+    ) {
+      params.delete(
+        "search"
+      );
+    } else {
+      params.set(
+        "search",
+        value
+      );
+    }
+
+    setSearchParams(
+      params
+    );
+  };
+
+  // =====================================================
+  // CATEGORY
+  // =====================================================
+
+  const handleCategoryChange =
+    (category) => {
+      const params =
+        new URLSearchParams(
+          searchParams
+        );
+
+      if (
+        category === "All"
+      ) {
+        params.delete(
+          "category"
+        );
+      } else {
+        params.set(
+          "category",
+          category
+        );
+      }
+
+      setSearchParams(
+        params
+      );
+    };
+
+  // =====================================================
+  // SORT
+  // =====================================================
+
+  const handleSortChange =
+    (option) => {
+      setSortBy(option);
+      setSortOpen(false);
+    };
+
+  // =====================================================
+  // FILTER
+  // =====================================================
+
+  let filteredProducts =
+    products.filter(
+      (product) => {
+        const price =
+          getNumber(
+            product.price,
+            0
+          );
+
+        const productName =
+          String(
+            product.name ||
+              ""
+          ).toLowerCase();
+
+        const productDescription =
+          String(
+            product.description ||
+              ""
+          ).toLowerCase();
+
+        const productCategory =
+          String(
+            product.category ||
+              ""
+          ).toLowerCase();
+
+        const searchValue =
+          search.toLowerCase();
+
+        const matchesCategory =
+          selectedCategory ===
+            "All" ||
+          product.category ===
+            selectedCategory;
+
+        const matchesSearch =
+          productName.includes(
+            searchValue
+          ) ||
+          productDescription.includes(
+            searchValue
+          ) ||
+          productCategory.includes(
+            searchValue
+          );
+
+        const matchesPrice =
+          price <=
+          maxPrice;
+
+        const matchesRating =
+          getNumber(
+            product.rating,
+            0
+          ) >= minRating;
+
+        return (
+          matchesCategory &&
+          matchesSearch &&
+          matchesPrice &&
+          matchesRating
+        );
+      }
+    );
+
+  // =====================================================
+  // SORT
+  // =====================================================
 
   filteredProducts =
-    [...filteredProducts].sort(
+    [
+      ...filteredProducts,
+    ].sort(
       (a, b) => {
         if (
           sortBy ===
           "Lowest Price"
         ) {
           return (
-            Number(
-              String(a.price).replace(
-                /[₦,]/g,
-                ""
-              )
+            getNumber(
+              a.price,
+              0
             ) -
-            Number(
-              String(b.price).replace(
-                /[₦,]/g,
-                ""
-              )
+            getNumber(
+              b.price,
+              0
             )
           );
         }
@@ -183,44 +773,71 @@ function BrowseProducts({
           "Highest Price"
         ) {
           return (
-            Number(
-              String(b.price).replace(
-                /[₦,]/g,
-                ""
-              )
+            getNumber(
+              b.price,
+              0
             ) -
-            Number(
-              String(a.price).replace(
-                /[₦,]/g,
-                ""
-              )
+            getNumber(
+              a.price,
+              0
             )
           );
         }
 
         if (
-          sortBy === "Top Rated"
+          sortBy ===
+          "Top Rated"
         ) {
-          return b.rating - a.rating;
+          return (
+            getNumber(
+              b.rating,
+              0
+            ) -
+            getNumber(
+              a.rating,
+              0
+            )
+          );
         }
 
-        return b.id - a.id;
+        return (
+          getTimestamp(
+            b.createdAt
+          ) -
+          getTimestamp(
+            a.createdAt
+          )
+        );
       }
     );
 
-  // ================= CLEAR FILTERS =================
+  // =====================================================
+  // CLEAR FILTERS
+  // =====================================================
 
-  const clearFilters = () => {
-    const params =
-      new URLSearchParams();
+  const clearFilters =
+    () => {
+      setSearchParams(
+        new URLSearchParams()
+      );
 
-    setSearchParams(params);
+      setMaxPrice(
+        1000000
+      );
 
-    setMaxPrice(1000000);
-    setMinRating(0);
-    setSortBy("Newest");
-    setSortOpen(false);
-  };
+      setMinRating(0);
+
+      setSortBy(
+        "Newest"
+      );
+
+      setSortOpen(false);
+      setFilterOpen(false);
+    };
+
+  // =====================================================
+  // RENDER
+  // =====================================================
 
   return (
     <CustomerLayout
@@ -228,9 +845,7 @@ function BrowseProducts({
     >
       <div className="space-y-6">
 
-        {/* =====================================================
-            HEADER
-        ===================================================== */}
+        {/* HEADER */}
 
         <div
           className="
@@ -266,8 +881,6 @@ function BrowseProducts({
               students around campus.
             </p>
           </div>
-
-          {/* SEARCH */}
 
           <div
             className="
@@ -314,9 +927,7 @@ function BrowseProducts({
           </div>
         </div>
 
-        {/* =====================================================
-            ACTIVE SEARCH
-        ===================================================== */}
+        {/* ACTIVE SEARCH */}
 
         {search && (
           <div
@@ -342,6 +953,7 @@ function BrowseProducts({
               </span>
 
               {" "}—{" "}
+
               {filteredProducts.length}{" "}
               product
               {filteredProducts.length !==
@@ -352,9 +964,7 @@ function BrowseProducts({
           </div>
         )}
 
-        {/* =====================================================
-            CATEGORIES
-        ===================================================== */}
+        {/* CATEGORIES */}
 
         <section
           className="
@@ -389,7 +999,7 @@ function BrowseProducts({
                 text-gray-500
               "
             >
-              {filteredProducts.length}{" "}
+              {products.length}{" "}
               products
             </span>
           </div>
@@ -438,9 +1048,7 @@ function BrowseProducts({
           </div>
         </section>
 
-        {/* =====================================================
-            SORT + FILTER
-        ===================================================== */}
+        {/* SORT + FILTER */}
 
         <div
           className="
@@ -493,9 +1101,7 @@ function BrowseProducts({
               sm:w-auto
             "
           >
-            {/* =================================================
-                CUSTOM CAMPUSMART SORT DROPDOWN
-            ================================================= */}
+            {/* SORT */}
 
             <div
               className="
@@ -504,8 +1110,6 @@ function BrowseProducts({
                 sm:w-auto
               "
             >
-              {/* SELECTED SORT BUTTON */}
-
               <button
                 type="button"
                 onClick={() =>
@@ -560,14 +1164,8 @@ function BrowseProducts({
                 />
               </button>
 
-              {/* =================================================
-                  DROPDOWN OPTIONS
-              ================================================= */}
-
               {sortOpen && (
                 <>
-                  {/* Invisible backdrop for closing dropdown */}
-
                   <button
                     type="button"
                     aria-label="Close sort menu"
@@ -580,7 +1178,6 @@ function BrowseProducts({
                       fixed
                       inset-0
                       z-40
-                      cursor-default
                     "
                   />
 
@@ -610,7 +1207,9 @@ function BrowseProducts({
 
                         return (
                           <button
-                            key={option}
+                            key={
+                              option
+                            }
                             type="button"
                             onClick={() =>
                               handleSortChange(
@@ -644,9 +1243,7 @@ function BrowseProducts({
 
                             {isSelected && (
                               <FiCheck
-                                size={
-                                  17
-                                }
+                                size={17}
                                 strokeWidth={
                                   2.5
                                 }
@@ -660,42 +1257,42 @@ function BrowseProducts({
                 </>
               )}
             </div>
+
+            {/* FILTER */}
+
+            <button
+              type="button"
+              onClick={() =>
+                setFilterOpen(
+                  true
+                )
+              }
+              className="
+                shrink-0
+                px-4
+                py-3
+                rounded-xl
+                border
+                border-gray-200
+                bg-white
+                text-gray-700
+                text-sm
+                font-semibold
+                hover:border-green-300
+                hover:bg-green-50
+                hover:text-green-700
+                transition
+              "
+            >
+              Filters
+            </button>
           </div>
         </div>
 
-        {/* =====================================================
-            PRODUCTS
-        ===================================================== */}
+        {/* LOADING */}
 
-        {filteredProducts.length >
-        0 ? (
+        {productsLoading && (
           <section
-            className="
-              grid
-              grid-cols-2
-              sm:grid-cols-2
-              md:grid-cols-3
-              xl:grid-cols-4
-              gap-3
-              sm:gap-5
-            "
-          >
-            {filteredProducts.map(
-              (product) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  addToCart={addToCart}
-                  wishlist={wishlist}
-                  toggleWishlist={
-                    toggleWishlist
-                  }
-                />
-              )
-            )}
-          </section>
-        ) : (
-          <div
             className="
               bg-white
               rounded-2xl
@@ -707,70 +1304,211 @@ function BrowseProducts({
           >
             <div
               className="
-                w-16
-                h-16
+                w-10
+                h-10
                 mx-auto
                 rounded-full
-                bg-gray-100
-                flex
-                items-center
-                justify-center
+                border-4
+                border-green-100
+                border-t-green-600
+                animate-spin
               "
-            >
-              <FiSearch
-                size={26}
-                className="text-gray-400"
-              />
-            </div>
-
-            <h3
-              className="
-                text-lg
-                font-semibold
-                text-gray-800
-                mt-4
-              "
-            >
-              No products found
-            </h3>
+            />
 
             <p
               className="
+                text-sm
                 text-gray-500
-                text-sm
-                mt-2
+                mt-4
               "
             >
-              {search
-                ? `We couldn't find any products matching "${search}".`
-                : "Try changing your search or filters."}
+              Loading products...
             </p>
+          </section>
+        )}
 
-            <button
-              type="button"
-              onClick={clearFilters}
+        {/* ERROR */}
+
+        {!productsLoading &&
+          productsError && (
+            <section
               className="
-                mt-5
-                bg-green-600
-                hover:bg-green-700
-                text-white
-                px-5
-                py-2.5
-                rounded-xl
-                text-sm
-                font-medium
-                transition
+                bg-white
+                rounded-2xl
+                border
+                border-red-100
+                p-8
+                text-center
               "
             >
-              Clear Filters
-            </button>
-          </div>
-        )}
+              <h3
+                className="
+                  text-lg
+                  font-semibold
+                  text-gray-800
+                "
+              >
+                Unable to load products
+              </h3>
+
+              <p
+                className="
+                  text-sm
+                  text-gray-500
+                  mt-2
+                "
+              >
+                {productsError}
+              </p>
+
+              <button
+                type="button"
+                onClick={() =>
+                  window.location.reload()
+                }
+                className="
+                  mt-5
+                  bg-green-600
+                  hover:bg-green-700
+                  text-white
+                  px-5
+                  py-2.5
+                  rounded-xl
+                  text-sm
+                  font-medium
+                  transition
+                "
+              >
+                Try Again
+              </button>
+            </section>
+          )}
+
+        {/* PRODUCTS */}
+
+        {!productsLoading &&
+          !productsError &&
+          filteredProducts.length >
+            0 && (
+            <section
+              className="
+                grid
+                grid-cols-2
+                sm:grid-cols-2
+                md:grid-cols-3
+                xl:grid-cols-4
+                gap-3
+                sm:gap-5
+              "
+            >
+              {filteredProducts.map(
+                (product) => (
+                  <ProductCard
+                    key={
+                      product.id
+                    }
+                    product={
+                      product
+                    }
+                    addToCart={
+                      addToCart
+                    }
+                    wishlist={
+                      wishlist
+                    }
+                    toggleWishlist={
+                      toggleWishlist
+                    }
+                  />
+                )
+              )}
+            </section>
+          )}
+
+        {/* EMPTY */}
+
+        {!productsLoading &&
+          !productsError &&
+          filteredProducts.length ===
+            0 && (
+            <div
+              className="
+                bg-white
+                rounded-2xl
+                border
+                border-gray-100
+                p-10
+                text-center
+              "
+            >
+              <div
+                className="
+                  w-16
+                  h-16
+                  mx-auto
+                  rounded-full
+                  bg-gray-100
+                  flex
+                  items-center
+                  justify-center
+                "
+              >
+                <FiSearch
+                  size={26}
+                  className="text-gray-400"
+                />
+              </div>
+
+              <h3
+                className="
+                  text-lg
+                  font-semibold
+                  text-gray-800
+                  mt-4
+                "
+              >
+                No products found
+              </h3>
+
+              <p
+                className="
+                  text-gray-500
+                  text-sm
+                  mt-2
+                "
+              >
+                {search
+                  ? `We couldn't find any products matching "${search}".`
+                  : "Try changing your search or filters."}
+              </p>
+
+              <button
+                type="button"
+                onClick={
+                  clearFilters
+                }
+                className="
+                  mt-5
+                  bg-green-600
+                  hover:bg-green-700
+                  text-white
+                  px-5
+                  py-2.5
+                  rounded-xl
+                  text-sm
+                  font-medium
+                  transition
+                "
+              >
+                Clear Filters
+              </button>
+            </div>
+          )}
       </div>
 
-      {/* =====================================================
-          FILTER OVERLAY
-      ===================================================== */}
+      {/* =================================================
+          FILTER DRAWER
+      ================================================= */}
 
       {filterOpen && (
         <div
@@ -780,8 +1518,6 @@ function BrowseProducts({
             z-[100]
           "
         >
-          {/* BACKGROUND */}
-
           <div
             className="
               absolute
@@ -789,11 +1525,11 @@ function BrowseProducts({
               bg-black/40
             "
             onClick={() =>
-              setFilterOpen(false)
+              setFilterOpen(
+                false
+              )
             }
           />
-
-          {/* PANEL */}
 
           <div
             className="
@@ -809,8 +1545,6 @@ function BrowseProducts({
               overflow-y-auto
             "
           >
-            {/* HEADER */}
-
             <div
               className="
                 flex
@@ -843,7 +1577,9 @@ function BrowseProducts({
               <button
                 type="button"
                 onClick={() =>
-                  setFilterOpen(false)
+                  setFilterOpen(
+                    false
+                  )
                 }
                 className="
                   w-10
@@ -866,25 +1602,17 @@ function BrowseProducts({
             {/* CATEGORY */}
 
             <div className="mt-8">
-              <h3
-                className="
-                  font-semibold
-                  text-gray-800
-                "
-              >
+              <h3 className="font-semibold text-gray-800">
                 Category
               </h3>
 
-              <div
-                className="
-                  space-y-3
-                  mt-4
-                "
-              >
+              <div className="space-y-3 mt-4">
                 {categories.map(
                   (category) => (
                     <label
-                      key={category}
+                      key={
+                        category
+                      }
                       className="
                         flex
                         items-center
@@ -918,7 +1646,9 @@ function BrowseProducts({
                           transition
                         "
                       >
-                        {category}
+                        {
+                          category
+                        }
                       </span>
                     </label>
                   )
@@ -935,22 +1665,11 @@ function BrowseProducts({
                   justify-between
                 "
               >
-                <h3
-                  className="
-                    font-semibold
-                    text-gray-800
-                  "
-                >
+                <h3 className="font-semibold text-gray-800">
                   Maximum Price
                 </h3>
 
-                <span
-                  className="
-                    text-sm
-                    text-green-600
-                    font-medium
-                  "
-                >
+                <span className="text-sm text-green-600 font-medium">
                   ₦
                   {maxPrice.toLocaleString()}
                 </span>
@@ -961,11 +1680,14 @@ function BrowseProducts({
                 min="0"
                 max="1000000"
                 step="5000"
-                value={maxPrice}
+                value={
+                  maxPrice
+                }
                 onChange={(e) =>
                   setMaxPrice(
                     Number(
-                      e.target.value
+                      e.target
+                        .value
                     )
                   )
                 }
@@ -999,25 +1721,17 @@ function BrowseProducts({
             {/* RATING */}
 
             <div className="mt-8">
-              <h3
-                className="
-                  font-semibold
-                  text-gray-800
-                "
-              >
+              <h3 className="font-semibold text-gray-800">
                 Minimum Rating
               </h3>
 
-              <div
-                className="
-                  space-y-3
-                  mt-4
-                "
-              >
+              <div className="space-y-3 mt-4">
                 {[4, 3, 2, 1].map(
                   (rating) => (
                     <label
-                      key={rating}
+                      key={
+                        rating
+                      }
                       className="
                         flex
                         items-center
@@ -1043,17 +1757,15 @@ function BrowseProducts({
                         "
                       />
 
-                      <div
-                        className="
-                          flex
-                          items-center
-                          gap-1
-                        "
-                      >
+                      <div className="flex items-center gap-1">
                         {Array.from({
-                          length: rating,
+                          length:
+                            rating,
                         }).map(
-                          (_, index) => (
+                          (
+                            _,
+                            index
+                          ) => (
                             <FiStar
                               key={
                                 index
@@ -1067,23 +1779,13 @@ function BrowseProducts({
                           )
                         )}
 
-                        <span
-                          className="
-                            text-sm
-                            text-gray-500
-                            ml-1
-                            group-hover:text-green-600
-                            transition
-                          "
-                        >
+                        <span className="text-sm text-gray-500 ml-1 group-hover:text-green-600 transition">
                           & up
                         </span>
                       </div>
                     </label>
                   )
                 )}
-
-                {/* ALL RATINGS */}
 
                 <label
                   className="
@@ -1098,24 +1800,20 @@ function BrowseProducts({
                     type="radio"
                     name="rating"
                     checked={
-                      minRating === 0
+                      minRating ===
+                      0
                     }
                     onChange={() =>
-                      setMinRating(0)
+                      setMinRating(
+                        0
+                      )
                     }
                     className="
                       accent-green-600
                     "
                   />
 
-                  <span
-                    className="
-                      text-sm
-                      text-gray-600
-                      group-hover:text-green-600
-                      transition
-                    "
-                  >
+                  <span className="text-sm text-gray-600 group-hover:text-green-600 transition">
                     All ratings
                   </span>
                 </label>
@@ -1133,7 +1831,9 @@ function BrowseProducts({
             >
               <button
                 type="button"
-                onClick={clearFilters}
+                onClick={
+                  clearFilters
+                }
                 className="
                   flex-1
                   border
@@ -1154,7 +1854,9 @@ function BrowseProducts({
               <button
                 type="button"
                 onClick={() =>
-                  setFilterOpen(false)
+                  setFilterOpen(
+                    false
+                  )
                 }
                 className="
                   flex-1

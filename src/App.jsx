@@ -56,6 +56,9 @@ import Settings from "./pages/customer/Settings";
 // =========================================================
 
 import SellerDashboard from "./pages/seller/SellerDashboard";
+import SellerProducts from "./pages/seller/SellerProducts";
+import SellerMessages from "./pages/seller/SellerMessages";
+import SellerChat from "./pages/seller/SellerChat";
 
 // =========================================================
 // OTHER PAGES
@@ -68,8 +71,6 @@ import Landing from "./pages/customer/Landing";
 import ForgotPassword from "./pages/customer/ForgotPassword";
 import PrivacyPolicy from "./pages/customer/PrivacyPolicy";
 import TermsAndConditions from "./pages/customer/TermsAndConditions";
-
-
 
 // =========================================================
 // DEFAULT PROFILE
@@ -134,16 +135,6 @@ function getUserRole(profile) {
 
 // =========================================================
 // GUEST ROUTE
-//
-// IMPORTANT:
-// We do NOT automatically send an authenticated user to
-// /dashboard anymore.
-//
-// The app first waits until the current user's profile has
-// been resolved, then sends:
-//
-// seller -> /seller-dashboard
-// buyer  -> /dashboard
 // =========================================================
 
 function GuestRoute({
@@ -151,9 +142,15 @@ function GuestRoute({
   profile,
   profileResolved,
 }) {
-  const { firebaseUser, profileLoading } = useAuth();
+  const {
+    firebaseUser,
+    profileLoading,
+  } = useAuth();
 
-  if (profileLoading || (firebaseUser && !profileResolved)) {
+  if (
+    profileLoading ||
+    (firebaseUser && !profileResolved)
+  ) {
     return (
       <LoadingScreen
         text="Checking your account..."
@@ -182,9 +179,6 @@ function GuestRoute({
       );
     }
 
-    // If the account has no valid role yet,
-    // keep the user on a loading screen rather than
-    // incorrectly treating them as a buyer.
     return (
       <LoadingScreen
         text="Preparing your account..."
@@ -588,17 +582,6 @@ function App() {
 
   // =======================================================
   // PROFILE
-  //
-  // IMPORTANT FIX:
-  //
-  // We no longer do:
-  //
-  // role: "buyer"
-  //
-  // when authProfile is temporarily null.
-  //
-  // Instead we explicitly fetch the CURRENT user's profile
-  // using firebaseUser.uid.
   // =======================================================
 
   const [profile, setProfile] =
@@ -618,10 +601,6 @@ function App() {
 
     const loadCurrentUserProfile =
       async () => {
-        // ---------------------------------------------------
-        // NO USER
-        // ---------------------------------------------------
-
         if (!firebaseUser) {
           if (!cancelled) {
             setProfile(emptyProfile);
@@ -630,11 +609,6 @@ function App() {
 
           return;
         }
-
-        // ---------------------------------------------------
-        // VERY IMPORTANT:
-        // Clear the previous account immediately.
-        // ---------------------------------------------------
 
         setProfileResolved(false);
 
@@ -650,7 +624,6 @@ function App() {
           const snapshot =
             await getDoc(userRef);
 
-          // Ignore stale requests.
           if (
             cancelled ||
             currentRequest !==
@@ -685,14 +658,6 @@ function App() {
               resolvedProfile
             );
           } else {
-            // ------------------------------------------------
-            // DO NOT ASSUME BUYER HERE.
-            //
-            // If the document doesn't exist, we can use the
-            // auth profile only if it actually contains a
-            // valid role.
-            // ------------------------------------------------
-
             const authRole =
               getUserRole(authProfile);
 
@@ -718,9 +683,6 @@ function App() {
                   "",
               });
             } else {
-              // Keep role empty.
-              // This prevents accidentally sending a seller
-              // to the buyer dashboard.
               setProfile({
                 ...emptyProfile,
 
@@ -752,7 +714,6 @@ function App() {
             currentRequest ===
               profileRequestId.current
           ) {
-            // Do NOT fall back to buyer.
             setProfile({
               ...emptyProfile,
 
@@ -1466,6 +1427,11 @@ function App() {
       "/messages" ||
     location.pathname.startsWith(
       "/messages/"
+    ) ||
+    location.pathname ===
+      "/seller/messages" ||
+    location.pathname.startsWith(
+      "/seller/messages/"
     );
 
   useEffect(() => {
@@ -1491,7 +1457,7 @@ function App() {
       );
 
     // =====================================================
-    // MESSAGES PAGE
+    // MESSAGES PAGES
     // =====================================================
 
     if (isMessagesPage) {
@@ -2243,10 +2209,6 @@ function App() {
 
   // =======================================================
   // AUTH INITIALIZATION
-  //
-  // IMPORTANT:
-  // Wait for BOTH Firebase auth AND the CURRENT user's
-  // Firestore profile before rendering protected pages.
   // =======================================================
 
   if (
@@ -2327,6 +2289,46 @@ function App() {
             >
               <Register />
             </GuestRoute>
+          }
+        />
+
+        {/* ================================================= */}
+        {/* FORGOT PASSWORD */}
+        {/* ================================================= */}
+
+        <Route
+          path="/forgot-password"
+          element={
+            <GuestRoute
+              profile={profile}
+              profileResolved={
+                profileResolved
+              }
+            >
+              <ForgotPassword />
+            </GuestRoute>
+          }
+        />
+
+        {/* ================================================= */}
+        {/* PRIVACY POLICY */}
+        {/* ================================================= */}
+
+        <Route
+          path="/privacy-policy"
+          element={
+            <PrivacyPolicy />
+          }
+        />
+
+        {/* ================================================= */}
+        {/* TERMS */}
+        {/* ================================================= */}
+
+        <Route
+          path="/terms-and-conditions"
+          element={
+            <TermsAndConditions />
           }
         />
 
@@ -2620,7 +2622,7 @@ function App() {
         />
 
         {/* ================================================= */}
-        {/* CHAT */}
+        {/* CUSTOMER CHAT */}
         {/* ================================================= */}
 
         <Route
@@ -2930,7 +2932,9 @@ function App() {
                 }
               >
                 <SellerDashboard
-                  profile={profile}
+                  profile={
+                    profile
+                  }
                   cartCount={
                     cartCount
                   }
@@ -2947,51 +2951,118 @@ function App() {
         />
 
         {/* ================================================= */}
-        {/* FORGOT PASSWORD */}
+        {/* SELLER PRODUCTS */}
         {/* ================================================= */}
 
         <Route
-          path="/forgot-password"
+          path="/seller/products"
           element={
-            <GuestRoute
-              profile={profile}
+            <ProtectedRoute
               profileResolved={
                 profileResolved
               }
             >
-              <ForgotPassword />
-            </GuestRoute>
+              <SellerRoute
+                profile={profile}
+                profileResolved={
+                  profileResolved
+                }
+              >
+                <SellerProducts
+                  profile={
+                    profile
+                  }
+                  cartCount={
+                    cartCount
+                  }
+                  unreadMessages={
+                    unreadMessages
+                  }
+                />
+              </SellerRoute>
+            </ProtectedRoute>
           }
         />
 
         {/* ================================================= */}
-        {/* PRIVACY POLICY */}
+        {/* SELLER MESSAGES */}
         {/* ================================================= */}
 
         <Route
-          path="/privacy-policy"
+          path="/seller/messages"
           element={
-            <PrivacyPolicy />
+            <ProtectedRoute
+              profileResolved={
+                profileResolved
+              }
+            >
+              <SellerRoute
+                profile={profile}
+                profileResolved={
+                  profileResolved
+                }
+              >
+                <SellerMessages
+                  messages={
+                    messages
+                  }
+                  unreadMessages={
+                    unreadMessages
+                  }
+                  markMessageAsRead={
+                    markMessageAsRead
+                  }
+                  profile={
+                    profile
+                  }
+                />
+              </SellerRoute>
+            </ProtectedRoute>
           }
         />
 
         {/* ================================================= */}
-        {/* TERMS */}
+        {/* SELLER CHAT */}
         {/* ================================================= */}
 
         <Route
-          path="/terms-and-conditions"
+          path="/seller/messages/:id"
           element={
-            <TermsAndConditions />
+            <ProtectedRoute
+              profileResolved={
+                profileResolved
+              }
+            >
+              <SellerRoute
+                profile={profile}
+                profileResolved={
+                  profileResolved
+                }
+              >
+                <SellerChat
+                  messages={
+                    messages
+                  }
+                  unreadMessages={
+                    unreadMessages
+                  }
+                  markMessageAsRead={
+                    markMessageAsRead
+                  }
+                  sendMessage={
+                    sendMessage
+                  }
+                  deleteMessages={
+                    deleteMessages
+                  }
+                  profile={
+                    profile
+                  }
+                />
+              </SellerRoute>
+            </ProtectedRoute>
           }
         />
-
-
-{/* ================================================= */}
-{/* SELLER PRODUCTS */}
-{/* ================================================= */}
-
-
 
         {/* ================================================= */}
         {/* FALLBACK */}
@@ -3006,7 +3077,6 @@ function App() {
             />
           }
         />
-
 
       </Routes>
     </>

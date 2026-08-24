@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { useNavigate, useLocation } from "react-router-dom";
 
@@ -52,6 +52,37 @@ function SellerDashboard({ unreadMessages = 0 }) {
 
   const [salesPeriod, setSalesPeriod] = useState("week");
 
+  /*
+   * Selected month is stored as a number:
+   *
+   * 0  = January
+   * 1  = February
+   * ...
+   * 11 = December
+   */
+  const [selectedMonth, setSelectedMonth] = useState(7);
+
+  /*
+   * Selected week.
+   *
+   * 0 = Week 1
+   * 1 = Week 2
+   * 2 = Week 3
+   * 3 = Week 4
+   * 4 = Week 5
+   */
+  const [selectedWeek, setSelectedWeek] = useState(2);
+
+  // =====================================================
+  // DROPDOWN STATES
+  // =====================================================
+
+  const [monthDropdownOpen, setMonthDropdownOpen] =
+    useState(false);
+
+  const [weekDropdownOpen, setWeekDropdownOpen] =
+    useState(false);
+
   // =====================================================
   // SELLER PROFILE
   // =====================================================
@@ -59,11 +90,29 @@ function SellerDashboard({ unreadMessages = 0 }) {
   const sellerFullName =
     firebaseUser?.displayName?.trim() || "GreatGod Ezekiel";
 
-  // First name is ONLY used for the welcome message
   const sellerFirstName =
     sellerFullName.split(/\s+/)[0] || "GreatGod";
 
   const sellerImage = firebaseUser?.photoURL || null;
+
+  // =====================================================
+  // MONTH NAMES
+  // =====================================================
+
+  const months = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+  ];
 
   // =====================================================
   // MENU ITEMS
@@ -181,6 +230,729 @@ function SellerDashboard({ unreadMessages = 0 }) {
   };
 
   // =====================================================
+  // MONTHLY SALES DATA
+  // =====================================================
+
+  const monthlySalesData = [
+    {
+      month: "January",
+      value: 54,
+      revenue: 186000,
+    },
+    {
+      month: "February",
+      value: 62,
+      revenue: 214500,
+    },
+    {
+      month: "March",
+      value: 49,
+      revenue: 172300,
+    },
+    {
+      month: "April",
+      value: 71,
+      revenue: 248700,
+    },
+    {
+      month: "May",
+      value: 66,
+      revenue: 231400,
+    },
+    {
+      month: "June",
+      value: 78,
+      revenue: 276800,
+    },
+    {
+      month: "July",
+      value: 73,
+      revenue: 259600,
+    },
+    {
+      month: "August",
+      value: 88,
+      revenue: 312500,
+    },
+    {
+      month: "September",
+      value: 69,
+      revenue: 244900,
+    },
+    {
+      month: "October",
+      value: 82,
+      revenue: 291300,
+    },
+    {
+      month: "November",
+      value: 91,
+      revenue: 328700,
+    },
+    {
+      month: "December",
+      value: 86,
+      revenue: 304200,
+    },
+  ];
+
+  // =====================================================
+  // WEEKLY DATA FOR EACH MONTH
+  // =====================================================
+  //
+  // Every month has its own weeks.
+  // Every week has Monday -> Sunday.
+  //
+  // This makes Week 1 January completely different
+  // from Week 1 February, etc.
+  //
+  // =====================================================
+
+  const weeklySalesData = {
+    January: [
+      [
+        { day: "Mon", value: 42, revenue: 32500 },
+        { day: "Tue", value: 48, revenue: 36100 },
+        { day: "Wed", value: 39, revenue: 29400 },
+        { day: "Thu", value: 57, revenue: 42800 },
+        { day: "Fri", value: 64, revenue: 48200 },
+        { day: "Sat", value: 71, revenue: 53600 },
+        { day: "Sun", value: 61, revenue: 45900 },
+      ],
+      [
+        { day: "Mon", value: 51, revenue: 38400 },
+        { day: "Tue", value: 59, revenue: 44200 },
+        { day: "Wed", value: 46, revenue: 34900 },
+        { day: "Thu", value: 63, revenue: 47200 },
+        { day: "Fri", value: 68, revenue: 51300 },
+        { day: "Sat", value: 77, revenue: 58100 },
+        { day: "Sun", value: 70, revenue: 52900 },
+      ],
+      [
+        { day: "Mon", value: 45, revenue: 33800 },
+        { day: "Tue", value: 55, revenue: 41500 },
+        { day: "Wed", value: 61, revenue: 45900 },
+        { day: "Thu", value: 72, revenue: 54200 },
+        { day: "Fri", value: 67, revenue: 50400 },
+        { day: "Sat", value: 82, revenue: 61800 },
+        { day: "Sun", value: 75, revenue: 56600 },
+      ],
+      [
+        { day: "Mon", value: 58, revenue: 43700 },
+        { day: "Tue", value: 64, revenue: 48200 },
+        { day: "Wed", value: 72, revenue: 54100 },
+        { day: "Thu", value: 78, revenue: 58700 },
+        { day: "Fri", value: 73, revenue: 54900 },
+        { day: "Sat", value: 88, revenue: 66400 },
+        { day: "Sun", value: 81, revenue: 61200 },
+      ],
+      [
+        { day: "Mon", value: 49, revenue: 36800 },
+        { day: "Tue", value: 56, revenue: 42100 },
+        { day: "Wed", value: 63, revenue: 47400 },
+        { day: "Thu", value: 69, revenue: 51900 },
+        { day: "Fri", value: 76, revenue: 57200 },
+        { day: "Sat", value: 84, revenue: 63300 },
+        { day: "Sun", value: 72, revenue: 54300 },
+      ],
+    ],
+
+    February: [
+      [
+        { day: "Mon", value: 46, revenue: 34700 },
+        { day: "Tue", value: 54, revenue: 40700 },
+        { day: "Wed", value: 49, revenue: 36900 },
+        { day: "Thu", value: 62, revenue: 46700 },
+        { day: "Fri", value: 71, revenue: 53400 },
+        { day: "Sat", value: 79, revenue: 59600 },
+        { day: "Sun", value: 68, revenue: 51300 },
+      ],
+      [
+        { day: "Mon", value: 52, revenue: 39100 },
+        { day: "Tue", value: 61, revenue: 45900 },
+        { day: "Wed", value: 57, revenue: 42900 },
+        { day: "Thu", value: 69, revenue: 52100 },
+        { day: "Fri", value: 76, revenue: 57200 },
+        { day: "Sat", value: 84, revenue: 63100 },
+        { day: "Sun", value: 73, revenue: 55100 },
+      ],
+      [
+        { day: "Mon", value: 43, revenue: 32400 },
+        { day: "Tue", value: 58, revenue: 43700 },
+        { day: "Wed", value: 64, revenue: 48200 },
+        { day: "Thu", value: 74, revenue: 55600 },
+        { day: "Fri", value: 69, revenue: 51900 },
+        { day: "Sat", value: 86, revenue: 64700 },
+        { day: "Sun", value: 78, revenue: 58600 },
+      ],
+      [
+        { day: "Mon", value: 55, revenue: 41400 },
+        { day: "Tue", value: 66, revenue: 49700 },
+        { day: "Wed", value: 71, revenue: 53400 },
+        { day: "Thu", value: 79, revenue: 59400 },
+        { day: "Fri", value: 82, revenue: 61700 },
+        { day: "Sat", value: 91, revenue: 68500 },
+        { day: "Sun", value: 85, revenue: 63900 },
+      ],
+    ],
+
+    March: [
+      [
+        { day: "Mon", value: 38, revenue: 28600 },
+        { day: "Tue", value: 47, revenue: 35300 },
+        { day: "Wed", value: 44, revenue: 33100 },
+        { day: "Thu", value: 58, revenue: 43700 },
+        { day: "Fri", value: 65, revenue: 48900 },
+        { day: "Sat", value: 72, revenue: 54100 },
+        { day: "Sun", value: 60, revenue: 45200 },
+      ],
+      [
+        { day: "Mon", value: 43, revenue: 32400 },
+        { day: "Tue", value: 52, revenue: 39100 },
+        { day: "Wed", value: 49, revenue: 36800 },
+        { day: "Thu", value: 63, revenue: 47300 },
+        { day: "Fri", value: 71, revenue: 53400 },
+        { day: "Sat", value: 78, revenue: 58700 },
+        { day: "Sun", value: 69, revenue: 51900 },
+      ],
+      [
+        { day: "Mon", value: 47, revenue: 35300 },
+        { day: "Tue", value: 59, revenue: 44400 },
+        { day: "Wed", value: 56, revenue: 42100 },
+        { day: "Thu", value: 68, revenue: 51200 },
+        { day: "Fri", value: 74, revenue: 55600 },
+        { day: "Sat", value: 82, revenue: 61700 },
+        { day: "Sun", value: 76, revenue: 57100 },
+      ],
+      [
+        { day: "Mon", value: 51, revenue: 38400 },
+        { day: "Tue", value: 63, revenue: 47300 },
+        { day: "Wed", value: 69, revenue: 51900 },
+        { day: "Thu", value: 75, revenue: 56400 },
+        { day: "Fri", value: 81, revenue: 60900 },
+        { day: "Sat", value: 88, revenue: 66200 },
+        { day: "Sun", value: 79, revenue: 59400 },
+      ],
+      [
+        { day: "Mon", value: 45, revenue: 33900 },
+        { day: "Tue", value: 57, revenue: 42900 },
+        { day: "Wed", value: 63, revenue: 47200 },
+        { day: "Thu", value: 70, revenue: 52600 },
+        { day: "Fri", value: 77, revenue: 57900 },
+        { day: "Sat", value: 83, revenue: 62400 },
+        { day: "Sun", value: 71, revenue: 53400 },
+      ],
+    ],
+
+    April: [
+      [
+        { day: "Mon", value: 52, revenue: 39100 },
+        { day: "Tue", value: 61, revenue: 45900 },
+        { day: "Wed", value: 57, revenue: 42800 },
+        { day: "Thu", value: 70, revenue: 52700 },
+        { day: "Fri", value: 75, revenue: 56300 },
+        { day: "Sat", value: 84, revenue: 63200 },
+        { day: "Sun", value: 72, revenue: 54200 },
+      ],
+      [
+        { day: "Mon", value: 48, revenue: 36200 },
+        { day: "Tue", value: 56, revenue: 42100 },
+        { day: "Wed", value: 65, revenue: 48800 },
+        { day: "Thu", value: 73, revenue: 54900 },
+        { day: "Fri", value: 79, revenue: 59200 },
+        { day: "Sat", value: 87, revenue: 65400 },
+        { day: "Sun", value: 81, revenue: 60900 },
+      ],
+      [
+        { day: "Mon", value: 55, revenue: 41400 },
+        { day: "Tue", value: 67, revenue: 50300 },
+        { day: "Wed", value: 62, revenue: 46700 },
+        { day: "Thu", value: 77, revenue: 57800 },
+        { day: "Fri", value: 83, revenue: 62400 },
+        { day: "Sat", value: 92, revenue: 69100 },
+        { day: "Sun", value: 85, revenue: 63900 },
+      ],
+      [
+        { day: "Mon", value: 61, revenue: 45900 },
+        { day: "Tue", value: 72, revenue: 54100 },
+        { day: "Wed", value: 76, revenue: 57100 },
+        { day: "Thu", value: 82, revenue: 61600 },
+        { day: "Fri", value: 88, revenue: 66100 },
+        { day: "Sat", value: 95, revenue: 71300 },
+        { day: "Sun", value: 89, revenue: 66900 },
+      ],
+    ],
+
+    May: [
+      [
+        { day: "Mon", value: 45, revenue: 33800 },
+        { day: "Tue", value: 54, revenue: 40600 },
+        { day: "Wed", value: 50, revenue: 37500 },
+        { day: "Thu", value: 63, revenue: 47200 },
+        { day: "Fri", value: 70, revenue: 52600 },
+        { day: "Sat", value: 79, revenue: 59400 },
+        { day: "Sun", value: 67, revenue: 50400 },
+      ],
+      [
+        { day: "Mon", value: 49, revenue: 36800 },
+        { day: "Tue", value: 58, revenue: 43600 },
+        { day: "Wed", value: 63, revenue: 47200 },
+        { day: "Thu", value: 69, revenue: 51800 },
+        { day: "Fri", value: 76, revenue: 57100 },
+        { day: "Sat", value: 83, revenue: 62400 },
+        { day: "Sun", value: 74, revenue: 55600 },
+      ],
+      [
+        { day: "Mon", value: 53, revenue: 39900 },
+        { day: "Tue", value: 64, revenue: 48100 },
+        { day: "Wed", value: 69, revenue: 51800 },
+        { day: "Thu", value: 74, revenue: 55500 },
+        { day: "Fri", value: 81, revenue: 60800 },
+        { day: "Sat", value: 89, revenue: 66900 },
+        { day: "Sun", value: 77, revenue: 57900 },
+      ],
+      [
+        { day: "Mon", value: 58, revenue: 43600 },
+        { day: "Tue", value: 68, revenue: 51100 },
+        { day: "Wed", value: 73, revenue: 54800 },
+        { day: "Thu", value: 79, revenue: 59300 },
+        { day: "Fri", value: 85, revenue: 63900 },
+        { day: "Sat", value: 92, revenue: 69100 },
+        { day: "Sun", value: 82, revenue: 61700 },
+      ],
+    ],
+
+    June: [
+      [
+        { day: "Mon", value: 56, revenue: 42100 },
+        { day: "Tue", value: 63, revenue: 47300 },
+        { day: "Wed", value: 59, revenue: 44400 },
+        { day: "Thu", value: 72, revenue: 54100 },
+        { day: "Fri", value: 78, revenue: 58600 },
+        { day: "Sat", value: 87, revenue: 65300 },
+        { day: "Sun", value: 76, revenue: 57100 },
+      ],
+      [
+        { day: "Mon", value: 61, revenue: 45800 },
+        { day: "Tue", value: 69, revenue: 51900 },
+        { day: "Wed", value: 65, revenue: 48800 },
+        { day: "Thu", value: 78, revenue: 58500 },
+        { day: "Fri", value: 84, revenue: 63100 },
+        { day: "Sat", value: 91, revenue: 68300 },
+        { day: "Sun", value: 80, revenue: 60100 },
+      ],
+      [
+        { day: "Mon", value: 59, revenue: 44200 },
+        { day: "Tue", value: 72, revenue: 54000 },
+        { day: "Wed", value: 68, revenue: 51000 },
+        { day: "Thu", value: 81, revenue: 60800 },
+        { day: "Fri", value: 88, revenue: 66100 },
+        { day: "Sat", value: 94, revenue: 70600 },
+        { day: "Sun", value: 85, revenue: 63800 },
+      ],
+      [
+        { day: "Mon", value: 64, revenue: 48100 },
+        { day: "Tue", value: 75, revenue: 56300 },
+        { day: "Wed", value: 79, revenue: 59300 },
+        { day: "Thu", value: 85, revenue: 63800 },
+        { day: "Fri", value: 91, revenue: 68400 },
+        { day: "Sat", value: 97, revenue: 72800 },
+        { day: "Sun", value: 89, revenue: 66800 },
+      ],
+    ],
+
+    July: [
+      [
+        { day: "Mon", value: 50, revenue: 37500 },
+        { day: "Tue", value: 59, revenue: 44300 },
+        { day: "Wed", value: 54, revenue: 40600 },
+        { day: "Thu", value: 68, revenue: 51000 },
+        { day: "Fri", value: 74, revenue: 55500 },
+        { day: "Sat", value: 83, revenue: 62300 },
+        { day: "Sun", value: 71, revenue: 53300 },
+      ],
+      [
+        { day: "Mon", value: 55, revenue: 41400 },
+        { day: "Tue", value: 64, revenue: 48000 },
+        { day: "Wed", value: 60, revenue: 45100 },
+        { day: "Thu", value: 73, revenue: 54800 },
+        { day: "Fri", value: 79, revenue: 59300 },
+        { day: "Sat", value: 88, revenue: 66100 },
+        { day: "Sun", value: 76, revenue: 57000 },
+      ],
+      [
+        { day: "Mon", value: 58, revenue: 43600 },
+        { day: "Tue", value: 68, revenue: 51000 },
+        { day: "Wed", value: 64, revenue: 48000 },
+        { day: "Thu", value: 77, revenue: 57800 },
+        { day: "Fri", value: 84, revenue: 63000 },
+        { day: "Sat", value: 91, revenue: 68300 },
+        { day: "Sun", value: 81, revenue: 60800 },
+      ],
+      [
+        { day: "Mon", value: 62, revenue: 46500 },
+        { day: "Tue", value: 71, revenue: 53300 },
+        { day: "Wed", value: 75, revenue: 56300 },
+        { day: "Thu", value: 81, revenue: 60800 },
+        { day: "Fri", value: 87, revenue: 65200 },
+        { day: "Sat", value: 94, revenue: 70500 },
+        { day: "Sun", value: 86, revenue: 64500 },
+      ],
+    ],
+
+    August: [
+      [
+        { day: "Mon", value: 42, revenue: 32500 },
+        { day: "Tue", value: 58, revenue: 41800 },
+        { day: "Wed", value: 47, revenue: 36200 },
+        { day: "Thu", value: 76, revenue: 52400 },
+        { day: "Fri", value: 63, revenue: 44900 },
+        { day: "Sat", value: 91, revenue: 68700 },
+        { day: "Sun", value: 82, revenue: 61900 },
+      ],
+      [
+        { day: "Mon", value: 51, revenue: 38400 },
+        { day: "Tue", value: 66, revenue: 49500 },
+        { day: "Wed", value: 59, revenue: 44200 },
+        { day: "Thu", value: 72, revenue: 54100 },
+        { day: "Fri", value: 81, revenue: 60900 },
+        { day: "Sat", value: 94, revenue: 70700 },
+        { day: "Sun", value: 86, revenue: 64700 },
+      ],
+      [
+        { day: "Mon", value: 48, revenue: 36100 },
+        { day: "Tue", value: 61, revenue: 45800 },
+        { day: "Wed", value: 55, revenue: 41300 },
+        { day: "Thu", value: 79, revenue: 59400 },
+        { day: "Fri", value: 73, revenue: 54800 },
+        { day: "Sat", value: 96, revenue: 72300 },
+        { day: "Sun", value: 88, revenue: 66200 },
+      ],
+      [
+        { day: "Mon", value: 56, revenue: 42100 },
+        { day: "Tue", value: 69, revenue: 51800 },
+        { day: "Wed", value: 64, revenue: 48100 },
+        { day: "Thu", value: 83, revenue: 62400 },
+        { day: "Fri", value: 78, revenue: 58600 },
+        { day: "Sat", value: 98, revenue: 73600 },
+        { day: "Sun", value: 91, revenue: 68400 },
+      ],
+      [
+        { day: "Mon", value: 61, revenue: 45800 },
+        { day: "Tue", value: 74, revenue: 55600 },
+        { day: "Wed", value: 68, revenue: 51100 },
+        { day: "Thu", value: 86, revenue: 64700 },
+        { day: "Fri", value: 81, revenue: 60800 },
+        { day: "Sat", value: 99, revenue: 74400 },
+        { day: "Sun", value: 93, revenue: 69900 },
+      ],
+    ],
+
+    September: [
+      [
+        { day: "Mon", value: 47, revenue: 35300 },
+        { day: "Tue", value: 55, revenue: 41300 },
+        { day: "Wed", value: 51, revenue: 38200 },
+        { day: "Thu", value: 65, revenue: 48800 },
+        { day: "Fri", value: 72, revenue: 54100 },
+        { day: "Sat", value: 80, revenue: 60100 },
+        { day: "Sun", value: 69, revenue: 51900 },
+      ],
+      [
+        { day: "Mon", value: 52, revenue: 39100 },
+        { day: "Tue", value: 63, revenue: 47200 },
+        { day: "Wed", value: 58, revenue: 43600 },
+        { day: "Thu", value: 71, revenue: 53300 },
+        { day: "Fri", value: 78, revenue: 58500 },
+        { day: "Sat", value: 86, revenue: 64600 },
+        { day: "Sun", value: 75, revenue: 56300 },
+      ],
+      [
+        { day: "Mon", value: 55, revenue: 41300 },
+        { day: "Tue", value: 67, revenue: 50300 },
+        { day: "Wed", value: 62, revenue: 46600 },
+        { day: "Thu", value: 76, revenue: 57000 },
+        { day: "Fri", value: 83, revenue: 62200 },
+        { day: "Sat", value: 90, revenue: 67500 },
+        { day: "Sun", value: 80, revenue: 60000 },
+      ],
+      [
+        { day: "Mon", value: 60, revenue: 45000 },
+        { day: "Tue", value: 72, revenue: 54000 },
+        { day: "Wed", value: 76, revenue: 57000 },
+        { day: "Thu", value: 82, revenue: 61500 },
+        { day: "Fri", value: 88, revenue: 66000 },
+        { day: "Sat", value: 94, revenue: 70500 },
+        { day: "Sun", value: 85, revenue: 63700 },
+      ],
+    ],
+
+    October: [
+      [
+        { day: "Mon", value: 54, revenue: 40500 },
+        { day: "Tue", value: 62, revenue: 46500 },
+        { day: "Wed", value: 58, revenue: 43500 },
+        { day: "Thu", value: 70, revenue: 52500 },
+        { day: "Fri", value: 77, revenue: 57800 },
+        { day: "Sat", value: 86, revenue: 64500 },
+        { day: "Sun", value: 74, revenue: 55500 },
+      ],
+      [
+        { day: "Mon", value: 59, revenue: 44200 },
+        { day: "Tue", value: 68, revenue: 51000 },
+        { day: "Wed", value: 64, revenue: 48000 },
+        { day: "Thu", value: 75, revenue: 56300 },
+        { day: "Fri", value: 82, revenue: 61500 },
+        { day: "Sat", value: 91, revenue: 68300 },
+        { day: "Sun", value: 80, revenue: 60000 },
+      ],
+      [
+        { day: "Mon", value: 63, revenue: 47200 },
+        { day: "Tue", value: 72, revenue: 54000 },
+        { day: "Wed", value: 68, revenue: 51000 },
+        { day: "Thu", value: 80, revenue: 60000 },
+        { day: "Fri", value: 86, revenue: 64500 },
+        { day: "Sat", value: 94, revenue: 70500 },
+        { day: "Sun", value: 84, revenue: 63000 },
+      ],
+      [
+        { day: "Mon", value: 67, revenue: 50300 },
+        { day: "Tue", value: 76, revenue: 57000 },
+        { day: "Wed", value: 80, revenue: 60000 },
+        { day: "Thu", value: 85, revenue: 63800 },
+        { day: "Fri", value: 91, revenue: 68300 },
+        { day: "Sat", value: 97, revenue: 72800 },
+        { day: "Sun", value: 89, revenue: 66800 },
+      ],
+    ],
+
+    November: [
+      [
+        { day: "Mon", value: 58, revenue: 43500 },
+        { day: "Tue", value: 66, revenue: 49500 },
+        { day: "Wed", value: 62, revenue: 46500 },
+        { day: "Thu", value: 74, revenue: 55500 },
+        { day: "Fri", value: 81, revenue: 60800 },
+        { day: "Sat", value: 90, revenue: 67500 },
+        { day: "Sun", value: 78, revenue: 58500 },
+      ],
+      [
+        { day: "Mon", value: 63, revenue: 47200 },
+        { day: "Tue", value: 71, revenue: 53300 },
+        { day: "Wed", value: 68, revenue: 51000 },
+        { day: "Thu", value: 79, revenue: 59300 },
+        { day: "Fri", value: 86, revenue: 64500 },
+        { day: "Sat", value: 94, revenue: 70500 },
+        { day: "Sun", value: 84, revenue: 63000 },
+      ],
+      [
+        { day: "Mon", value: 68, revenue: 51000 },
+        { day: "Tue", value: 76, revenue: 57000 },
+        { day: "Wed", value: 72, revenue: 54000 },
+        { day: "Thu", value: 84, revenue: 63000 },
+        { day: "Fri", value: 89, revenue: 66800 },
+        { day: "Sat", value: 97, revenue: 72800 },
+        { day: "Sun", value: 90, revenue: 67500 },
+      ],
+      [
+        { day: "Mon", value: 71, revenue: 53300 },
+        { day: "Tue", value: 79, revenue: 59300 },
+        { day: "Wed", value: 82, revenue: 61500 },
+        { day: "Thu", value: 88, revenue: 66000 },
+        { day: "Fri", value: 93, revenue: 69800 },
+        { day: "Sat", value: 99, revenue: 74300 },
+        { day: "Sun", value: 94, revenue: 70500 },
+      ],
+    ],
+
+    December: [
+      [
+        { day: "Mon", value: 56, revenue: 42000 },
+        { day: "Tue", value: 64, revenue: 48000 },
+        { day: "Wed", value: 60, revenue: 45000 },
+        { day: "Thu", value: 73, revenue: 54800 },
+        { day: "Fri", value: 80, revenue: 60000 },
+        { day: "Sat", value: 89, revenue: 66800 },
+        { day: "Sun", value: 77, revenue: 57800 },
+      ],
+      [
+        { day: "Mon", value: 61, revenue: 45800 },
+        { day: "Tue", value: 70, revenue: 52500 },
+        { day: "Wed", value: 66, revenue: 49500 },
+        { day: "Thu", value: 78, revenue: 58500 },
+        { day: "Fri", value: 85, revenue: 63800 },
+        { day: "Sat", value: 93, revenue: 69800 },
+        { day: "Sun", value: 82, revenue: 61500 },
+      ],
+      [
+        { day: "Mon", value: 65, revenue: 48800 },
+        { day: "Tue", value: 74, revenue: 55500 },
+        { day: "Wed", value: 70, revenue: 52500 },
+        { day: "Thu", value: 82, revenue: 61500 },
+        { day: "Fri", value: 88, revenue: 66000 },
+        { day: "Sat", value: 96, revenue: 72000 },
+        { day: "Sun", value: 87, revenue: 65300 },
+      ],
+      [
+        { day: "Mon", value: 69, revenue: 51800 },
+        { day: "Tue", value: 78, revenue: 58500 },
+        { day: "Wed", value: 81, revenue: 60800 },
+        { day: "Thu", value: 87, revenue: 65300 },
+        { day: "Fri", value: 92, revenue: 69000 },
+        { day: "Sat", value: 98, revenue: 73500 },
+        { day: "Sun", value: 91, revenue: 68300 },
+      ],
+    ],
+  };
+
+  // =====================================================
+  // CURRENT MONTH
+  // =====================================================
+
+  const currentMonthName = months[selectedMonth];
+
+  // =====================================================
+  // WEEKS FOR SELECTED MONTH
+  // =====================================================
+
+  const weeksForSelectedMonth =
+    weeklySalesData[currentMonthName] || [];
+
+  // =====================================================
+  // CURRENT WEEK DATA
+  // =====================================================
+
+  const currentWeekData =
+    weeksForSelectedMonth[selectedWeek] ||
+    weeksForSelectedMonth[0] ||
+    [];
+
+  // =====================================================
+  // SELECT MONTH
+  // =====================================================
+
+  const handleMonthSelect = (monthIndex) => {
+    setSelectedMonth(monthIndex);
+
+    /*
+     * When changing month, start from Week 1
+     * so the user immediately gets a valid week
+     * belonging to that month.
+     */
+    setSelectedWeek(0);
+
+    setMonthDropdownOpen(false);
+    setWeekDropdownOpen(false);
+  };
+
+  // =====================================================
+  // SELECT WEEK
+  // =====================================================
+
+  const handleWeekSelect = (weekIndex) => {
+    setSelectedWeek(weekIndex);
+
+    setWeekDropdownOpen(false);
+  };
+
+  // =====================================================
+  // SALES DATA TO DISPLAY
+  // =====================================================
+
+  const salesData = useMemo(() => {
+    if (salesPeriod === "month") {
+      return monthlySalesData.map((item) => ({
+        day: item.month.substring(0, 3),
+        fullName: item.month,
+        value: item.value,
+        revenue: item.revenue,
+      }));
+    }
+
+    return currentWeekData;
+  }, [
+    salesPeriod,
+    selectedMonth,
+    selectedWeek,
+    currentWeekData,
+  ]);
+
+  // =====================================================
+  // FORMATTING
+  // =====================================================
+
+  const formatNaira = (amount) =>
+    `₦${Number(amount || 0).toLocaleString("en-NG")}`;
+
+  // =====================================================
+  // TOTAL REVENUE
+  // =====================================================
+
+  const totalRevenue = salesData.reduce(
+    (total, item) =>
+      total + Number(item.revenue || 0),
+    0
+  );
+
+  // =====================================================
+  // BEST SALES POINT
+  // =====================================================
+
+  const bestSalesPoint = salesData.reduce(
+    (best, item) =>
+      Number(item.value || 0) >
+      Number(best?.value || 0)
+        ? item
+        : best,
+    salesData[0]
+  );
+
+  // =====================================================
+  // SELECTED PERIOD LABEL
+  // =====================================================
+
+  const periodLabel =
+    salesPeriod === "month"
+      ? currentMonthName
+      : `Week ${selectedWeek + 1} • ${currentMonthName}`;
+
+  // =====================================================
+  // PERIOD DESCRIPTION
+  // =====================================================
+
+  const periodDescription =
+    salesPeriod === "month"
+      ? `Revenue movement across ${currentMonthName}.`
+      : `Revenue movement for Week ${
+          selectedWeek + 1
+        } of ${currentMonthName}.`;
+
+  // =====================================================
+  // PERIOD COMPARISON
+  // =====================================================
+
+  const periodComparison =
+    salesPeriod === "month"
+      ? "vs. previous month"
+      : "vs. previous week";
+
+  // =====================================================
+  // CURRENT CHANGE
+  // =====================================================
+
+  const currentChange =
+    salesPeriod === "month"
+      ? monthlySalesData[selectedMonth]?.value || 0
+      : currentWeekData.length
+      ? Math.round(
+          currentWeekData.reduce(
+            (sum, item) => sum + item.value,
+            0
+          ) / currentWeekData.length
+        )
+      : 0;
+
+  // =====================================================
   // DASHBOARD STATISTICS
   // =====================================================
 
@@ -188,15 +960,17 @@ function SellerDashboard({ unreadMessages = 0 }) {
     salesPeriod === "month"
       ? [
           {
-            title: "Monthly Sales",
-            value: "₦2,856,400",
-            change: "+18.4%",
+            title: `${currentMonthName} Sales`,
+            value: formatNaira(
+              monthlySalesData[selectedMonth]?.revenue || 0
+            ),
+            change: `+${currentChange}%`,
             icon: FiDollarSign,
             iconBg: "bg-green-50",
             iconColor: "text-[#008236]",
           },
           {
-            title: "Monthly Orders",
+            title: `${currentMonthName} Orders`,
             value: "342",
             change: "+14.7%",
             icon: FiShoppingBag,
@@ -204,7 +978,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
             iconColor: "text-blue-600",
           },
           {
-            title: "Monthly Bookings",
+            title: `${currentMonthName} Bookings`,
             value: "118",
             change: "+11.2%",
             icon: FiCalendar,
@@ -212,8 +986,13 @@ function SellerDashboard({ unreadMessages = 0 }) {
             iconColor: "text-purple-600",
           },
           {
-            title: "Monthly Earnings",
-            value: "₦2,142,300",
+            title: `${currentMonthName} Earnings`,
+            value: formatNaira(
+              Math.round(
+                (monthlySalesData[selectedMonth]?.revenue ||
+                  0) * 0.75
+              )
+            ),
             change: "+16.8%",
             icon: FiCreditCard,
             iconBg: "bg-orange-50",
@@ -222,15 +1001,15 @@ function SellerDashboard({ unreadMessages = 0 }) {
         ]
       : [
           {
-            title: "Weekly Sales",
-            value: "₦248,500",
+            title: `Week ${selectedWeek + 1} Sales`,
+            value: formatNaira(totalRevenue),
             change: "+12.5%",
             icon: FiDollarSign,
             iconBg: "bg-green-50",
             iconColor: "text-[#008236]",
           },
           {
-            title: "Weekly Orders",
+            title: `Week ${selectedWeek + 1} Orders`,
             value: "128",
             change: "+8.2%",
             icon: FiShoppingBag,
@@ -238,7 +1017,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
             iconColor: "text-blue-600",
           },
           {
-            title: "Weekly Bookings",
+            title: `Week ${selectedWeek + 1} Bookings`,
             value: "46",
             change: "+5.4%",
             icon: FiCalendar,
@@ -246,71 +1025,16 @@ function SellerDashboard({ unreadMessages = 0 }) {
             iconColor: "text-purple-600",
           },
           {
-            title: "Weekly Earnings",
-            value: "₦186,200",
+            title: `Week ${selectedWeek + 1} Earnings`,
+            value: formatNaira(
+              Math.round(totalRevenue * 0.75)
+            ),
             change: "+10.8%",
             icon: FiCreditCard,
             iconBg: "bg-orange-50",
             iconColor: "text-orange-600",
           },
         ];
-
-  // =====================================================
-  // SALES GRAPH DATA
-  // =====================================================
-
-  const weekSalesData = [
-    { day: "Mon", value: 42, revenue: 32500 },
-    { day: "Tue", value: 58, revenue: 41800 },
-    { day: "Wed", value: 47, revenue: 36200 },
-    { day: "Thu", value: 76, revenue: 52400 },
-    { day: "Fri", value: 63, revenue: 44900 },
-    { day: "Sat", value: 91, revenue: 68700 },
-    { day: "Sun", value: 82, revenue: 61900 },
-  ];
-
-  const monthSalesData = [
-    { day: "Jan", value: 54, revenue: 186000 },
-    { day: "Feb", value: 62, revenue: 214500 },
-    { day: "Mar", value: 49, revenue: 172300 },
-    { day: "Apr", value: 71, revenue: 248700 },
-    { day: "May", value: 66, revenue: 231400 },
-    { day: "Jun", value: 78, revenue: 276800 },
-    { day: "Jul", value: 73, revenue: 259600 },
-    { day: "Aug", value: 88, revenue: 312500 },
-    { day: "Sep", value: 69, revenue: 244900 },
-    { day: "Oct", value: 82, revenue: 291300 },
-    { day: "Nov", value: 91, revenue: 328700 },
-    { day: "Dec", value: 86, revenue: 304200 },
-  ];
-
-  const salesData =
-    salesPeriod === "month" ? monthSalesData : weekSalesData;
-
-  const formatNaira = (amount) =>
-    `₦${Number(amount || 0).toLocaleString("en-NG")}`;
-
-  const totalRevenue = salesData.reduce(
-    (total, item) => total + Number(item.revenue || 0),
-    0
-  );
-
-  const bestSalesPoint = salesData.reduce(
-    (best, item) =>
-      Number(item.value || 0) > Number(best.value || 0) ? item : best,
-    salesData[0]
-  );
-
-  const periodLabel =
-    salesPeriod === "month" ? "This Month" : "This Week";
-
-  const periodDescription =
-    salesPeriod === "month"
-      ? "Revenue movement across the current year."
-      : "Revenue movement across the current week.";
-
-  const periodComparison =
-    salesPeriod === "month" ? "vs. last month" : "vs. last week";
 
   // =====================================================
   // RECENT ORDERS
@@ -396,40 +1120,60 @@ function SellerDashboard({ unreadMessages = 0 }) {
   const graphPaddingBottom = 35;
 
   const usableWidth =
-    graphWidth - graphPaddingLeft - graphPaddingRight;
+    graphWidth -
+    graphPaddingLeft -
+    graphPaddingRight;
 
   const usableHeight =
-    graphHeight - graphPaddingTop - graphPaddingBottom;
+    graphHeight -
+    graphPaddingTop -
+    graphPaddingBottom;
 
   const maxValue = 100;
 
-  const points = salesData.map((item, index) => {
-    const x =
-      graphPaddingLeft +
-      (index * usableWidth) / (salesData.length - 1);
+  const points =
+    salesData.length === 1
+      ? salesData.map((item) => ({
+          ...item,
+          x: graphWidth / 2,
+          y:
+            graphPaddingTop +
+            usableHeight -
+            (item.value / maxValue) * usableHeight,
+        }))
+      : salesData.map((item, index) => {
+          const x =
+            graphPaddingLeft +
+            (index * usableWidth) /
+              (salesData.length - 1);
 
-    const y =
-      graphPaddingTop +
-      usableHeight -
-      (item.value / maxValue) * usableHeight;
+          const y =
+            graphPaddingTop +
+            usableHeight -
+            (item.value / maxValue) * usableHeight;
 
-    return {
-      ...item,
-      x,
-      y,
-    };
-  });
+          return {
+            ...item,
+            x,
+            y,
+          };
+        });
 
   const createSmoothPath = (dataPoints) => {
     if (!dataPoints.length) return "";
 
     let path = `M ${dataPoints[0].x} ${dataPoints[0].y}`;
 
-    for (let i = 0; i < dataPoints.length - 1; i++) {
+    for (
+      let i = 0;
+      i < dataPoints.length - 1;
+      i++
+    ) {
       const current = dataPoints[i];
       const next = dataPoints[i + 1];
 
-      const controlPointX = (current.x + next.x) / 2;
+      const controlPointX =
+        (current.x + next.x) / 2;
 
       path += `
         C
@@ -444,14 +1188,18 @@ function SellerDashboard({ unreadMessages = 0 }) {
 
   const linePath = createSmoothPath(points);
 
-  const baselineY = graphHeight - graphPaddingBottom;
+  const baselineY =
+    graphHeight - graphPaddingBottom;
 
-  const areaPath = `
-    ${linePath}
-    L ${points[points.length - 1].x} ${baselineY}
-    L ${points[0].x} ${baselineY}
-    Z
-  `;
+  const areaPath =
+    points.length > 0
+      ? `
+        ${linePath}
+        L ${points[points.length - 1].x} ${baselineY}
+        L ${points[0].x} ${baselineY}
+        Z
+      `
+      : "";
 
   // =====================================================
   // RENDER
@@ -551,8 +1299,12 @@ function SellerDashboard({ unreadMessages = 0 }) {
 
             <div className="min-w-0">
               <h1 className="text-[30px] font-extrabold tracking-tight leading-none whitespace-nowrap">
-                <span className="text-white">Campus</span>
-                <span className="text-green-300">Mart</span>
+                <span className="text-white">
+                  Campus
+                </span>
+                <span className="text-green-300">
+                  Mart
+                </span>
               </h1>
 
               <p className="text-[10px] text-green-100 mt-1 whitespace-nowrap">
@@ -579,14 +1331,22 @@ function SellerDashboard({ unreadMessages = 0 }) {
           "
         >
           {menuItems.map(
-            ({ label, icon: Icon, path, badge, new: isNew }) => {
+            ({
+              label,
+              icon: Icon,
+              path,
+              badge,
+              new: isNew,
+            }) => {
               const active = isActive(path);
 
               return (
                 <button
                   key={label}
                   type="button"
-                  onClick={() => handleNavigation(path)}
+                  onClick={() =>
+                    handleNavigation(path)
+                  }
                   className={`
                     w-full
                     flex
@@ -684,7 +1444,9 @@ function SellerDashboard({ unreadMessages = 0 }) {
           >
             <FiLogOut size={19} />
 
-            <span className="text-[14px]">Logout</span>
+            <span className="text-[14px]">
+              Logout
+            </span>
           </button>
         </div>
 
@@ -701,18 +1463,25 @@ function SellerDashboard({ unreadMessages = 0 }) {
               text-center
             "
           >
-            <div className="text-2xl mb-1">👑</div>
+            <div className="text-2xl mb-1">
+              👑
+            </div>
 
-            <h3 className="font-bold text-sm">Go Premium</h3>
+            <h3 className="font-bold text-sm">
+              Go Premium
+            </h3>
 
             <p className="text-[10px] text-green-100 leading-4 mt-1">
-              Boost your products and services and reach more students.
+              Boost your products and services and
+              reach more students.
             </p>
 
             <button
               type="button"
               onClick={() =>
-                handleNavigation("/seller/promotions")
+                handleNavigation(
+                  "/seller/promotions"
+                )
               }
               className="
                 w-full
@@ -765,8 +1534,6 @@ function SellerDashboard({ unreadMessages = 0 }) {
             flex-shrink-0
           "
         >
-          {/* MOBILE MENU */}
-
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
@@ -787,8 +1554,6 @@ function SellerDashboard({ unreadMessages = 0 }) {
           >
             <FiMenu size={24} />
           </button>
-
-          {/* YOUR STORE */}
 
           <div
             className="
@@ -816,8 +1581,6 @@ function SellerDashboard({ unreadMessages = 0 }) {
             </span>
           </div>
 
-          {/* RIGHT SIDE */}
-
           <div
             className="
               ml-auto
@@ -827,8 +1590,6 @@ function SellerDashboard({ unreadMessages = 0 }) {
               sm:gap-2
             "
           >
-            {/* NOTIFICATIONS */}
-
             <button
               type="button"
               onClick={handleNotifications}
@@ -873,12 +1634,12 @@ function SellerDashboard({ unreadMessages = 0 }) {
               </span>
             </button>
 
-            {/* MESSAGES */}
-
             <button
               type="button"
               onClick={() =>
-                handleNavigation("/seller/messages")
+                handleNavigation(
+                  "/seller/messages"
+                )
               }
               aria-label="Messages"
               className="
@@ -923,12 +1684,12 @@ function SellerDashboard({ unreadMessages = 0 }) {
               )}
             </button>
 
-            {/* SELLER PROFILE */}
-
             <button
               type="button"
               onClick={() =>
-                handleNavigation("/seller/profile")
+                handleNavigation(
+                  "/seller/profile"
+                )
               }
               className="
                 flex
@@ -985,8 +1746,6 @@ function SellerDashboard({ unreadMessages = 0 }) {
                     ?.toUpperCase()}
                 </div>
               )}
-
-              {/* FULL NAME IN PROFILE */}
 
               <div
                 className="
@@ -1060,7 +1819,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
                 text-white
                 shadow-sm
                 relative
-                overflow-hidden
+                overflow-visible
               "
             >
               <div
@@ -1090,7 +1849,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
               <div
                 className="
                   relative
-                  z-10
+                  z-20
                   flex
                   flex-col
                   lg:flex-row
@@ -1128,8 +1887,6 @@ function SellerDashboard({ unreadMessages = 0 }) {
                     Seller Dashboard
                   </div>
 
-                  {/* FIRST NAME ONLY */}
-
                   <h1
                     className="
                       text-2xl
@@ -1138,7 +1895,8 @@ function SellerDashboard({ unreadMessages = 0 }) {
                       tracking-tight
                     "
                   >
-                    Welcome back, {sellerFirstName}!
+                    Welcome back,{" "}
+                    {sellerFirstName}!
                   </h1>
 
                   <p
@@ -1151,8 +1909,8 @@ function SellerDashboard({ unreadMessages = 0 }) {
                       leading-6
                     "
                   >
-                    Here's what's happening with your
-                    CampusMart business today.
+                    Here's what's happening with
+                    your CampusMart business today.
                   </p>
                 </div>
 
@@ -1180,57 +1938,258 @@ function SellerDashboard({ unreadMessages = 0 }) {
                       gap-1
                     "
                   >
-                    <button
-                      type="button"
-                      onClick={() => setSalesPeriod("week")}
-                      aria-pressed={salesPeriod === "week"}
-                      className={`
-                        h-9
-                        px-4
-                        rounded-lg
-                        flex
-                        items-center
-                        justify-center
-                        gap-2
-                        text-xs
-                        sm:text-sm
-                        font-semibold
-                        transition-all
-                        ${
-                          salesPeriod === "week"
-                            ? "bg-white text-[#007233] shadow-sm"
-                            : "text-white hover:bg-white/10"
-                        }
-                      `}
-                    >
-                      Week
-                    </button>
+                    {/* WEEK BUTTON + DROPDOWN */}
 
-                    <button
-                      type="button"
-                      onClick={() => setSalesPeriod("month")}
-                      aria-pressed={salesPeriod === "month"}
-                      className={`
-                        h-9
-                        px-4
-                        rounded-lg
-                        flex
-                        items-center
-                        justify-center
-                        gap-2
-                        text-xs
-                        sm:text-sm
-                        font-semibold
-                        transition-all
-                        ${
-                          salesPeriod === "month"
-                            ? "bg-white text-[#007233] shadow-sm"
-                            : "text-white hover:bg-white/10"
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSalesPeriod("week");
+                          setWeekDropdownOpen(
+                            (value) => !value
+                          );
+                          setMonthDropdownOpen(false);
+                        }}
+                        aria-pressed={
+                          salesPeriod === "week"
                         }
-                      `}
-                    >
-                      Month
-                    </button>
+                        className={`
+                          h-9
+                          px-4
+                          rounded-lg
+                          flex
+                          items-center
+                          justify-center
+                          gap-2
+                          text-xs
+                          sm:text-sm
+                          font-semibold
+                          transition-all
+                          ${
+                            salesPeriod === "week"
+                              ? "bg-white text-[#007233] shadow-sm"
+                              : "text-white hover:bg-white/10"
+                          }
+                        `}
+                      >
+                        Week
+                        <FiChevronDown
+                          size={13}
+                          className={`transition-transform ${
+                            weekDropdownOpen
+                              ? "rotate-180"
+                              : ""
+                          }`}
+                        />
+                      </button>
+
+                      {weekDropdownOpen && (
+                        <div
+                          className="
+                            absolute
+                            top-11
+                            left-0
+                            w-[210px]
+                            bg-white
+                            rounded-xl
+                            shadow-2xl
+                            border
+                            border-gray-100
+                            overflow-hidden
+                            z-[100]
+                          "
+                        >
+                          <div className="px-3 py-2 border-b border-gray-100">
+                            <p className="text-[10px] font-bold uppercase text-gray-400">
+                              Select Week
+                            </p>
+
+                            <p className="text-xs font-semibold text-gray-700 mt-0.5">
+                              {currentMonthName}
+                            </p>
+                          </div>
+
+                          <div className="max-h-[240px] overflow-y-auto p-1.5">
+                            {weeksForSelectedMonth.map(
+                              (_, index) => {
+                                const active =
+                                  selectedWeek ===
+                                  index;
+
+                                return (
+                                  <button
+                                    key={index}
+                                    type="button"
+                                    onClick={() =>
+                                      handleWeekSelect(
+                                        index
+                                      )
+                                    }
+                                    className={`
+                                      w-full
+                                      text-left
+                                      px-3
+                                      py-2.5
+                                      rounded-lg
+                                      flex
+                                      items-center
+                                      justify-between
+                                      transition
+                                      ${
+                                        active
+                                          ? "bg-green-50 text-[#008236]"
+                                          : "text-gray-600 hover:bg-gray-50"
+                                      }
+                                    `}
+                                  >
+                                    <span>
+                                      <span
+                                        className={`block text-xs font-semibold ${
+                                          active
+                                            ? "text-[#008236]"
+                                            : "text-gray-700"
+                                        }`}
+                                      >
+                                        Week{" "}
+                                        {index + 1}
+                                      </span>
+
+                                      <span className="block text-[10px] text-gray-400 mt-0.5">
+                                        {currentMonthName}
+                                      </span>
+                                    </span>
+
+                                    {active && (
+                                      <FiCheckCircle
+                                        size={15}
+                                      />
+                                    )}
+                                  </button>
+                                );
+                              }
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* MONTH BUTTON + DROPDOWN */}
+
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSalesPeriod("month");
+                          setMonthDropdownOpen(
+                            (value) => !value
+                          );
+                          setWeekDropdownOpen(false);
+                        }}
+                        aria-pressed={
+                          salesPeriod === "month"
+                        }
+                        className={`
+                          h-9
+                          px-4
+                          rounded-lg
+                          flex
+                          items-center
+                          justify-center
+                          gap-2
+                          text-xs
+                          sm:text-sm
+                          font-semibold
+                          transition-all
+                          ${
+                            salesPeriod === "month"
+                              ? "bg-white text-[#007233] shadow-sm"
+                              : "text-white hover:bg-white/10"
+                          }
+                        `}
+                      >
+                        Month
+                        <FiChevronDown
+                          size={13}
+                          className={`transition-transform ${
+                            monthDropdownOpen
+                              ? "rotate-180"
+                              : ""
+                          }`}
+                        />
+                      </button>
+
+                      {monthDropdownOpen && (
+                        <div
+                          className="
+                            absolute
+                            top-11
+                            right-0
+                            w-[190px]
+                            bg-white
+                            rounded-xl
+                            shadow-2xl
+                            border
+                            border-gray-100
+                            overflow-hidden
+                            z-[100]
+                          "
+                        >
+                          <div className="px-3 py-2 border-b border-gray-100">
+                            <p className="text-[10px] font-bold uppercase text-gray-400">
+                              Select Month
+                            </p>
+                          </div>
+
+                          <div className="max-h-[280px] overflow-y-auto p-1.5">
+                            {months.map(
+                              (month, index) => {
+                                const active =
+                                  selectedMonth ===
+                                  index;
+
+                                return (
+                                  <button
+                                    key={month}
+                                    type="button"
+                                    onClick={() =>
+                                      handleMonthSelect(
+                                        index
+                                      )
+                                    }
+                                    className={`
+                                      w-full
+                                      text-left
+                                      px-3
+                                      py-2.5
+                                      rounded-lg
+                                      flex
+                                      items-center
+                                      justify-between
+                                      transition
+                                      ${
+                                        active
+                                          ? "bg-green-50 text-[#008236]"
+                                          : "text-gray-600 hover:bg-gray-50"
+                                      }
+                                    `}
+                                  >
+                                    <span className="text-xs font-semibold">
+                                      {month}
+                                    </span>
+
+                                    {active && (
+                                      <FiCheckCircle
+                                        size={15}
+                                      />
+                                    )}
+                                  </button>
+                                );
+                              }
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <button
@@ -1262,6 +2221,40 @@ function SellerDashboard({ unreadMessages = 0 }) {
               </div>
             </div>
           </section>
+
+          {/* SELECTED PERIOD INDICATOR */}
+
+          <div className="mb-5 sm:mb-6 flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-gray-400">
+              Viewing:
+            </span>
+
+            <span
+              className="
+                inline-flex
+                items-center
+                gap-1.5
+                px-2.5
+                py-1.5
+                rounded-lg
+                bg-green-50
+                text-[#008236]
+                text-xs
+                font-bold
+                border
+                border-green-100
+              "
+            >
+              <FiCalendar size={12} />
+              {periodLabel}
+            </span>
+
+            {salesPeriod === "week" && (
+              <span className="text-[10px] text-gray-400">
+                Monday – Sunday
+              </span>
+            )}
+          </div>
 
           {/* STATISTICS */}
 
@@ -1344,7 +2337,10 @@ function SellerDashboard({ unreadMessages = 0 }) {
                         ring-white
                       `}
                     >
-                      <Icon size={20} strokeWidth={2.2} />
+                      <Icon
+                        size={20}
+                        strokeWidth={2.2}
+                      />
                     </div>
 
                     <span
@@ -1393,10 +2389,8 @@ function SellerDashboard({ unreadMessages = 0 }) {
                     <div className="mt-3 flex items-center gap-2">
                       <span className="h-1.5 w-8 rounded-full bg-[#008236]" />
 
-                      <span className="text-[10px] text-gray-400">
-                        {salesPeriod === "month"
-                          ? "Compared with last month"
-                          : "Compared with last week"}
+                      <span className="text-[10px] text-gray-400 truncate">
+                        {periodComparison}
                       </span>
                     </div>
                   </div>
@@ -1596,7 +2590,9 @@ function SellerDashboard({ unreadMessages = 0 }) {
                           mt-0.5
                         "
                       >
-                        {bestSalesPoint?.day || "—"}
+                        {bestSalesPoint?.fullName ||
+                          bestSalesPoint?.day ||
+                          "—"}
                       </p>
                     </div>
 
@@ -1711,30 +2707,35 @@ function SellerDashboard({ unreadMessages = 0 }) {
                       </filter>
                     </defs>
 
-                    {[0, 25, 50, 75, 100].map((value) => {
-                      const y =
-                        graphPaddingTop +
-                        usableHeight -
-                        (value / maxValue) *
-                          usableHeight;
+                    {[0, 25, 50, 75, 100].map(
+                      (value) => {
+                        const y =
+                          graphPaddingTop +
+                          usableHeight -
+                          (value / maxValue) *
+                            usableHeight;
 
-                      return (
-                        <line
-                          key={value}
-                          x1={graphPaddingLeft}
-                          x2={graphWidth - graphPaddingRight}
-                          y1={y}
-                          y2={y}
-                          stroke="#eef2f3"
-                          strokeWidth="1"
-                          strokeDasharray="3 6"
-                        />
-                      );
-                    })}
+                        return (
+                          <line
+                            key={value}
+                            x1={graphPaddingLeft}
+                            x2={
+                              graphWidth -
+                              graphPaddingRight
+                            }
+                            y1={y}
+                            y2={y}
+                            stroke="#eef2f3"
+                            strokeWidth="1"
+                            strokeDasharray="3 6"
+                          />
+                        );
+                      }
+                    )}
 
-                    {points.map((point) => (
+                    {points.map((point, index) => (
                       <line
-                        key={`vertical-${point.day}`}
+                        key={`vertical-${point.day}-${index}`}
                         x1={point.x}
                         x2={point.x}
                         y1={graphPaddingTop}
@@ -1770,35 +2771,47 @@ function SellerDashboard({ unreadMessages = 0 }) {
                       strokeLinejoin="round"
                     />
 
-                    {points.map((point, index) => {
-                      const isLast =
-                        index === points.length - 1;
+                    {points.map(
+                      (point, index) => {
+                        const isLast =
+                          index ===
+                          points.length - 1;
 
-                      return (
-                        <g key={point.day}>
-                          <circle
-                            cx={point.x}
-                            cy={point.y}
-                            r={isLast ? 11 : 8}
-                            fill="#008236"
-                            opacity={isLast ? 0.1 : 0.06}
-                          />
+                        return (
+                          <g
+                            key={`${point.day}-${index}`}
+                          >
+                            <circle
+                              cx={point.x}
+                              cy={point.y}
+                              r={isLast ? 11 : 8}
+                              fill="#008236"
+                              opacity={
+                                isLast ? 0.1 : 0.06
+                              }
+                            />
 
-                          <circle
-                            cx={point.x}
-                            cy={point.y}
-                            r={isLast ? 5 : 4}
-                            fill="white"
-                            stroke="#008236"
-                            strokeWidth="2.5"
-                          />
+                            <circle
+                              cx={point.x}
+                              cy={point.y}
+                              r={isLast ? 5 : 4}
+                              fill="white"
+                              stroke="#008236"
+                              strokeWidth="2.5"
+                            />
 
-                          <title>
-                            {point.day}: {point.revenue}
-                          </title>
-                        </g>
-                      );
-                    })}
+                            <title>
+                              {point.fullName ||
+                                point.day}
+                              :{" "}
+                              {formatNaira(
+                                point.revenue
+                              )}
+                            </title>
+                          </g>
+                        );
+                      }
+                    )}
                   </svg>
 
                   {/* Y AXIS */}
@@ -1846,19 +2859,22 @@ function SellerDashboard({ unreadMessages = 0 }) {
                       px-1
                     "
                   >
-                    {salesData.map(({ day }) => (
-                      <span
-                        key={day}
-                        className="
-                          text-[10px]
-                          sm:text-xs
-                          text-gray-400
-                          font-medium
-                        "
-                      >
-                        {day}
-                      </span>
-                    ))}
+                    {salesData.map(
+                      ({ day, fullName }, index) => (
+                        <span
+                          key={`${day}-${index}`}
+                          className="
+                            text-[10px]
+                            sm:text-xs
+                            text-gray-400
+                            font-medium
+                          "
+                          title={fullName}
+                        >
+                          {day}
+                        </span>
+                      )
+                    )}
                   </div>
                 </div>
 
@@ -1893,7 +2909,8 @@ function SellerDashboard({ unreadMessages = 0 }) {
                   </div>
 
                   <span className="text-[11px] text-gray-400">
-                    Updated for {periodLabel.toLowerCase()}
+                    Updated for{" "}
+                    {periodLabel.toLowerCase()}
                   </span>
                 </div>
               </div>
@@ -1965,7 +2982,9 @@ function SellerDashboard({ unreadMessages = 0 }) {
                 <button
                   type="button"
                   onClick={() =>
-                    handleNavigation("/seller/orders")
+                    handleNavigation(
+                      "/seller/orders"
+                    )
                   }
                   className="
                     text-xs
@@ -1979,8 +2998,6 @@ function SellerDashboard({ unreadMessages = 0 }) {
                   View all
                 </button>
               </div>
-
-              {/* DESKTOP */}
 
               <div className="hidden md:block overflow-x-auto">
                 <table className="w-full min-w-[820px]">
@@ -2013,202 +3030,216 @@ function SellerDashboard({ unreadMessages = 0 }) {
                   </thead>
 
                   <tbody>
-                    {recentOrders.map((order) => (
-                      <tr
-                        key={order.id}
-                        className="
-                          border-b
-                          border-gray-50
-                          last:border-b-0
-                          hover:bg-gray-50
-                          transition
-                        "
-                      >
-                        <td className="px-6 py-4">
-                          <p className="text-sm font-semibold text-gray-800">
-                            {order.id}
-                          </p>
-                        </td>
+                    {recentOrders.map(
+                      (order) => (
+                        <tr
+                          key={order.id}
+                          className="
+                            border-b
+                            border-gray-50
+                            last:border-b-0
+                            hover:bg-gray-50
+                            transition
+                          "
+                        >
+                          <td className="px-6 py-4">
+                            <p className="text-sm font-semibold text-gray-800">
+                              {order.id}
+                            </p>
+                          </td>
 
-                        <td className="px-4 py-4">
-                          <div className="flex items-center gap-2.5">
-                            <div
-                              className="
-                                w-8
-                                h-8
-                                rounded-full
-                                bg-green-50
-                                text-[#008236]
-                                flex
-                                items-center
-                                justify-center
-                                text-xs
-                                font-bold
-                              "
-                            >
-                              {order.customer
-                                .charAt(0)
-                                .toUpperCase()}
+                          <td className="px-4 py-4">
+                            <div className="flex items-center gap-2.5">
+                              <div
+                                className="
+                                  w-8
+                                  h-8
+                                  rounded-full
+                                  bg-green-50
+                                  text-[#008236]
+                                  flex
+                                  items-center
+                                  justify-center
+                                  text-xs
+                                  font-bold
+                                "
+                              >
+                                {order.customer
+                                  .charAt(0)
+                                  .toUpperCase()}
+                              </div>
+
+                              <span className="text-sm text-gray-600 whitespace-nowrap">
+                                {order.customer}
+                              </span>
                             </div>
+                          </td>
 
-                            <span className="text-sm text-gray-600 whitespace-nowrap">
-                              {order.customer}
+                          <td className="px-4 py-4">
+                            <p
+                              className="
+                                text-sm
+                                text-gray-700
+                                max-w-[180px]
+                                truncate
+                              "
+                              title={order.product}
+                            >
+                              {order.product}
+                            </p>
+                          </td>
+
+                          <td className="px-4 py-4">
+                            <div className="flex items-center gap-1.5 whitespace-nowrap">
+                              <FiCalendar
+                                size={13}
+                                className="text-gray-400"
+                              />
+
+                              <span className="text-xs text-gray-500">
+                                {order.date}
+                              </span>
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-4">
+                            <span className="text-sm font-semibold text-gray-700">
+                              {order.quantity}
                             </span>
-                          </div>
-                        </td>
+                          </td>
 
-                        <td className="px-4 py-4">
-                          <p
-                            className="
-                              text-sm
-                              text-gray-700
-                              max-w-[180px]
-                              truncate
-                            "
-                            title={order.product}
-                          >
-                            {order.product}
-                          </p>
-                        </td>
+                          <td className="px-4 py-4">
+                            <p className="text-sm font-semibold text-gray-800 whitespace-nowrap">
+                              {order.amount}
+                            </p>
+                          </td>
 
-                        <td className="px-4 py-4">
-                          <div className="flex items-center gap-1.5 whitespace-nowrap">
-                            <FiCalendar
-                              size={13}
-                              className="text-gray-400"
-                            />
+                          <td className="px-4 py-4">
+                            <span
+                              className={`
+                                inline-flex
+                                items-center
+                                gap-1.5
+                                px-2.5
+                                py-1
+                                rounded-full
+                                text-[10px]
+                                font-semibold
+                                ${
+                                  order.status ===
+                                  "Delivered"
+                                    ? "bg-green-50 text-green-700"
+                                    : "bg-yellow-50 text-yellow-700"
+                                }
+                              `}
+                            >
+                              {order.status ===
+                              "Delivered" ? (
+                                <FiCheckCircle
+                                  size={11}
+                                />
+                              ) : (
+                                <FiClock
+                                  size={11}
+                                />
+                              )}
 
-                            <span className="text-xs text-gray-500">
-                              {order.date}
+                              {order.status}
                             </span>
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-4">
-                          <span className="text-sm font-semibold text-gray-700">
-                            {order.quantity}
-                          </span>
-                        </td>
-
-                        <td className="px-4 py-4">
-                          <p className="text-sm font-semibold text-gray-800 whitespace-nowrap">
-                            {order.amount}
-                          </p>
-                        </td>
-
-                        <td className="px-4 py-4">
-                          <span
-                            className={`
-                              inline-flex
-                              items-center
-                              gap-1.5
-                              px-2.5
-                              py-1
-                              rounded-full
-                              text-[10px]
-                              font-semibold
-                              ${
-                                order.status ===
-                                "Delivered"
-                                  ? "bg-green-50 text-green-700"
-                                  : "bg-yellow-50 text-yellow-700"
-                              }
-                            `}
-                          >
-                            {order.status === "Delivered" ? (
-                              <FiCheckCircle size={11} />
-                            ) : (
-                              <FiClock size={11} />
-                            )}
-
-                            {order.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                        </tr>
+                      )
+                    )}
                   </tbody>
                 </table>
               </div>
 
-              {/* MOBILE */}
-
               <div className="md:hidden">
-                {recentOrders.map((order) => (
-                  <div
-                    key={order.id}
-                    className="
-                      p-4
-                      border-b
-                      border-gray-100
-                      last:border-b-0
-                    "
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-xs font-bold text-[#008236]">
-                            {order.id}
+                {recentOrders.map(
+                  (order) => (
+                    <div
+                      key={order.id}
+                      className="
+                        p-4
+                        border-b
+                        border-gray-100
+                        last:border-b-0
+                      "
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs font-bold text-[#008236]">
+                              {order.id}
+                            </p>
+
+                            <span
+                              className={`
+                                inline-flex
+                                items-center
+                                gap-1
+                                px-2
+                                py-1
+                                rounded-full
+                                text-[9px]
+                                font-semibold
+                                ${
+                                  order.status ===
+                                  "Delivered"
+                                    ? "bg-green-50 text-green-700"
+                                    : "bg-yellow-50 text-yellow-700"
+                                }
+                              `}
+                            >
+                              {order.status ===
+                              "Delivered" ? (
+                                <FiCheckCircle
+                                  size={10}
+                                />
+                              ) : (
+                                <FiClock
+                                  size={10}
+                                />
+                              )}
+
+                              {order.status}
+                            </span>
+                          </div>
+
+                          <p className="text-sm font-semibold text-gray-800 mt-1.5">
+                            {order.product}
                           </p>
 
-                          <span
-                            className={`
-                              inline-flex
-                              items-center
-                              gap-1
-                              px-2
-                              py-1
-                              rounded-full
-                              text-[9px]
-                              font-semibold
-                              ${
-                                order.status ===
-                                "Delivered"
-                                  ? "bg-green-50 text-green-700"
-                                  : "bg-yellow-50 text-yellow-700"
-                              }
-                            `}
-                          >
-                            {order.status === "Delivered" ? (
-                              <FiCheckCircle size={10} />
-                            ) : (
-                              <FiClock size={10} />
-                            )}
+                          <p className="text-xs text-gray-500 mt-1">
+                            {order.customer}
+                          </p>
 
-                            {order.status}
-                          </span>
-                        </div>
+                          <div className="flex flex-wrap items-center gap-2 mt-2">
+                            <span className="inline-flex items-center gap-1 text-[10px] text-gray-500">
+                              <FiCalendar
+                                size={11}
+                              />
+                              {order.date}
+                            </span>
+                          </div>
 
-                        <p className="text-sm font-semibold text-gray-800 mt-1.5">
-                          {order.product}
-                        </p>
+                          <div className="flex items-center gap-3 mt-2">
+                            <span className="text-xs text-gray-500">
+                              Qty:{" "}
+                              <strong className="text-gray-700">
+                                {order.quantity}
+                              </strong>
+                            </span>
 
-                        <p className="text-xs text-gray-500 mt-1">
-                          {order.customer}
-                        </p>
-
-                        <div className="flex flex-wrap items-center gap-2 mt-2">
-                          <span className="inline-flex items-center gap-1 text-[10px] text-gray-500">
-                            <FiCalendar size={11} />
-                            {order.date}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-3 mt-2">
-                          <span className="text-xs text-gray-500">
-                            Qty:{" "}
-                            <strong className="text-gray-700">
-                              {order.quantity}
-                            </strong>
-                          </span>
-
-                          <span className="text-xs font-bold text-gray-800">
-                            {order.amount}
-                          </span>
+                            <span className="text-xs font-bold text-gray-800">
+                              {order.amount}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                )}
               </div>
             </div>
 
@@ -2252,69 +3283,74 @@ function SellerDashboard({ unreadMessages = 0 }) {
               </div>
 
               <div className="p-5 sm:p-6 space-y-5">
-                {topProducts.map((product, index) => (
-                  <div key={product.name}>
-                    <div className="flex items-center gap-3">
+                {topProducts.map(
+                  (product, index) => (
+                    <div key={product.name}>
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="
+                            w-10
+                            h-10
+                            rounded-xl
+                            bg-green-50
+                            text-[#008236]
+                            flex
+                            items-center
+                            justify-center
+                            font-bold
+                            flex-shrink-0
+                          "
+                        >
+                          {index + 1}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-gray-800 truncate">
+                            {product.name}
+                          </p>
+
+                          <p className="text-[10px] text-gray-400 mt-0.5">
+                            {product.category} •{" "}
+                            {product.sales}
+                          </p>
+                        </div>
+
+                        <p className="text-xs font-bold text-gray-700 flex-shrink-0">
+                          {product.amount}
+                        </p>
+                      </div>
+
                       <div
                         className="
-                          w-10
-                          h-10
-                          rounded-xl
-                          bg-green-50
-                          text-[#008236]
-                          flex
-                          items-center
-                          justify-center
-                          font-bold
-                          flex-shrink-0
+                          h-1.5
+                          bg-gray-100
+                          rounded-full
+                          overflow-hidden
+                          mt-3
+                          ml-[52px]
                         "
                       >
-                        {index + 1}
+                        <div
+                          className="
+                            h-full
+                            rounded-full
+                            bg-[#008236]
+                          "
+                          style={{
+                            width: `${product.percentage}%`,
+                          }}
+                        />
                       </div>
-
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-800 truncate">
-                          {product.name}
-                        </p>
-
-                        <p className="text-[10px] text-gray-400 mt-0.5">
-                          {product.category} • {product.sales}
-                        </p>
-                      </div>
-
-                      <p className="text-xs font-bold text-gray-700 flex-shrink-0">
-                        {product.amount}
-                      </p>
                     </div>
-
-                    <div
-                      className="
-                        h-1.5
-                        bg-gray-100
-                        rounded-full
-                        overflow-hidden
-                        mt-3
-                        ml-[52px]
-                      "
-                    >
-                      <div
-                        className="
-                          h-full
-                          rounded-full
-                          bg-[#008236]
-                        "
-                        style={{
-                          width: `${product.percentage}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                ))}
+                  )
+                )}
 
                 <button
                   type="button"
                   onClick={() =>
-                    handleNavigation("/seller/products")
+                    handleNavigation(
+                      "/seller/products"
+                    )
                   }
                   className="
                     w-full
@@ -2369,7 +3405,8 @@ function SellerDashboard({ unreadMessages = 0 }) {
                   icon: FiPlus,
                   bg: "bg-green-50",
                   color: "text-[#008236]",
-                  hover: "group-hover:bg-[#008236] group-hover:text-white",
+                  hover:
+                    "group-hover:bg-[#008236] group-hover:text-white",
                 },
                 {
                   label: "Add Service",
@@ -2428,7 +3465,9 @@ function SellerDashboard({ unreadMessages = 0 }) {
                   <button
                     key={label}
                     type="button"
-                    onClick={() => handleNavigation(path)}
+                    onClick={() =>
+                      handleNavigation(path)
+                    }
                     className="
                       bg-white
                       border
@@ -2544,8 +3583,8 @@ function SellerDashboard({ unreadMessages = 0 }) {
                 </p>
 
                 <p className="text-xs text-gray-500 mt-0.5">
-                  Keep your products updated to attract more
-                  customers.
+                  Keep your products updated to attract
+                  more customers.
                 </p>
               </div>
             </div>
@@ -2553,7 +3592,9 @@ function SellerDashboard({ unreadMessages = 0 }) {
             <button
               type="button"
               onClick={() =>
-                handleNavigation("/seller/profile")
+                handleNavigation(
+                  "/seller/profile"
+                )
               }
               className="
                 h-9
