@@ -1275,6 +1275,43 @@ function App() {
   };
 
   // =======================================================
+  // REMOVE PURCHASED ITEMS
+  // =======================================================
+
+  const removePurchasedItems = (
+    purchasedItems
+  ) => {
+    if (
+      !Array.isArray(
+        purchasedItems
+      )
+    ) {
+      return;
+    }
+
+    const purchasedIds =
+      purchasedItems.map(
+        (item) => item.id
+      );
+
+    const nextCart =
+      cart.filter(
+        (item) =>
+          !purchasedIds.includes(
+            item.id
+          )
+      );
+
+    setCart(nextCart);
+
+    queueCustomerDataSave({
+      nextCart,
+      nextWishlist: wishlist,
+      nextOrders: orders,
+    });
+  };
+
+  // =======================================================
   // CART COUNT
   // =======================================================
 
@@ -2986,13 +3023,6 @@ function App() {
           }
         />
 
-
-{/* ================================================= */}
-{/* SELLER PRODUCTS */}
-{/* ================================================= */}
-
-
-
         {/* ================================================= */}
         {/* FALLBACK */}
         {/* ================================================= */}
@@ -3006,6 +3036,11 @@ function App() {
             />
           }
         />
+
+{/* ================================================= */}
+{/* SELLER PRODUCTS */}
+{/* ================================================= */}
+
 
 
       </Routes>
