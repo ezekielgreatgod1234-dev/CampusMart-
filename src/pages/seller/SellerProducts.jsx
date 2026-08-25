@@ -1024,7 +1024,6 @@ function SellerProducts({
   const statusOptions = [
     "All Status",
     "Active",
-    "Low Stock",
     "Out of Stock",
   ];
 
@@ -1087,11 +1086,11 @@ function SellerProducts({
         "Active"
     ).length;
 
-  const lowStockProducts =
+  const outOfStockProducts =
     products.filter(
       (product) =>
         product.status ===
-        "Low Stock"
+        "Out of Stock"
     ).length;
 
   const totalSales =
@@ -1124,9 +1123,6 @@ function SellerProducts({
       case "Active":
         return "bg-green-50 text-[#008236] border border-green-100";
 
-      case "Low Stock":
-        return "bg-yellow-50 text-yellow-700 border border-yellow-100";
-
       case "Out of Stock":
         return "bg-red-50 text-red-600 border border-red-100";
 
@@ -1146,11 +1142,6 @@ function SellerProducts({
       case "Active":
         return (
           <FiCheckCircle size={11} />
-        );
-
-      case "Low Stock":
-        return (
-          <FiAlertCircle size={11} />
         );
 
       case "Out of Stock":
@@ -1989,6 +1980,9 @@ function SellerProducts({
                   className="
                     w-10
                     h-10
+                    sm:w-11
+                    sm:h-11
+                    flex-shrink-0
                     rounded-xl
                     bg-green-50
                     text-[#008236]
@@ -2033,6 +2027,9 @@ function SellerProducts({
                   className="
                     w-10
                     h-10
+                    sm:w-11
+                    sm:h-11
+                    flex-shrink-0
                     rounded-xl
                     bg-green-50
                     text-[#008236]
@@ -2077,6 +2074,9 @@ function SellerProducts({
                   className="
                     w-10
                     h-10
+                    sm:w-11
+                    sm:h-11
+                    flex-shrink-0
                     rounded-xl
                     bg-green-50
                     text-[#008236]
@@ -2094,11 +2094,11 @@ function SellerProducts({
               </div>
 
               <p className="text-xs text-gray-500 mt-4">
-                Low Stock
+                Out of Stock
               </p>
 
               <h2 className="text-2xl font-bold text-gray-800 mt-1">
-                {lowStockProducts}
+                {outOfStockProducts}
               </h2>
             </div>
 
@@ -2121,6 +2121,9 @@ function SellerProducts({
                   className="
                     w-10
                     h-10
+                    sm:w-11
+                    sm:h-11
+                    flex-shrink-0
                     rounded-xl
                     bg-green-50
                     text-[#008236]
@@ -3501,6 +3504,9 @@ function SellerProducts({
                   className="
                     w-10
                     h-10
+                    sm:w-11
+                    sm:h-11
+                    flex-shrink-0
                     rounded-xl
                     bg-green-50
                     text-[#008236]
@@ -3743,7 +3749,6 @@ function SellerProducts({
                     }
                     options={[
                       "Active",
-                      "Low Stock",
                       "Out of Stock",
                     ]}
                     onChange={(value) =>
@@ -3933,8 +3938,9 @@ function SellerProducts({
               <div
                 className="
                   flex
-                  flex-col-reverse
-                  sm:flex-row
+                  flex-row
+                  items-center
+                  justify-end
                   gap-3
                   mt-6
                   pt-5
@@ -3953,17 +3959,23 @@ function SellerProducts({
                     resetProductForm();
                   }}
                   className="
-                    flex-1
                     h-11
+                    px-5
+                    min-w-[105px]
                     rounded-xl
                     border
                     border-gray-200
+                    bg-white
                     text-gray-600
                     text-sm
                     font-semibold
                     hover:bg-gray-50
                     transition
+                    active:scale-[0.98]
                     disabled:opacity-50
+                    flex
+                    items-center
+                    justify-center
                   "
                 >
                   Cancel
@@ -3973,8 +3985,9 @@ function SellerProducts({
                   type="submit"
                   disabled={savingProduct}
                   className="
-                    flex-1
                     h-11
+                    px-5
+                    min-w-[125px]
                     rounded-xl
                     bg-[#008236]
                     text-white
@@ -3986,6 +3999,7 @@ function SellerProducts({
                     gap-2
                     hover:bg-[#006f2e]
                     active:bg-[#005f28]
+                    active:scale-[0.98]
                     transition
                     shadow-sm
                     disabled:opacity-60
