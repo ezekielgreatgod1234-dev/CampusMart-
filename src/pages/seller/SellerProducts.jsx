@@ -52,13 +52,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 
-import { db, storage } from "../../context/firebase";
-
-import {
-  ref,
-  uploadBytes,
-  getDownloadURL,
-} from "firebase/storage";
+import { db } from "../../context/firebase";
 
 // =====================================================
 // CAMPUSMART GREEN
@@ -689,37 +683,97 @@ function SellerProducts({
   };
 
   // =====================================================
-  // UPLOAD IMAGE TO FIREBASE STORAGE
+  // CLOUDINARY IMAGE UPLOAD
+  // =====================================================
+  //
+  // IMPORTANT:
+  // Create these two values in your Cloudinary dashboard:
+  //
+  // 1. CLOUDINARY_CLOUD_NAME
+  // 2. CLOUDINARY_UPLOAD_PRESET
+  //
+  // Replace the values below with yours.
   // =====================================================
 
+  const CLOUDINARY_CLOUD_NAME = "quj7ewsm";
+  const CLOUDINARY_UPLOAD_PRESET = "campusmart_products";
+
   const uploadProductImage = async (file) => {
-    if (!file || !firebaseUser?.uid) return "";
+    if (!file) return "";
 
-    const safeName = file.name
-      .toLowerCase()
-      .replace(/[^a-z0-9.]+/g, "-");
+    if (
+      !CLOUDINARY_CLOUD_NAME ||
+      CLOUDINARY_CLOUD_NAME === "YOUR_CLOUD_NAME" ||
+      !CLOUDINARY_UPLOAD_PRESET ||
+      CLOUDINARY_UPLOAD_PRESET === "YOUR_UNSIGNED_UPLOAD_PRESET"
+    ) {
+      throw new Error(
+        "Cloudinary is not configured. Add your Cloudinary Cloud Name and Unsigned Upload Preset in SellerProducts.jsx."
+      );
+    }
 
-    const fileName = `${Date.now()}-${safeName}`;
+    const formData = new FormData();
 
-    const imageRef = ref(
-      storage,
-      `products/${firebaseUser.uid}/${fileName}`
+    formData.append("file", file);
+    formData.append(
+      "upload_preset",
+      CLOUDINARY_UPLOAD_PRESET
     );
 
-    await uploadBytes(imageRef, file, {
-      contentType: file.type,
-    });
+    // Keep CampusMart product images organized.
+    formData.append(
+      "folder",
+      `campusmart/products/${firebaseUser.uid}`
+    );
 
-    return await getDownloadURL(imageRef);
+    const response = await fetch(
+      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+      {
+        method: "POST",
+        body: formData,
+      }
+    );
+
+    let result = null;
+
+    try {
+      result = await response.json();
+    } catch {
+      throw new Error(
+        "Cloudinary returned an invalid response."
+      );
+    }
+
+    if (!response.ok || !result?.secure_url) {
+      throw new Error(
+        result?.error?.message ||
+          "Unable to upload the product image to Cloudinary."
+      );
+    }
+
+    return result.secure_url;
   };
 
   // =====================================================
   // SAVE PRODUCT TO FIRESTORE
   // =====================================================
+  //
+  // IMPORTANT:
+  // Firestore is saved FIRST.
+  //
+  // This means a Cloudinary problem will never leave the
+  // Add Product button stuck on "Saving..." forever.
+  //
+  // If a gallery image is selected:
+  //   1. Product is created with an empty image.
+  //   2. Modal closes immediately after Firestore succeeds.
+  //   3. Cloudinary uploads the image.
+  //   4. Firestore is updated with the Cloudinary URL.
+  //
+  // URL images are saved directly with the product.
+  // =====================================================
 
-  const handleSaveProduct = async (
-    event
-  ) => {
+  const handleSaveProduct = async (event) => {
     event.preventDefault();
 
     if (!firebaseUser?.uid) {
@@ -732,9 +786,7 @@ function SellerProducts({
     const productName =
       productForm.name.trim();
 
-    const price = Number(
-      productForm.price
-    );
+    const price = Number(productForm.price);
 
     if (!productName) {
       setFormError(
@@ -745,8 +797,7 @@ function SellerProducts({
 
     if (
       !productForm.category ||
-      productForm.category ===
-        "Select Category"
+      productForm.category === "Select Category"
     ) {
       setFormError(
         "Please select a category."
@@ -775,20 +826,22 @@ function SellerProducts({
     setFormError("");
 
     try {
-      // If a gallery image was selected, upload it first.
-      // Otherwise keep the existing URL / manually entered URL.
-      let imageUrl = productForm.image.trim();
-
-      if (selectedImageFile) {
-        imageUrl = await uploadProductImage(
-          selectedImageFile
-        );
-      }
       // =================================================
       // EDIT EXISTING PRODUCT
       // =================================================
 
       if (editingProduct) {
+        let imageUrl =
+          productForm.image.trim();
+
+        // If editing and a new gallery image was
+        // selected, upload it before updating.
+        if (selectedImageFile) {
+          imageUrl = await uploadProductImage(
+            selectedImageFile
+          );
+        }
+
         const productRef = doc(
           db,
           "products",
@@ -797,79 +850,103 @@ function SellerProducts({
 
         await updateDoc(productRef, {
           name: productName,
-
-          category:
-            productForm.category,
-
+          category: productForm.category,
           price,
-
           description:
             productForm.description.trim(),
-
-          image:
-            imageUrl,
-
-          status:
-            productForm.status,
-
-          updatedAt:
-            serverTimestamp(),
+          image: imageUrl,
+          status: productForm.status,
+          updatedAt: serverTimestamp(),
         });
+
+        setShowProductModal(false);
+        resetProductForm();
+        return;
       }
 
       // =================================================
       // ADD NEW PRODUCT
       // =================================================
 
-      else {
-        await addDoc(
-          collection(db, "products"),
-          {
-            name: productName,
+      // URL images can be saved immediately.
+      // Gallery images are uploaded after Firestore
+      // confirms the product was created.
+      const initialImageUrl =
+        selectedImageFile
+          ? ""
+          : productForm.image.trim();
 
-            category:
-              productForm.category,
+      const productRef = await addDoc(
+        collection(db, "products"),
+        {
+          name: productName,
+          category: productForm.category,
+          price,
+          description:
+            productForm.description.trim(),
+          image: initialImageUrl,
+          status: productForm.status,
+          sales: 0,
 
-            price,
+          sellerId:
+            firebaseUser.uid,
 
-            description:
-              productForm.description.trim(),
+          sellerName:
+            firebaseUser.displayName ||
+            "CampusMart Seller",
 
-            image:
-              imageUrl,
+          sellerEmail:
+            firebaseUser.email || "",
 
-            status:
-              productForm.status,
+          createdAt:
+            serverTimestamp(),
 
-            sales: 0,
+          updatedAt:
+            serverTimestamp(),
+        }
+      );
 
-            // VERY IMPORTANT
-            // This identifies the seller.
-            sellerId:
-              firebaseUser.uid,
-
-            sellerName:
-              firebaseUser.displayName ||
-              "CampusMart Seller",
-
-            sellerEmail:
-              firebaseUser.email || "",
-
-            createdAt:
-              serverTimestamp(),
-
-            updatedAt:
-              serverTimestamp(),
-          }
-        );
-      }
+      // Keep a reference before resetting the form.
+      const imageFileToUpload =
+        selectedImageFile;
 
       // =================================================
-      // CLOSE MODAL
+      // CLOSE THE FORM IMMEDIATELY AFTER PRODUCT CREATION
       // =================================================
 
       setShowProductModal(false);
       resetProductForm();
+
+      // =================================================
+      // UPLOAD GALLERY IMAGE IN THE BACKGROUND
+      // =================================================
+
+      if (imageFileToUpload) {
+        try {
+          const cloudinaryUrl =
+            await uploadProductImage(
+              imageFileToUpload
+            );
+
+          await updateDoc(
+            doc(db, "products", productRef.id),
+            {
+              image: cloudinaryUrl,
+              updatedAt:
+                serverTimestamp(),
+            }
+          );
+        } catch (imageError) {
+          console.error(
+            "Product was created, but image upload failed:",
+            imageError
+          );
+
+          // The product remains in Firestore.
+          // The seller can edit it later and upload
+          // another image.
+        }
+      }
     } catch (error) {
       console.error(
         "Error saving product:",
