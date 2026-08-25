@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
@@ -52,7 +53,28 @@ function SellerChat({
 }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { id } = useParams();
+
+  /*
+   * IMPORTANT:
+   * Support both:
+   *
+   * /seller/messages/:id
+   *
+   * and
+   *
+   * /seller/messages/:conversationId
+   *
+   * This prevents the chat from failing when your route
+   * parameter is named differently.
+   */
+  const params = useParams();
+
+  const conversationId =
+    params?.id ||
+    params?.conversationId ||
+    params?.chatId ||
+    null;
+
   const { firebaseUser } = useAuth();
 
   // =====================================================
@@ -91,30 +113,20 @@ function SellerChat({
   const [sending, setSending] =
     useState(false);
 
-  const [
-    liveConversation,
-    setLiveConversation,
-  ] = useState(null);
+  const [liveConversation, setLiveConversation] =
+    useState(null);
 
-  const [
-    conversationLoading,
-    setConversationLoading,
-  ] = useState(true);
+  const [conversationLoading, setConversationLoading] =
+    useState(true);
 
-  const [
-    selectedMessageIds,
-    setSelectedMessageIds,
-  ] = useState([]);
+  const [selectedMessageIds, setSelectedMessageIds] =
+    useState([]);
 
-  const [
-    showDeleteMenu,
-    setShowDeleteMenu,
-  ] = useState(false);
+  const [showDeleteMenu, setShowDeleteMenu] =
+    useState(false);
 
-  const [
-    deleting,
-    setDeleting,
-  ] = useState(false);
+  const [deleting, setDeleting] =
+    useState(false);
 
   // =====================================================
   // SIDEBAR MENU
@@ -191,10 +203,7 @@ function SellerChat({
 
   const isActive = (path) => {
     if (path === "/seller-dashboard") {
-      return (
-        location.pathname ===
-        "/seller-dashboard"
-      );
+      return location.pathname === "/seller-dashboard";
     }
 
     return location.pathname.startsWith(path);
@@ -235,50 +244,41 @@ function SellerChat({
   // FALLBACK CONVERSATION
   // =====================================================
 
-  const fallbackConversation =
-    messages.find((message) => {
-      const conversationId =
-        message?.conversationId ||
-        message?.chatId ||
-        message?.conversationID ||
-        message?.chatID ||
-        message?.id;
+  const fallbackConversation = useMemo(() => {
+    if (!conversationId) {
+      return null;
+    }
 
-      return (
-        String(conversationId) ===
-        String(id)
-      );
-    });
+    return (
+      messages.find((message) => {
+        const possibleIds = [
+          message?.conversationId,
+          message?.chatId,
+          message?.conversationID,
+          message?.chatID,
+          message?.conversation_id,
+          message?.chat_id,
+          message?.id,
+        ].filter(Boolean);
 
-  // =====================================================
-  // BODY CONTROL
-  // =====================================================
-
-  useEffect(() => {
-    const originalOverflow =
-      document.body.style.overflow;
-
-    const originalHeight =
-      document.body.style.height;
-
-    document.body.style.overflow = "hidden";
-    document.body.style.height = "100%";
-
-    return () => {
-      document.body.style.overflow =
-        originalOverflow;
-
-      document.body.style.height =
-        originalHeight;
-    };
-  }, []);
+        return possibleIds.some(
+          (value) =>
+            String(value) === String(conversationId)
+        );
+      }) || null
+    );
+  }, [messages, conversationId]);
 
   // =====================================================
   // LOAD CONVERSATION
   // =====================================================
 
   useEffect(() => {
-    if (!id) {
+    /*
+     * If there is no conversation ID, there is nothing
+     * to listen to.
+     */
+    if (!conversationId) {
       setLiveConversation(null);
       setConversationLoading(false);
       return undefined;
@@ -289,22 +289,27 @@ function SellerChat({
     const conversationRef = doc(
       db,
       "conversations",
-      String(id)
+      String(conversationId)
     );
 
     const unsubscribe = onSnapshot(
       conversationRef,
       (snapshot) => {
-        if (!snapshot.exists()) {
+        if (snapshot.exists()) {
+          setLiveConversation({
+            id: snapshot.id,
+            ...snapshot.data(),
+          });
+        } else {
+          /*
+           * Do NOT destroy the fallback conversation.
+           *
+           * Some existing conversations may be supplied
+           * through the messages prop instead of being
+           * available as a conversation document.
+           */
           setLiveConversation(null);
-          setConversationLoading(false);
-          return;
         }
-
-        setLiveConversation({
-          id: snapshot.id,
-          ...snapshot.data(),
-        });
 
         setConversationLoading(false);
       },
@@ -314,13 +319,19 @@ function SellerChat({
           error
         );
 
+        /*
+         * Keep fallback data available if Firestore
+         * temporarily fails.
+         */
         setLiveConversation(null);
         setConversationLoading(false);
       }
     );
 
-    return () => unsubscribe();
-  }, [id]);
+    return () => {
+      unsubscribe();
+    };
+  }, [conversationId]);
 
   // =====================================================
   // OTHER PARTICIPANT
@@ -333,6 +344,8 @@ function SellerChat({
         String(firebaseUser?.uid)
     ) ||
     fallbackConversation?.otherParticipantId ||
+    fallbackConversation?.buyerId ||
+    fallbackConversation?.receiverId ||
     null;
 
   // =====================================================
@@ -340,11 +353,12 @@ function SellerChat({
   // =====================================================
 
   const buyerName =
-    liveConversation
-      ?.participantNames?.[
-        otherParticipantId
-      ] ||
+    liveConversation?.participantNames?.[
+      otherParticipantId
+    ] ||
     fallbackConversation?.name ||
+    fallbackConversation?.buyerName ||
+    fallbackConversation?.participantName ||
     "Buyer";
 
   // =====================================================
@@ -352,12 +366,12 @@ function SellerChat({
   // =====================================================
 
   const buyerImage =
-    liveConversation
-      ?.participantImages?.[
-        otherParticipantId
-      ] ||
+    liveConversation?.participantImages?.[
+      otherParticipantId
+    ] ||
     fallbackConversation?.profileImage ||
     fallbackConversation?.image ||
+    fallbackConversation?.buyerImage ||
     null;
 
   // =====================================================
@@ -366,32 +380,37 @@ function SellerChat({
 
   const chatMessages =
     liveConversation &&
-    Array.isArray(
-      liveConversation.messages
-    )
+    Array.isArray(liveConversation.messages)
       ? liveConversation.messages
-      : fallbackConversation?.conversation ||
-        [];
+      : Array.isArray(fallbackConversation?.conversation)
+      ? fallbackConversation.conversation
+      : Array.isArray(fallbackConversation?.messages)
+      ? fallbackConversation.messages
+      : [];
 
   // =====================================================
   // SORT
   // =====================================================
 
-  const sortedMessages = [
-    ...chatMessages,
-  ].sort((a, b) => {
-    const aTime =
-      a.createdAt?.toMillis
-        ? a.createdAt.toMillis()
-        : Number(a.createdAt || 0);
+  const sortedMessages = useMemo(() => {
+    return [...chatMessages].sort((a, b) => {
+      const aTime =
+        a?.createdAt?.toMillis
+          ? a.createdAt.toMillis()
+          : a?.createdAt?.seconds
+          ? a.createdAt.seconds * 1000
+          : Number(a?.createdAt || 0);
 
-    const bTime =
-      b.createdAt?.toMillis
-        ? b.createdAt.toMillis()
-        : Number(b.createdAt || 0);
+      const bTime =
+        b?.createdAt?.toMillis
+          ? b.createdAt.toMillis()
+          : b?.createdAt?.seconds
+          ? b.createdAt.seconds * 1000
+          : Number(b?.createdAt || 0);
 
-    return aTime - bTime;
-  });
+      return aTime - bTime;
+    });
+  }, [chatMessages]);
 
   // =====================================================
   // IS MY MESSAGE
@@ -434,35 +453,40 @@ function SellerChat({
       return true;
     }
 
-    if (message?.sender === "seller") {
+    if (
+      message?.sender === "seller"
+    ) {
       return true;
     }
 
-    return message?.sender === "me";
+    if (
+      message?.sender === "me"
+    ) {
+      return true;
+    }
+
+    /*
+     * Also support sender === current user's uid.
+     */
+    if (
+      message?.sender &&
+      firebaseUser?.uid &&
+      String(message.sender) ===
+        String(firebaseUser.uid)
+    ) {
+      return true;
+    }
+
+    return false;
   };
 
   // =====================================================
-  // MARK ALL BUYER MESSAGES AS SEEN
-  //
-  // This runs when SELLER opens this conversation.
-  //
-  // Every buyer message without seenAt gets:
-  //
-  // seenAt: Timestamp
-  //
-  // This is what changes the seller's outgoing
-  // message from:
-  //
-  // ✓
-  //
-  // to:
-  //
-  // ✓✓
+  // MARK BUYER MESSAGES AS SEEN
   // =====================================================
 
   useEffect(() => {
     if (
-      !id ||
+      !conversationId ||
       !firebaseUser?.uid ||
       !liveConversation ||
       !Array.isArray(
@@ -472,15 +496,16 @@ function SellerChat({
       return;
     }
 
+    let cancelled = false;
+
     const markIncomingMessagesAsSeen =
       async () => {
         try {
-          const conversationRef =
-            doc(
-              db,
-              "conversations",
-              String(id)
-            );
+          const conversationRef = doc(
+            db,
+            "conversations",
+            String(conversationId)
+          );
 
           await runTransaction(
             db,
@@ -490,7 +515,9 @@ function SellerChat({
                   conversationRef
                 );
 
-              if (!snapshot.exists()) {
+              if (
+                !snapshot.exists()
+              ) {
                 return;
               }
 
@@ -550,13 +577,15 @@ function SellerChat({
             }
           );
 
-          // Keep your existing unread system working.
           if (
+            !cancelled &&
             typeof markMessageAsRead ===
-            "function"
+              "function"
           ) {
             await Promise.resolve(
-              markMessageAsRead(id)
+              markMessageAsRead(
+                conversationId
+              )
             );
           }
         } catch (error) {
@@ -568,10 +597,14 @@ function SellerChat({
       };
 
     markIncomingMessagesAsSeen();
+
+    return () => {
+      cancelled = true;
+    };
   }, [
-    id,
+    conversationId,
     firebaseUser?.uid,
-    liveConversation?.messages,
+    liveConversation?.id,
     markMessageAsRead,
   ]);
 
@@ -584,21 +617,22 @@ function SellerChat({
       (message) => {
         const deletedFor =
           Array.isArray(
-            message.deletedFor
+            message?.deletedFor
           )
             ? message.deletedFor
             : [];
 
         if (
+          firebaseUser?.uid &&
           deletedFor.includes(
-            firebaseUser?.uid
+            firebaseUser.uid
           )
         ) {
           return false;
         }
 
         if (
-          message.deletedForEveryone ===
+          message?.deletedForEveryone ===
           true
         ) {
           return false;
@@ -631,6 +665,11 @@ function SellerChat({
       const date =
         message.createdAt?.toDate
           ? message.createdAt.toDate()
+          : message.createdAt?.seconds
+          ? new Date(
+              message.createdAt.seconds *
+                1000
+            )
           : new Date(
               message.createdAt
             );
@@ -658,9 +697,9 @@ function SellerChat({
 
     return Boolean(
       message.seenAt ||
-      message.readAt ||
-      message.isRead === true ||
-      message.seen === true
+        message.readAt ||
+        message.isRead === true ||
+        message.seen === true
     );
   };
 
@@ -668,7 +707,9 @@ function SellerChat({
   // MESSAGE TICKS
   // =====================================================
 
-  const MessageTicks = ({ message }) => {
+  const MessageTicks = ({
+    message,
+  }) => {
     if (!isMyMessage(message)) {
       return null;
     }
@@ -678,16 +719,11 @@ function SellerChat({
 
     return (
       <span
-        className={`
-          inline-flex
-          items-center
-          ml-1
-          align-middle
-          ${seen
+        className={`inline-flex items-center ml-1 align-middle ${
+          seen
             ? "text-blue-200"
             : "text-green-100"
-          }
-        `}
+        }`}
         title={
           seen
             ? "Seen"
@@ -700,6 +736,7 @@ function SellerChat({
               size={12}
               strokeWidth={3}
             />
+
             <FiCheck
               size={12}
               strokeWidth={3}
@@ -798,7 +835,7 @@ function SellerChat({
       selectedMessageIds.length ===
         0 ||
       !firebaseUser?.uid ||
-      !id ||
+      !conversationId ||
       typeof deleteMessages !==
         "function"
     ) {
@@ -885,7 +922,7 @@ function SellerChat({
 
     try {
       await deleteMessages(
-        id,
+        conversationId,
         idsToDelete,
         deleteType
       );
@@ -913,7 +950,7 @@ function SellerChat({
         sending ||
         typeof sendMessage !==
           "function" ||
-        !id
+        !conversationId
       ) {
         return;
       }
@@ -923,7 +960,7 @@ function SellerChat({
 
       try {
         await sendMessage(
-          id,
+          conversationId,
           text
         );
       } catch (error) {
@@ -937,6 +974,10 @@ function SellerChat({
         setSending(false);
       }
     };
+
+  // =====================================================
+  // KEYBOARD
+  // =====================================================
 
   const handleKeyDown = (e) => {
     if (
@@ -958,8 +999,10 @@ function SellerChat({
     !fallbackConversation
   ) {
     return (
-      <div className="h-screen w-full bg-gray-50 text-gray-800 flex overflow-hidden">
-        <aside className="fixed inset-y-0 left-0 z-50 w-[230px] bg-green-700 text-white flex flex-col shadow-2xl">
+      <div className="h-[100dvh] w-full bg-gray-50 text-gray-800 flex overflow-hidden">
+        {/* SIDEBAR */}
+
+        <aside className="hidden lg:flex fixed inset-y-0 left-0 z-50 w-[230px] bg-green-700 text-white flex-col shadow-2xl">
           <div className="h-[86px] px-5 flex items-center">
             <button
               type="button"
@@ -978,6 +1021,7 @@ function SellerChat({
                 <p className="text-lg font-extrabold">
                   CampusMart
                 </p>
+
                 <p className="text-[10px] text-green-100">
                   Buy. Sell. Connect.
                 </p>
@@ -1003,18 +1047,13 @@ function SellerChat({
                           item.path
                         )
                       }
-                      className={`
-                        w-full flex items-center gap-3
-                        px-3 py-3 rounded-xl
-                        text-sm font-medium
-                        ${
-                          isActive(
-                            item.path
-                          )
-                            ? "bg-white text-green-700"
-                            : "text-white hover:bg-green-600"
-                        }
-                      `}
+                      className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium ${
+                        isActive(
+                          item.path
+                        )
+                          ? "bg-white text-green-700"
+                          : "text-white hover:bg-green-600"
+                      }`}
                     >
                       <Icon size={18} />
 
@@ -1028,7 +1067,8 @@ function SellerChat({
                         </span>
                       )}
 
-                      {item.badge > 0 && (
+                      {item.badge >
+                        0 && (
                         <span className="min-w-5 h-5 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
                           {item.badge >
                           99
@@ -1051,16 +1091,26 @@ function SellerChat({
               }
               className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium text-white hover:bg-green-600"
             >
-              <FiLogOut
-                size={18}
-              />
+              <FiLogOut size={18} />
               Logout
             </button>
           </div>
         </aside>
 
-        <div className="flex-1 min-w-0 lg:ml-[230px] flex flex-col h-screen">
-          <header className="h-[86px] bg-green-800 text-white flex items-center px-4 sm:px-6 gap-4">
+        {/* MAIN */}
+
+        <div className="flex-1 min-w-0 lg:ml-[230px] flex flex-col h-[100dvh]">
+          <header className="h-[70px] sm:h-[86px] bg-green-800 text-white flex items-center px-4 sm:px-6 gap-4 shrink-0">
+            <button
+              type="button"
+              onClick={() =>
+                setSidebarOpen(true)
+              }
+              className="lg:hidden"
+            >
+              <FiMenu size={23} />
+            </button>
+
             <div className="relative flex-1 max-w-[500px]">
               <FiSearch
                 size={17}
@@ -1081,15 +1131,14 @@ function SellerChat({
             </div>
           </header>
 
-          <main className="flex-1 min-h-0 overflow-hidden p-4 sm:p-6 lg:p-7">
-            <div className="h-full bg-white rounded-2xl border border-green-100 p-10 text-center shadow-sm flex flex-col items-center justify-center">
+          <main className="flex-1 min-h-0 overflow-hidden p-3 sm:p-6 lg:p-7">
+            <div className="h-full bg-white rounded-2xl border border-green-100 p-6 sm:p-10 text-center shadow-sm flex flex-col items-center justify-center">
               <div className="w-16 h-16 rounded-full bg-green-50 text-green-600 flex items-center justify-center mb-4">
                 <FiX size={28} />
               </div>
 
               <h2 className="text-xl font-bold text-gray-800">
-                Conversation not
-                found
+                Conversation not found
               </h2>
 
               <p className="text-gray-500 mt-2">
@@ -1111,6 +1160,117 @@ function SellerChat({
             </div>
           </main>
         </div>
+
+        {/* MOBILE DRAWER */}
+
+        {sidebarOpen && (
+          <>
+            <div
+              className="fixed inset-0 z-[60] bg-black/50 lg:hidden"
+              onClick={() =>
+                setSidebarOpen(false)
+              }
+            />
+
+            <aside className="fixed inset-y-0 left-0 z-[70] w-[250px] bg-green-700 text-white flex flex-col shadow-2xl lg:hidden">
+              <div className="h-[86px] px-5 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-white text-green-700 flex items-center justify-center font-extrabold">
+                    CM
+                  </div>
+
+                  <div>
+                    <p className="text-lg font-extrabold">
+                      CampusMart
+                    </p>
+
+                    <p className="text-[10px] text-green-100">
+                      Buy. Sell. Connect.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSidebarOpen(false)
+                  }
+                >
+                  <FiX size={22} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-3 pb-5">
+                <nav className="space-y-1">
+                  {menuItems.map(
+                    (item) => {
+                      const Icon =
+                        item.icon;
+
+                      return (
+                        <button
+                          key={
+                            item.path
+                          }
+                          type="button"
+                          onClick={() =>
+                            handleNavigation(
+                              item.path
+                            )
+                          }
+                          className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium ${
+                            isActive(
+                              item.path
+                            )
+                              ? "bg-white text-green-700"
+                              : "text-white hover:bg-green-600"
+                          }`}
+                        >
+                          <Icon size={18} />
+
+                          <span className="flex-1 text-left">
+                            {item.label}
+                          </span>
+
+                          {item.new && (
+                            <span className="px-1.5 py-0.5 rounded-md bg-yellow-400 text-green-900 text-[8px] font-bold">
+                              NEW
+                            </span>
+                          )}
+
+                          {item.badge >
+                            0 && (
+                            <span className="min-w-5 h-5 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                              {item.badge >
+                              99
+                                ? "99+"
+                                : item.badge}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    }
+                  )}
+                </nav>
+              </div>
+
+              <div className="px-3 pb-4">
+                <button
+                  type="button"
+                  onClick={
+                    handleLogout
+                  }
+                  className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium text-white hover:bg-green-600"
+                >
+                  <FiLogOut
+                    size={18}
+                  />
+                  Logout
+                </button>
+              </div>
+            </aside>
+          </>
+        )}
       </div>
     );
   }
@@ -1124,7 +1284,7 @@ function SellerChat({
     !fallbackConversation
   ) {
     return (
-      <div className="h-screen w-full bg-gray-50 flex items-center justify-center">
+      <div className="h-[100dvh] w-full bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="w-10 h-10 mx-auto rounded-full border-4 border-green-100 border-t-green-600 animate-spin" />
 
@@ -1141,7 +1301,11 @@ function SellerChat({
   // =====================================================
 
   return (
-    <div className="h-screen w-full bg-gray-50 text-gray-800 flex overflow-hidden">
+    <div className="h-[100dvh] w-full bg-gray-50 text-gray-800 flex overflow-hidden">
+      {/* =================================================
+          MOBILE OVERLAY
+      ================================================= */}
+
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
@@ -1168,7 +1332,7 @@ function SellerChat({
           }
         `}
       >
-        <div className="h-[86px] px-5 flex items-center justify-between">
+        <div className="h-[86px] px-5 flex items-center justify-between shrink-0">
           <button
             type="button"
             onClick={() =>
@@ -1204,7 +1368,7 @@ function SellerChat({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-3 pb-5">
+        <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-5">
           <nav className="space-y-1">
             {menuItems.map(
               (item) => {
@@ -1266,7 +1430,7 @@ function SellerChat({
           </nav>
         </div>
 
-        <div className="px-3 pb-4">
+        <div className="px-3 pb-4 shrink-0">
           <button
             type="button"
             onClick={
@@ -1286,23 +1450,23 @@ function SellerChat({
           MAIN AREA
       ================================================= */}
 
-      <div className="flex-1 min-w-0 lg:ml-[230px] flex flex-col h-screen">
+      <div className="flex-1 min-w-0 lg:ml-[230px] flex flex-col h-[100dvh]">
         {/* =================================================
             NAVBAR
         ================================================= */}
 
-        <header className="h-[86px] bg-green-800 text-white flex items-center px-4 sm:px-6 gap-4 shrink-0">
+        <header className="h-[70px] sm:h-[86px] bg-green-800 text-white flex items-center px-3 sm:px-6 gap-3 sm:gap-4 shrink-0">
           <button
             type="button"
             onClick={() =>
               setSidebarOpen(true)
             }
-            className="lg:hidden"
+            className="lg:hidden w-10 h-10 rounded-full hover:bg-green-700 flex items-center justify-center shrink-0"
           >
             <FiMenu size={23} />
           </button>
 
-          <div className="relative flex-1 max-w-[500px]">
+          <div className="relative flex-1 min-w-0 max-w-[500px]">
             <FiSearch
               size={17}
               className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
@@ -1321,7 +1485,7 @@ function SellerChat({
             />
           </div>
 
-          <div className="ml-auto flex items-center gap-3">
+          <div className="ml-auto flex items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={() =>
@@ -1353,7 +1517,7 @@ function SellerChat({
                   "/seller/profile"
                 )
               }
-              className="flex items-center gap-2 rounded-full bg-green-700 hover:bg-green-600 px-2 py-1.5"
+              className="flex items-center gap-2 rounded-full bg-green-700 hover:bg-green-600 px-1.5 sm:px-2 py-1.5"
             >
               {sellerImage ? (
                 <img
@@ -1388,11 +1552,13 @@ function SellerChat({
             CHAT
         ================================================= */}
 
-        <main className="flex-1 min-h-0 overflow-hidden p-4 sm:p-6 lg:p-7">
-          <div className="h-full bg-white rounded-2xl border border-green-100 overflow-hidden flex flex-col shadow-sm">
-            {/* HEADER */}
+        <main className="flex-1 min-h-0 overflow-hidden p-2 sm:p-4 lg:p-7">
+          <div className="h-full min-h-0 bg-white rounded-xl sm:rounded-2xl border border-green-100 overflow-hidden flex flex-col shadow-sm">
+            {/* =================================================
+                CHAT HEADER
+            ================================================= */}
 
-            <div className="flex items-center gap-3 px-3 sm:px-6 py-3 sm:py-4 border-b border-green-100 bg-white flex-shrink-0 z-10">
+            <div className="flex items-center gap-2 sm:gap-3 px-2.5 sm:px-6 py-2.5 sm:py-4 border-b border-green-100 bg-white shrink-0 z-10">
               {selectedMessageIds.length >
               0 ? (
                 <>
@@ -1404,7 +1570,7 @@ function SellerChat({
                     disabled={
                       deleting
                     }
-                    className="w-10 h-10 rounded-full hover:bg-green-50 flex items-center justify-center text-green-700"
+                    className="w-10 h-10 rounded-full hover:bg-green-50 flex items-center justify-center text-green-700 shrink-0"
                   >
                     <FiX size={20} />
                   </button>
@@ -1431,7 +1597,7 @@ function SellerChat({
                     disabled={
                       deleting
                     }
-                    className="h-10 px-3 sm:px-4 rounded-xl bg-green-600 hover:bg-green-700 text-white flex items-center gap-2 font-semibold text-sm"
+                    className="h-10 px-3 sm:px-4 rounded-xl bg-green-600 hover:bg-green-700 text-white flex items-center gap-2 font-semibold text-sm shrink-0"
                   >
                     <FiTrash2
                       size={17}
@@ -1451,7 +1617,7 @@ function SellerChat({
                         "/seller/messages"
                       )
                     }
-                    className="w-10 h-10 rounded-full hover:bg-green-50 flex items-center justify-center text-green-700"
+                    className="w-10 h-10 rounded-full hover:bg-green-50 flex items-center justify-center text-green-700 shrink-0"
                   >
                     <FiArrowLeft
                       size={19}
@@ -1462,10 +1628,10 @@ function SellerChat({
                     <img
                       src={buyerImage}
                       alt={buyerName}
-                      className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover ring-2 ring-green-100"
+                      className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover ring-2 ring-green-100 shrink-0"
                     />
                   ) : (
-                    <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-green-100 text-green-700 flex items-center justify-center font-bold text-lg">
+                    <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-green-100 text-green-700 flex items-center justify-center font-bold text-lg shrink-0">
                       {getInitial(
                         buyerName
                       )}
@@ -1477,7 +1643,7 @@ function SellerChat({
                       {buyerName}
                     </h2>
 
-                    <p className="text-xs text-green-600">
+                    <p className="text-xs text-green-600 truncate">
                       CampusMart
                       conversation
                     </p>
@@ -1486,11 +1652,13 @@ function SellerChat({
               )}
             </div>
 
-            {/* BODY */}
+            {/* =================================================
+                MESSAGES BODY
+            ================================================= */}
 
-            <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-6 space-y-2 sm:space-y-3 bg-gradient-to-b from-green-50/40 to-gray-50 [scrollbar-width:thin]">
-              <div className="text-center mb-4 sm:mb-5">
-                <span className="inline-block bg-white text-green-600 text-[11px] sm:text-xs font-medium px-3 py-1.5 rounded-full border border-green-100 shadow-sm">
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-2.5 sm:p-6 space-y-2 sm:space-y-3 bg-gradient-to-b from-green-50/40 to-gray-50 [scrollbar-width:thin]">
+              <div className="text-center mb-3 sm:mb-5">
+                <span className="inline-block bg-white text-green-600 text-[10px] sm:text-xs font-medium px-3 py-1.5 rounded-full border border-green-100 shadow-sm">
                   Conversation with{" "}
                   {buyerName}
                 </span>
@@ -1515,7 +1683,7 @@ function SellerChat({
               )}
 
               {visibleMessages.map(
-                (message) => {
+                (message, index) => {
                   const mine =
                     isMyMessage(
                       message
@@ -1523,7 +1691,8 @@ function SellerChat({
 
                   const messageId =
                     String(
-                      message.id
+                      message?.id ||
+                        `${message?.createdAt || ""}-${index}`
                     );
 
                   const selected =
@@ -1534,8 +1703,8 @@ function SellerChat({
                   return (
                     <div
                       key={
-                        message.id ||
-                        `${message.createdAt}-${message.text}`
+                        message?.id ||
+                        `${message?.createdAt}-${index}`
                       }
                       className={`flex w-full ${
                         mine
@@ -1554,7 +1723,7 @@ function SellerChat({
                           deleting
                         }
                         className={`
-                          max-w-[82%] sm:max-w-[65%]
+                          max-w-[88%] sm:max-w-[65%]
                           text-left px-3.5 py-2.5
                           sm:px-4 sm:py-3
                           rounded-2xl transition
@@ -1581,7 +1750,9 @@ function SellerChat({
                         )}
 
                         <p className="text-sm leading-5 break-words whitespace-pre-wrap">
-                          {message.text}
+                          {message?.text ||
+                            message?.message ||
+                            ""}
                         </p>
 
                         <div
@@ -1595,7 +1766,7 @@ function SellerChat({
                             ${
                               mine
                                 ? "text-green-100"
-                                : "text-gray-400"
+                                : "text-green-100"
                             }
                           `}
                         >
@@ -1604,10 +1775,6 @@ function SellerChat({
                               message
                             )}
                           </span>
-
-                          {/* ============================
-                              READ RECEIPT
-                              ============================ */}
 
                           <MessageTicks
                             message={
@@ -1624,12 +1791,26 @@ function SellerChat({
               <div className="h-1 shrink-0" />
             </div>
 
-            {/* INPUT */}
+            {/* =================================================
+                INPUT
+            ================================================= */}
 
             {selectedMessageIds.length ===
               0 && (
-              <div className="flex-shrink-0 border-t border-green-100 p-2.5 sm:p-4 bg-white z-20 pb-[calc(0.625rem+env(safe-area-inset-bottom))] sm:pb-4">
-                <div className="flex items-center gap-2">
+              <div
+                className="
+                  shrink-0
+                  border-t border-green-100
+                  bg-white
+                  px-2.5 sm:px-4
+                  pt-2.5 sm:pt-4
+                  pb-[calc(0.625rem+env(safe-area-inset-bottom))]
+                  sm:pb-4
+                  relative
+                  z-30
+                "
+              >
+                <div className="flex items-center gap-2 w-full">
                   <input
                     type="text"
                     value={messageText}
@@ -1643,7 +1824,25 @@ function SellerChat({
                     }
                     disabled={sending}
                     placeholder={`Message ${buyerName}...`}
-                    className="flex-1 min-w-0 bg-gray-100 rounded-full px-4 py-3 text-sm outline-none border border-transparent focus:ring-2 focus:ring-green-100 focus:border-green-500 focus:bg-white disabled:opacity-60"
+                    autoComplete="off"
+                    className="
+                      flex-1
+                      min-w-0
+                      h-11
+                      bg-gray-100
+                      rounded-full
+                      px-4
+                      text-sm
+                      text-gray-800
+                      outline-none
+                      border
+                      border-transparent
+                      focus:ring-2
+                      focus:ring-green-100
+                      focus:border-green-500
+                      focus:bg-white
+                      disabled:opacity-60
+                    "
                   />
 
                   <button
@@ -1655,7 +1854,21 @@ function SellerChat({
                       !messageText.trim() ||
                       sending
                     }
-                    className="w-11 h-11 rounded-full bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white flex items-center justify-center shrink-0"
+                    className="
+                      w-11
+                      h-11
+                      rounded-full
+                      bg-green-600
+                      hover:bg-green-700
+                      active:bg-green-800
+                      disabled:bg-gray-300
+                      text-white
+                      flex
+                      items-center
+                      justify-center
+                      shrink-0
+                      transition
+                    "
                   >
                     {sending ? (
                       <span className="w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
@@ -1669,7 +1882,9 @@ function SellerChat({
               </div>
             )}
 
-            {/* DELETE MENU */}
+            {/* =================================================
+                DELETE MENU
+            ================================================= */}
 
             {showDeleteMenu && (
               <div
@@ -1714,7 +1929,9 @@ function SellerChat({
 
                   <button
                     type="button"
-                    disabled={deleting}
+                    disabled={
+                      deleting
+                    }
                     onClick={() =>
                       handleDelete(
                         "me"
