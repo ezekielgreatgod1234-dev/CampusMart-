@@ -467,6 +467,18 @@ function formatConversation(
 
     allMessages:
       conversationMessages,
+
+    productId:
+      data.productId || null,
+
+    productName:
+      data.productName || "",
+
+    buyerId:
+      data.buyerId || null,
+
+    sellerId:
+      data.sellerId || null,
   };
 }
 
@@ -1584,7 +1596,7 @@ function App() {
         !firebaseUser ||
         !messageId
       ) {
-        return;
+        return false;
       }
 
       try {
@@ -1601,11 +1613,15 @@ function App() {
             [`unreadCounts.${firebaseUser.uid}`]: 0,
           }
         );
+
+        return true;
       } catch (error) {
         console.error(
           "Error marking conversation as read:",
           error
         );
+
+        return false;
       }
     };
 
@@ -2072,30 +2088,82 @@ function App() {
 
   const openSellerChat =
     async (product) => {
-      if (
-        !product ||
-        !firebaseUser
-      ) {
-        return;
+      // ---------------------------------------------------
+      // CHECK LOGGED-IN USER
+      // ---------------------------------------------------
+
+      if (!firebaseUser) {
+        console.error(
+          "Cannot open seller chat: user is not logged in."
+        );
+
+        return false;
       }
 
+      // ---------------------------------------------------
+      // CHECK PRODUCT
+      // ---------------------------------------------------
+
+      if (!product) {
+        console.error(
+          "Cannot open seller chat: product is missing."
+        );
+
+        return false;
+      }
+
+      // ---------------------------------------------------
+      // GET SELLER UID
+      //
+      // Supports:
+      // product.sellerId
+      // product.sellerUid
+      // product.seller.uid
+      // ---------------------------------------------------
+
       const sellerId =
-        product.sellerId;
+        product.sellerId ||
+        product.sellerUid ||
+        product.seller?.uid ||
+        "";
 
       if (!sellerId) {
         console.error(
-          "This product does not have a sellerId."
+          "Cannot open seller chat: this product has no seller ID.",
+          product
         );
 
-        return;
+        return false;
       }
+
+      // ---------------------------------------------------
+      // PREVENT CHAT WITH YOURSELF
+      // ---------------------------------------------------
 
       if (
         String(sellerId) ===
         String(firebaseUser.uid)
       ) {
-        return;
+        console.error(
+          "Cannot open seller chat: buyer and seller are the same user."
+        );
+
+        return false;
       }
+
+      // ---------------------------------------------------
+      // CREATE STABLE CONVERSATION ID
+      //
+      // Sorting means:
+      //
+      // buyer_seller
+      //
+      // and
+      //
+      // seller_buyer
+      //
+      // always produce the same ID.
+      // ---------------------------------------------------
 
       const participantIds = [
         String(firebaseUser.uid),
@@ -2113,6 +2181,10 @@ function App() {
         );
 
       try {
+        // =================================================
+        // CHECK EXISTING CONVERSATION
+        // =================================================
+
         const existingSnapshot =
           await getDoc(
             conversationRef
@@ -2121,55 +2193,119 @@ function App() {
         if (
           existingSnapshot.exists()
         ) {
+          console.log(
+            "Existing seller conversation found:",
+            conversationId
+          );
+
           navigate(
             `/messages/${conversationId}`
           );
 
-          return;
+          return true;
         }
+
+        // =================================================
+        // BUYER INFORMATION
+        // =================================================
+
+        const buyerName =
+          profile?.fullName ||
+          firebaseUser.displayName ||
+          firebaseUser.email ||
+          "CampusMart User";
+
+        const buyerImage =
+          profile?.profileImage ||
+          firebaseUser.photoURL ||
+          null;
+
+        // =================================================
+        // SELLER INFORMATION
+        // =================================================
+
+        const sellerName =
+          product.sellerName ||
+          product.seller?.name ||
+          "CampusMart Seller";
+
+        const sellerImage =
+          product.sellerImage ||
+          product.seller?.image ||
+          product.seller?.profileImage ||
+          null;
+
+        // =================================================
+        // CREATE CONVERSATION
+        // =================================================
 
         await setDoc(
           conversationRef,
           {
+            // ---------------------------------------------
+            // PARTICIPANTS
+            // ---------------------------------------------
+
             participants:
               participantIds,
 
-            participantNames: {
-              [firebaseUser.uid]:
-                profile.fullName ||
-                firebaseUser.displayName ||
-                "CampusMart User",
+            buyerId:
+              String(firebaseUser.uid),
 
-              [sellerId]:
-                product.sellerName ||
-                "CampusMart Seller",
+            sellerId:
+              String(sellerId),
+
+            // ---------------------------------------------
+            // NAMES
+            // ---------------------------------------------
+
+            participantNames: {
+              [String(firebaseUser.uid)]:
+                buyerName,
+
+              [String(sellerId)]:
+                sellerName,
             },
+
+            // ---------------------------------------------
+            // PROFILE IMAGES
+            // ---------------------------------------------
 
             participantImages: {
-              [firebaseUser.uid]:
-                profile.profileImage ||
-                null,
+              [String(firebaseUser.uid)]:
+                buyerImage,
 
-              [sellerId]:
-                product.sellerImage ||
-                null,
+              [String(sellerId)]:
+                sellerImage,
             },
+
+            // ---------------------------------------------
+            // UNREAD COUNTS
+            // ---------------------------------------------
 
             unreadCounts: {
-              [firebaseUser.uid]:
+              [String(firebaseUser.uid)]:
                 0,
 
-              [sellerId]:
+              [String(sellerId)]:
                 0,
             },
+
+            // ---------------------------------------------
+            // ONLINE STATUS
+            // ---------------------------------------------
 
             onlineStatus: {
-              [firebaseUser.uid]:
+              [String(firebaseUser.uid)]:
                 true,
 
-              [sellerId]:
+              [String(sellerId)]:
                 false,
             },
+
+            // ---------------------------------------------
+            // LAST MESSAGE
+            // ---------------------------------------------
 
             lastMessage:
               "",
@@ -2177,13 +2313,25 @@ function App() {
             lastMessageAt:
               0,
 
+            // ---------------------------------------------
+            // MESSAGES
+            // ---------------------------------------------
+
             messages: [],
+
+            // ---------------------------------------------
+            // PRODUCT
+            // ---------------------------------------------
 
             productId:
               product.id || null,
 
             productName:
               product.name || "",
+
+            // ---------------------------------------------
+            // TIMESTAMPS
+            // ---------------------------------------------
 
             createdAt:
               serverTimestamp(),
@@ -2196,14 +2344,31 @@ function App() {
           }
         );
 
+        console.log(
+          "Seller conversation created successfully:",
+          conversationId
+        );
+
+        // =================================================
+        // OPEN BUYER CHAT
+        // =================================================
+
         navigate(
           `/messages/${conversationId}`
         );
+
+        // VERY IMPORTANT:
+        // ProductDetails can now know that
+        // opening the chat succeeded.
+        return true;
+
       } catch (error) {
         console.error(
           "Error opening seller chat:",
           error
         );
+
+        return false;
       }
     };
 

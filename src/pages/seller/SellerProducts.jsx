@@ -52,7 +52,13 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 
-import { db } from "../../context/firebase";
+import { db, storage } from "../../context/firebase";
+
+import {
+  ref,
+  uploadBytes,
+  getDownloadURL,
+} from "firebase/storage";
 
 // =====================================================
 // CAMPUSMART GREEN
@@ -270,6 +276,14 @@ function SellerProducts({
     });
 
   const [formError, setFormError] =
+    useState("");
+
+  // Selected image from the user's gallery/device.
+  const [selectedImageFile, setSelectedImageFile] =
+    useState(null);
+
+  // Temporary preview URL for a newly selected image.
+  const [imagePreview, setImagePreview] =
     useState("");
 
   const [savingProduct, setSavingProduct] =
@@ -569,6 +583,8 @@ function SellerProducts({
     setFormError("");
     setEditingProduct(null);
     setSavingProduct(false);
+    setSelectedImageFile(null);
+    setImagePreview("");
   };
 
   // =====================================================
@@ -636,6 +652,68 @@ function SellerProducts({
   };
 
   // =====================================================
+  // SELECT PRODUCT IMAGE FROM GALLERY / DEVICE
+  // =====================================================
+
+  const handleProductImageChange = (event) => {
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    // Allow common image formats only.
+    if (!file.type.startsWith("image/")) {
+      setFormError("Please select a valid image file.");
+      event.target.value = "";
+      return;
+    }
+
+    // Keep uploads reasonably small.
+    const maxSize = 5 * 1024 * 1024;
+
+    if (file.size > maxSize) {
+      setFormError("Image must be 5MB or smaller.");
+      event.target.value = "";
+      return;
+    }
+
+    setSelectedImageFile(file);
+
+    // Create a local preview immediately.
+    const previewUrl = URL.createObjectURL(file);
+    setImagePreview((oldUrl) => {
+      if (oldUrl) URL.revokeObjectURL(oldUrl);
+      return previewUrl;
+    });
+
+    setFormError("");
+  };
+
+  // =====================================================
+  // UPLOAD IMAGE TO FIREBASE STORAGE
+  // =====================================================
+
+  const uploadProductImage = async (file) => {
+    if (!file || !firebaseUser?.uid) return "";
+
+    const safeName = file.name
+      .toLowerCase()
+      .replace(/[^a-z0-9.]+/g, "-");
+
+    const fileName = `${Date.now()}-${safeName}`;
+
+    const imageRef = ref(
+      storage,
+      `products/${firebaseUser.uid}/${fileName}`
+    );
+
+    await uploadBytes(imageRef, file, {
+      contentType: file.type,
+    });
+
+    return await getDownloadURL(imageRef);
+  };
+
+  // =====================================================
   // SAVE PRODUCT TO FIRESTORE
   // =====================================================
 
@@ -697,6 +775,15 @@ function SellerProducts({
     setFormError("");
 
     try {
+      // If a gallery image was selected, upload it first.
+      // Otherwise keep the existing URL / manually entered URL.
+      let imageUrl = productForm.image.trim();
+
+      if (selectedImageFile) {
+        imageUrl = await uploadProductImage(
+          selectedImageFile
+        );
+      }
       // =================================================
       // EDIT EXISTING PRODUCT
       // =================================================
@@ -720,7 +807,7 @@ function SellerProducts({
             productForm.description.trim(),
 
           image:
-            productForm.image.trim(),
+            imageUrl,
 
           status:
             productForm.status,
@@ -749,7 +836,7 @@ function SellerProducts({
               productForm.description.trim(),
 
             image:
-              productForm.image.trim(),
+              imageUrl,
 
             status:
               productForm.status,
@@ -1024,6 +1111,18 @@ function SellerProducts({
       );
     };
   }, [openMenu]);
+
+  // =====================================================
+  // CLEAN UP LOCAL IMAGE PREVIEW URL
+  // =====================================================
+
+  useEffect(() => {
+    return () => {
+      if (imagePreview) {
+        URL.revokeObjectURL(imagePreview);
+      }
+    };
+  }, [imagePreview]);
 
   // =====================================================
   // RENDER
@@ -3585,55 +3684,93 @@ function SellerProducts({
 
                 {/* IMAGE */}
 
-                <div>
+                <div className="sm:col-span-2">
 
                   <label className="block text-xs font-semibold text-gray-700 mb-2">
-                    Product Image URL
+                    Product Image
                   </label>
 
-                  <div className="relative">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
 
-                    <FiImage
-                      size={16}
-                      className="
-                        absolute
-                        left-3.5
-                        top-1/2
-                        -translate-y-1/2
-                        text-[#008236]
-                      "
-                    />
+                    {/* IMAGE URL */}
+                    <div className="relative">
+                      <FiImage
+                        size={16}
+                        className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#008236]"
+                      />
 
-                    <input
-                      type="url"
-                      name="image"
-                      value={
-                        productForm.image
-                      }
-                      onChange={
-                        handleProductFormChange
-                      }
-                      disabled={savingProduct}
-                      placeholder="https://..."
-                      className="
-                        w-full
-                        h-11
-                        pl-10
-                        pr-3.5
-                        rounded-xl
-                        border
-                        border-gray-200
-                        bg-gray-50
-                        text-sm
-                        outline-none
-                        focus:border-[#008236]
-                        focus:ring-4
-                        focus:ring-green-50
-                        transition
-                        disabled:opacity-60
-                      "
-                    />
+                      <input
+                        type="url"
+                        name="image"
+                        value={productForm.image}
+                        onChange={(event) => {
+                          handleProductFormChange(event);
+                          setSelectedImageFile(null);
+                          setImagePreview("");
+                        }}
+                        disabled={savingProduct}
+                        placeholder="Paste image URL (https://...)"
+                        className="
+                          w-full h-11 pl-10 pr-3.5 rounded-xl border
+                          border-gray-200 bg-gray-50 text-sm outline-none
+                          focus:border-[#008236] focus:ring-4 focus:ring-green-50
+                          transition disabled:opacity-60
+                        "
+                      />
+                    </div>
+
+                    {/* GALLERY UPLOAD */}
+                    <label
+                      className={`
+                        w-full h-11 px-3.5 rounded-xl border border-dashed
+                        border-green-200 bg-green-50/50 text-[#008236] text-sm
+                        font-semibold flex items-center justify-center gap-2
+                        cursor-pointer hover:bg-green-50 hover:border-green-300
+                        transition ${savingProduct ? "opacity-60 pointer-events-none" : ""}
+                      `}
+                    >
+                      <FiImage size={17} />
+                      <span>Choose from Gallery</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleProductImageChange}
+                        disabled={savingProduct}
+                        className="hidden"
+                      />
+                    </label>
+
                   </div>
+
+                  <p className="text-[10px] text-gray-400 mt-2">
+                    You can paste an image URL or choose an image from your device.
+                    Gallery images are uploaded securely to Firebase Storage. Max 5MB.
+                  </p>
+
+                  {/* SELECTED FILE */}
+                  {selectedImageFile && (
+                    <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-green-100 bg-green-50/40 px-3 py-2.5">
+                      <div className="min-w-0 flex items-center gap-2">
+                        <FiImage size={15} className="text-[#008236] flex-shrink-0" />
+                        <p className="text-xs text-gray-600 truncate">
+                          {selectedImageFile.name}
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={savingProduct}
+                        onClick={() => {
+                          setSelectedImageFile(null);
+                          setImagePreview("");
+                        }}
+                        className="text-xs font-semibold text-red-500 hover:text-red-600 flex-shrink-0"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
+
                 </div>
 
                 {/* DESCRIPTION */}
@@ -3679,7 +3816,7 @@ function SellerProducts({
 
               {/* IMAGE PREVIEW */}
 
-              {productForm.image && (
+              {(imagePreview || productForm.image) && (
                 <div className="mt-4">
 
                   <p className="text-xs font-semibold text-gray-700 mb-2">
@@ -3698,9 +3835,7 @@ function SellerProducts({
                     "
                   >
                     <img
-                      src={
-                        productForm.image
-                      }
+                      src={imagePreview || productForm.image}
                       alt="Product preview"
                       className="
                         w-full
