@@ -27,7 +27,6 @@ import {
   FiCheck,
 } from "react-icons/fi";
 
-
 function Chat({
   cartCount = 0,
   wishlist = [],
@@ -37,32 +36,21 @@ function Chat({
   sendMessage,
   deleteMessages,
 }) {
-  const {
-    firebaseUser,
-  } = useAuth();
+  const { firebaseUser } = useAuth();
 
-  const {
-    id,
-  } = useParams();
+  const { id } = useParams();
 
-  const navigate =
-    useNavigate();
-
+  const navigate = useNavigate();
 
   // =====================================================
   // MESSAGE INPUT
   // =====================================================
 
-  const [
-    messageText,
-    setMessageText,
-  ] = useState("");
+  const [messageText, setMessageText] =
+    useState("");
 
-  const [
-    sending,
-    setSending,
-  ] = useState(false);
-
+  const [sending, setSending] =
+    useState(false);
 
   // =====================================================
   // LIVE CONVERSATION
@@ -78,7 +66,6 @@ function Chat({
     setConversationLoading,
   ] = useState(true);
 
-
   // =====================================================
   // SELECTED MESSAGES
   // =====================================================
@@ -87,7 +74,6 @@ function Chat({
     selectedMessageIds,
     setSelectedMessageIds,
   ] = useState([]);
-
 
   // =====================================================
   // DELETE MENU
@@ -103,7 +89,6 @@ function Chat({
     setDeleting,
   ] = useState(false);
 
-
   // =====================================================
   // FALLBACK PERSON
   // =====================================================
@@ -111,12 +96,9 @@ function Chat({
   const fallbackPerson =
     messages.find(
       (message) =>
-        String(
-          message.id
-        ) ===
+        String(message.id) ===
         String(id)
     );
-
 
   // =====================================================
   // MOBILE CHAT VIEWPORT
@@ -129,13 +111,11 @@ function Chat({
     const originalHeight =
       document.body.style.height;
 
-
     document.body.style.overflow =
       "hidden";
 
     document.body.style.height =
       "100%";
-
 
     return () => {
       document.body.style.overflow =
@@ -146,29 +126,19 @@ function Chat({
     };
   }, []);
 
-
   // =====================================================
   // LOAD LIVE CONVERSATION
   // =====================================================
 
   useEffect(() => {
     if (!id) {
-      setLiveConversation(
-        null
-      );
-
-      setConversationLoading(
-        false
-      );
+      setLiveConversation(null);
+      setConversationLoading(false);
 
       return undefined;
     }
 
-
-    setConversationLoading(
-      true
-    );
-
+    setConversationLoading(true);
 
     const conversationRef =
       doc(
@@ -177,99 +147,49 @@ function Chat({
         String(id)
       );
 
-
     const unsubscribe =
       onSnapshot(
         conversationRef,
-
         (snapshot) => {
-          if (
-            !snapshot.exists()
-          ) {
-            console.log(
-              "Conversation does not exist:",
-              id
-            );
-
-            setLiveConversation(
-              null
-            );
-
-            setConversationLoading(
-              false
-            );
-
+          if (!snapshot.exists()) {
+            setLiveConversation(null);
+            setConversationLoading(false);
             return;
           }
 
-
-          const data =
-            snapshot.data();
-
-
-          console.log(
-            "Live conversation:",
-            data
-          );
-
-
           setLiveConversation({
-            id:
-              snapshot.id,
-
-            ...data,
+            id: snapshot.id,
+            ...snapshot.data(),
           });
 
-
-          setConversationLoading(
-            false
-          );
+          setConversationLoading(false);
         },
-
         (error) => {
           console.error(
             "Chat listener error:",
             error
           );
 
-          console.error(
-            "Firestore error code:",
-            error?.code
-          );
-
-
-          setLiveConversation(
-            null
-          );
-
-          setConversationLoading(
-            false
-          );
+          setLiveConversation(null);
+          setConversationLoading(false);
         }
       );
 
-
-    return () =>
-      unsubscribe();
+    return () => unsubscribe();
   }, [id]);
-
 
   // =====================================================
   // OTHER PARTICIPANT
   // =====================================================
 
   const otherParticipantId =
-    liveConversation
-      ?.participants?.find(
-        (uid) =>
-          String(uid) !==
-          String(
-            firebaseUser?.uid
-          )
-      ) ||
+    liveConversation?.participants?.find(
+      (uid) =>
+        String(uid) !==
+        String(firebaseUser?.uid)
+    ) ||
     fallbackPerson?.otherParticipantId ||
     null;
-
 
   // =====================================================
   // PERSON NAME
@@ -283,7 +203,6 @@ function Chat({
     fallbackPerson?.name ||
     "CampusMart User";
 
-
   // =====================================================
   // PERSON IMAGE
   // =====================================================
@@ -296,7 +215,6 @@ function Chat({
     fallbackPerson?.profileImage ||
     null;
 
-
   // =====================================================
   // MARK AS READ
   // =====================================================
@@ -306,13 +224,19 @@ function Chat({
       id &&
       markMessageAsRead
     ) {
-      markMessageAsRead(id);
+      Promise.resolve(
+        markMessageAsRead(id)
+      ).catch((error) => {
+        console.error(
+          "Mark message as read error:",
+          error
+        );
+      });
     }
   }, [
     id,
     markMessageAsRead,
   ]);
-
 
   // =====================================================
   // CHAT MESSAGES
@@ -324,42 +248,32 @@ function Chat({
       liveConversation.messages
     )
       ? liveConversation.messages
-      : Array.isArray(
-          fallbackPerson?.conversation
-        )
-      ? fallbackPerson.conversation
-      : [];
-
+      : fallbackPerson?.conversation ||
+        [];
 
   // =====================================================
   // SORT MESSAGES
   // =====================================================
 
-  const sortedMessages =
-    [
-      ...chatMessages,
-    ].sort(
-      (a, b) => {
-        const aTime =
-          a.createdAt?.toMillis
-            ? a.createdAt.toMillis()
-            : Number(
-                a.createdAt || 0
-              );
+  const sortedMessages = [
+    ...chatMessages,
+  ].sort((a, b) => {
+    const aTime =
+      a.createdAt?.toMillis
+        ? a.createdAt.toMillis()
+        : Number(
+            a.createdAt || 0
+          );
 
-        const bTime =
-          b.createdAt?.toMillis
-            ? b.createdAt.toMillis()
-            : Number(
-                b.createdAt || 0
-              );
+    const bTime =
+      b.createdAt?.toMillis
+        ? b.createdAt.toMillis()
+        : Number(
+            b.createdAt || 0
+          );
 
-        return (
-          aTime - bTime
-        );
-      }
-    );
-
+    return aTime - bTime;
+  });
 
   // =====================================================
   // VISIBLE MESSAGES
@@ -375,7 +289,6 @@ function Chat({
             ? message.deletedFor
             : [];
 
-
         if (
           deletedFor.includes(
             firebaseUser?.uid
@@ -384,7 +297,6 @@ function Chat({
           return false;
         }
 
-
         if (
           message.deletedForEveryone ===
           true
@@ -392,80 +304,84 @@ function Chat({
           return false;
         }
 
-
         return true;
       }
     );
 
-
   // =====================================================
-  // FORMAT MESSAGE TIME
+  // FORMAT TIME
   // =====================================================
 
-  const formatMessageTime =
-    (message) => {
-      if (message.time) {
-        return message.time;
-      }
+  const formatMessageTime = (
+    message
+  ) => {
+    if (message.time) {
+      return message.time;
+    }
 
+    if (!message.createdAt) {
+      return "";
+    }
 
-      if (
-        !message.createdAt
-      ) {
-        return "";
-      }
+    try {
+      const date =
+        message.createdAt?.toDate
+          ? message.createdAt.toDate()
+          : new Date(
+              message.createdAt
+            );
 
-
-      try {
-        const date =
-          message.createdAt
-            ?.toDate
-            ? message.createdAt.toDate()
-            : new Date(
-                message.createdAt
-              );
-
-
-        return date.toLocaleTimeString(
-          [],
-          {
-            hour: "2-digit",
-            minute: "2-digit",
-          }
-        );
-      } catch {
-        return "";
-      }
-    };
-
+      return date.toLocaleTimeString(
+        [],
+        {
+          hour: "2-digit",
+          minute: "2-digit",
+        }
+      );
+    } catch {
+      return "";
+    }
+  };
 
   // =====================================================
   // IS MY MESSAGE
   // =====================================================
+  //
+  // IMPORTANT:
+  //
+  // senderId is the Firebase UID of the
+  // person who actually sent the message.
+  //
+  // This is what makes WhatsApp-style
+  // left/right positioning work.
+  //
+  // My message    -> RIGHT
+  // Other message -> LEFT
+  //
+  // =====================================================
 
-  const isMyMessage =
-    (message) => {
-      if (
-        message.senderId &&
-        firebaseUser?.uid
-      ) {
-        return (
-          String(
-            message.senderId
-          ) ===
-          String(
-            firebaseUser.uid
-          )
-        );
-      }
-
-
+  const isMyMessage = (
+    message
+  ) => {
+    if (
+      message?.senderId &&
+      firebaseUser?.uid
+    ) {
       return (
-        message.sender ===
-        "me"
+        String(
+          message.senderId
+        ) ===
+        String(
+          firebaseUser.uid
+        )
       );
-    };
+    }
 
+    // Legacy fallback.
+    return (
+      message?.sender === "me"
+    );
+  };
 
   // =====================================================
   // SELECT MESSAGE
@@ -477,14 +393,10 @@ function Chat({
         return;
       }
 
-
       setSelectedMessageIds(
         (current) => {
           const idString =
-            String(
-              messageId
-            );
-
+            String(messageId);
 
           if (
             current.includes(
@@ -493,11 +405,9 @@ function Chat({
           ) {
             return current.filter(
               (item) =>
-                item !==
-                idString
+                item !== idString
             );
           }
-
 
           return [
             ...current,
@@ -507,27 +417,19 @@ function Chat({
       );
     };
 
-
   // =====================================================
   // CLEAR SELECTION
   // =====================================================
 
-  const clearSelection =
-    () => {
-      if (deleting) {
-        return;
-      }
+  const clearSelection = () => {
+    if (deleting) {
+      return;
+    }
 
+    setSelectedMessageIds([]);
 
-      setSelectedMessageIds(
-        []
-      );
-
-      setShowDeleteMenu(
-        false
-      );
-    };
-
+    setShowDeleteMenu(false);
+  };
 
   // =====================================================
   // SELECTED MESSAGES
@@ -537,208 +439,172 @@ function Chat({
     visibleMessages.filter(
       (message) =>
         selectedMessageIds.includes(
-          String(
-            message.id
-          )
+          String(message.id)
         )
     );
-
 
   // =====================================================
   // CAN DELETE FOR EVERYONE
   // =====================================================
 
   const canDeleteForEveryone =
-    selectedMessages.length >
-      0 &&
+    selectedMessages.length > 0 &&
     selectedMessages.every(
       (message) =>
-        isMyMessage(
-          message
-        )
+        isMyMessage(message)
     );
-
 
   // =====================================================
   // OPEN DELETE OPTIONS
   // =====================================================
 
-  const openDeleteOptions =
-    () => {
-      if (
-        selectedMessageIds.length ===
-          0 ||
-        deleting
-      ) {
-        return;
-      }
+  const openDeleteOptions = () => {
+    if (
+      selectedMessageIds.length ===
+        0 ||
+      deleting
+    ) {
+      return;
+    }
 
-
-      setShowDeleteMenu(
-        true
-      );
-    };
-
+    setShowDeleteMenu(true);
+  };
 
   // =====================================================
   // DELETE
   // =====================================================
 
-  const handleDelete =
-    async (
-      deleteType
-    ) => {
-      if (
-        deleting ||
-        selectedMessageIds.length ===
-          0 ||
-        !firebaseUser?.uid ||
-        !id ||
-        !deleteMessages
-      ) {
-        return;
-      }
+  const handleDelete = async (
+    deleteType
+  ) => {
+    if (
+      deleting ||
+      selectedMessageIds.length ===
+        0 ||
+      !firebaseUser?.uid ||
+      !id ||
+      !deleteMessages
+    ) {
+      return;
+    }
 
+    if (
+      deleteType !== "me" &&
+      deleteType !== "everyone"
+    ) {
+      return;
+    }
 
-      if (
-        deleteType !== "me" &&
-        deleteType !== "everyone"
-      ) {
-        return;
-      }
+    if (
+      deleteType === "everyone" &&
+      !canDeleteForEveryone
+    ) {
+      return;
+    }
 
+    const idsToDelete = [
+      ...selectedMessageIds,
+    ];
 
-      if (
-        deleteType ===
-          "everyone" &&
-        !canDeleteForEveryone
-      ) {
-        return;
-      }
+    setDeleting(true);
 
+    setShowDeleteMenu(false);
 
-      const idsToDelete = [
-        ...selectedMessageIds,
-      ];
+    // =================================================
+    // REMOVE LOCALLY FIRST
+    // =================================================
 
+    setLiveConversation(
+      (current) => {
+        if (!current) {
+          return current;
+        }
 
-      setDeleting(true);
+        const currentMessages =
+          Array.isArray(
+            current.messages
+          )
+            ? current.messages
+            : [];
 
-      setShowDeleteMenu(
-        false
-      );
+        let updatedMessages;
 
-
-      // ===================================================
-      // LOCAL UPDATE
-      // ===================================================
-
-      setLiveConversation(
-        (current) => {
-          if (!current) {
-            return current;
-          }
-
-
-          const currentMessages =
-            Array.isArray(
-              current.messages
-            )
-              ? current.messages
-              : [];
-
-
-          let updatedMessages;
-
-
-          if (
-            deleteType ===
-            "everyone"
-          ) {
-            updatedMessages =
-              currentMessages.filter(
-                (message) => {
-                  const messageId =
-                    String(
-                      message.id
-                    );
-
-
-                  if (
-                    !idsToDelete.includes(
-                      messageId
-                    )
-                  ) {
-                    return true;
-                  }
-
-
-                  return !isMyMessage(
-                    message
+        if (
+          deleteType === "everyone"
+        ) {
+          updatedMessages =
+            currentMessages.filter(
+              (message) => {
+                const messageId =
+                  String(
+                    message.id
                   );
-                }
-              );
-          } else {
-            updatedMessages =
-              currentMessages.filter(
-                (message) => {
-                  const messageId =
-                    String(
-                      message.id
-                    );
 
-
-                  return !idsToDelete.includes(
+                if (
+                  !idsToDelete.includes(
                     messageId
-                  );
+                  )
+                ) {
+                  return true;
                 }
-              );
-          }
 
+                return !isMyMessage(
+                  message
+                );
+              }
+            );
+        } else {
+          updatedMessages =
+            currentMessages.filter(
+              (message) => {
+                const messageId =
+                  String(
+                    message.id
+                  );
 
-          return {
-            ...current,
-
-            messages:
-              updatedMessages,
-          };
+                return !idsToDelete.includes(
+                  messageId
+                );
+              }
+            );
         }
-      );
 
-
-      setSelectedMessageIds(
-        []
-      );
-
-
-      // ===================================================
-      // FIREBASE
-      // ===================================================
-
-      try {
-        const success =
-          await deleteMessages(
-            id,
-            idsToDelete,
-            deleteType
-          );
-
-
-        if (!success) {
-          console.error(
-            "Message deletion failed."
-          );
-        }
-      } catch (error) {
-        console.error(
-          "Delete message error:",
-          error
-        );
-      } finally {
-        setDeleting(false);
+        return {
+          ...current,
+          messages:
+            updatedMessages,
+        };
       }
-    };
+    );
 
+    setSelectedMessageIds([]);
+
+    // =================================================
+    // FIREBASE
+    // =================================================
+
+    try {
+      const success =
+        await deleteMessages(
+          id,
+          idsToDelete,
+          deleteType
+        );
+
+      if (!success) {
+        console.error(
+          "Message deletion failed."
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Delete message error:",
+        error
+      );
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   // =====================================================
   // SEND MESSAGE
@@ -749,7 +615,6 @@ function Chat({
       const text =
         messageText.trim();
 
-
       if (
         !text ||
         sending ||
@@ -759,11 +624,9 @@ function Chat({
         return;
       }
 
-
       setMessageText("");
 
       setSending(true);
-
 
       try {
         await sendMessage(
@@ -776,31 +639,28 @@ function Chat({
           error
         );
 
-        setMessageText(
-          text
-        );
+        setMessageText(text);
       } finally {
         setSending(false);
       }
     };
 
-
   // =====================================================
   // ENTER TO SEND
   // =====================================================
 
-  const handleKeyDown =
-    (e) => {
-      if (
-        e.key === "Enter" &&
-        !e.shiftKey
-      ) {
-        e.preventDefault();
+  const handleKeyDown = (
+    e
+  ) => {
+    if (
+      e.key === "Enter" &&
+      !e.shiftKey
+    ) {
+      e.preventDefault();
 
-        handleSendMessage();
-      }
-    };
-
+      handleSendMessage();
+    }
+  };
 
   // =====================================================
   // CONVERSATION NOT FOUND
@@ -813,12 +673,8 @@ function Chat({
   ) {
     return (
       <CustomerLayout
-        cartCount={
-          cartCount
-        }
-        wishlist={
-          wishlist
-        }
+        cartCount={cartCount}
+        wishlist={wishlist}
         unreadMessages={
           unreadMessages
         }
@@ -834,7 +690,6 @@ function Chat({
             shadow-sm
           "
         >
-
           <div
             className="
               w-16
@@ -849,33 +704,17 @@ function Chat({
               mb-4
             "
           >
-            <FiX
-              size={28}
-            />
+            <FiX size={28} />
           </div>
 
-
-          <h2
-            className="
-              text-xl
-              font-bold
-              text-gray-800
-            "
-          >
+          <h2 className="text-xl font-bold text-gray-800">
             Conversation not found
           </h2>
 
-
-          <p
-            className="
-              text-gray-500
-              mt-2
-            "
-          >
+          <p className="text-gray-500 mt-2">
             The conversation you're
             looking for doesn't exist.
           </p>
-
 
           <button
             type="button"
@@ -899,12 +738,10 @@ function Chat({
           >
             Back to Messages
           </button>
-
         </div>
       </CustomerLayout>
     );
   }
-
 
   // =====================================================
   // LOADING
@@ -916,12 +753,8 @@ function Chat({
   ) {
     return (
       <CustomerLayout
-        cartCount={
-          cartCount
-        }
-        wishlist={
-          wishlist
-        }
+        cartCount={cartCount}
+        wishlist={wishlist}
         unreadMessages={
           unreadMessages
         }
@@ -937,7 +770,6 @@ function Chat({
             shadow-sm
           "
         >
-
           <div
             className="
               w-10
@@ -951,21 +783,13 @@ function Chat({
             "
           />
 
-          <p
-            className="
-              mt-4
-              text-sm
-              text-gray-500
-            "
-          >
+          <p className="mt-4 text-sm text-gray-500">
             Loading conversation...
           </p>
-
         </div>
       </CustomerLayout>
     );
   }
-
 
   // =====================================================
   // RENDER
@@ -973,21 +797,21 @@ function Chat({
 
   return (
     <CustomerLayout
-      cartCount={
-        cartCount
-      }
-      wishlist={
-        wishlist
-      }
+      cartCount={cartCount}
+      wishlist={wishlist}
       unreadMessages={
         unreadMessages
       }
     >
+      {/* =================================================
+          CHAT CONTAINER
+      ================================================= */}
 
       <div
         className="
           fixed
           inset-0
+
           md:static
           md:h-[calc(100vh-140px)]
 
@@ -1022,8 +846,10 @@ function Chat({
             flex
             items-center
             gap-3
+
             px-3
             sm:px-6
+
             py-3
             sm:py-4
 
@@ -1048,9 +874,7 @@ function Chat({
                 onClick={
                   clearSelection
                 }
-                disabled={
-                  deleting
-                }
+                disabled={deleting}
                 className="
                   w-10
                   h-10
@@ -1066,42 +890,24 @@ function Chat({
                 "
                 title="Cancel"
               >
-                <FiX
-                  size={20}
-                />
+                <FiX size={20} />
               </button>
 
+              {/* SELECTED COUNT */}
 
-              <div
-                className="
-                  flex-1
-                  min-w-0
-                "
-              >
-                <p
-                  className="
-                    font-bold
-                    text-gray-800
-                  "
-                >
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-gray-800">
                   {
                     selectedMessageIds.length
                   }{" "}
                   selected
                 </p>
 
-                <p
-                  className="
-                    text-xs
-                    text-gray-400
-                    truncate
-                  "
-                >
+                <p className="text-xs text-gray-400 truncate">
                   Choose delete to
                   continue
                 </p>
               </div>
-
 
               {/* DELETE */}
 
@@ -1110,9 +916,7 @@ function Chat({
                 onClick={
                   openDeleteOptions
                 }
-                disabled={
-                  deleting
-                }
+                disabled={deleting}
                 className="
                   h-10
                   px-3
@@ -1133,9 +937,7 @@ function Chat({
                   shrink-0
                 "
               >
-                <FiTrash2
-                  size={17}
-                />
+                <FiTrash2 size={17} />
 
                 <span className="hidden sm:inline">
                   Delete
@@ -1171,23 +973,14 @@ function Chat({
                 />
               </button>
 
+              {/* PROFILE IMAGE */}
 
-              {/* PROFILE */}
+              <div className="relative shrink-0">
 
-              <div
-                className="
-                  relative
-                  shrink-0
-                "
-              >
                 {personImage ? (
                   <img
-                    src={
-                      personImage
-                    }
-                    alt={
-                      personName
-                    }
+                    src={personImage}
+                    alt={personName}
                     className="
                       w-10
                       h-10
@@ -1221,17 +1014,13 @@ function Chat({
                       ?.toUpperCase()}
                   </div>
                 )}
-              </div>
 
+              </div>
 
               {/* NAME */}
 
-              <div
-                className="
-                  flex-1
-                  min-w-0
-                "
-              >
+              <div className="flex-1 min-w-0">
+
                 <h2
                   className="
                     font-bold
@@ -1241,27 +1030,19 @@ function Chat({
                     sm:text-base
                   "
                 >
-                  {
-                    personName
-                  }
+                  {personName}
                 </h2>
 
-                <p
-                  className="
-                    text-xs
-                    text-green-600
-                    truncate
-                  "
-                >
+                <p className="text-xs text-green-600 truncate">
                   CampusMart
                   conversation
                 </p>
+
               </div>
             </>
           )}
 
         </div>
-
 
         {/* =================================================
             CHAT BODY
@@ -1271,29 +1052,31 @@ function Chat({
           className="
             flex-1
             min-h-0
+
             overflow-y-auto
+
             overscroll-contain
+
             p-3
             sm:p-6
-            space-y-3
-            sm:space-y-4
+
+            space-y-2
+            sm:space-y-3
+
             bg-gradient-to-b
             from-green-50/40
             to-gray-50
+
             scroll-smooth
+
             [scrollbar-width:thin]
           "
         >
 
-          {/* LABEL */}
+          {/* CONVERSATION LABEL */}
 
-          <div
-            className="
-              text-center
-              mb-4
-              sm:mb-5
-            "
-          >
+          <div className="text-center mb-4 sm:mb-5">
+
             <span
               className="
                 inline-block
@@ -1311,23 +1094,16 @@ function Chat({
               "
             >
               Conversation with{" "}
-              {
-                personName
-              }
+              {personName}
             </span>
+
           </div>
 
-
-          {/* EMPTY */}
+          {/* EMPTY CHAT */}
 
           {visibleMessages.length ===
             0 && (
-            <div
-              className="
-                text-center
-                py-10
-              "
-            >
+            <div className="text-center py-10">
 
               <div
                 className="
@@ -1343,61 +1119,47 @@ function Chat({
                   mb-3
                 "
               >
-                <FiSend
-                  size={22}
-                />
+                <FiSend size={22} />
               </div>
 
-
-              <p
-                className="
-                  text-sm
-                  font-medium
-                  text-gray-500
-                "
-              >
+              <p className="text-sm font-medium text-gray-500">
                 No messages yet.
               </p>
 
-
-              <p
-                className="
-                  text-xs
-                  text-gray-400
-                  mt-1
-                "
-              >
-                Send a message to
-                start the conversation.
+              <p className="text-xs text-gray-400 mt-1">
+                Send a message to start
+                the conversation.
               </p>
 
             </div>
           )}
 
-
           {/* =================================================
               MESSAGES
+
+              WHATSAPP STYLE:
+
+              OTHER PERSON -> LEFT
+              ME            -> RIGHT
           ================================================= */}
 
           {visibleMessages.map(
             (message) => {
+
               const mine =
                 isMyMessage(
                   message
                 );
-
 
               const messageId =
                 String(
                   message.id
                 );
 
-
               const selected =
                 selectedMessageIds.includes(
                   messageId
                 );
-
 
               return (
                 <div
@@ -1407,6 +1169,8 @@ function Chat({
                   }
                   className={`
                     flex
+                    w-full
+
                     ${
                       mine
                         ? "justify-end"
@@ -1422,17 +1186,16 @@ function Chat({
                         messageId
                       )
                     }
-                    disabled={
-                      deleting
-                    }
+                    disabled={deleting}
                     className={`
-                      max-w-[85%]
+                      max-w-[82%]
                       sm:max-w-[65%]
 
                       text-left
 
                       px-3.5
                       py-2.5
+
                       sm:px-4
                       sm:py-3
 
@@ -1452,8 +1215,20 @@ function Chat({
 
                       ${
                         mine
-                          ? "bg-green-600 text-white rounded-br-md shadow-sm"
-                          : "bg-white text-gray-700 rounded-bl-md shadow-sm border border-green-50"
+                          ? `
+                            bg-green-600
+                            text-white
+                            rounded-br-md
+                            shadow-sm
+                          `
+                          : `
+                            bg-white
+                            text-gray-800
+                            rounded-bl-md
+                            shadow-sm
+                            border
+                            border-green-50
+                          `
                       }
                     `}
                   >
@@ -1461,13 +1236,8 @@ function Chat({
                     {/* SELECTED CHECK */}
 
                     {selected && (
-                      <div
-                        className="
-                          flex
-                          justify-end
-                          mb-1
-                        "
-                      >
+                      <div className="flex justify-end mb-1">
+
                         <span
                           className="
                             w-5
@@ -1484,11 +1254,11 @@ function Chat({
                             size={13}
                           />
                         </span>
+
                       </div>
                     )}
 
-
-                    {/* TEXT */}
+                    {/* MESSAGE TEXT */}
 
                     <p
                       className="
@@ -1498,11 +1268,8 @@ function Chat({
                         whitespace-pre-wrap
                       "
                     >
-                      {
-                        message.text
-                      }
+                      {message.text}
                     </p>
-
 
                     {/* TIME */}
 
@@ -1510,10 +1277,11 @@ function Chat({
                       className={`
                         text-[10px]
                         mt-1
+
                         ${
                           mine
-                            ? "text-green-100"
-                            : "text-gray-400"
+                            ? "text-green-100 text-right"
+                            : "text-gray-400 text-left"
                         }
                       `}
                     >
@@ -1529,16 +1297,11 @@ function Chat({
             }
           )}
 
+          {/* BOTTOM SPACE */}
 
-          <div
-            className="
-              h-1
-              shrink-0
-            "
-          />
+          <div className="h-1 shrink-0" />
 
         </div>
-
 
         {/* =================================================
             INPUT
@@ -1549,32 +1312,30 @@ function Chat({
           <div
             className="
               flex-shrink-0
+
               border-t
               border-green-100
+
               p-2.5
               sm:p-4
+
               bg-white
+
               z-20
+
               pb-[calc(0.625rem+env(safe-area-inset-bottom))]
+
               sm:pb-4
             "
           >
 
-            <div
-              className="
-                flex
-                items-center
-                gap-2
-              "
-            >
+            <div className="flex items-center gap-2">
 
               {/* INPUT */}
 
               <input
                 type="text"
-                value={
-                  messageText
-                }
+                value={messageText}
                 onChange={(e) =>
                   setMessageText(
                     e.target.value
@@ -1583,31 +1344,40 @@ function Chat({
                 onKeyDown={
                   handleKeyDown
                 }
-                disabled={
-                  sending
-                }
+                disabled={sending}
                 placeholder={`Message ${personName}...`}
                 className="
                   flex-1
                   min-w-0
+
                   bg-gray-100
+
                   rounded-full
+
                   px-4
                   py-3
+
                   text-sm
+
                   outline-none
+
                   border
                   border-transparent
+
                   focus:ring-2
                   focus:ring-green-100
+
                   focus:border-green-500
+
                   focus:bg-white
+
                   disabled:opacity-60
+
                   transition
+
                   appearance-none
                 "
               />
-
 
               {/* SEND */}
 
@@ -1623,18 +1393,27 @@ function Chat({
                 className="
                   w-11
                   h-11
+
                   rounded-full
+
                   bg-green-600
+
                   hover:bg-green-700
+
                   disabled:bg-gray-300
+
                   text-white
+
                   flex
                   items-center
                   justify-center
+
                   shrink-0
+
                   transition
                 "
               >
+
                 {sending ? (
                   <span
                     className="
@@ -1652,13 +1431,13 @@ function Chat({
                     size={18}
                   />
                 )}
+
               </button>
 
             </div>
 
           </div>
         )}
-
 
         {/* =================================================
             DELETE OPTIONS
@@ -1670,12 +1449,15 @@ function Chat({
               fixed
               inset-0
               z-50
+
               bg-black/40
               backdrop-blur-[2px]
+
               flex
               items-end
               sm:items-center
               justify-center
+
               p-4
             "
             onClick={() => {
@@ -1691,10 +1473,15 @@ function Chat({
               className="
                 w-full
                 max-w-sm
+
                 bg-white
+
                 rounded-2xl
+
                 shadow-2xl
+
                 overflow-hidden
+
                 border
                 border-green-100
               "
@@ -1714,13 +1501,7 @@ function Chat({
                 "
               >
 
-                <div
-                  className="
-                    flex
-                    items-center
-                    gap-3
-                  "
-                >
+                <div className="flex items-center gap-3">
 
                   <div
                     className="
@@ -1739,16 +1520,9 @@ function Chat({
                     />
                   </div>
 
-
                   <div>
 
-                    <h3
-                      className="
-                        text-lg
-                        font-bold
-                        text-gray-900
-                      "
-                    >
+                    <h3 className="text-lg font-bold text-gray-900">
                       Delete message
                       {selectedMessageIds.length >
                       1
@@ -1756,13 +1530,7 @@ function Chat({
                         : ""}
                     </h3>
 
-
-                    <p
-                      className="
-                        text-sm
-                        text-gray-500
-                      "
-                    >
+                    <p className="text-sm text-gray-500">
                       Choose an option
                     </p>
 
@@ -1772,39 +1540,33 @@ function Chat({
 
               </div>
 
-
               {/* DELETE FOR ME */}
 
               <button
                 type="button"
-                disabled={
-                  deleting
-                }
+                disabled={deleting}
                 onClick={() =>
-                  handleDelete(
-                    "me"
-                  )
+                  handleDelete("me")
                 }
                 className="
                   w-full
                   text-left
+
                   px-5
                   py-4
+
                   hover:bg-green-50
+
                   transition
+
                   border-b
                   border-gray-100
+
                   disabled:opacity-50
                 "
               >
 
-                <div
-                  className="
-                    flex
-                    items-center
-                    gap-3
-                  "
-                >
+                <div className="flex items-center gap-3">
 
                   <div
                     className="
@@ -1823,26 +1585,13 @@ function Chat({
                     />
                   </div>
 
-
                   <div>
 
-                    <p
-                      className="
-                        font-semibold
-                        text-gray-800
-                      "
-                    >
+                    <p className="font-semibold text-gray-800">
                       Delete for me
                     </p>
 
-
-                    <p
-                      className="
-                        text-xs
-                        text-gray-500
-                        mt-1
-                      "
-                    >
+                    <p className="text-xs text-gray-500 mt-1">
                       Remove from your
                       chat only.
                     </p>
@@ -1853,15 +1602,12 @@ function Chat({
 
               </button>
 
-
-              {/* DELETE EVERYONE */}
+              {/* DELETE FOR EVERYONE */}
 
               {canDeleteForEveryone && (
                 <button
                   type="button"
-                  disabled={
-                    deleting
-                  }
+                  disabled={deleting}
                   onClick={() =>
                     handleDelete(
                       "everyone"
@@ -1870,23 +1616,22 @@ function Chat({
                   className="
                     w-full
                     text-left
+
                     px-5
                     py-4
+
                     hover:bg-green-50
+
                     transition
+
                     border-b
                     border-gray-100
+
                     disabled:opacity-50
                   "
                 >
 
-                  <div
-                    className="
-                      flex
-                      items-center
-                      gap-3
-                    "
-                  >
+                  <div className="flex items-center gap-3">
 
                     <div
                       className="
@@ -1905,27 +1650,14 @@ function Chat({
                       />
                     </div>
 
-
                     <div>
 
-                      <p
-                        className="
-                          font-semibold
-                          text-green-700
-                        "
-                      >
+                      <p className="font-semibold text-green-700">
                         Delete for
                         everyone
                       </p>
 
-
-                      <p
-                        className="
-                          text-xs
-                          text-gray-500
-                          mt-1
-                        "
-                      >
+                      <p className="text-xs text-gray-500 mt-1">
                         Permanently remove
                         this message for
                         everyone.
@@ -1938,7 +1670,6 @@ function Chat({
                 </button>
               )}
 
-
               {/* CANCEL */}
 
               <div
@@ -1950,9 +1681,7 @@ function Chat({
 
                 <button
                   type="button"
-                  disabled={
-                    deleting
-                  }
+                  disabled={deleting}
                   onClick={() =>
                     setShowDeleteMenu(
                       false
@@ -1983,7 +1712,6 @@ function Chat({
         )}
 
       </div>
-
     </CustomerLayout>
   );
 }
