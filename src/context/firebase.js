@@ -1,6 +1,16 @@
 import { initializeApp } from "firebase/app";
+
 import { getAuth } from "firebase/auth";
+
 import { getFirestore } from "firebase/firestore";
+
+import {
+  getDatabase,
+} from "firebase/database";
+
+// =====================================================
+// FIREBASE CONFIG
+// =====================================================
 
 const firebaseConfig = {
   apiKey: "AIzaSyCvkrye7sDBuFT3PMR2SfhteAo5FronrlY",
@@ -11,7 +21,37 @@ const firebaseConfig = {
   appId: "1:951479651923:web:b83fd9ec9f399a4570c0a6",
 };
 
+// =====================================================
+// INITIALIZE FIREBASE
+// =====================================================
+
 const app = initializeApp(firebaseConfig);
 
+// =====================================================
+// AUTHENTICATION
+// =====================================================
+
 export const auth = getAuth(app);
+
+// =====================================================
+// FIRESTORE
+// =====================================================
+
 export const db = getFirestore(app);
+
+// =====================================================
+// REALTIME DATABASE
+//
+// Used for:
+// - Real online/offline status
+// - Presence detection
+// - Last seen
+// =====================================================
+
+export const realtimeDb = getDatabase(app);
+
+// =====================================================
+// EXPORT APP
+// =====================================================
+
+export default app;

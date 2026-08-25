@@ -1,5 +1,12 @@
-import { useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import {
+  useMemo,
+  useState,
+} from "react";
+
+import {
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 
 import {
   FiGrid,
@@ -22,6 +29,7 @@ import {
   FiCheckCircle,
   FiUsers,
   FiX,
+  FiCheck,
 } from "react-icons/fi";
 
 import { useAuth } from "../../context/AuthContext";
@@ -35,10 +43,15 @@ function SellerMessages({
   const navigate = useNavigate();
   const location = useLocation();
 
-  const { firebaseUser } = useAuth();
+  const {
+    firebaseUser,
+  } = useAuth();
 
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [search, setSearch] = useState("");
+  const [sidebarOpen, setSidebarOpen] =
+    useState(false);
+
+  const [search, setSearch] =
+    useState("");
 
   // =====================================================
   // SELLER INFORMATION
@@ -47,10 +60,7 @@ function SellerMessages({
   const sellerFullName =
     profile?.fullName ||
     firebaseUser?.displayName ||
-    "Seller";
-
-  const sellerFirstName =
-    sellerFullName.trim().split(/\s+/)[0] ||
+    firebaseUser?.email ||
     "Seller";
 
   const sellerImage =
@@ -58,8 +68,14 @@ function SellerMessages({
     firebaseUser?.photoURL ||
     null;
 
+  const sellerId =
+    firebaseUser?.uid ||
+    profile?.uid ||
+    profile?.userId ||
+    null;
+
   // =====================================================
-  // SIDEBAR MENU
+  // SIDEBAR
   // =====================================================
 
   const menuItems = [
@@ -132,11 +148,19 @@ function SellerMessages({
   // =====================================================
 
   const isActive = (path) => {
-    if (path === "/seller-dashboard") {
-      return location.pathname === "/seller-dashboard";
+    if (
+      path ===
+      "/seller-dashboard"
+    ) {
+      return (
+        location.pathname ===
+        "/seller-dashboard"
+      );
     }
 
-    return location.pathname.startsWith(path);
+    return location.pathname.startsWith(
+      path
+    );
   };
 
   // =====================================================
@@ -158,76 +182,769 @@ function SellerMessages({
   };
 
   // =====================================================
-  // SEARCH
+  // CONVERSATION ID
   // =====================================================
 
-  const filteredMessages = messages.filter((message) => {
-    const searchText = search.trim().toLowerCase();
-
-    if (!searchText) {
-      return true;
+  const getConversationId = (
+    message
+  ) => {
+    if (!message) {
+      return null;
     }
 
     return (
-      String(message.name || "")
-        .toLowerCase()
-        .includes(searchText) ||
-      String(message.lastMessage || "")
-        .toLowerCase()
-        .includes(searchText) ||
-      String(message.productName || "")
-        .toLowerCase()
-        .includes(searchText)
+      message.conversationId ||
+      message.chatId ||
+      message.conversationID ||
+      message.chatID ||
+      message.id ||
+      null
     );
-  });
+  };
+
+  // =====================================================
+  // SEARCH
+  // =====================================================
+
+  const filteredMessages =
+    useMemo(() => {
+      const searchText =
+        search
+          .trim()
+          .toLowerCase();
+
+      if (!searchText) {
+        return messages;
+      }
+
+      return messages.filter(
+        (message) => {
+          return (
+            String(
+              message?.name || ""
+            )
+              .toLowerCase()
+              .includes(
+                searchText
+              ) ||
+            String(
+              message?.lastMessage ||
+                message?.lastMessageText ||
+                ""
+            )
+              .toLowerCase()
+              .includes(
+                searchText
+              ) ||
+            String(
+              message?.productName ||
+                ""
+            )
+              .toLowerCase()
+              .includes(
+                searchText
+              )
+          );
+        }
+      );
+    }, [
+      messages,
+      search,
+    ]);
 
   // =====================================================
   // ONLINE USERS
+  //
+  // This uses the REAL online value supplied by the
+  // conversation listener.
   // =====================================================
 
-  const onlineUsers = messages.filter(
-    (message) => message.online
-  ).length;
+  const onlineUsers =
+    useMemo(() => {
+      return messages.filter(
+        (message) =>
+          message?.online === true
+      ).length;
+    }, [messages]);
+
+  // =====================================================
+  // INITIAL
+  // =====================================================
+
+  const getInitial = (name) => {
+    return (
+      String(
+        name || "U"
+      )
+        .trim()
+        .charAt(0)
+        .toUpperCase() ||
+      "U"
+    );
+  };
+
+  // =====================================================
+  // LAST MESSAGE
+  // =====================================================
+
+  const getLastMessage = (
+    message
+  ) => {
+    return (
+      message?.lastMessage ||
+      message?.lastMessageText ||
+      "No messages yet."
+    );
+  };
+
+  // =====================================================
+  // TIME
+  // =====================================================
+
+  const getMessageTime = (
+    message
+  ) => {
+    if (message?.time) {
+      return message.time;
+    }
+
+    if (
+      message?.lastMessageAt
+    ) {
+      try {
+        const date =
+          message.lastMessageAt
+            ?.toDate
+            ? message.lastMessageAt.toDate()
+            : new Date(
+                message.lastMessageAt
+              );
+
+        if (
+          Number.isNaN(
+            date.getTime()
+          )
+        ) {
+          return "";
+        }
+
+        return date.toLocaleTimeString(
+          [],
+          {
+            hour: "2-digit",
+            minute: "2-digit",
+          }
+        );
+      } catch {
+        return "";
+      }
+    }
+
+    return "";
+  };
+
+  // =====================================================
+  // GET LAST MESSAGE OBJECT
+  // =====================================================
+
+  const getLastMessageObject = (
+    message
+  ) => {
+    if (!message) {
+      return null;
+    }
+
+    /*
+     * Your conversation list can provide the full
+     * conversation through:
+     *
+     * message.conversation
+     * message.messages
+     */
+
+    const conversation =
+      Array.isArray(
+        message?.conversation
+      )
+        ? message.conversation
+        : Array.isArray(
+            message?.messages
+          )
+        ? message.messages
+        : [];
+
+    if (
+      conversation.length ===
+      0
+    ) {
+      return null;
+    }
+
+    const sorted =
+      [...conversation].sort(
+        (a, b) => {
+          const aTime =
+            a?.createdAt?.toMillis
+              ? a.createdAt.toMillis()
+              : Number(
+                  a?.createdAt || 0
+                );
+
+          const bTime =
+            b?.createdAt?.toMillis
+              ? b.createdAt.toMillis()
+              : Number(
+                  b?.createdAt || 0
+                );
+
+          return (
+            aTime - bTime
+          );
+        }
+      );
+
+    return (
+      sorted[
+        sorted.length - 1
+      ] || null
+    );
+  };
+
+  // =====================================================
+  // IS LAST MESSAGE FROM SELLER
+  // =====================================================
+
+  const isLastMessageFromSeller = (
+    message
+  ) => {
+    if (!message) {
+      return false;
+    }
+
+    const lastMessage =
+      getLastMessageObject(
+        message
+      );
+
+    if (!lastMessage) {
+      /*
+       * If your parent already calculated this,
+       * respect it.
+       */
+      if (
+        typeof message?.lastMessageFromSeller ===
+        "boolean"
+      ) {
+        return (
+          message.lastMessageFromSeller
+        );
+      }
+
+      if (
+        typeof message?.sellerSentLast ===
+        "boolean"
+      ) {
+        return (
+          message.sellerSentLast
+        );
+      }
+
+      return false;
+    }
+
+    // ---------------------------------------------------
+    // BEST CHECK: senderId
+    // ---------------------------------------------------
+
+    if (
+      sellerId &&
+      lastMessage?.senderId
+    ) {
+      return (
+        String(
+          lastMessage.senderId
+        ) ===
+        String(sellerId)
+      );
+    }
+
+    // ---------------------------------------------------
+    // SUPPORT OTHER COMMON SCHEMAS
+    // ---------------------------------------------------
+
+    if (
+      lastMessage?.senderUid &&
+      sellerId
+    ) {
+      return (
+        String(
+          lastMessage.senderUid
+        ) ===
+        String(sellerId)
+      );
+    }
+
+    if (
+      lastMessage?.userId &&
+      sellerId
+    ) {
+      return (
+        String(
+          lastMessage.userId
+        ) ===
+        String(sellerId)
+      );
+    }
+
+    if (
+      lastMessage?.sender ===
+      "seller"
+    ) {
+      return true;
+    }
+
+    if (
+      lastMessage?.sender ===
+      "me"
+    ) {
+      return true;
+    }
+
+    if (
+      lastMessage?.senderRole ===
+      "seller"
+    ) {
+      return true;
+    }
+
+    if (
+      lastMessage?.role ===
+      "seller"
+    ) {
+      return true;
+    }
+
+    return false;
+  };
+
+  // =====================================================
+  // LAST MESSAGE SEEN
+  // =====================================================
+
+  const isLastMessageSeen = (
+    message
+  ) => {
+    if (!message) {
+      return false;
+    }
+
+    const lastMessage =
+      getLastMessageObject(
+        message
+      );
+
+    // ---------------------------------------------------
+    // 1. MESSAGE-LEVEL SEEN
+    // ---------------------------------------------------
+
+    if (
+      lastMessage?.seen === true
+    ) {
+      return true;
+    }
+
+    if (
+      lastMessage?.isRead === true
+    ) {
+      return true;
+    }
+
+    if (
+      lastMessage?.read === true
+    ) {
+      return true;
+    }
+
+    if (
+      lastMessage?.seenAt
+    ) {
+      return true;
+    }
+
+    if (
+      lastMessage?.readAt
+    ) {
+      return true;
+    }
+
+    // ---------------------------------------------------
+    // 2. SEEN BY ARRAY
+    // ---------------------------------------------------
+
+    if (
+      Array.isArray(
+        lastMessage?.seenBy
+      )
+    ) {
+      const buyerSeen =
+        lastMessage.seenBy.some(
+          (uid) =>
+            String(uid) !==
+            String(sellerId)
+        );
+
+      if (buyerSeen) {
+        return true;
+      }
+    }
+
+    if (
+      Array.isArray(
+        lastMessage?.readBy
+      )
+    ) {
+      const buyerRead =
+        lastMessage.readBy.some(
+          (uid) =>
+            String(uid) !==
+            String(sellerId)
+        );
+
+      if (buyerRead) {
+        return true;
+      }
+    }
+
+    // ---------------------------------------------------
+    // 3. MESSAGE-LEVEL SEEN BY OBJECT
+    // ---------------------------------------------------
+
+    if (
+      lastMessage?.seenBy &&
+      typeof lastMessage.seenBy ===
+        "object" &&
+      !Array.isArray(
+        lastMessage.seenBy
+      )
+    ) {
+      const buyerSeen =
+        Object.entries(
+          lastMessage.seenBy
+        ).some(
+          ([uid, seen]) =>
+            String(uid) !==
+              String(sellerId) &&
+            seen === true
+        );
+
+      if (buyerSeen) {
+        return true;
+      }
+    }
+
+    if (
+      lastMessage?.readBy &&
+      typeof lastMessage.readBy ===
+        "object" &&
+      !Array.isArray(
+        lastMessage.readBy
+      )
+    ) {
+      const buyerRead =
+        Object.entries(
+          lastMessage.readBy
+        ).some(
+          ([uid, read]) =>
+            String(uid) !==
+              String(sellerId) &&
+            read === true
+        );
+
+      if (buyerRead) {
+        return true;
+      }
+    }
+
+    // ---------------------------------------------------
+    // 4. CONVERSATION-LEVEL SEEN
+    // ---------------------------------------------------
+
+    if (
+      message?.lastMessageSeen ===
+      true
+    ) {
+      return true;
+    }
+
+    if (
+      message?.seen === true
+    ) {
+      return true;
+    }
+
+    if (
+      message?.seenAt
+    ) {
+      return true;
+    }
+
+    // ---------------------------------------------------
+    // 5. LAST MESSAGE SEEN BY ARRAY
+    // ---------------------------------------------------
+
+    if (
+      Array.isArray(
+        message?.lastMessageSeenBy
+      )
+    ) {
+      return message.lastMessageSeenBy.some(
+        (uid) =>
+          String(uid) !==
+          String(sellerId)
+      );
+    }
+
+    // ---------------------------------------------------
+    // 6. LAST MESSAGE SEEN BY OBJECT
+    // ---------------------------------------------------
+
+    if (
+      message?.lastMessageSeenBy &&
+      typeof message.lastMessageSeenBy ===
+        "object" &&
+      !Array.isArray(
+        message.lastMessageSeenBy
+      )
+    ) {
+      return Object.entries(
+        message.lastMessageSeenBy
+      ).some(
+        ([uid, seen]) =>
+          String(uid) !==
+            String(sellerId) &&
+          seen === true
+      );
+    }
+
+    // ---------------------------------------------------
+    // 7. UNREAD COUNT FALLBACK
+    //
+    // If buyer has zero unread messages,
+    // seller's latest message has been read.
+    // ---------------------------------------------------
+
+    const buyerUnread =
+      message?.otherParticipantUnread;
+
+    if (
+      buyerUnread !==
+        undefined &&
+      buyerUnread !== null
+    ) {
+      if (
+        Number(
+          buyerUnread
+        ) === 0 &&
+        isLastMessageFromSeller(
+          message
+        )
+      ) {
+        return true;
+      }
+    }
+
+    // ---------------------------------------------------
+    // 8. DIRECT BUYER UNREAD COUNT
+    // ---------------------------------------------------
+
+    if (
+      message?.buyerUnread !==
+        undefined &&
+      message?.buyerUnread !==
+        null
+    ) {
+      if (
+        Number(
+          message.buyerUnread
+        ) === 0 &&
+        isLastMessageFromSeller(
+          message
+        )
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  // =====================================================
+  // MESSAGE STATUS
+  //
+  // "sent" = one check
+  // "seen" = two checks
+  // =====================================================
+
+  const getLastMessageStatus = (
+    message
+  ) => {
+    const sellerSentLast =
+      isLastMessageFromSeller(
+        message
+      );
+
+    if (!sellerSentLast) {
+      return "none";
+    }
+
+    const seen =
+      isLastMessageSeen(
+        message
+      );
+
+    if (seen) {
+      return "seen";
+    }
+
+    return "sent";
+  };
+
+  // =====================================================
+  // STATUS ICON
+  // =====================================================
+
+  const MessageStatus = ({
+    message,
+  }) => {
+    const status =
+      getLastMessageStatus(
+        message
+      );
+
+    if (
+      status === "none"
+    ) {
+      return null;
+    }
+
+    if (
+      status === "seen"
+    ) {
+      return (
+        <span
+          className="
+            inline-flex
+            items-center
+            shrink-0
+            text-green-600
+          "
+          title="Seen by buyer"
+          aria-label="Seen by buyer"
+        >
+          <FiCheck
+            size={14}
+            strokeWidth={3}
+          />
+
+          <FiCheck
+            size={14}
+            strokeWidth={3}
+            className="-ml-[7px]"
+          />
+        </span>
+      );
+    }
+
+    return (
+      <span
+        className="
+          inline-flex
+          items-center
+          shrink-0
+          text-gray-400
+        "
+        title="Sent"
+        aria-label="Sent"
+      >
+        <FiCheck
+          size={14}
+          strokeWidth={3}
+        />
+      </span>
+    );
+  };
 
   // =====================================================
   // OPEN CHAT
   // =====================================================
 
-  const openChat = (messageId) => {
-    if (!messageId) {
+  const openChat = async (
+    message
+  ) => {
+    const conversationId =
+      getConversationId(
+        message
+      );
+
+    if (!conversationId) {
+      console.error(
+        "Unable to open seller conversation: missing conversationId.",
+        message
+      );
+
       return;
     }
 
-    // Navigate immediately. A Firestore read-status update must
-    // never prevent the seller from opening the conversation.
-    navigate(`/seller/messages/${messageId}`);
+    setSidebarOpen(false);
 
-    if (markMessageAsRead) {
-      Promise.resolve(markMessageAsRead(messageId)).catch((error) => {
-        console.error("Error marking seller conversation as read:", error);
-      });
+    /*
+     * Navigate immediately.
+     */
+    navigate(
+      `/seller/messages/${encodeURIComponent(
+        String(
+          conversationId
+        )
+      )}`
+    );
+
+    /*
+     * Mark buyer messages as read.
+     */
+    if (
+      typeof markMessageAsRead ===
+      "function"
+    ) {
+      try {
+        await Promise.resolve(
+          markMessageAsRead(
+            conversationId
+          )
+        );
+      } catch (error) {
+        console.error(
+          "Error marking seller conversation as read:",
+          error
+        );
+      }
     }
   };
 
   // =====================================================
-  // FORMAT EMPTY MESSAGE
-  // =====================================================
-
-  const getInitial = (name) => {
-    return (
-      String(name || "U")
-        .trim()
-        .charAt(0)
-        .toUpperCase() || "U"
-    );
-  };
-
-  // =====================================================
-  // RENDER
+  // PAGE
   // =====================================================
 
   return (
-    <div className="h-screen w-full bg-gray-50 text-gray-800 flex overflow-hidden">
+    <div
+      className="
+        h-screen
+        w-full
+        bg-gray-50
+        text-gray-800
+        flex
+        overflow-hidden
+      "
+    >
 
       {/* =================================================
           MOBILE OVERLAY
@@ -242,7 +959,11 @@ function SellerMessages({
             z-40
             lg:hidden
           "
-          onClick={() => setSidebarOpen(false)}
+          onClick={() =>
+            setSidebarOpen(
+              false
+            )
+          }
         />
       )}
 
@@ -266,6 +987,7 @@ function SellerMessages({
           transition-transform
           duration-300
           ease-in-out
+
           ${
             sidebarOpen
               ? "translate-x-0"
@@ -274,18 +996,31 @@ function SellerMessages({
         `}
       >
 
-        {/* =================================================
-            LOGO
-        ================================================= */}
+        {/* LOGO */}
 
-        <div className="h-[86px] px-5 flex items-center justify-between shrink-0">
+        <div
+          className="
+            h-[86px]
+            px-5
+            flex
+            items-center
+            justify-between
+            shrink-0
+          "
+        >
 
           <button
             type="button"
             onClick={() =>
-              handleNavigation("/seller-dashboard")
+              handleNavigation(
+                "/seller-dashboard"
+              )
             }
-            className="flex items-center gap-3"
+            className="
+              flex
+              items-center
+              gap-3
+            "
           >
 
             <div
@@ -307,11 +1042,23 @@ function SellerMessages({
 
             <div className="text-left">
 
-              <p className="text-lg font-extrabold leading-none">
+              <p
+                className="
+                  text-lg
+                  font-extrabold
+                  leading-none
+                "
+              >
                 CampusMart
               </p>
 
-              <p className="text-[10px] text-green-100 mt-1">
+              <p
+                className="
+                  text-[10px]
+                  text-green-100
+                  mt-1
+                "
+              >
                 Buy. Sell. Connect.
               </p>
 
@@ -321,113 +1068,152 @@ function SellerMessages({
 
           <button
             type="button"
-            onClick={() => setSidebarOpen(false)}
-            className="lg:hidden text-green-100"
+            onClick={() =>
+              setSidebarOpen(
+                false
+              )
+            }
+            className="
+              lg:hidden
+              text-green-100
+            "
           >
             <FiX size={22} />
           </button>
 
         </div>
 
-        {/* =================================================
-            SIDEBAR MENU
-        ================================================= */}
+        {/* MENU */}
 
-        <div className="flex-1 overflow-y-auto px-3 pb-5">
+        <div
+          className="
+            flex-1
+            overflow-y-auto
+            px-3
+            pb-5
+          "
+        >
 
           <nav className="space-y-1">
 
-            {menuItems.map((item) => {
-              const Icon = item.icon;
-              const active = isActive(item.path);
+            {menuItems.map(
+              (item) => {
+                const Icon =
+                  item.icon;
 
-              return (
-                <button
-                  key={item.path}
-                  type="button"
-                  onClick={() =>
-                    handleNavigation(item.path)
-                  }
-                  className={`
-                    w-full
-                    flex
-                    items-center
-                    gap-3
-                    px-3
-                    py-3
-                    rounded-xl
-                    text-sm
-                    font-medium
-                    transition
-                    ${
-                      active
-                        ? "bg-white text-green-700 shadow-sm"
-                        : "text-white hover:bg-green-600"
+                const active =
+                  isActive(
+                    item.path
+                  );
+
+                return (
+                  <button
+                    key={
+                      item.path
                     }
-                  `}
-                >
+                    type="button"
+                    onClick={() =>
+                      handleNavigation(
+                        item.path
+                      )
+                    }
+                    className={`
+                      w-full
+                      flex
+                      items-center
+                      gap-3
+                      px-3
+                      py-3
+                      rounded-xl
+                      text-sm
+                      font-medium
+                      transition
 
-                  <Icon size={18} />
+                      ${
+                        active
+                          ? "bg-white text-green-700 shadow-sm"
+                          : "text-white hover:bg-green-600"
+                      }
+                    `}
+                  >
 
-                  <span className="flex-1 text-left">
-                    {item.label}
-                  </span>
+                    <Icon size={18} />
 
-                  {item.new && (
                     <span
                       className="
-                        px-1.5
-                        py-0.5
-                        rounded-md
-                        bg-yellow-400
-                        text-green-900
-                        text-[8px]
-                        font-bold
+                        flex-1
+                        text-left
                       "
                     >
-                      NEW
+                      {
+                        item.label
+                      }
                     </span>
-                  )}
 
-                  {item.badge > 0 && (
-                    <span
-                      className="
-                        min-w-5
-                        h-5
-                        px-1
-                        rounded-full
-                        bg-red-500
-                        text-white
-                        text-[10px]
-                        font-bold
-                        flex
-                        items-center
-                        justify-center
-                      "
-                    >
-                      {item.badge > 99
-                        ? "99+"
-                        : item.badge}
-                    </span>
-                  )}
+                    {item.new && (
+                      <span
+                        className="
+                          px-1.5
+                          py-0.5
+                          rounded-md
+                          bg-yellow-400
+                          text-green-900
+                          text-[8px]
+                          font-bold
+                        "
+                      >
+                        NEW
+                      </span>
+                    )}
 
-                </button>
-              );
-            })}
+                    {item.badge >
+                      0 && (
+                      <span
+                        className="
+                          min-w-5
+                          h-5
+                          px-1
+                          rounded-full
+                          bg-red-500
+                          text-white
+                          text-[10px]
+                          font-bold
+                          flex
+                          items-center
+                          justify-center
+                        "
+                      >
+                        {item.badge >
+                        99
+                          ? "99+"
+                          : item.badge}
+                      </span>
+                    )}
+
+                  </button>
+                );
+              }
+            )}
 
           </nav>
 
         </div>
 
-        {/* =================================================
-            LOGOUT
-        ================================================= */}
+        {/* LOGOUT */}
 
-        <div className="px-3 pb-4 shrink-0">
+        <div
+          className="
+            px-3
+            pb-4
+            shrink-0
+          "
+        >
 
           <button
             type="button"
-            onClick={handleLogout}
+            onClick={
+              handleLogout
+            }
             className="
               w-full
               flex
@@ -443,8 +1229,11 @@ function SellerMessages({
               transition
             "
           >
+
             <FiLogOut size={18} />
+
             Logout
+
           </button>
 
         </div>
@@ -455,7 +1244,16 @@ function SellerMessages({
           MAIN AREA
       ================================================= */}
 
-      <div className="flex-1 min-w-0 lg:ml-[230px] flex flex-col h-screen">
+      <div
+        className="
+          flex-1
+          min-w-0
+          lg:ml-[230px]
+          flex
+          flex-col
+          h-screen
+        "
+      >
 
         {/* =================================================
             TOP BAR
@@ -479,7 +1277,11 @@ function SellerMessages({
 
           <button
             type="button"
-            onClick={() => setSidebarOpen(true)}
+            onClick={() =>
+              setSidebarOpen(
+                true
+              )
+            }
             className="lg:hidden"
           >
             <FiMenu size={23} />
@@ -487,7 +1289,13 @@ function SellerMessages({
 
           {/* SEARCH */}
 
-          <div className="relative flex-1 max-w-[500px]">
+          <div
+            className="
+              relative
+              flex-1
+              max-w-[500px]
+            "
+          >
 
             <FiSearch
               size={17}
@@ -504,7 +1312,9 @@ function SellerMessages({
               type="text"
               value={search}
               onChange={(e) =>
-                setSearch(e.target.value)
+                setSearch(
+                  e.target.value
+                )
               }
               placeholder="Search messages..."
               className="
@@ -523,14 +1333,25 @@ function SellerMessages({
 
           </div>
 
-          {/* RIGHT SIDE */}
+          {/* RIGHT */}
 
-          <div className="ml-auto flex items-center gap-3">
+          <div
+            className="
+              ml-auto
+              flex
+              items-center
+              gap-3
+            "
+          >
+
+            {/* MESSAGE BUTTON */}
 
             <button
               type="button"
               onClick={() =>
-                navigate("/seller/messages")
+                navigate(
+                  "/seller/messages"
+                )
               }
               className="
                 relative
@@ -543,9 +1364,13 @@ function SellerMessages({
                 justify-center
               "
             >
-              <FiMessageCircle size={19} />
 
-              {unreadMessages > 0 && (
+              <FiMessageCircle
+                size={19}
+              />
+
+              {unreadMessages >
+                0 && (
                 <span
                   className="
                     absolute
@@ -564,18 +1389,23 @@ function SellerMessages({
                     justify-center
                   "
                 >
-                  {unreadMessages > 9
-                    ? "9+"
+                  {unreadMessages >
+                  99
+                    ? "99+"
                     : unreadMessages}
                 </span>
               )}
 
             </button>
 
+            {/* PROFILE */}
+
             <button
               type="button"
               onClick={() =>
-                navigate("/seller/profile")
+                navigate(
+                  "/seller/profile"
+                )
               }
               className="
                 flex
@@ -592,8 +1422,12 @@ function SellerMessages({
 
               {sellerImage ? (
                 <img
-                  src={sellerImage}
-                  alt={sellerFullName}
+                  src={
+                    sellerImage
+                  }
+                  alt={
+                    sellerFullName
+                  }
                   className="
                     w-8
                     h-8
@@ -616,17 +1450,40 @@ function SellerMessages({
                     text-xs
                   "
                 >
-                  {getInitial(sellerFullName)}
+                  {getInitial(
+                    sellerFullName
+                  )}
                 </div>
               )}
 
-              <div className="hidden sm:block text-left pr-2">
+              <div
+                className="
+                  hidden
+                  sm:block
+                  text-left
+                  pr-2
+                "
+              >
 
-                <p className="text-xs font-bold leading-none">
-                  {sellerFullName}
+                <p
+                  className="
+                    text-xs
+                    font-bold
+                    leading-none
+                  "
+                >
+                  {
+                    sellerFullName
+                  }
                 </p>
 
-                <p className="text-[9px] text-green-100 mt-1">
+                <p
+                  className="
+                    text-[9px]
+                    text-green-100
+                    mt-1
+                  "
+                >
                   Seller
                 </p>
 
@@ -639,16 +1496,22 @@ function SellerMessages({
         </header>
 
         {/* =================================================
-            PAGE CONTENT
+            CONTENT
         ================================================= */}
 
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7">
+        <main
+          className="
+            flex-1
+            overflow-y-auto
+            p-4
+            sm:p-6
+            lg:p-7
+          "
+        >
 
           <div className="space-y-6">
 
-            {/* =================================================
-                HEADER
-            ================================================= */}
+            {/* HEADER */}
 
             <div
               className="
@@ -674,8 +1537,15 @@ function SellerMessages({
                   Messages
                 </h1>
 
-                <p className="text-gray-500 mt-1">
-                  Chat with buyers about your products.
+                <p
+                  className="
+                    text-gray-500
+                    mt-1
+                  "
+                >
+                  Chat with buyers
+                  about your
+                  products.
                 </p>
 
               </div>
@@ -695,8 +1565,13 @@ function SellerMessages({
                   font-medium
                 "
               >
-                <FiMessageCircle size={16} />
+
+                <FiMessageCircle
+                  size={16}
+                />
+
                 Seller Inbox
+
               </div>
 
             </div>
@@ -741,7 +1616,9 @@ function SellerMessages({
                       justify-center
                     "
                   >
-                    <FiMessageCircle size={19} />
+                    <FiMessageCircle
+                      size={19}
+                    />
                   </div>
 
                   <div>
@@ -751,7 +1628,9 @@ function SellerMessages({
                     </p>
 
                     <p className="text-xl font-bold text-gray-800">
-                      {messages.length}
+                      {
+                        messages.length
+                      }
                     </p>
 
                   </div>
@@ -787,7 +1666,9 @@ function SellerMessages({
                       justify-center
                     "
                   >
-                    <FiCheckCircle size={19} />
+                    <FiCheckCircle
+                      size={19}
+                    />
                   </div>
 
                   <div>
@@ -797,7 +1678,9 @@ function SellerMessages({
                     </p>
 
                     <p className="text-xl font-bold text-gray-800">
-                      {unreadMessages}
+                      {
+                        unreadMessages
+                      }
                     </p>
 
                   </div>
@@ -835,7 +1718,9 @@ function SellerMessages({
                       justify-center
                     "
                   >
-                    <FiUsers size={19} />
+                    <FiUsers
+                      size={19}
+                    />
                   </div>
 
                   <div>
@@ -845,7 +1730,9 @@ function SellerMessages({
                     </p>
 
                     <p className="text-xl font-bold text-gray-800">
-                      {onlineUsers}
+                      {
+                        onlineUsers
+                      }
                     </p>
 
                   </div>
@@ -877,7 +1764,9 @@ function SellerMessages({
                 type="text"
                 value={search}
                 onChange={(e) =>
-                  setSearch(e.target.value)
+                  setSearch(
+                    e.target.value
+                  )
                 }
                 placeholder="Search conversations..."
                 className="
@@ -941,7 +1830,9 @@ function SellerMessages({
                       justify-center
                     "
                   >
-                    <FiMessageCircle size={21} />
+                    <FiMessageCircle
+                      size={21}
+                    />
                   </div>
 
                   <div>
@@ -951,10 +1842,15 @@ function SellerMessages({
                     </h2>
 
                     <p className="text-sm text-gray-400 mt-0.5">
-                      {filteredMessages.length}{" "}
-                      {filteredMessages.length === 1
-                        ? "conversation"
-                        : "conversations"}
+                      {
+                        filteredMessages.length
+                      }{" "}
+                      {
+                        filteredMessages.length ===
+                        1
+                          ? "conversation"
+                          : "conversations"
+                      }
                     </p>
 
                   </div>
@@ -985,203 +1881,312 @@ function SellerMessages({
                   LIST
               ================================================= */}
 
-              {filteredMessages.length > 0 ? (
+              {filteredMessages.length >
+              0 ? (
 
                 <div>
 
-                  {filteredMessages.map((message) => (
+                  {filteredMessages.map(
+                    (
+                      message,
+                      index
+                    ) => {
 
-                    <button
-                      key={message.id}
-                      type="button"
-                      onClick={() =>
-                        openChat(message.id)
-                      }
-                      className="
-                        w-full
-                        flex
-                        items-center
-                        gap-4
-                        p-4
-                        sm:p-5
-                        text-left
-                        hover:bg-gray-50
-                        transition
-                        border-b
-                        border-gray-100
-                        last:border-b-0
-                      "
-                    >
+                      const conversationId =
+                        getConversationId(
+                          message
+                        );
 
-                      {/* AVATAR */}
+                      const unread =
+                        Number(
+                          message?.unread ||
+                            0
+                        );
 
-                      <div className="relative shrink-0">
+                      const lastMessage =
+                        getLastMessage(
+                          message
+                        );
 
-                        {message.profileImage ? (
+                      const sellerSentLast =
+                        isLastMessageFromSeller(
+                          message
+                        );
 
-                          <img
-                            src={message.profileImage}
-                            alt={message.name}
-                            className="
-                              w-12
-                              h-12
-                              sm:w-13
-                              sm:h-13
-                              rounded-full
-                              object-cover
-                            "
-                          />
+                      const lastMessageSeen =
+                        isLastMessageSeen(
+                          message
+                        );
 
-                        ) : (
+                      return (
+                        <button
+                          key={
+                            conversationId ||
+                            message?.id ||
+                            `conversation-${index}`
+                          }
+                          type="button"
+                          disabled={
+                            !conversationId
+                          }
+                          onClick={() =>
+                            openChat(
+                              message
+                            )
+                          }
+                          className="
+                            w-full
+                            flex
+                            items-center
+                            gap-4
+                            p-4
+                            sm:p-5
+                            text-left
+                            hover:bg-gray-50
+                            active:bg-gray-100
+                            transition
+                            border-b
+                            border-gray-100
+                            last:border-b-0
+                            disabled:opacity-50
+                            disabled:cursor-not-allowed
+                          "
+                        >
 
-                          <div
-                            className="
-                              w-12
-                              h-12
-                              sm:w-13
-                              sm:h-13
-                              rounded-full
-                              bg-green-100
-                              text-green-700
-                              flex
-                              items-center
-                              justify-center
-                              font-bold
-                              text-lg
-                            "
-                          >
-                            {getInitial(message.name)}
+                          {/* AVATAR */}
+
+                          <div className="relative shrink-0">
+
+                            {message?.profileImage ? (
+                              <img
+                                src={
+                                  message.profileImage
+                                }
+                                alt={
+                                  message?.name ||
+                                  "Buyer"
+                                }
+                                className="
+                                  w-12
+                                  h-12
+                                  sm:w-13
+                                  sm:h-13
+                                  rounded-full
+                                  object-cover
+                                "
+                              />
+                            ) : (
+                              <div
+                                className="
+                                  w-12
+                                  h-12
+                                  sm:w-13
+                                  sm:h-13
+                                  rounded-full
+                                  bg-green-100
+                                  text-green-700
+                                  flex
+                                  items-center
+                                  justify-center
+                                  font-bold
+                                  text-lg
+                                "
+                              >
+                                {getInitial(
+                                  message?.name
+                                )}
+                              </div>
+                            )}
+
+                            {/* REAL ONLINE INDICATOR */}
+
+                            {message?.online ===
+                              true && (
+                              <span
+                                className="
+                                  absolute
+                                  bottom-0
+                                  right-0
+                                  w-3
+                                  h-3
+                                  bg-green-500
+                                  border-2
+                                  border-white
+                                  rounded-full
+                                  shadow-sm
+                                "
+                                title="Online"
+                              />
+                            )}
+
                           </div>
 
-                        )}
+                          {/* DETAILS */}
 
-                        {message.online && (
-                          <span
+                          <div className="flex-1 min-w-0">
+
+                            <div
+                              className="
+                                flex
+                                items-center
+                                justify-between
+                                gap-3
+                              "
+                            >
+
+                              <h3
+                                className={`
+                                  truncate
+                                  ${
+                                    unread >
+                                    0
+                                      ? "font-bold text-gray-900"
+                                      : "font-semibold text-gray-800"
+                                  }
+                                `}
+                              >
+                                {
+                                  message?.name ||
+                                  "Buyer"
+                                }
+                              </h3>
+
+                              <span
+                                className="
+                                  text-xs
+                                  text-gray-400
+                                  shrink-0
+                                "
+                              >
+                                {getMessageTime(
+                                  message
+                                )}
+                              </span>
+
+                            </div>
+
+                            {/* PRODUCT */}
+
+                            {message?.productName && (
+                              <p
+                                className="
+                                  text-[11px]
+                                  text-green-600
+                                  font-medium
+                                  mt-0.5
+                                  truncate
+                                "
+                              >
+                                {
+                                  message.productName
+                                }
+                              </p>
+                            )}
+
+                            {/* LAST MESSAGE + CHECK */}
+
+                            <div
+                              className="
+                                flex
+                                items-center
+                                gap-1.5
+                                mt-1
+                                min-w-0
+                              "
+                            >
+
+                              {sellerSentLast && (
+                                <MessageStatus
+                                  message={
+                                    message
+                                  }
+                                />
+                              )}
+
+                              <p
+                                className={`
+                                  text-sm
+                                  truncate
+                                  ${
+                                    unread >
+                                    0
+                                      ? "font-semibold text-gray-700"
+                                      : "text-gray-500"
+                                  }
+                                `}
+                              >
+                                {
+                                  lastMessage
+                                }
+                              </p>
+
+                            </div>
+
+                            {/* SEEN LABEL */}
+
+                            {sellerSentLast &&
+                              lastMessageSeen && (
+                                <p
+                                  className="
+                                    text-[10px]
+                                    text-green-600
+                                    font-medium
+                                    mt-0.5
+                                  "
+                                >
+                                  Seen by buyer
+                                </p>
+                              )}
+
+                          </div>
+
+                          {/* UNREAD */}
+
+                          {unread >
+                            0 && (
+                            <span
+                              className="
+                                min-w-5
+                                h-5
+                                px-1.5
+                                rounded-full
+                                bg-green-600
+                                text-white
+                                text-[11px]
+                                font-bold
+                                flex
+                                items-center
+                                justify-center
+                                shrink-0
+                              "
+                            >
+                              {unread >
+                              99
+                                ? "99+"
+                                : unread}
+                            </span>
+                          )}
+
+                          {/* ARROW */}
+
+                          <FiChevronRight
                             className="
-                              absolute
-                              bottom-0
-                              right-0
-                              w-3
-                              h-3
-                              bg-green-500
-                              border-2
-                              border-white
-                              rounded-full
-                            "
-                          />
-                        )}
-
-                      </div>
-
-                      {/* DETAILS */}
-
-                      <div className="flex-1 min-w-0">
-
-                        <div
-                          className="
-                            flex
-                            items-center
-                            justify-between
-                            gap-3
-                          "
-                        >
-
-                          <h3
-                            className="
-                              font-semibold
-                              text-gray-800
-                              truncate
-                            "
-                          >
-                            {message.name}
-                          </h3>
-
-                          <span
-                            className="
-                              text-xs
-                              text-gray-400
+                              text-gray-300
                               shrink-0
                             "
-                          >
-                            {message.time}
-                          </span>
+                            size={18}
+                          />
 
-                        </div>
-
-                        {message.productName && (
-                          <p
-                            className="
-                              text-[11px]
-                              text-green-600
-                              font-medium
-                              mt-0.5
-                              truncate
-                            "
-                          >
-                            {message.productName}
-                          </p>
-                        )}
-
-                        <p
-                          className={`
-                            text-sm
-                            truncate
-                            mt-1
-                            ${
-                              message.unread > 0
-                                ? "font-semibold text-gray-700"
-                                : "text-gray-500"
-                            }
-                          `}
-                        >
-                          {message.lastMessage ||
-                            "No messages yet."}
-                        </p>
-
-                      </div>
-
-                      {/* UNREAD */}
-
-                      {message.unread > 0 && (
-                        <span
-                          className="
-                            min-w-5
-                            h-5
-                            px-1.5
-                            rounded-full
-                            bg-green-600
-                            text-white
-                            text-[11px]
-                            font-bold
-                            flex
-                            items-center
-                            justify-center
-                            shrink-0
-                          "
-                        >
-                          {message.unread}
-                        </span>
-                      )}
-
-                      <FiChevronRight
-                        className="
-                          text-gray-300
-                          shrink-0
-                        "
-                        size={18}
-                      />
-
-                    </button>
-
-                  ))}
+                        </button>
+                      );
+                    }
+                  )}
 
                 </div>
 
               ) : (
 
-                /* =================================================
-                    EMPTY STATE
-                ================================================= */
+                /* EMPTY */
 
                 <div
                   className="
@@ -1238,7 +2243,9 @@ function SellerMessages({
                   {search && (
                     <button
                       type="button"
-                      onClick={() => setSearch("")}
+                      onClick={() =>
+                        setSearch("")
+                      }
                       className="
                         mt-4
                         text-sm
@@ -1289,17 +2296,34 @@ function SellerMessages({
                   shrink-0
                 "
               >
-                <FiCheckCircle size={18} />
+                <FiCheckCircle
+                  size={18}
+                />
               </div>
 
               <div>
 
-                <p className="text-sm font-semibold text-gray-800">
-                  Stay connected with your buyers
+                <p
+                  className="
+                    text-sm
+                    font-semibold
+                    text-gray-800
+                  "
+                >
+                  Stay connected
+                  with your buyers
                 </p>
 
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Reply quickly to questions about your products.
+                <p
+                  className="
+                    text-xs
+                    text-gray-500
+                    mt-0.5
+                  "
+                >
+                  Reply quickly to
+                  questions about
+                  your products.
                 </p>
 
               </div>

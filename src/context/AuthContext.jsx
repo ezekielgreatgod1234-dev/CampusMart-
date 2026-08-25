@@ -5,7 +5,9 @@ import {
   useState,
 } from "react";
 
-import { onAuthStateChanged } from "firebase/auth";
+import {
+  onAuthStateChanged,
+} from "firebase/auth";
 
 import {
   doc,
@@ -13,21 +15,36 @@ import {
   setDoc,
 } from "firebase/firestore";
 
-import { auth, db } from "./firebase";
+import {
+  ref,
+  onValue,
+  onDisconnect,
+  set,
+  serverTimestamp as rtdbServerTimestamp,
+} from "firebase/database";
 
+import {
+  auth,
+  db,
+  realtimeDb,
+} from "./firebase";
 
 
 // =========================================================
 // AUTH CONTEXT
 // =========================================================
 
-const AuthContext = createContext(null);
+const AuthContext =
+  createContext(null);
+
 
 // =========================================================
 // DEFAULT PROFILE
 // =========================================================
 
-const createFallbackProfile = (user) => {
+const createFallbackProfile = (
+  user
+) => {
   if (!user) {
     return null;
   }
@@ -53,11 +70,14 @@ const createFallbackProfile = (user) => {
   };
 };
 
+
 // =========================================================
 // APPLY THEME
 // =========================================================
 
-const applyTheme = (theme) => {
+const applyTheme = (
+  theme
+) => {
   const root =
     document.documentElement;
 
@@ -88,6 +108,7 @@ const applyTheme = (theme) => {
       : "#111827";
 };
 
+
 // =========================================================
 // AUTH PROVIDER
 // =========================================================
@@ -95,20 +116,35 @@ const applyTheme = (theme) => {
 export function AuthProvider({
   children,
 }) {
+  // =======================================================
+  // FIREBASE USER
+  // =======================================================
+
   const [
     firebaseUser,
     setFirebaseUser,
   ] = useState(null);
+
+
+  // =======================================================
+  // FIRESTORE PROFILE
+  // =======================================================
 
   const [
     profile,
     setProfile,
   ] = useState(null);
 
+
+  // =======================================================
+  // PROFILE LOADING
+  // =======================================================
+
   const [
     profileLoading,
     setProfileLoading,
   ] = useState(true);
+
 
   // =======================================================
   // THEME
@@ -119,17 +155,246 @@ export function AuthProvider({
     setTheme,
   ] = useState("light");
 
+
   const [
     themeLoading,
     setThemeLoading,
   ] = useState(true);
 
+
   // =======================================================
-  // FIREBASE AUTH LISTENER
+  // REAL ONLINE STATUS
+  // =======================================================
+
+  const [
+    isOnline,
+    setIsOnline,
+  ] = useState(false);
+
+
+  const [
+    onlineStatus,
+    setOnlineStatus,
+  ] = useState(false);
+
+
+  // =======================================================
+  // REALTIME DATABASE PRESENCE
   // =======================================================
 
   useEffect(() => {
+    if (!firebaseUser?.uid) {
+      setIsOnline(false);
+      setOnlineStatus(false);
+
+      return undefined;
+    }
+
+    if (!realtimeDb) {
+      console.warn(
+        "Realtime Database is not initialized."
+      );
+
+      setIsOnline(false);
+      setOnlineStatus(false);
+
+      return undefined;
+    }
+
+
+    const uid =
+      firebaseUser.uid;
+
+
+    // =====================================================
+    // CONNECTION REFERENCE
+    //
+    // Firebase tells us whether THIS browser is connected
+    // to Realtime Database.
+    // =====================================================
+
+    const connectedRef =
+      ref(
+        realtimeDb,
+        ".info/connected"
+      );
+
+
+    // =====================================================
+    // USER PRESENCE REFERENCE
+    //
+    // /presence/{uid}
+    // =====================================================
+
+    const presenceRef =
+      ref(
+        realtimeDb,
+        `presence/${uid}`
+      );
+
+
+    // =====================================================
+    // LISTEN FOR FIREBASE CONNECTION
+    // =====================================================
+
+    const unsubscribeConnection =
+      onValue(
+        connectedRef,
+        async (snapshot) => {
+          const connected =
+            snapshot.val() === true;
+
+
+          // =================================================
+          // NOT CONNECTED
+          // =================================================
+
+          if (!connected) {
+            setIsOnline(false);
+
+            return;
+          }
+
+
+          // =================================================
+          // CONNECTED
+          // =================================================
+
+          try {
+            // -----------------------------------------------
+            // When connection disappears, Firebase will
+            // automatically mark this user offline.
+            // -----------------------------------------------
+
+            await onDisconnect(
+              presenceRef
+            ).set({
+              online: false,
+
+              lastSeen:
+                rtdbServerTimestamp(),
+
+              uid,
+            });
+
+
+            // -----------------------------------------------
+            // Immediately mark user ONLINE.
+            // -----------------------------------------------
+
+            await set(
+              presenceRef,
+              {
+                online: true,
+
+                lastSeen:
+                  rtdbServerTimestamp(),
+
+                uid,
+
+                email:
+                  firebaseUser.email ||
+                  "",
+
+                updatedAt:
+                  rtdbServerTimestamp(),
+              }
+            );
+
+
+            setIsOnline(true);
+
+            setOnlineStatus(true);
+
+
+            console.log(
+              "CampusMart presence: ONLINE",
+              uid
+            );
+          } catch (error) {
+            console.error(
+              "Could not update realtime presence:",
+              error
+            );
+
+            setIsOnline(false);
+
+            setOnlineStatus(false);
+          }
+        }
+      );
+
+
+    // =====================================================
+    // LISTEN TO THIS USER'S PRESENCE
+    // =====================================================
+
+    const unsubscribePresence =
+      onValue(
+        presenceRef,
+        (snapshot) => {
+          const data =
+            snapshot.val();
+
+
+          const online =
+            data?.online === true;
+
+
+          setOnlineStatus(
+            online
+          );
+
+
+          /*
+           * Only consider the user actually online when
+           * Firebase says the connection is active AND
+           * the presence record says online.
+           */
+          setIsOnline(
+            online
+          );
+        },
+        (error) => {
+          console.error(
+            "Presence listener error:",
+            error
+          );
+
+          setIsOnline(false);
+          setOnlineStatus(false);
+        }
+      );
+
+
+    // =====================================================
+    // CLEANUP
+    // =====================================================
+
+    return () => {
+      unsubscribeConnection();
+
+      unsubscribePresence();
+
+      /*
+       * We intentionally do NOT manually set the user
+       * offline here because onDisconnect() handles actual
+       * network/browser disconnects reliably.
+       */
+    };
+  }, [
+    firebaseUser?.uid,
+    firebaseUser?.email,
+  ]);
+
+
+  // =========================================================
+  // FIREBASE AUTH LISTENER
+  // =========================================================
+
+  useEffect(() => {
     let mounted = true;
+
 
     const unsubscribe =
       onAuthStateChanged(
@@ -139,6 +404,7 @@ export function AuthProvider({
             return;
           }
 
+
           console.log(
             "Firebase auth state:",
             user
@@ -146,9 +412,10 @@ export function AuthProvider({
               : "No user"
           );
 
-          // ===============================================
+
+          // =================================================
           // NO USER
-          // ===============================================
+          // =================================================
 
           if (!user) {
             setFirebaseUser(null);
@@ -159,6 +426,11 @@ export function AuthProvider({
 
             applyTheme("light");
 
+            setIsOnline(false);
+
+            setOnlineStatus(false);
+
+
             if (mounted) {
               setProfileLoading(false);
 
@@ -168,11 +440,13 @@ export function AuthProvider({
             return;
           }
 
-          // ===============================================
+
+          // =================================================
           // USER EXISTS
-          // ===============================================
+          // =================================================
 
           setFirebaseUser(user);
+
 
           /*
            * Start every newly authenticated account
@@ -185,14 +459,16 @@ export function AuthProvider({
 
           setThemeLoading(true);
 
-          // ===============================================
+
+          // =================================================
           // FALLBACK PROFILE
-          // ===============================================
+          // =================================================
 
           const fallbackProfile =
             createFallbackProfile(
               user
             );
+
 
           if (mounted) {
             setProfile(
@@ -203,12 +479,15 @@ export function AuthProvider({
              * Authentication itself has completed.
              */
 
-            setProfileLoading(false);
+            setProfileLoading(
+              false
+            );
           }
 
-          // ===============================================
+
+          // =================================================
           // LOAD FIRESTORE USER
-          // ===============================================
+          // =================================================
 
           try {
             const userRef =
@@ -218,6 +497,7 @@ export function AuthProvider({
                 user.uid
               );
 
+
             /*
              * Prevent Firestore from
              * hanging forever.
@@ -226,18 +506,25 @@ export function AuthProvider({
             const timeoutPromise =
               new Promise(
                 (_, reject) => {
-                  setTimeout(() => {
-                    reject(
-                      new Error(
-                        "Firestore request timed out."
-                      )
-                    );
-                  }, 8000);
+                  setTimeout(
+                    () => {
+                      reject(
+                        new Error(
+                          "Firestore request timed out."
+                        )
+                      );
+                    },
+                    8000
+                  );
                 }
               );
 
+
             const firestorePromise =
-              getDoc(userRef);
+              getDoc(
+                userRef
+              );
+
 
             const userSnapshot =
               await Promise.race([
@@ -245,13 +532,15 @@ export function AuthProvider({
                 timeoutPromise,
               ]);
 
+
             if (!mounted) {
               return;
             }
 
-            // =============================================
+
+            // =================================================
             // PROFILE EXISTS
-            // =============================================
+            // =================================================
 
             if (
               userSnapshot &&
@@ -260,57 +549,65 @@ export function AuthProvider({
               const userData =
                 userSnapshot.data();
 
-              const loadedProfile = {
-                id: user.uid,
 
-                fullName:
-                  userData.fullName ||
-                  user.displayName ||
-                  "",
+              const loadedProfile =
+                {
+                  id: user.uid,
 
-                email:
-                  userData.email ||
-                  user.email ||
-                  "",
+                  fullName:
+                    userData.fullName ||
+                    user.displayName ||
+                    "",
 
-                phone:
-                  userData.phone || "",
+                  email:
+                    userData.email ||
+                    user.email ||
+                    "",
 
-                campus:
-                  userData.campus || "",
+                  phone:
+                    userData.phone ||
+                    "",
 
-                address:
-                  userData.address || "",
+                  campus:
+                    userData.campus ||
+                    "",
 
-                profileImage:
-                  userData.profileImage ||
-                  null,
+                  address:
+                    userData.address ||
+                    "",
 
-                role:
-                  userData.role ||
-                  "buyer",
+                  profileImage:
+                    userData.profileImage ||
+                    null,
 
-                ...userData,
+                  role:
+                    userData.role ||
+                    "buyer",
 
-                /*
-                 * Firebase UID always wins.
-                 */
+                  ...userData,
 
-                id: user.uid,
-              };
+                  /*
+                   * Firebase UID always wins.
+                   */
+
+                  id: user.uid,
+                };
+
 
               setProfile(
                 loadedProfile
               );
+
 
               console.log(
                 "CampusMart profile loaded:",
                 loadedProfile
               );
 
-              // =========================================
+
+              // =============================================
               // LOAD USER THEME
-              // =========================================
+              // =============================================
 
               const savedTheme =
                 userData.theme ===
@@ -318,13 +615,16 @@ export function AuthProvider({
                   ? "dark"
                   : "light";
 
+
               setTheme(
                 savedTheme
               );
 
+
               applyTheme(
                 savedTheme
               );
+
 
               console.log(
                 "CampusMart theme loaded:",
@@ -334,15 +634,17 @@ export function AuthProvider({
               );
             }
 
-            // =============================================
+
+            // =================================================
             // PROFILE DOES NOT EXIST
-            // =============================================
+            // =================================================
 
             else {
               console.warn(
                 "No Firestore profile found for:",
                 user.uid
               );
+
 
               setTheme("light");
 
@@ -353,6 +655,7 @@ export function AuthProvider({
               "Error loading Firestore user profile:",
               error
             );
+
 
             /*
              * Do NOT log the user out if
@@ -370,15 +673,18 @@ export function AuthProvider({
             }
           } finally {
             if (mounted) {
-              setThemeLoading(false);
+              setThemeLoading(
+                false
+              );
             }
           }
         }
       );
 
-    // ===============================================
+
+    // =======================================================
     // CLEANUP
-    // ===============================================
+    // =======================================================
 
     return () => {
       mounted = false;
@@ -387,12 +693,15 @@ export function AuthProvider({
     };
   }, []);
 
+
   // =========================================================
   // CHANGE USER THEME
   // =========================================================
 
   const updateTheme =
-    async (newTheme) => {
+    async (
+      newTheme
+    ) => {
       /*
        * Only allow valid themes.
        */
@@ -404,6 +713,7 @@ export function AuthProvider({
         return;
       }
 
+
       /*
        * User must be logged in.
        */
@@ -412,13 +722,19 @@ export function AuthProvider({
         return;
       }
 
+
       /*
        * Apply immediately.
        */
 
-      setTheme(newTheme);
+      setTheme(
+        newTheme
+      );
 
-      applyTheme(newTheme);
+      applyTheme(
+        newTheme
+      );
+
 
       try {
         const userRef =
@@ -428,15 +744,18 @@ export function AuthProvider({
             firebaseUser.uid
           );
 
+
         await setDoc(
           userRef,
           {
-            theme: newTheme,
+            theme:
+              newTheme,
           },
           {
             merge: true,
           }
         );
+
 
         console.log(
           "Theme saved:",
@@ -452,6 +771,7 @@ export function AuthProvider({
       }
     };
 
+
   // =========================================================
   // PROVIDER
   // =========================================================
@@ -459,49 +779,67 @@ export function AuthProvider({
   return (
     <AuthContext.Provider
       value={{
-        // Firebase user
+        // ===================================================
+        // FIREBASE USER
+        // ===================================================
+
         firebaseUser,
 
         // Alias
-        user: firebaseUser,
+        user:
+          firebaseUser,
 
-        // Firestore profile
+
+        // ===================================================
+        // FIRESTORE PROFILE
+        // ===================================================
+
         profile,
 
-        // Loading
+
+        // ===================================================
+        // LOADING
+        // ===================================================
+
         profileLoading,
 
         loading:
           profileLoading,
 
-        // Authentication
+
+        // ===================================================
+        // AUTHENTICATION
+        // ===================================================
+
         isAuthenticated:
           !!firebaseUser,
 
-        // Theme
+
+        // ===================================================
+        // REAL ONLINE PRESENCE
+        // ===================================================
+
+        isOnline,
+
+        onlineStatus,
+
+
+        // ===================================================
+        // THEME
+        // ===================================================
+
         theme,
 
-        // Theme loading
         themeLoading,
 
-        // Theme updater
         updateTheme,
       }}
     >
-      {/* ===================================================
-          GLOBAL INTERNET MONITOR
-          
-          IMPORTANT:
-          This is outside App's Routes.
-
-          Therefore it stays mounted while navigating
-          through every CampusMart page.
-      =================================================== */}
-
       {children}
     </AuthContext.Provider>
   );
 }
+
 
 // =========================================================
 // CUSTOM AUTH HOOK
@@ -512,6 +850,7 @@ export function useAuth() {
     AuthContext
   );
 }
+
 
 // =========================================================
 // DEFAULT EXPORT

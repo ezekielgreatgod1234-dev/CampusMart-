@@ -1,5 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
+import {
+  useNavigate,
+} from "react-router-dom";
 
 import CustomerLayout from "../../layouts/CustomerLayout";
 
@@ -10,10 +17,12 @@ import {
   FiMoreVertical,
   FiCheckCircle,
   FiUsers,
+  FiCheck,
 } from "react-icons/fi";
 
 import {
   collection,
+  doc,
   onSnapshot,
   query,
   where,
@@ -21,55 +30,501 @@ import {
 
 import { db } from "../../context/firebase";
 
-import { useAuth } from "../../context/AuthContext";
-
+import {
+  useAuth,
+} from "../../context/AuthContext";
 
 function Messages({
   cartCount = 0,
   wishlist = [],
 }) {
-
-  const navigate = useNavigate();
+  const navigate =
+    useNavigate();
 
   const {
     firebaseUser,
     profileLoading,
   } = useAuth();
 
-  const [search, setSearch] = useState("");
+  // =====================================================
+  // STATE
+  // =====================================================
 
-  const [conversations, setConversations] =
-    useState([]);
+  const [
+    search,
+    setSearch,
+  ] = useState("");
 
-  const [loading, setLoading] =
-    useState(true);
+  const [
+    conversations,
+    setConversations,
+  ] = useState([]);
 
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
 
-  // =========================================================
-  // LOAD FIREBASE CONVERSATIONS
-  // =========================================================
+  // =====================================================
+  // REAL PRESENCE STATE
+  // =====================================================
+
+  const [
+    presenceMap,
+    setPresenceMap,
+  ] = useState({});
+
+  // =====================================================
+  // FORMAT TIME
+  // =====================================================
+
+  const formatTime = (
+    timestamp
+  ) => {
+    if (!timestamp) {
+      return "";
+    }
+
+    try {
+      const date =
+        timestamp?.toDate
+          ? timestamp.toDate()
+          : new Date(
+              timestamp
+            );
+
+      if (
+        Number.isNaN(
+          date.getTime()
+        )
+      ) {
+        return "";
+      }
+
+      return date.toLocaleTimeString(
+        [],
+        {
+          hour: "2-digit",
+          minute: "2-digit",
+        }
+      );
+    } catch {
+      return "";
+    }
+  };
+
+  // =====================================================
+  // TIMESTAMP TO MILLISECONDS
+  // =====================================================
+
+  const getTimestampMs = (
+    timestamp
+  ) => {
+    if (!timestamp) {
+      return 0;
+    }
+
+    try {
+      if (
+        typeof timestamp.toMillis ===
+        "function"
+      ) {
+        return timestamp.toMillis();
+      }
+
+      if (
+        typeof timestamp.toDate ===
+        "function"
+      ) {
+        return timestamp
+          .toDate()
+          .getTime();
+      }
+
+      const numeric =
+        Number(timestamp);
+
+      if (
+        !Number.isNaN(
+          numeric
+        )
+      ) {
+        return numeric;
+      }
+
+      const date =
+        new Date(timestamp);
+
+      return Number.isNaN(
+        date.getTime()
+      )
+        ? 0
+        : date.getTime();
+    } catch {
+      return 0;
+    }
+  };
+
+  // =====================================================
+  // GET LAST VISIBLE MESSAGE
+  // =====================================================
+
+  const getLastVisibleMessage = (
+    conversation
+  ) => {
+    const rawMessages =
+      Array.isArray(
+        conversation?.messages
+      )
+        ? conversation.messages
+        : [];
+
+    const visibleMessages =
+      rawMessages.filter(
+        (message) => {
+          const deletedFor =
+            Array.isArray(
+              message?.deletedFor
+            )
+              ? message.deletedFor
+              : [];
+
+          if (
+            deletedFor.includes(
+              firebaseUser?.uid
+            )
+          ) {
+            return false;
+          }
+
+          if (
+            message?.deletedForEveryone ===
+            true
+          ) {
+            return false;
+          }
+
+          return true;
+        }
+      );
+
+    visibleMessages.sort(
+      (a, b) => {
+        const aTime =
+          getTimestampMs(
+            a?.createdAt
+          );
+
+        const bTime =
+          getTimestampMs(
+            b?.createdAt
+          );
+
+        return (
+          bTime - aTime
+        );
+      }
+    );
+
+    return (
+      visibleMessages[0] ||
+      null
+    );
+  };
+
+  // =====================================================
+  // CHECK LAST MESSAGE SENDER
+  // =====================================================
+
+  const isLastMessageFromCurrentUser =
+    (
+      conversation,
+      lastMessage
+    ) => {
+      if (!lastMessage) {
+        return false;
+      }
+
+      const currentUid =
+        firebaseUser?.uid;
+
+      if (!currentUid) {
+        return false;
+      }
+
+      if (
+        lastMessage?.senderId
+      ) {
+        return (
+          String(
+            lastMessage.senderId
+          ) ===
+          String(
+            currentUid
+          )
+        );
+      }
+
+      if (
+        lastMessage?.userId
+      ) {
+        return (
+          String(
+            lastMessage.userId
+          ) ===
+          String(
+            currentUid
+          )
+        );
+      }
+
+      if (
+        lastMessage?.fromId
+      ) {
+        return (
+          String(
+            lastMessage.fromId
+          ) ===
+          String(
+            currentUid
+          )
+        );
+      }
+
+      if (
+        lastMessage?.sender ===
+          "me" ||
+        lastMessage?.sender ===
+          "buyer" ||
+        lastMessage?.sender ===
+          "currentUser"
+      ) {
+        return true;
+      }
+
+      return false;
+    };
+
+  // =====================================================
+  // CHECK IF OTHER USER READ LAST MESSAGE
+  // =====================================================
+
+  const isLastMessageSeenByOther =
+    (
+      conversation,
+      lastMessage
+    ) => {
+      if (
+        !conversation ||
+        !lastMessage
+      ) {
+        return false;
+      }
+
+      const otherParticipantId =
+        conversation?.otherParticipantId;
+
+      if (
+        !otherParticipantId
+      ) {
+        return false;
+      }
+
+      // =================================================
+      // MESSAGE LEVEL ARRAYS
+      // =================================================
+
+      const readArrays = [
+        lastMessage?.readBy,
+        lastMessage?.seenBy,
+        lastMessage?.lastMessageSeenBy,
+        lastMessage?.readByUserIds,
+        lastMessage?.seenByUserIds,
+      ];
+
+      for (
+        const readArray of
+          readArrays
+      ) {
+        if (
+          Array.isArray(
+            readArray
+          ) &&
+          readArray.some(
+            (uid) =>
+              String(uid) ===
+              String(
+                otherParticipantId
+              )
+          )
+        ) {
+          return true;
+        }
+      }
+
+      // =================================================
+      // MESSAGE LEVEL OBJECTS
+      // =================================================
+
+      const readObjects = [
+        lastMessage?.readBy,
+        lastMessage?.seenBy,
+        lastMessage?.lastMessageSeenBy,
+      ];
+
+      for (
+        const readObject of
+          readObjects
+      ) {
+        if (
+          readObject &&
+          typeof readObject ===
+            "object" &&
+          !Array.isArray(
+            readObject
+          )
+        ) {
+          if (
+            readObject[
+              otherParticipantId
+            ] === true
+          ) {
+            return true;
+          }
+        }
+      }
+
+      // =================================================
+      // MESSAGE LEVEL FLAGS
+      // =================================================
+
+      if (
+        lastMessage?.seen ===
+          true ||
+        lastMessage?.read ===
+          true ||
+        lastMessage?.seenAt ||
+        lastMessage?.readAt
+      ) {
+        return true;
+      }
+
+      // =================================================
+      // CONVERSATION LEVEL FLAGS
+      // =================================================
+
+      if (
+        conversation?.lastMessageSeen ===
+          true ||
+        conversation?.seen ===
+          true ||
+        conversation?.seenAt ||
+        conversation?.lastMessageRead ===
+          true ||
+        conversation?.lastMessageReadAt
+      ) {
+        return true;
+      }
+
+      // =================================================
+      // UNREAD COUNT FALLBACK
+      // =================================================
+
+      if (
+        conversation?.unreadCounts &&
+        Object.prototype.hasOwnProperty.call(
+          conversation.unreadCounts,
+          otherParticipantId
+        )
+      ) {
+        const otherUnread =
+          Number(
+            conversation
+              .unreadCounts[
+              otherParticipantId
+            ] || 0
+          );
+
+        if (
+          otherUnread === 0
+        ) {
+          return true;
+        }
+      }
+
+      return false;
+    };
+
+  // =====================================================
+  // MESSAGE CHECKS
+  // =====================================================
+
+  const MessageChecks = ({
+    sentByMe,
+    seenByOther,
+  }) => {
+    if (!sentByMe) {
+      return null;
+    }
+
+    return (
+      <span
+        className={`
+          inline-flex
+          items-center
+          shrink-0
+          ${
+            seenByOther
+              ? "text-green-600"
+              : "text-gray-400"
+          }
+        `}
+        title={
+          seenByOther
+            ? "Seen"
+            : "Sent"
+        }
+      >
+        <FiCheck
+          size={14}
+          strokeWidth={3}
+        />
+
+        {seenByOther && (
+          <FiCheck
+            size={14}
+            strokeWidth={3}
+            className="-ml-[6px]"
+          />
+        )}
+      </span>
+    );
+  };
+
+  // =====================================================
+  // LOAD FIRESTORE CONVERSATIONS
+  // =====================================================
 
   useEffect(() => {
-
     if (profileLoading) {
-      return;
+      return undefined;
     }
 
     if (!firebaseUser?.uid) {
-
       setConversations([]);
+
       setLoading(false);
 
-      return;
+      return undefined;
     }
-
 
     setLoading(true);
 
-
     const conversationsRef =
-      collection(db, "conversations");
-
+      collection(
+        db,
+        "conversations"
+      );
 
     const conversationsQuery =
       query(
@@ -81,346 +536,549 @@ function Messages({
         )
       );
 
-
     const unsubscribe =
       onSnapshot(
         conversationsQuery,
-
         (snapshot) => {
+          try {
+            const loaded =
+              snapshot.docs.map(
+                (
+                  conversationDoc
+                ) => {
+                  const data =
+                    conversationDoc.data();
 
-          const loadedConversations =
-            snapshot.docs.map((conversationDoc) => {
-
-              const data =
-                conversationDoc.data();
-
-
-              const conversationId =
-                conversationDoc.id;
-
-
-              // ==========================================
-              // PARTICIPANTS
-              // ==========================================
-
-              const participants =
-                Array.isArray(data.participants)
-                  ? data.participants
-                  : [];
-
-
-              // ==========================================
-              // FIND OTHER USER
-              // ==========================================
-
-              const otherUserId =
-                participants.find(
-                  (uid) =>
-                    uid !== firebaseUser.uid
-                );
-
-
-              // ==========================================
-              // PARTICIPANT NAMES
-              // ==========================================
-
-              const participantNames =
-                data.participantNames || {};
-
-
-              const participantImages =
-                data.participantImages || {};
-
-
-              const participantOnline =
-                data.participantOnline || {};
-
-
-              const otherUserName =
-                otherUserId &&
-                participantNames[otherUserId]
-                  ? participantNames[otherUserId]
-                  : "CampusMart User";
-
-
-              const otherUserImage =
-                otherUserId &&
-                participantImages[otherUserId]
-                  ? participantImages[otherUserId]
-                  : null;
-
-
-              const otherUserOnline =
-                otherUserId
-                  ? Boolean(
-                      participantOnline[
-                        otherUserId
-                      ]
+                  const participants =
+                    Array.isArray(
+                      data.participants
                     )
-                  : false;
+                      ? data.participants
+                      : [];
 
+                  const otherParticipantId =
+                    participants.find(
+                      (uid) =>
+                        String(
+                          uid
+                        ) !==
+                        String(
+                          firebaseUser.uid
+                        )
+                    ) || null;
 
-              // ==========================================
-              // UNREAD COUNT
-              // ==========================================
+                  const participantNames =
+                    data.participantNames ||
+                    {};
 
-              const unreadData =
-                data.unread || {};
+                  const participantImages =
+                    data.participantImages ||
+                    {};
 
+                  // =================================================
+                  // UNREAD COUNT
+                  // =================================================
 
-              const unread =
-                Number(
-                  unreadData[
-                    firebaseUser.uid
-                  ] || 0
-                );
+                  const unread =
+                    Number(
+                      data
+                        .unreadCounts?.[
+                        firebaseUser.uid
+                      ] || 0
+                    );
 
+                  // =================================================
+                  // RAW MESSAGES
+                  // =================================================
 
-              // ==========================================
-              // LAST MESSAGE
-              // ==========================================
+                  const rawMessages =
+                    Array.isArray(
+                      data.messages
+                    )
+                      ? data.messages
+                      : [];
 
-              const lastMessage =
-                data.lastMessage ||
-                "No messages yet";
+                  // =================================================
+                  // LAST VISIBLE MESSAGE
+                  // =================================================
 
+                  const lastVisibleMessage =
+                    getLastVisibleMessage(
+                      {
+                        messages:
+                          rawMessages,
+                      }
+                    );
 
-              // ==========================================
-              // LAST MESSAGE TIME
-              // ==========================================
+                  // =================================================
+                  // LAST MESSAGE TEXT
+                  // =================================================
 
-              const lastMessageAt =
-                data.lastMessageAt;
+                  const lastMessage =
+                    lastVisibleMessage
+                      ?.text ||
+                    (lastVisibleMessage
+                      ?.imageUrl
+                      ? "📷 Photo"
+                      : data.lastMessage ||
+                        "No messages yet");
 
+                  // =================================================
+                  // LAST MESSAGE TIME
+                  // =================================================
 
-              let time = "";
+                  const lastMessageAt =
+                    lastVisibleMessage
+                      ?.createdAt ||
+                    data.lastMessageAt ||
+                    0;
 
+                  return {
+                    id:
+                      conversationDoc.id,
 
-              if (
-                lastMessageAt &&
-                typeof lastMessageAt.toDate ===
-                  "function"
-              ) {
+                    conversationId:
+                      conversationDoc.id,
 
-                const date =
-                  lastMessageAt.toDate();
+                    otherParticipantId,
 
+                    name:
+                      participantNames[
+                        otherParticipantId
+                      ] ||
+                      "CampusMart User",
 
-                time =
-                  date.toLocaleTimeString(
-                    [],
-                    {
-                      hour: "numeric",
-                      minute: "2-digit",
-                    }
+                    image:
+                      participantImages[
+                        otherParticipantId
+                      ] ||
+                      null,
+
+                    profileImage:
+                      participantImages[
+                        otherParticipantId
+                      ] ||
+                      null,
+
+                    /*
+                     * IMPORTANT:
+                     *
+                     * We DO NOT use:
+                     *
+                     * data.onlineStatus
+                     *
+                     * anymore.
+                     *
+                     * Real online status comes from:
+                     *
+                     * presence/{otherParticipantId}
+                     */
+
+                    unread,
+
+                    unreadCounts:
+                      data.unreadCounts ||
+                      {},
+
+                    lastMessage,
+
+                    lastMessageAt,
+
+                    time:
+                      formatTime(
+                        lastMessageAt
+                      ),
+
+                    conversation:
+                      rawMessages,
+
+                    messages:
+                      rawMessages,
+                  };
+                }
+              );
+
+            // =================================================
+            // NEWEST FIRST
+            // =================================================
+
+            loaded.sort(
+              (a, b) => {
+                const aTime =
+                  getTimestampMs(
+                    a.lastMessageAt
                   );
 
+                const bTime =
+                  getTimestampMs(
+                    b.lastMessageAt
+                  );
+
+                return (
+                  bTime - aTime
+                );
               }
+            );
 
+            setConversations(
+              loaded
+            );
 
-              return {
+            setLoading(false);
+          } catch (error) {
+            console.error(
+              "Error processing conversations:",
+              error
+            );
 
-                id: conversationId,
+            setConversations([]);
 
-                name:
-                  otherUserName,
-
-                image:
-                  otherUserImage,
-
-                online:
-                  otherUserOnline,
-
-                lastMessage,
-
-                unread,
-
-                time,
-
-                lastMessageAt,
-
-                otherUserId,
-
-              };
-
-            });
-
-
-          // ==========================================
-          // SORT NEWEST FIRST
-          // ==========================================
-
-          loadedConversations.sort(
-            (a, b) => {
-
-              const aTime =
-                a.lastMessageAt?.toMillis
-                  ? a.lastMessageAt.toMillis()
-                  : 0;
-
-
-              const bTime =
-                b.lastMessageAt?.toMillis
-                  ? b.lastMessageAt.toMillis()
-                  : 0;
-
-
-              return bTime - aTime;
-
-            }
-          );
-
-
-          setConversations(
-            loadedConversations
-          );
-
-          setLoading(false);
-
+            setLoading(false);
+          }
         },
-
         (error) => {
-
           console.error(
-            "Error loading conversations:",
+            "Conversation listener error:",
             error
           );
 
           setConversations([]);
 
           setLoading(false);
-
         }
       );
 
-
-    return () => unsubscribe();
-
+    return () => {
+      unsubscribe();
+    };
   }, [
-    firebaseUser,
+    firebaseUser?.uid,
     profileLoading,
   ]);
 
+  // =====================================================
+  // REAL-TIME PRESENCE LISTENERS
+  // =====================================================
+  //
+  // One listener per conversation participant.
+  //
+  // When the other user changes:
+  //
+  // online: false
+  //
+  // to:
+  //
+  // online: true
+  //
+  // this page updates immediately.
+  //
+  // =====================================================
 
-  // =========================================================
+  useEffect(() => {
+    if (!firebaseUser?.uid) {
+      setPresenceMap({});
+
+      return undefined;
+    }
+
+    const participantIds =
+      Array.from(
+        new Set(
+          conversations
+            .map(
+              (
+                conversation
+              ) =>
+                conversation?.otherParticipantId
+            )
+            .filter(
+              (uid) =>
+                uid &&
+                String(uid) !==
+                  String(
+                    firebaseUser.uid
+                  )
+            )
+        )
+      );
+
+    if (
+      participantIds.length ===
+      0
+    ) {
+      setPresenceMap({});
+
+      return undefined;
+    }
+
+    const unsubscribers = [];
+
+    /*
+     * Start with the participants we currently
+     * know about.
+     */
+
+    setPresenceMap(
+      (previous) => {
+        const next = {};
+
+        participantIds.forEach(
+          (uid) => {
+            next[uid] =
+              previous[uid] || {
+                online: false,
+                lastSeen: null,
+              };
+          }
+        );
+
+        return next;
+      }
+    );
+
+    participantIds.forEach(
+      (participantId) => {
+        const presenceRef =
+          doc(
+            db,
+            "presence",
+            participantId
+          );
+
+        const unsubscribe =
+          onSnapshot(
+            presenceRef,
+            (snapshot) => {
+              if (
+                snapshot.exists()
+              ) {
+                const data =
+                  snapshot.data();
+
+                setPresenceMap(
+                  (previous) => ({
+                    ...previous,
+
+                    [participantId]: {
+                      online:
+                        data.online ===
+                        true,
+
+                      lastSeen:
+                        data.lastSeen ||
+                        null,
+                    },
+                  })
+                );
+              } else {
+                setPresenceMap(
+                  (previous) => ({
+                    ...previous,
+
+                    [participantId]: {
+                      online: false,
+                      lastSeen:
+                        null,
+                    },
+                  })
+                );
+              }
+            },
+            (error) => {
+              console.error(
+                "Presence listener error for",
+                participantId,
+                error
+              );
+
+              setPresenceMap(
+                (previous) => ({
+                  ...previous,
+
+                  [participantId]: {
+                    online: false,
+                    lastSeen:
+                      null,
+                  },
+                })
+              );
+            }
+          );
+
+        unsubscribers.push(
+          unsubscribe
+        );
+      }
+    );
+
+    return () => {
+      unsubscribers.forEach(
+        (unsubscribe) => {
+          unsubscribe();
+        }
+      );
+    };
+  }, [
+    firebaseUser?.uid,
+    conversations,
+  ]);
+
+  // =====================================================
   // SEARCH
-  // =========================================================
+  // =====================================================
 
   const filteredMessages =
     useMemo(() => {
-
       const searchText =
-        search.trim().toLowerCase();
-
+        search
+          .trim()
+          .toLowerCase();
 
       if (!searchText) {
         return conversations;
       }
 
-
       return conversations.filter(
-        (message) => {
-
+        (conversation) => {
           const name =
             String(
-              message.name || ""
+              conversation?.name ||
+                ""
             ).toLowerCase();
-
 
           const lastMessage =
             String(
-              message.lastMessage || ""
+              conversation?.lastMessage ||
+                ""
             ).toLowerCase();
 
-
           return (
-            name.includes(searchText) ||
-            lastMessage.includes(searchText)
+            name.includes(
+              searchText
+            ) ||
+            lastMessage.includes(
+              searchText
+            )
           );
-
         }
       );
-
     }, [
       conversations,
       search,
     ]);
 
-
-  // =========================================================
-  // UNREAD MESSAGES
-  // =========================================================
+  // =====================================================
+  // UNREAD COUNT
+  // =====================================================
 
   const unreadMessages =
     useMemo(() => {
-
       return conversations.reduce(
-        (total, conversation) =>
+        (
+          total,
+          conversation
+        ) =>
           total +
           Number(
-            conversation.unread || 0
+            conversation?.unread ||
+              0
           ),
         0
       );
+    }, [
+      conversations,
+    ]);
 
-    }, [conversations]);
-
-
-  // =========================================================
-  // ONLINE USERS
-  // =========================================================
+  // =====================================================
+  // REAL ONLINE USERS
+  // =====================================================
 
   const onlineUsers =
     useMemo(() => {
-
       return conversations.filter(
-        (message) =>
-          message.online === true
+        (conversation) => {
+          const uid =
+            conversation?.otherParticipantId;
+
+          return (
+            uid &&
+            presenceMap?.[uid]
+              ?.online === true
+          );
+        }
       ).length;
+    }, [
+      conversations,
+      presenceMap,
+    ]);
 
-    }, [conversations]);
+  // =====================================================
+  // INITIAL
+  // =====================================================
 
+  const getInitial = (
+    name
+  ) => {
+    return (
+      String(
+        name || "U"
+      )
+        .trim()
+        .charAt(0)
+        .toUpperCase() ||
+      "U"
+    );
+  };
 
-  // =========================================================
+  // =====================================================
   // OPEN CHAT
-  // =========================================================
+  // =====================================================
 
   const openChat = (
-    conversationId
+    conversation
   ) => {
+    const conversationId =
+      conversation?.conversationId ||
+      conversation?.id;
 
     if (!conversationId) {
+      console.error(
+        "Cannot open chat: conversation ID is missing.",
+        conversation
+      );
+
       return;
     }
 
-
     navigate(
-      `/messages/${conversationId}`
+      `/messages/${encodeURIComponent(
+        String(
+          conversationId
+        )
+      )}`
     );
-
   };
 
-
-  // =========================================================
+  // =====================================================
   // LOADING
-  // =========================================================
+  // =====================================================
 
   if (
     profileLoading ||
     loading
   ) {
-
     return (
       <CustomerLayout
-        cartCount={cartCount}
-        wishlist={wishlist}
+        cartCount={
+          cartCount
+        }
+        wishlist={
+          wishlist
+        }
         unreadMessages={0}
       >
-
         <div className="space-y-6">
-
           <div>
-
             <div
               className="
                 h-8
@@ -442,9 +1100,7 @@ function Messages({
                 animate-pulse
               "
             />
-
           </div>
-
 
           <div
             className="
@@ -454,10 +1110,8 @@ function Messages({
               gap-4
             "
           >
-
             {[1, 2, 3].map(
               (item) => (
-
                 <div
                   key={item}
                   className="
@@ -469,7 +1123,6 @@ function Messages({
                     animate-pulse
                   "
                 >
-
                   <div
                     className="
                       h-10
@@ -478,14 +1131,10 @@ function Messages({
                       bg-gray-100
                     "
                   />
-
                 </div>
-
               )
             )}
-
           </div>
-
 
           <div
             className="
@@ -496,7 +1145,6 @@ function Messages({
             "
           />
 
-
           <div
             className="
               bg-white
@@ -506,10 +1154,8 @@ function Messages({
               overflow-hidden
             "
           >
-
             {[1, 2, 3].map(
               (item) => (
-
                 <div
                   key={item}
                   className="
@@ -521,7 +1167,6 @@ function Messages({
                     border-gray-100
                   "
                 >
-
                   <div
                     className="
                       w-12
@@ -533,7 +1178,6 @@ function Messages({
                   />
 
                   <div className="flex-1">
-
                     <div
                       className="
                         h-4
@@ -554,41 +1198,37 @@ function Messages({
                         animate-pulse
                       "
                     />
-
                   </div>
-
                 </div>
-
               )
             )}
-
           </div>
-
         </div>
-
       </CustomerLayout>
     );
-
   }
 
-
-  // =========================================================
+  // =====================================================
   // PAGE
-  // =========================================================
+  // =====================================================
 
   return (
     <CustomerLayout
-      cartCount={cartCount}
-      wishlist={wishlist}
-      unreadMessages={unreadMessages}
+      cartCount={
+        cartCount
+      }
+      wishlist={
+        wishlist
+      }
+      unreadMessages={
+        unreadMessages
+      }
     >
-
       <div className="space-y-6">
 
-
-        {/* =====================================================
+        {/* =================================================
             HEADER
-        ===================================================== */}
+        ================================================= */}
 
         <div
           className="
@@ -600,9 +1240,7 @@ function Messages({
             gap-4
           "
         >
-
           <div>
-
             <h1
               className="
                 text-2xl
@@ -615,11 +1253,10 @@ function Messages({
             </h1>
 
             <p className="text-gray-500 mt-1">
-              Chat with buyers and sellers on CampusMart.
+              Chat with buyers and
+              sellers on CampusMart.
             </p>
-
           </div>
-
 
           <button
             type="button"
@@ -639,19 +1276,15 @@ function Messages({
               transition
             "
           >
-
             <FiMessageCircle />
 
             New Message
-
           </button>
-
         </div>
 
-
-        {/* =====================================================
+        {/* =================================================
             STATS
-        ===================================================== */}
+        ================================================= */}
 
         <div
           className="
@@ -661,6 +1294,8 @@ function Messages({
             gap-4
           "
         >
+
+          {/* CONVERSATIONS */}
 
           <div
             className="
@@ -672,7 +1307,6 @@ function Messages({
               sm:p-5
             "
           >
-
             <div className="flex items-center gap-3">
 
               <div
@@ -687,28 +1321,27 @@ function Messages({
                   justify-center
                 "
               >
-
-                <FiMessageCircle size={19} />
-
+                <FiMessageCircle
+                  size={19}
+                />
               </div>
 
-
               <div>
-
                 <p className="text-xs text-gray-500">
                   Conversations
                 </p>
 
                 <p className="text-xl font-bold text-gray-800">
-                  {conversations.length}
+                  {
+                    conversations.length
+                  }
                 </p>
-
               </div>
 
             </div>
-
           </div>
 
+          {/* UNREAD */}
 
           <div
             className="
@@ -720,7 +1353,6 @@ function Messages({
               sm:p-5
             "
           >
-
             <div className="flex items-center gap-3">
 
               <div
@@ -735,28 +1367,27 @@ function Messages({
                   justify-center
                 "
               >
-
-                <FiCheckCircle size={19} />
-
+                <FiCheckCircle
+                  size={19}
+                />
               </div>
 
-
               <div>
-
                 <p className="text-xs text-gray-500">
                   Unread Messages
                 </p>
 
                 <p className="text-xl font-bold text-gray-800">
-                  {unreadMessages}
+                  {
+                    unreadMessages
+                  }
                 </p>
-
               </div>
 
             </div>
-
           </div>
 
+          {/* ONLINE */}
 
           <div
             className="
@@ -770,7 +1401,6 @@ function Messages({
               sm:p-5
             "
           >
-
             <div className="flex items-center gap-3">
 
               <div
@@ -785,34 +1415,31 @@ function Messages({
                   justify-center
                 "
               >
-
-                <FiUsers size={19} />
-
+                <FiUsers
+                  size={19}
+                />
               </div>
 
-
               <div>
-
                 <p className="text-xs text-gray-500">
                   Online Now
                 </p>
 
                 <p className="text-xl font-bold text-gray-800">
-                  {onlineUsers}
+                  {
+                    onlineUsers
+                  }
                 </p>
-
               </div>
 
             </div>
-
           </div>
 
         </div>
 
-
-        {/* =====================================================
+        {/* =================================================
             SEARCH
-        ===================================================== */}
+        ================================================= */}
 
         <div className="relative">
 
@@ -827,12 +1454,13 @@ function Messages({
             size={18}
           />
 
-
           <input
             type="text"
             value={search}
             onChange={(e) =>
-              setSearch(e.target.value)
+              setSearch(
+                e.target.value
+              )
             }
             placeholder="Search conversations..."
             className="
@@ -855,10 +1483,9 @@ function Messages({
 
         </div>
 
-
-        {/* =====================================================
+        {/* =================================================
             MESSAGES CARD
-        ===================================================== */}
+        ================================================= */}
 
         <div
           className="
@@ -869,6 +1496,8 @@ function Messages({
             overflow-hidden
           "
         >
+
+          {/* CARD HEADER */}
 
           <div
             className="
@@ -895,11 +1524,10 @@ function Messages({
                   justify-center
                 "
               >
-
-                <FiMessageCircle size={21} />
-
+                <FiMessageCircle
+                  size={21}
+                />
               </div>
-
 
               <div>
 
@@ -908,19 +1536,20 @@ function Messages({
                 </h2>
 
                 <p className="text-sm text-gray-400 mt-0.5">
-
-                  {filteredMessages.length}{" "}
-
-                  {filteredMessages.length === 1
-                    ? "conversation"
-                    : "conversations"}
-
+                  {
+                    filteredMessages.length
+                  }{" "}
+                  {
+                    filteredMessages.length ===
+                    1
+                      ? "conversation"
+                      : "conversations"
+                  }
                 </p>
 
               </div>
 
             </div>
-
 
             <button
               type="button"
@@ -937,212 +1566,335 @@ function Messages({
                 transition
               "
             >
-
               <FiMoreVertical />
-
             </button>
 
           </div>
 
-
-          {/* =====================================================
+          {/* =================================================
               MESSAGE LIST
-          ===================================================== */}
+          ================================================= */}
 
-          {filteredMessages.length > 0 ? (
+          {filteredMessages.length >
+          0 ? (
 
             <div>
 
               {filteredMessages.map(
-                (message) => (
+                (
+                  conversation
+                ) => {
 
-                  <button
-                    key={message.id}
-                    type="button"
-                    onClick={() =>
-                      openChat(message.id)
-                    }
-                    className="
-                      w-full
-                      flex
-                      items-center
-                      gap-4
-                      p-4
-                      sm:p-5
-                      text-left
-                      hover:bg-gray-50
-                      transition
-                      border-b
-                      border-gray-100
-                      last:border-b-0
-                    "
-                  >
+                  const conversationId =
+                    conversation?.conversationId ||
+                    conversation?.id;
 
-                    {/* AVATAR */}
+                  const lastMessage =
+                    getLastVisibleMessage(
+                      conversation
+                    );
 
-                    <div className="relative shrink-0">
+                  const sentByMe =
+                    isLastMessageFromCurrentUser(
+                      conversation,
+                      lastMessage
+                    );
 
-                      {message.image ? (
+                  const seenByOther =
+                    isLastMessageSeenByOther(
+                      conversation,
+                      lastMessage
+                    );
 
-                        <img
-                          src={message.image}
-                          alt={message.name}
-                          className="
-                            w-12
-                            h-12
-                            sm:w-13
-                            sm:h-13
-                            rounded-full
-                            object-cover
-                          "
-                        />
+                  // =================================================
+                  // REAL ONLINE STATUS
+                  // =================================================
 
-                      ) : (
+                  const otherUid =
+                    conversation?.otherParticipantId;
 
-                        <div
-                          className="
-                            w-12
-                            h-12
-                            sm:w-13
-                            sm:h-13
-                            rounded-full
-                            bg-green-100
-                            text-green-700
-                            flex
-                            items-center
-                            justify-center
-                            font-bold
-                            text-lg
-                          "
-                        >
+                  const isOnline =
+                    otherUid &&
+                    presenceMap?.[
+                      otherUid
+                    ]?.online === true;
 
-                          {message.name
-                            ?.charAt(0)
-                            ?.toUpperCase() || "U"}
+                  return (
 
-                        </div>
+                    <button
+                      key={
+                        conversationId
+                      }
+                      type="button"
+                      disabled={
+                        !conversationId
+                      }
+                      onClick={() =>
+                        openChat(
+                          conversation
+                        )
+                      }
+                      className="
+                        w-full
+                        flex
+                        items-center
+                        gap-4
+                        p-4
+                        sm:p-5
+                        text-left
+                        hover:bg-gray-50
+                        active:bg-gray-100
+                        transition
+                        border-b
+                        border-gray-100
+                        last:border-b-0
+                        disabled:opacity-50
+                      "
+                    >
 
-                      )}
+                      {/* =================================================
+                          AVATAR
+                      ================================================= */}
 
+                      <div className="relative shrink-0">
 
-                      {message.online && (
+                        {conversation.image ? (
 
-                        <span
-                          className="
-                            absolute
-                            bottom-0
-                            right-0
-                            w-3
-                            h-3
-                            bg-green-500
-                            border-2
-                            border-white
-                            rounded-full
-                          "
-                        />
+                          <img
+                            src={
+                              conversation.image
+                            }
+                            alt={
+                              conversation.name
+                            }
+                            className="
+                              w-12
+                              h-12
+                              sm:w-13
+                              sm:h-13
+                              rounded-full
+                              object-cover
+                            "
+                          />
 
-                      )}
+                        ) : (
 
-                    </div>
+                          <div
+                            className="
+                              w-12
+                              h-12
+                              sm:w-13
+                              sm:h-13
+                              rounded-full
+                              bg-green-100
+                              text-green-700
+                              flex
+                              items-center
+                              justify-center
+                              font-bold
+                              text-lg
+                            "
+                          >
+                            {
+                              getInitial(
+                                conversation.name
+                              )
+                            }
+                          </div>
 
+                        )}
 
-                    {/* DETAILS */}
+                        {/* =================================================
+                            REAL ONLINE DOT
+                        ================================================= */}
 
-                    <div className="flex-1 min-w-0">
+                        {isOnline && (
 
-                      <div
-                        className="
-                          flex
-                          items-center
-                          justify-between
-                          gap-3
-                        "
-                      >
+                          <span
+                            className="
+                              absolute
+                              bottom-0
+                              right-0
+                              w-3.5
+                              h-3.5
+                              bg-green-500
+                              border-2
+                              border-white
+                              rounded-full
+                              shadow-sm
+                            "
+                            title="Online"
+                          />
 
-                        <h3
-                          className="
-                            font-semibold
-                            text-gray-800
-                            truncate
-                          "
-                        >
-
-                          {message.name}
-
-                        </h3>
-
-
-                        <span
-                          className="
-                            text-xs
-                            text-gray-400
-                            shrink-0
-                          "
-                        >
-
-                          {message.time}
-
-                        </span>
+                        )}
 
                       </div>
 
+                      {/* =================================================
+                          DETAILS
+                      ================================================= */}
 
-                      <p
-                        className={`
-                          text-sm
-                          truncate
-                          mt-1
-                          ${
-                            message.unread > 0
-                              ? "font-semibold text-gray-700"
-                              : "text-gray-500"
-                          }
-                        `}
-                      >
+                      <div className="flex-1 min-w-0">
 
-                        {message.lastMessage}
+                        <div
+                          className="
+                            flex
+                            items-center
+                            justify-between
+                            gap-3
+                          "
+                        >
 
-                      </p>
+                          <h3
+                            className={`
+                              truncate
+                              ${
+                                conversation.unread >
+                                0
+                                  ? "font-bold text-gray-900"
+                                  : "font-semibold text-gray-800"
+                              }
+                            `}
+                          >
+                            {
+                              conversation.name
+                            }
+                          </h3>
 
-                    </div>
+                          <span
+                            className="
+                              text-xs
+                              text-gray-400
+                              shrink-0
+                            "
+                          >
+                            {
+                              conversation.time
+                            }
+                          </span>
 
+                        </div>
 
-                    {/* UNREAD */}
+                        {/* =================================================
+                            ONLINE / OFFLINE LABEL
+                        ================================================= */}
 
-                    {message.unread > 0 && (
+                        <div
+                          className="
+                            flex
+                            items-center
+                            gap-1.5
+                            mt-0.5
+                          "
+                        >
 
-                      <span
+                          {isOnline ? (
+
+                            <span
+                              className="
+                                text-[11px]
+                                font-medium
+                                text-green-600
+                              "
+                            >
+                              Online
+                            </span>
+
+                          ) : null}
+
+                        </div>
+
+                        {/* =================================================
+                            LAST MESSAGE + CHECKS
+                        ================================================= */}
+
+                        <div
+                          className="
+                            flex
+                            items-center
+                            gap-1.5
+                            min-w-0
+                            mt-0.5
+                          "
+                        >
+
+                          <MessageChecks
+                            sentByMe={
+                              sentByMe
+                            }
+                            seenByOther={
+                              seenByOther
+                            }
+                          />
+
+                          <p
+                            className={`
+                              text-sm
+                              truncate
+                              ${
+                                conversation.unread >
+                                0
+                                  ? "font-semibold text-gray-700"
+                                  : "text-gray-500"
+                              }
+                            `}
+                          >
+                            {
+                              conversation.lastMessage ||
+                              "No messages yet."
+                            }
+                          </p>
+
+                        </div>
+
+                      </div>
+
+                      {/* =================================================
+                          UNREAD
+                      ================================================= */}
+
+                      {conversation.unread >
+                        0 && (
+
+                        <span
+                          className="
+                            min-w-5
+                            h-5
+                            px-1.5
+                            rounded-full
+                            bg-green-600
+                            text-white
+                            text-[11px]
+                            font-bold
+                            flex
+                            items-center
+                            justify-center
+                            shrink-0
+                          "
+                        >
+                          {conversation.unread >
+                          99
+                            ? "99+"
+                            : conversation.unread}
+                        </span>
+
+                      )}
+
+                      {/* =================================================
+                          ARROW
+                      ================================================= */}
+
+                      <FiChevronRight
                         className="
-                          min-w-5
-                          h-5
-                          px-1.5
-                          rounded-full
-                          bg-green-600
-                          text-white
-                          text-[11px]
-                          font-bold
-                          flex
-                          items-center
-                          justify-center
+                          text-gray-300
                           shrink-0
                         "
-                      >
+                        size={18}
+                      />
 
-                        {message.unread}
-
-                      </span>
-
-                    )}
-
-
-                    <FiChevronRight
-                      className="text-gray-300 shrink-0"
-                      size={18}
-                    />
-
-                  </button>
-
-                )
+                    </button>
+                  );
+                }
               )}
 
             </div>
@@ -1169,14 +1921,11 @@ function Messages({
                   justify-center
                 "
               >
-
                 <FiMessageCircle
                   className="text-gray-400"
                   size={26}
                 />
-
               </div>
-
 
               <h3
                 className="
@@ -1185,13 +1934,10 @@ function Messages({
                   mt-4
                 "
               >
-
                 {search
                   ? "No messages found"
                   : "No conversations yet"}
-
               </h3>
-
 
               <p
                 className="
@@ -1202,19 +1948,18 @@ function Messages({
                   mx-auto
                 "
               >
-
                 {search
                   ? "We couldn't find any conversations matching your search."
                   : "Your conversations with buyers and sellers will appear here."}
-
               </p>
-
 
               {search && (
 
                 <button
                   type="button"
-                  onClick={() => setSearch("")}
+                  onClick={() =>
+                    setSearch("")
+                  }
                   className="
                     mt-4
                     text-sm
@@ -1223,9 +1968,7 @@ function Messages({
                     hover:underline
                   "
                 >
-
                   Clear search
-
                 </button>
 
               )}
@@ -1236,10 +1979,9 @@ function Messages({
 
         </div>
 
-
-        {/* =====================================================
+        {/* =================================================
             MOBILE NEW MESSAGE
-        ===================================================== */}
+        ================================================= */}
 
         <button
           type="button"
@@ -1259,18 +2001,14 @@ function Messages({
             transition
           "
         >
-
           <FiMessageCircle />
 
           New Message
-
         </button>
 
       </div>
-
     </CustomerLayout>
   );
 }
-
 
 export default Messages;
