@@ -193,12 +193,20 @@ function SellerMessages({
   // OPEN CHAT
   // =====================================================
 
-  const openChat = async (messageId) => {
-    if (markMessageAsRead) {
-      await markMessageAsRead(messageId);
+  const openChat = (messageId) => {
+    if (!messageId) {
+      return;
     }
 
+    // Navigate immediately. A Firestore read-status update must
+    // never prevent the seller from opening the conversation.
     navigate(`/seller/messages/${messageId}`);
+
+    if (markMessageAsRead) {
+      Promise.resolve(markMessageAsRead(messageId)).catch((error) => {
+        console.error("Error marking seller conversation as read:", error);
+      });
+    }
   };
 
   // =====================================================

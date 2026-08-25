@@ -1,5 +1,12 @@
-import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import {
+  useEffect,
+  useState,
+} from "react";
+
+import {
+  useParams,
+  useNavigate,
+} from "react-router-dom";
 
 import CustomerLayout from "../../layouts/CustomerLayout";
 
@@ -28,26 +35,9 @@ import { db } from "../../context/firebase";
 
 import { useAuth } from "../../context/AuthContext";
 
+
 // =========================================================
 // PRODUCT DETAILS
-// =========================================================
-//
-// Product source:
-//
-// products/{productId}
-//
-// This page listens to the product in real time.
-// Therefore, when a seller edits:
-// - price
-// - stock
-// - name
-// - description
-// - image
-// - status
-// etc.
-//
-// the buyer's product details page updates automatically.
-//
 // =========================================================
 
 function ProductDetails({
@@ -57,6 +47,7 @@ function ProductDetails({
   toggleWishlist,
 }) {
   const { id } = useParams();
+
   const navigate = useNavigate();
 
   const {
@@ -64,27 +55,38 @@ function ProductDetails({
     profileLoading,
   } = useAuth();
 
+
   // =========================================================
   // STATES
   // =========================================================
 
-  const [product, setProduct] = useState(null);
+  const [product, setProduct] =
+    useState(null);
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] =
+    useState(true);
 
-  const [error, setError] = useState("");
+  const [error, setError] =
+    useState("");
 
-  const [quantity, setQuantity] = useState(1);
+  const [quantity, setQuantity] =
+    useState(1);
 
-  const [added, setAdded] = useState(false);
+  const [added, setAdded] =
+    useState(false);
 
-  const [chatLoading, setChatLoading] = useState(false);
+  const [chatLoading, setChatLoading] =
+    useState(false);
+
 
   // =========================================================
   // NUMBER HELPER
   // =========================================================
 
-  const getNumber = (value, fallback = 0) => {
+  const getNumber = (
+    value,
+    fallback = 0
+  ) => {
     if (
       value === null ||
       value === undefined ||
@@ -93,41 +95,37 @@ function ProductDetails({
       return fallback;
     }
 
-    if (typeof value === "number") {
+    if (
+      typeof value === "number"
+    ) {
       return Number.isFinite(value)
         ? value
         : fallback;
     }
 
-    const cleaned = String(value)
-      .replace(/[₦,\s]/g, "")
-      .trim();
+    const cleaned =
+      String(value)
+        .replace(/[₦,\s]/g, "")
+        .trim();
 
-    const number = Number(cleaned);
+    const number =
+      Number(cleaned);
 
     return Number.isFinite(number)
       ? number
       : fallback;
   };
 
+
   // =========================================================
   // STOCK HELPER
   // =========================================================
-  //
-  // IMPORTANT:
-  //
-  // We prioritize "stock" because this is the field that
-  // should be used by the seller product system.
-  //
-  // If stock is explicitly 0, it stays 0.
-  //
-  // We DO NOT convert active + stock 0 into stock 1.
-  //
-  // =========================================================
 
-  const getProductStock = (data) => {
+  const getProductStock = (
+    data
+  ) => {
     // -------------------------------------------------------
-    // PRIMARY STOCK FIELD
+    // PRIMARY STOCK
     // -------------------------------------------------------
 
     if (
@@ -139,13 +137,17 @@ function ProductDetails({
       return Math.max(
         0,
         Math.floor(
-          getNumber(data.stock, 0)
+          getNumber(
+            data.stock,
+            0
+          )
         )
       );
     }
 
+
     // -------------------------------------------------------
-    // BACKWARD-COMPATIBLE STOCK FIELDS
+    // BACKWARD COMPATIBILITY
     // -------------------------------------------------------
 
     const fallbackFields = [
@@ -156,7 +158,9 @@ function ProductDetails({
       "availableQuantity",
     ];
 
-    for (const field of fallbackFields) {
+    for (
+      const field of fallbackFields
+    ) {
       if (
         Object.prototype.hasOwnProperty.call(
           data,
@@ -166,81 +170,86 @@ function ProductDetails({
         return Math.max(
           0,
           Math.floor(
-            getNumber(data[field], 0)
+            getNumber(
+              data[field],
+              0
+            )
           )
         );
       }
     }
 
+
     // -------------------------------------------------------
-    // EXPLICIT OUT-OF-STOCK STATES
+    // AVAILABILITY
     // -------------------------------------------------------
 
-    const availability = String(
-      data.availability || ""
-    ).trim().toLowerCase();
+    const availability =
+      String(
+        data.availability || ""
+      )
+        .trim()
+        .toLowerCase();
 
-    const status = String(
-      data.status || ""
-    ).trim().toLowerCase();
+    const status =
+      String(
+        data.status || ""
+      )
+        .trim()
+        .toLowerCase();
 
     if (
-      availability === "unavailable" ||
-      availability === "out_of_stock" ||
-      availability === "out-of-stock" ||
-      status === "out_of_stock" ||
-      status === "out-of-stock" ||
-      status === "out of stock"
+      availability ===
+        "unavailable" ||
+      availability ===
+        "out_of_stock" ||
+      availability ===
+        "out-of-stock" ||
+      status ===
+        "out_of_stock" ||
+      status ===
+        "out-of-stock" ||
+      status ===
+        "out of stock"
     ) {
       return 0;
     }
 
+
     // -------------------------------------------------------
-    // NO STOCK FIELD
-    // -------------------------------------------------------
-    //
-    // For old products that do not contain a stock field,
-    // allow them to remain purchasable.
-    //
-    // New seller products should always contain stock.
-    //
+    // OLD PRODUCTS WITHOUT STOCK
     // -------------------------------------------------------
 
     return 1;
   };
 
+
   // =========================================================
-  // LOAD PRODUCT FROM FIRESTORE
-  // =========================================================
-  //
-  // onSnapshot is used instead of getDoc.
-  //
-  // This means:
-  //
-  // Seller changes stock from 10 -> 5
-  // Buyer sees 5 immediately.
-  //
-  // Seller changes stock from 5 -> 0
-  // Buyer sees Out of Stock immediately.
-  //
-  // Seller edits price/name/image
-  // Buyer sees the update automatically.
-  //
+  // LOAD PRODUCT
   // =========================================================
 
   useEffect(() => {
     if (!id) {
       setProduct(null);
+
       setLoading(false);
-      setError("No product was specified.");
+
+      setError(
+        "No product was specified."
+      );
 
       return undefined;
     }
 
+
     setLoading(true);
+
     setError("");
+
     setProduct(null);
+
     setQuantity(1);
+
 
     const productRef = doc(
       db,
@@ -248,328 +257,427 @@ function ProductDetails({
       String(id)
     );
 
-    const unsubscribe = onSnapshot(
-      productRef,
 
-      (snapshot) => {
-        // ===================================================
-        // PRODUCT DOES NOT EXIST
-        // ===================================================
+    const unsubscribe =
+      onSnapshot(
+        productRef,
 
-        if (!snapshot.exists()) {
+        (snapshot) => {
+          if (!snapshot.exists()) {
+            setProduct(null);
+
+            setLoading(false);
+
+            setError(
+              "The product you're looking for doesn't exist."
+            );
+
+            return;
+          }
+
+
+          const data =
+            snapshot.data();
+
+
+          // =================================================
+          // IMAGES
+          // =================================================
+
+          let images = [];
+
+          if (
+            Array.isArray(
+              data.images
+            )
+          ) {
+            images =
+              data.images.filter(
+                Boolean
+              );
+          }
+
+
+          if (
+            images.length === 0 &&
+            data.image
+          ) {
+            images = [
+              data.image,
+            ];
+          }
+
+
+          if (
+            images.length === 0 &&
+            data.imageUrl
+          ) {
+            images = [
+              data.imageUrl,
+            ];
+          }
+
+
+          const primaryImage =
+            data.image ||
+            data.imageUrl ||
+            images[0] ||
+            null;
+
+
+          // =================================================
+          // STOCK
+          // =================================================
+
+          const stock =
+            getProductStock(data);
+
+
+          // =================================================
+          // STATUS
+          // =================================================
+
+          const status =
+            String(
+              data.status ||
+                "active"
+            )
+              .trim()
+              .toLowerCase();
+
+
+          // =================================================
+          // AVAILABILITY
+          // =================================================
+
+          const availability =
+            String(
+              data.availability ||
+                "available"
+            )
+              .trim()
+              .toLowerCase();
+
+
+          // =================================================
+          // NORMALIZED PRODUCT
+          // =================================================
+
+          const normalizedProduct = {
+            id:
+              snapshot.id,
+
+            ...data,
+
+            name:
+              data.name ||
+              "Untitled Product",
+
+            description:
+              data.description ||
+              "",
+
+            category:
+              data.category ||
+              "Other",
+
+            price:
+              getNumber(
+                data.price,
+                0
+              ),
+
+            rating:
+              getNumber(
+                data.rating,
+                0
+              ),
+
+            reviews:
+              getNumber(
+                data.reviews,
+                0
+              ),
+
+            image:
+              primaryImage,
+
+            images,
+
+            // IMPORTANT
+            sellerId:
+              data.sellerId ||
+              "",
+
+            sellerName:
+              data.sellerName ||
+              "CampusMart Seller",
+
+            sellerImage:
+              data.sellerImage ||
+              null,
+
+            stock,
+
+            quantity:
+              stock,
+
+            status,
+
+            availability,
+
+            createdAt:
+              data.createdAt ||
+              null,
+
+            updatedAt:
+              data.updatedAt ||
+              null,
+          };
+
+
+          console.log(
+            "Loaded product:",
+            normalizedProduct
+          );
+
+
+          setProduct(
+            normalizedProduct
+          );
+
+          setLoading(false);
+
+          setError("");
+
+
+          // =================================================
+          // KEEP QUANTITY INSIDE STOCK
+          // =================================================
+
+          setQuantity(
+            (current) => {
+              if (stock <= 0) {
+                return 1;
+              }
+
+              return Math.min(
+                Math.max(
+                  1,
+                  current
+                ),
+                stock
+              );
+            }
+          );
+        },
+
+        (firebaseError) => {
+          console.error(
+            "Error loading product:",
+            firebaseError
+          );
+
           setProduct(null);
+
           setLoading(false);
 
           setError(
-            "The product you're looking for doesn't exist."
+            "Unable to load this product right now. Please check your internet connection and try again."
           );
-
-          return;
         }
+      );
 
-        const data = snapshot.data();
-
-        // ===================================================
-        // IMAGES
-        // ===================================================
-
-        let images = [];
-
-        if (Array.isArray(data.images)) {
-          images = data.images.filter(Boolean);
-        }
-
-        if (
-          images.length === 0 &&
-          data.image
-        ) {
-          images = [data.image];
-        }
-
-        if (
-          images.length === 0 &&
-          data.imageUrl
-        ) {
-          images = [data.imageUrl];
-        }
-
-        const primaryImage =
-          data.image ||
-          data.imageUrl ||
-          images[0] ||
-          null;
-
-        // ===================================================
-        // STOCK
-        // ===================================================
-
-        const stock =
-          getProductStock(data);
-
-        // ===================================================
-        // STATUS
-        // ===================================================
-
-        const status = String(
-          data.status || "active"
-        )
-          .trim()
-          .toLowerCase();
-
-        // ===================================================
-        // AVAILABILITY
-        // ===================================================
-
-        const availability = String(
-          data.availability || "available"
-        )
-          .trim()
-          .toLowerCase();
-
-        // ===================================================
-        // NORMALIZED PRODUCT
-        // ===================================================
-
-        const normalizedProduct = {
-          id: snapshot.id,
-
-          ...data,
-
-          name:
-            data.name ||
-            "Untitled Product",
-
-          description:
-            data.description || "",
-
-          category:
-            data.category ||
-            "Other",
-
-          price: getNumber(
-            data.price,
-            0
-          ),
-
-          rating: getNumber(
-            data.rating,
-            0
-          ),
-
-          reviews: getNumber(
-            data.reviews,
-            0
-          ),
-
-          image: primaryImage,
-
-          images,
-
-          sellerId:
-            data.sellerId || "",
-
-          sellerName:
-            data.sellerName ||
-            "CampusMart Seller",
-
-          sellerImage:
-            data.sellerImage ||
-            null,
-
-          stock,
-
-          quantity: stock,
-
-          status,
-
-          availability,
-
-          createdAt:
-            data.createdAt || null,
-
-          updatedAt:
-            data.updatedAt || null,
-        };
-
-        setProduct(
-          normalizedProduct
-        );
-
-        setLoading(false);
-
-        setError("");
-
-        // ---------------------------------------------------
-        // KEEP CURRENT QUANTITY WITHIN NEW STOCK
-        // ---------------------------------------------------
-
-        setQuantity((current) => {
-          if (stock <= 0) {
-            return 1;
-          }
-
-          return Math.min(
-            Math.max(1, current),
-            stock
-          );
-        });
-      },
-
-      (firebaseError) => {
-        console.error(
-          "Error loading product:",
-          firebaseError
-        );
-
-        setProduct(null);
-        setLoading(false);
-
-        setError(
-          "Unable to load this product right now. Please check your internet connection and try again."
-        );
-      }
-    );
 
     return () => {
       unsubscribe();
     };
   }, [id]);
 
-  // =========================================================
-  // WISHLIST STATUS
-  // =========================================================
-
-  const isWishlisted = product
-    ? wishlist.includes(product.id)
-    : false;
 
   // =========================================================
-  // STOCK STATUS
+  // WISHLIST
+  // =========================================================
+
+  const isWishlisted =
+    product
+      ? wishlist.includes(
+          product.id
+        )
+      : false;
+
+
+  // =========================================================
+  // STOCK
   // =========================================================
 
   const stock = Math.max(
     0,
-    Number(product?.stock || 0)
+    Number(
+      product?.stock || 0
+    )
   );
 
-  const isOutOfStock = stock <= 0;
+  const isOutOfStock =
+    stock <= 0;
+
 
   // =========================================================
-  // HANDLE WISHLIST
+  // WISHLIST
   // =========================================================
 
-  const handleWishlist = () => {
-    if (!product) {
-      return;
-    }
+  const handleWishlist =
+    () => {
+      if (!product) {
+        return;
+      }
 
-    if (!toggleWishlist) {
-      console.error(
-        "toggleWishlist function was not provided."
+      if (!toggleWishlist) {
+        console.error(
+          "toggleWishlist function was not provided."
+        );
+
+        return;
+      }
+
+      toggleWishlist(
+        product.id
+      );
+    };
+
+
+  // =========================================================
+  // ADD TO CART
+  // =========================================================
+
+  const handleAddToCart =
+    () => {
+      if (!product) {
+        return;
+      }
+
+
+      if (isOutOfStock) {
+        alert(
+          "This product is currently out of stock."
+        );
+
+        return;
+      }
+
+
+      if (!addToCart) {
+        console.error(
+          "addToCart function was not provided."
+        );
+
+        return;
+      }
+
+
+      const safeQuantity =
+        Math.min(
+          Math.max(
+            1,
+            Number(
+              quantity
+            ) || 1
+          ),
+          stock
+        );
+
+
+      addToCart(
+        product,
+        safeQuantity
       );
 
-      return;
-    }
 
-    toggleWishlist(product.id);
-  };
+      setAdded(true);
 
-  // =========================================================
-  // HANDLE ADD TO CART
-  // =========================================================
 
-  const handleAddToCart = () => {
-    if (!product) {
-      return;
-    }
-
-    // -------------------------------------------------------
-    // NEVER ADD IF STOCK IS ZERO
-    // -------------------------------------------------------
-
-    if (isOutOfStock) {
-      alert(
-        "This product is currently out of stock."
+      window.setTimeout(
+        () => {
+          setAdded(false);
+        },
+        2000
       );
+    };
 
-      return;
-    }
-
-    if (!addToCart) {
-      console.error(
-        "addToCart function was not provided."
-      );
-
-      return;
-    }
-
-    // -------------------------------------------------------
-    // NEVER ALLOW MORE THAN AVAILABLE STOCK
-    // -------------------------------------------------------
-
-    const safeQuantity = Math.min(
-      Math.max(
-        1,
-        Number(quantity) || 1
-      ),
-      stock
-    );
-
-    addToCart(
-      product,
-      safeQuantity
-    );
-
-    setAdded(true);
-
-    window.setTimeout(() => {
-      setAdded(false);
-    }, 2000);
-  };
 
   // =========================================================
   // BUY NOW
   // =========================================================
 
-  const handleBuyNow = () => {
-    if (!product) {
-      return;
-    }
+  const handleBuyNow =
+    () => {
+      if (!product) {
+        return;
+      }
 
-    if (isOutOfStock) {
-      alert(
-        "This product is currently out of stock."
+
+      if (isOutOfStock) {
+        alert(
+          "This product is currently out of stock."
+        );
+
+        return;
+      }
+
+
+      if (!addToCart) {
+        console.error(
+          "addToCart function was not provided."
+        );
+
+        return;
+      }
+
+
+      const safeQuantity =
+        Math.min(
+          Math.max(
+            1,
+            Number(
+              quantity
+            ) || 1
+          ),
+          stock
+        );
+
+
+      addToCart(
+        product,
+        safeQuantity
       );
 
-      return;
-    }
 
-    if (!addToCart) {
-      console.error(
-        "addToCart function was not provided."
-      );
+      navigate("/cart");
+    };
 
-      return;
-    }
-
-    const safeQuantity = Math.min(
-      Math.max(
-        1,
-        Number(quantity) || 1
-      ),
-      stock
-    );
-
-    addToCart(
-      product,
-      safeQuantity
-    );
-
-    navigate("/cart");
-  };
 
   // =========================================================
   // CHAT WITH SELLER
+  // =========================================================
+  //
+  // IMPORTANT:
+  //
+  // We DO NOT call getDoc() before setDoc().
+  //
+  // This is important because your Firestore rules have:
+  //
+  // allow read:
+  //   if request.auth.uid in resource.data.participants
+  //
+  // A brand-new conversation has no resource.data yet.
+  //
+  // setDoc(..., { merge: true }) lets Firestore:
+  //
+  // - CREATE a new conversation
+  // - UPDATE an existing conversation
+  //
+  // without the initial getDoc() permission problem.
+  //
   // =========================================================
 
   const handleChatWithSeller =
@@ -578,45 +686,72 @@ function ProductDetails({
         return;
       }
 
+
       if (chatLoading) {
         return;
       }
+
 
       if (profileLoading) {
         return;
       }
 
+
       // -----------------------------------------------------
-      // CUSTOMER MUST BE LOGGED IN
+      // LOGIN CHECK
       // -----------------------------------------------------
 
       if (!firebaseUser?.uid) {
         navigate("/login");
+
         return;
       }
 
+
       // -----------------------------------------------------
-      // ACTUAL SELLER ID
+      // SELLER ID
       // -----------------------------------------------------
 
       const sellerId =
-        product.sellerId;
+        String(
+          product.sellerId ||
+            ""
+        ).trim();
+
+
+      console.log(
+        "Product seller ID:",
+        sellerId
+      );
+
+      console.log(
+        "Current buyer ID:",
+        firebaseUser.uid
+      );
+
 
       if (!sellerId) {
+        console.error(
+          "Product is missing sellerId:",
+          product
+        );
+
         alert(
-          "This seller has not been configured for chat yet."
+          "This seller is not properly configured for chat."
         );
 
         return;
       }
+
 
       // -----------------------------------------------------
       // PREVENT SELF CHAT
       // -----------------------------------------------------
 
       if (
-        String(firebaseUser.uid) ===
-        String(sellerId)
+        String(
+          firebaseUser.uid
+        ) === sellerId
       ) {
         alert(
           "You cannot chat with yourself."
@@ -625,7 +760,9 @@ function ProductDetails({
         return;
       }
 
+
       setChatLoading(true);
+
 
       try {
         // ===================================================
@@ -633,12 +770,28 @@ function ProductDetails({
         // ===================================================
 
         const participantIds = [
-          String(firebaseUser.uid),
-          String(sellerId),
+          String(
+            firebaseUser.uid
+          ),
+          sellerId,
         ].sort();
 
+
         const conversationId =
-          participantIds.join("_");
+          participantIds.join(
+            "_"
+          );
+
+
+        console.log(
+          "Conversation ID:",
+          conversationId
+        );
+
+
+        // ===================================================
+        // CONVERSATION REF
+        // ===================================================
 
         const conversationRef =
           doc(
@@ -647,35 +800,6 @@ function ProductDetails({
             conversationId
           );
 
-        // ===================================================
-        // CHECK EXISTING CONVERSATION
-        // ===================================================
-
-        const conversationSnapshot =
-          await import(
-            "firebase/firestore"
-          ).then(
-            ({
-              getDoc,
-            }) =>
-              getDoc(
-                conversationRef
-              )
-          );
-
-        if (
-          conversationSnapshot.exists()
-        ) {
-          // -------------------------------------------------
-          // Customer chat route
-          // -------------------------------------------------
-
-          navigate(
-            `/messages/${conversationId}`
-          );
-
-          return;
-        }
 
         // ===================================================
         // CUSTOMER NAME
@@ -683,7 +807,9 @@ function ProductDetails({
 
         const customerName =
           firebaseUser.displayName ||
+          firebaseUser.email ||
           "CampusMart User";
+
 
         // ===================================================
         // SELLER NAME
@@ -693,8 +819,21 @@ function ProductDetails({
           product.sellerName ||
           "CampusMart Seller";
 
+
         // ===================================================
-        // CREATE CONVERSATION
+        // CREATE / UPDATE CONVERSATION
+        // ===================================================
+        //
+        // DO NOT USE getDoc() HERE.
+        //
+        // merge:true means:
+        //
+        // New conversation:
+        //     CREATE
+        //
+        // Existing conversation:
+        //     UPDATE WITHOUT REMOVING MESSAGES
+        //
         // ===================================================
 
         await setDoc(
@@ -721,13 +860,6 @@ function ProductDetails({
                 null,
             },
 
-            // ------------------------------------------------
-            // IMPORTANT:
-            //
-            // These names match the conversation structure
-            // used by App.jsx.
-            // ------------------------------------------------
-
             onlineStatus: {
               [firebaseUser.uid]:
                 true,
@@ -744,26 +876,26 @@ function ProductDetails({
                 0,
             },
 
-            lastMessage: "",
+            lastMessage:
+              "",
 
-            lastMessageAt: 0,
-
-            messages: [],
+            lastMessageAt:
+              0,
 
             productId:
-              product.id || null,
+              product.id ||
+              null,
 
             productName:
-              product.name || "",
+              product.name ||
+              "",
 
             productImage:
-              product.image || null,
+              product.image ||
+              null,
 
             sellerId:
               sellerId,
-
-            createdAt:
-              serverTimestamp(),
 
             updatedAt:
               serverTimestamp(),
@@ -774,8 +906,15 @@ function ProductDetails({
           }
         );
 
+
+        console.log(
+          "Conversation created/opened successfully:",
+          conversationId
+        );
+
+
         // ===================================================
-        // OPEN CUSTOMER CHAT
+        // OPEN CHAT
         // ===================================================
 
         navigate(
@@ -787,6 +926,17 @@ function ProductDetails({
           error
         );
 
+        console.error(
+          "Firestore error code:",
+          error?.code
+        );
+
+        console.error(
+          "Firestore error message:",
+          error?.message
+        );
+
+
         alert(
           "Unable to open seller chat right now. Please try again."
         );
@@ -795,6 +945,7 @@ function ProductDetails({
       }
     };
 
+
   // =========================================================
   // LOADING
   // =========================================================
@@ -802,7 +953,9 @@ function ProductDetails({
   if (loading) {
     return (
       <CustomerLayout
-        cartCount={cartCount}
+        cartCount={
+          cartCount
+        }
       >
         <div
           className="
@@ -841,6 +994,7 @@ function ProductDetails({
     );
   }
 
+
   // =========================================================
   // PRODUCT NOT FOUND
   // =========================================================
@@ -848,7 +1002,9 @@ function ProductDetails({
   if (!product) {
     return (
       <CustomerLayout
-        cartCount={cartCount}
+        cartCount={
+          cartCount
+        }
       >
         <div
           className="
@@ -878,6 +1034,7 @@ function ProductDetails({
             />
           </div>
 
+
           <h2
             className="
               text-2xl
@@ -889,6 +1046,7 @@ function ProductDetails({
             Product Not Found
           </h2>
 
+
           <p
             className="
               text-gray-500
@@ -898,6 +1056,7 @@ function ProductDetails({
             {error ||
               "The product you're looking for doesn't exist."}
           </p>
+
 
           <button
             type="button"
@@ -924,13 +1083,16 @@ function ProductDetails({
     );
   }
 
+
   // =========================================================
   // RENDER
   // =========================================================
 
   return (
     <CustomerLayout
-      cartCount={cartCount}
+      cartCount={
+        cartCount
+      }
     >
       <div className="space-y-6">
 
@@ -961,8 +1123,9 @@ function ProductDetails({
           </span>
         </button>
 
+
         {/* =================================================
-            PRODUCT SECTION
+            PRODUCT
         ================================================= */}
 
         <div
@@ -1000,8 +1163,12 @@ function ProductDetails({
               >
                 {product.image ? (
                   <img
-                    src={product.image}
-                    alt={product.name}
+                    src={
+                      product.image
+                    }
+                    alt={
+                      product.name
+                    }
                     className="
                       w-full
                       h-72
@@ -1030,6 +1197,7 @@ function ProductDetails({
                   </div>
                 )}
               </div>
+
 
               {/* WISHLIST */}
 
@@ -1074,8 +1242,8 @@ function ProductDetails({
                   }
                 />
               </button>
-
             </div>
+
 
             {/* =================================================
                 INFORMATION
@@ -1097,8 +1265,11 @@ function ProductDetails({
                   text-sm
                 "
               >
-                {product.category}
+                {
+                  product.category
+                }
               </span>
+
 
               {/* NAME */}
 
@@ -1111,8 +1282,11 @@ function ProductDetails({
                   mt-2
                 "
               >
-                {product.name}
+                {
+                  product.name
+                }
               </h1>
+
 
               {/* RATING */}
 
@@ -1143,15 +1317,13 @@ function ProductDetails({
                       font-medium
                     "
                   >
-                    {product.rating}
+                    {
+                      product.rating
+                    }
                   </span>
                 </div>
 
-                <span
-                  className="
-                    text-gray-400
-                  "
-                >
+                <span className="text-gray-400">
                   •
                 </span>
 
@@ -1161,10 +1333,14 @@ function ProductDetails({
                     text-sm
                   "
                 >
-                  {product.reviews || 0}{" "}
+                  {
+                    product.reviews ||
+                    0
+                  }{" "}
                   Reviews
                 </span>
               </div>
+
 
               {/* PRICE */}
 
@@ -1189,15 +1365,15 @@ function ProductDetails({
                 >
                   ₦
                   {Number(
-                    product.price || 0
+                    product.price ||
+                      0
                   ).toLocaleString()}
                 </h2>
 
               </div>
 
-              {/* =================================================
-                  STOCK
-              ================================================= */}
+
+              {/* STOCK */}
 
               <div className="mt-3">
 
@@ -1233,7 +1409,9 @@ function ProductDetails({
                       font-semibold
                     "
                   >
-                    <FiCheck size={15} />
+                    <FiCheck
+                      size={15}
+                    />
 
                     {stock}{" "}
                     {stock === 1
@@ -1244,6 +1422,7 @@ function ProductDetails({
                 )}
 
               </div>
+
 
               {/* =================================================
                   SELLER
@@ -1297,6 +1476,7 @@ function ProductDetails({
                   </div>
                 )}
 
+
                 <div
                   className="
                     flex-1
@@ -1317,11 +1497,14 @@ function ProductDetails({
                       text-gray-800
                     "
                   >
-                    {product.sellerName}
+                    {
+                      product.sellerName
+                    }
                   </p>
                 </div>
 
               </div>
+
 
               {/* =================================================
                   CHAT WITH SELLER
@@ -1377,6 +1560,7 @@ function ProductDetails({
                 )}
               </button>
 
+
               {/* =================================================
                   DESCRIPTION
               ================================================= */}
@@ -1400,11 +1584,14 @@ function ProductDetails({
                     mt-2
                   "
                 >
-                  {product.description ||
-                    `This is a quality ${product.name} available on CampusMart. Connect with the seller, ask questions and purchase securely.`}
+                  {
+                    product.description ||
+                    `This is a quality ${product.name} available on CampusMart. Connect with the seller, ask questions and purchase securely.`
+                  }
                 </p>
 
               </div>
+
 
               {/* =================================================
                   QUANTITY
@@ -1439,10 +1626,13 @@ function ProductDetails({
                       type="button"
                       onClick={() =>
                         setQuantity(
-                          (current) =>
+                          (
+                            current
+                          ) =>
                             Math.max(
                               1,
-                              current - 1
+                              current -
+                                1
                             )
                         )
                       }
@@ -1458,6 +1648,7 @@ function ProductDetails({
                       <FiMinus />
                     </button>
 
+
                     <span
                       className="
                         w-12
@@ -1465,20 +1656,27 @@ function ProductDetails({
                         font-semibold
                       "
                     >
-                      {quantity}
+                      {
+                        quantity
+                      }
                     </span>
+
 
                     <button
                       type="button"
                       disabled={
-                        quantity >= stock
+                        quantity >=
+                        stock
                       }
                       onClick={() =>
                         setQuantity(
-                          (current) =>
+                          (
+                            current
+                          ) =>
                             Math.min(
                               stock,
-                              current + 1
+                              current +
+                                1
                             )
                         )
                       }
@@ -1500,6 +1698,7 @@ function ProductDetails({
 
                 </div>
               )}
+
 
               {/* =================================================
                   ACTION BUTTONS
@@ -1564,6 +1763,7 @@ function ProductDetails({
 
                 </button>
 
+
                 {/* BUY NOW */}
 
                 <button
@@ -1594,10 +1794,8 @@ function ProductDetails({
               </div>
 
             </div>
-
           </div>
         </div>
-
       </div>
     </CustomerLayout>
   );

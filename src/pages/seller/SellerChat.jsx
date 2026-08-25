@@ -1,1311 +1,566 @@
-import { useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { doc, onSnapshot } from "firebase/firestore";
 import {
-  FiGrid,
-  FiPackage,
-  FiBriefcase,
-  FiShoppingBag,
-  FiCalendar,
+  FiArrowLeft,
+  FiCheck,
   FiMessageCircle,
-  FiDollarSign,
-  FiStar,
-  FiBarChart2,
-  FiTag,
-  FiUser,
-  FiSettings,
-  FiLogOut,
-  FiMenu,
-  FiSearch,
-  FiChevronRight,
-  FiMoreVertical,
-  FiCheckCircle,
+  FiSend,
+  FiTrash2,
   FiUsers,
   FiX,
 } from "react-icons/fi";
 
+import { db } from "../../context/firebase";
 import { useAuth } from "../../context/AuthContext";
 
-function SellerMessages({
+function SellerChat({
   messages = [],
   unreadMessages = 0,
   markMessageAsRead,
+  sendMessage,
+  deleteMessages,
   profile = {},
 }) {
-  const navigate = useNavigate();
-  const location = useLocation();
-
   const { firebaseUser } = useAuth();
+  const { id } = useParams();
+  const navigate = useNavigate();
 
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [search, setSearch] = useState("");
+  const [conversation, setConversation] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [errorText, setErrorText] = useState("");
+  const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [showDeleteMenu, setShowDeleteMenu] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const bottomRef = useRef(null);
 
-  // =====================================================
-  // SELLER INFORMATION
-  // =====================================================
-
-  const sellerFullName =
+  const sellerName =
     profile?.fullName ||
     firebaseUser?.displayName ||
     "Seller";
 
-  const sellerFirstName =
-    sellerFullName.trim().split(/\s+/)[0] ||
-    "Seller";
+  useEffect(() => {
+    if (!id || !firebaseUser?.uid) {
+      setConversation(null);
+      setLoading(false);
+      return undefined;
+    }
 
-  const sellerImage =
-    profile?.profileImage ||
-    firebaseUser?.photoURL ||
+    setLoading(true);
+    setErrorText("");
+
+    const ref = doc(db, "conversations", String(id));
+
+    const unsubscribe = onSnapshot(
+      ref,
+      (snapshot) => {
+        if (!snapshot.exists()) {
+          setConversation(null);
+          setErrorText("This conversation does not exist.");
+          setLoading(false);
+          return;
+        }
+
+        const data = snapshot.data() || {};
+        const participants = Array.isArray(data.participants)
+          ? data.participants.map(String)
+          : [];
+
+        if (!participants.includes(String(firebaseUser.uid))) {
+          setConversation(null);
+          setErrorText("You are not a participant in this conversation.");
+          setLoading(false);
+          return;
+        }
+
+        setConversation({ id: snapshot.id, ...data });
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Seller chat listener error:", error);
+        setConversation(null);
+        setErrorText(
+          error?.code === "permission-denied"
+            ? "You do not have permission to open this conversation."
+            : "Unable to load this conversation."
+        );
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [id, firebaseUser?.uid]);
+
+  const fallbackConversation = useMemo(
+    () => messages.find((item) => String(item.id) === String(id)),
+    [messages, id]
+  );
+
+  const otherParticipantId =
+    conversation?.participants?.find(
+      (uid) => String(uid) !== String(firebaseUser?.uid)
+    ) || fallbackConversation?.otherParticipantId || null;
+
+  const buyerName =
+    conversation?.participantNames?.[otherParticipantId] ||
+    fallbackConversation?.name ||
+    "CampusMart Buyer";
+
+  const buyerImage =
+    conversation?.participantImages?.[otherParticipantId] ||
+    fallbackConversation?.profileImage ||
     null;
 
-  // =====================================================
-  // SIDEBAR MENU
-  // =====================================================
+  const productName =
+    conversation?.productName ||
+    fallbackConversation?.productName ||
+    "";
 
-  const menuItems = [
-    {
-      label: "Dashboard",
-      icon: FiGrid,
-      path: "/seller-dashboard",
-    },
-    {
-      label: "Products",
-      icon: FiPackage,
-      path: "/seller/products",
-    },
-    {
-      label: "Services",
-      icon: FiBriefcase,
-      path: "/seller/services",
-    },
-    {
-      label: "Orders",
-      icon: FiShoppingBag,
-      path: "/seller/orders",
-    },
-    {
-      label: "Bookings",
-      icon: FiCalendar,
-      path: "/seller/bookings",
-    },
-    {
-      label: "Messages",
-      icon: FiMessageCircle,
-      path: "/seller/messages",
-      badge: unreadMessages,
-    },
-    {
-      label: "Earnings",
-      icon: FiDollarSign,
-      path: "/seller/earnings",
-    },
-    {
-      label: "Reviews",
-      icon: FiStar,
-      path: "/seller/reviews",
-    },
-    {
-      label: "Analytics",
-      icon: FiBarChart2,
-      path: "/seller/analytics",
-    },
-    {
-      label: "Promotions",
-      icon: FiTag,
-      path: "/seller/promotions",
-      new: true,
-    },
-    {
-      label: "Profile",
-      icon: FiUser,
-      path: "/seller/profile",
-    },
-    {
-      label: "Settings",
-      icon: FiSettings,
-      path: "/seller/settings",
-    },
-  ];
+  const rawMessages =
+    Array.isArray(conversation?.messages)
+      ? conversation.messages
+      : Array.isArray(fallbackConversation?.allMessages)
+      ? fallbackConversation.allMessages
+      : Array.isArray(fallbackConversation?.conversation)
+      ? fallbackConversation.conversation
+      : [];
 
-  // =====================================================
-  // ACTIVE MENU
-  // =====================================================
+  const visibleMessages = useMemo(() => {
+    return [...rawMessages]
+      .filter((message) => {
+        const deletedFor = Array.isArray(message.deletedFor)
+          ? message.deletedFor
+          : [];
 
-  const isActive = (path) => {
-    if (path === "/seller-dashboard") {
-      return location.pathname === "/seller-dashboard";
-    }
+        if (deletedFor.includes(firebaseUser?.uid)) return false;
+        if (message.deletedForEveryone === true) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        const aTime = a.createdAt?.toMillis
+          ? a.createdAt.toMillis()
+          : Number(a.createdAt || 0);
+        const bTime = b.createdAt?.toMillis
+          ? b.createdAt.toMillis()
+          : Number(b.createdAt || 0);
+        return aTime - bTime;
+      });
+  }, [rawMessages, firebaseUser?.uid]);
 
-    return location.pathname.startsWith(path);
-  };
+  useEffect(() => {
+    if (!id || !markMessageAsRead) return;
+    // Do not block rendering/navigation on the read update.
+    Promise.resolve(markMessageAsRead(id)).catch((error) => {
+      console.error("Seller chat read update error:", error);
+    });
+  }, [id, markMessageAsRead]);
 
-  // =====================================================
-  // NAVIGATION
-  // =====================================================
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [visibleMessages.length]);
 
-  const handleNavigation = (path) => {
-    setSidebarOpen(false);
-    navigate(path);
-  };
-
-  // =====================================================
-  // LOGOUT
-  // =====================================================
-
-  const handleLogout = () => {
-    setSidebarOpen(false);
-    navigate("/logout");
-  };
-
-  // =====================================================
-  // SEARCH
-  // =====================================================
-
-  const filteredMessages = messages.filter((message) => {
-    const searchText = search.trim().toLowerCase();
-
-    if (!searchText) {
-      return true;
-    }
-
+  const isMine = (message) => {
     return (
-      String(message.name || "")
-        .toLowerCase()
-        .includes(searchText) ||
-      String(message.lastMessage || "")
-        .toLowerCase()
-        .includes(searchText) ||
-      String(message.productName || "")
-        .toLowerCase()
-        .includes(searchText)
-    );
-  });
-
-  // =====================================================
-  // ONLINE USERS
-  // =====================================================
-
-  const onlineUsers = messages.filter(
-    (message) => message.online
-  ).length;
-
-  // =====================================================
-  // OPEN CHAT
-  // =====================================================
-
-  const openChat = async (messageId) => {
-    if (markMessageAsRead) {
-      await markMessageAsRead(messageId);
-    }
-
-    navigate(`/seller/messages/${messageId}`);
-  };
-
-  // =====================================================
-  // FORMAT EMPTY MESSAGE
-  // =====================================================
-
-  const getInitial = (name) => {
-    return (
-      String(name || "U")
-        .trim()
-        .charAt(0)
-        .toUpperCase() || "U"
+      String(message.senderId || "") === String(firebaseUser?.uid || "") ||
+      message.sender === "me"
     );
   };
 
-  // =====================================================
-  // RENDER
-  // =====================================================
+  const formatTime = (message) => {
+    if (message.time) return message.time;
+    if (!message.createdAt) return "";
+
+    try {
+      const date = message.createdAt?.toDate
+        ? message.createdAt.toDate()
+        : new Date(message.createdAt);
+      return date.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return "";
+    }
+  };
+
+  const toggleSelection = (messageId) => {
+    if (deleting) return;
+    const value = String(messageId);
+    setSelectedIds((current) =>
+      current.includes(value)
+        ? current.filter((item) => item !== value)
+        : [...current, value]
+    );
+  };
+
+  const selectedMessages = visibleMessages.filter((message) =>
+    selectedIds.includes(String(message.id))
+  );
+
+  const canDeleteForEveryone =
+    selectedMessages.length > 0 && selectedMessages.every(isMine);
+
+  const handleDelete = async (type) => {
+    if (
+      deleting ||
+      !id ||
+      !firebaseUser?.uid ||
+      !deleteMessages ||
+      selectedIds.length === 0
+    ) {
+      return;
+    }
+
+    if (type === "everyone" && !canDeleteForEveryone) return;
+
+    setDeleting(true);
+    setShowDeleteMenu(false);
+
+    try {
+      const ok = await deleteMessages(id, [...selectedIds], type);
+      if (!ok) {
+        console.error("Seller chat message deletion failed.");
+      }
+    } catch (error) {
+      console.error("Seller chat delete error:", error);
+    } finally {
+      setSelectedIds([]);
+      setDeleting(false);
+    }
+  };
+
+  const handleSend = async () => {
+    const clean = text.trim();
+    if (!clean || sending || !sendMessage || !id) return;
+
+    setSending(true);
+    setText("");
+
+    try {
+      const ok = await sendMessage(id, clean);
+      if (!ok) setText(clean);
+    } catch (error) {
+      console.error("Seller chat send error:", error);
+      setText(clean);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleKeyDown = (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      handleSend();
+    }
+  };
+
+  if (loading) {
+    return (
+      <SellerChatShell
+        sellerName={sellerName}
+        buyerName="Loading..."
+        buyerImage={null}
+        unreadMessages={unreadMessages}
+        navigate={navigate}
+      >
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-10 h-10 mx-auto rounded-full border-4 border-green-100 border-t-green-600 animate-spin" />
+            <p className="mt-4 text-sm text-gray-500">Loading conversation...</p>
+          </div>
+        </div>
+      </SellerChatShell>
+    );
+  }
+
+  if (!conversation && !fallbackConversation) {
+    return (
+      <SellerChatShell
+        sellerName={sellerName}
+        buyerName="Buyer"
+        buyerImage={null}
+        unreadMessages={unreadMessages}
+        navigate={navigate}
+      >
+        <div className="flex-1 flex items-center justify-center p-6">
+          <div className="w-full max-w-md bg-white border border-green-100 rounded-2xl p-8 text-center shadow-sm">
+            <div className="w-14 h-14 mx-auto rounded-full bg-green-50 text-green-600 flex items-center justify-center">
+              <FiX size={25} />
+            </div>
+            <h2 className="mt-4 text-xl font-bold text-gray-800">
+              Conversation unavailable
+            </h2>
+            <p className="mt-2 text-sm text-gray-500">
+              {errorText || "The conversation could not be opened."}
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate("/seller/messages")}
+              className="mt-5 px-5 py-2.5 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700"
+            >
+              Back to Messages
+            </button>
+          </div>
+        </div>
+      </SellerChatShell>
+    );
+  }
 
   return (
-    <div className="h-screen w-full bg-gray-50 text-gray-800 flex overflow-hidden">
+    <SellerChatShell
+      sellerName={sellerName}
+      buyerName={buyerName}
+      buyerImage={buyerImage}
+      productName={productName}
+      unreadMessages={unreadMessages}
+      navigate={navigate}
+      selectedCount={selectedIds.length}
+      onCancelSelection={() => setSelectedIds([])}
+      onDelete={() => setShowDeleteMenu(true)}
+    >
+      <div className="flex-1 min-h-0 overflow-y-auto bg-gradient-to-b from-green-50/40 to-gray-50 p-3 sm:p-6">
+        <div className="text-center mb-5">
+          <span className="inline-flex items-center gap-2 bg-white border border-green-100 rounded-full px-3 py-1.5 text-xs text-green-700 shadow-sm">
+            <FiUsers size={13} />
+            Conversation with {buyerName}
+          </span>
+          {productName && (
+            <p className="text-[11px] text-gray-400 mt-2">Product: {productName}</p>
+          )}
+        </div>
 
-      {/* =================================================
-          MOBILE OVERLAY
-      ================================================= */}
-
-      {sidebarOpen && (
-        <div
-          className="
-            fixed
-            inset-0
-            bg-black/50
-            z-40
-            lg:hidden
-          "
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
-      {/* =================================================
-          SIDEBAR
-      ================================================= */}
-
-      <aside
-        className={`
-          fixed
-          inset-y-0
-          left-0
-          z-50
-          w-[230px]
-          bg-green-700
-          text-white
-          flex
-          flex-col
-          shadow-2xl
-          lg:shadow-none
-          transition-transform
-          duration-300
-          ease-in-out
-          ${
-            sidebarOpen
-              ? "translate-x-0"
-              : "-translate-x-full lg:translate-x-0"
-          }
-        `}
-      >
-
-        {/* =================================================
-            LOGO
-        ================================================= */}
-
-        <div className="h-[86px] px-5 flex items-center justify-between shrink-0">
-
-          <button
-            type="button"
-            onClick={() =>
-              handleNavigation("/seller-dashboard")
-            }
-            className="flex items-center gap-3"
-          >
-
-            <div
-              className="
-                w-10
-                h-10
-                rounded-xl
-                bg-white
-                text-green-700
-                flex
-                items-center
-                justify-center
-                font-extrabold
-                shadow-sm
-              "
-            >
-              CM
+        {visibleMessages.length === 0 && (
+          <div className="text-center py-16">
+            <div className="w-14 h-14 mx-auto rounded-full bg-green-100 text-green-600 flex items-center justify-center">
+              <FiMessageCircle size={22} />
             </div>
-
-            <div className="text-left">
-
-              <p className="text-lg font-extrabold leading-none">
-                CampusMart
-              </p>
-
-              <p className="text-[10px] text-green-100 mt-1">
-                Buy. Sell. Connect.
-              </p>
-
-            </div>
-
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setSidebarOpen(false)}
-            className="lg:hidden text-green-100"
-          >
-            <FiX size={22} />
-          </button>
-
-        </div>
-
-        {/* =================================================
-            SIDEBAR MENU
-        ================================================= */}
-
-        <div className="flex-1 overflow-y-auto px-3 pb-5">
-
-          <nav className="space-y-1">
-
-            {menuItems.map((item) => {
-              const Icon = item.icon;
-              const active = isActive(item.path);
-
-              return (
-                <button
-                  key={item.path}
-                  type="button"
-                  onClick={() =>
-                    handleNavigation(item.path)
-                  }
-                  className={`
-                    w-full
-                    flex
-                    items-center
-                    gap-3
-                    px-3
-                    py-3
-                    rounded-xl
-                    text-sm
-                    font-medium
-                    transition
-                    ${
-                      active
-                        ? "bg-white text-green-700 shadow-sm"
-                        : "text-white hover:bg-green-600"
-                    }
-                  `}
-                >
-
-                  <Icon size={18} />
-
-                  <span className="flex-1 text-left">
-                    {item.label}
-                  </span>
-
-                  {item.new && (
-                    <span
-                      className="
-                        px-1.5
-                        py-0.5
-                        rounded-md
-                        bg-yellow-400
-                        text-green-900
-                        text-[8px]
-                        font-bold
-                      "
-                    >
-                      NEW
-                    </span>
-                  )}
-
-                  {item.badge > 0 && (
-                    <span
-                      className="
-                        min-w-5
-                        h-5
-                        px-1
-                        rounded-full
-                        bg-red-500
-                        text-white
-                        text-[10px]
-                        font-bold
-                        flex
-                        items-center
-                        justify-center
-                      "
-                    >
-                      {item.badge > 99
-                        ? "99+"
-                        : item.badge}
-                    </span>
-                  )}
-
-                </button>
-              );
-            })}
-
-          </nav>
-
-        </div>
-
-        {/* =================================================
-            LOGOUT
-        ================================================= */}
-
-        <div className="px-3 pb-4 shrink-0">
-
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="
-              w-full
-              flex
-              items-center
-              gap-3
-              px-3
-              py-3
-              rounded-xl
-              text-sm
-              font-medium
-              text-white
-              hover:bg-green-600
-              transition
-            "
-          >
-            <FiLogOut size={18} />
-            Logout
-          </button>
-
-        </div>
-
-      </aside>
-
-      {/* =================================================
-          MAIN AREA
-      ================================================= */}
-
-      <div className="flex-1 min-w-0 lg:ml-[230px] flex flex-col h-screen">
-
-        {/* =================================================
-            TOP BAR
-        ================================================= */}
-
-        <header
-          className="
-            h-[86px]
-            bg-green-800
-            text-white
-            flex
-            items-center
-            px-4
-            sm:px-6
-            gap-4
-            shrink-0
-          "
-        >
-
-          {/* MOBILE MENU */}
-
-          <button
-            type="button"
-            onClick={() => setSidebarOpen(true)}
-            className="lg:hidden"
-          >
-            <FiMenu size={23} />
-          </button>
-
-          {/* SEARCH */}
-
-          <div className="relative flex-1 max-w-[500px]">
-
-            <FiSearch
-              size={17}
-              className="
-                absolute
-                left-4
-                top-1/2
-                -translate-y-1/2
-                text-gray-400
-              "
-            />
-
-            <input
-              type="text"
-              value={search}
-              onChange={(e) =>
-                setSearch(e.target.value)
-              }
-              placeholder="Search messages..."
-              className="
-                w-full
-                h-10
-                bg-white
-                text-gray-800
-                rounded-full
-                pl-11
-                pr-4
-                text-sm
-                outline-none
-                placeholder:text-gray-400
-              "
-            />
-
+            <p className="mt-3 text-sm font-medium text-gray-500">No messages yet.</p>
+            <p className="text-xs text-gray-400 mt-1">Send a reply to this buyer.</p>
           </div>
+        )}
 
-          {/* RIGHT SIDE */}
+        <div className="space-y-3 sm:space-y-4">
+          {visibleMessages.map((message) => {
+            const mine = isMine(message);
+            const messageId = String(message.id);
+            const selected = selectedIds.includes(messageId);
 
-          <div className="ml-auto flex items-center gap-3">
-
-            <button
-              type="button"
-              onClick={() =>
-                navigate("/seller/messages")
-              }
-              className="
-                relative
-                w-9
-                h-9
-                rounded-full
-                hover:bg-green-700
-                flex
-                items-center
-                justify-center
-              "
-            >
-              <FiMessageCircle size={19} />
-
-              {unreadMessages > 0 && (
-                <span
-                  className="
-                    absolute
-                    -top-0.5
-                    -right-0.5
-                    min-w-4
-                    h-4
-                    px-1
-                    rounded-full
-                    bg-red-500
-                    text-white
-                    text-[8px]
-                    font-bold
-                    flex
-                    items-center
-                    justify-center
-                  "
-                >
-                  {unreadMessages > 9
-                    ? "9+"
-                    : unreadMessages}
-                </span>
-              )}
-
-            </button>
-
-            <button
-              type="button"
-              onClick={() =>
-                navigate("/seller/profile")
-              }
-              className="
-                flex
-                items-center
-                gap-2
-                rounded-full
-                bg-green-700
-                hover:bg-green-600
-                px-2
-                py-1.5
-                transition
-              "
-            >
-
-              {sellerImage ? (
-                <img
-                  src={sellerImage}
-                  alt={sellerFullName}
-                  className="
-                    w-8
-                    h-8
-                    rounded-full
-                    object-cover
-                  "
-                />
-              ) : (
-                <div
-                  className="
-                    w-8
-                    h-8
-                    rounded-full
-                    bg-white
-                    text-green-700
-                    flex
-                    items-center
-                    justify-center
-                    font-bold
-                    text-xs
-                  "
-                >
-                  {getInitial(sellerFullName)}
-                </div>
-              )}
-
-              <div className="hidden sm:block text-left pr-2">
-
-                <p className="text-xs font-bold leading-none">
-                  {sellerFullName}
-                </p>
-
-                <p className="text-[9px] text-green-100 mt-1">
-                  Seller
-                </p>
-
-              </div>
-
-            </button>
-
-          </div>
-
-        </header>
-
-        {/* =================================================
-            PAGE CONTENT
-        ================================================= */}
-
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7">
-
-          <div className="space-y-6">
-
-            {/* =================================================
-                HEADER
-            ================================================= */}
-
-            <div
-              className="
-                flex
-                flex-col
-                sm:flex-row
-                sm:items-center
-                sm:justify-between
-                gap-4
-              "
-            >
-
-              <div>
-
-                <h1
-                  className="
-                    text-2xl
-                    sm:text-3xl
-                    font-bold
-                    text-gray-800
-                  "
-                >
-                  Messages
-                </h1>
-
-                <p className="text-gray-500 mt-1">
-                  Chat with buyers about your products.
-                </p>
-
-              </div>
-
+            return (
               <div
-                className="
-                  hidden
-                  sm:flex
-                  items-center
-                  gap-2
-                  bg-green-50
-                  text-green-700
-                  px-4
-                  py-2.5
-                  rounded-xl
-                  text-sm
-                  font-medium
-                "
+                key={message.id || `${message.createdAt}-${message.text}`}
+                className={`flex ${mine ? "justify-end" : "justify-start"}`}
               >
-                <FiMessageCircle size={16} />
-                Seller Inbox
-              </div>
-
-            </div>
-
-            {/* =================================================
-                STATS
-            ================================================= */}
-
-            <div
-              className="
-                grid
-                grid-cols-2
-                lg:grid-cols-3
-                gap-4
-              "
-            >
-
-              {/* CONVERSATIONS */}
-
-              <div
-                className="
-                  bg-white
-                  border
-                  border-gray-100
-                  rounded-2xl
-                  p-4
-                  sm:p-5
-                "
-              >
-
-                <div className="flex items-center gap-3">
-
-                  <div
-                    className="
-                      w-10
-                      h-10
-                      rounded-xl
-                      bg-green-100
-                      text-green-600
-                      flex
-                      items-center
-                      justify-center
-                    "
-                  >
-                    <FiMessageCircle size={19} />
-                  </div>
-
-                  <div>
-
-                    <p className="text-xs text-gray-500">
-                      Conversations
-                    </p>
-
-                    <p className="text-xl font-bold text-gray-800">
-                      {messages.length}
-                    </p>
-
-                  </div>
-
-                </div>
-
-              </div>
-
-              {/* UNREAD */}
-
-              <div
-                className="
-                  bg-white
-                  border
-                  border-gray-100
-                  rounded-2xl
-                  p-4
-                  sm:p-5
-                "
-              >
-
-                <div className="flex items-center gap-3">
-
-                  <div
-                    className="
-                      w-10
-                      h-10
-                      rounded-xl
-                      bg-yellow-100
-                      text-yellow-600
-                      flex
-                      items-center
-                      justify-center
-                    "
-                  >
-                    <FiCheckCircle size={19} />
-                  </div>
-
-                  <div>
-
-                    <p className="text-xs text-gray-500">
-                      Unread Messages
-                    </p>
-
-                    <p className="text-xl font-bold text-gray-800">
-                      {unreadMessages}
-                    </p>
-
-                  </div>
-
-                </div>
-
-              </div>
-
-              {/* ONLINE */}
-
-              <div
-                className="
-                  hidden
-                  lg:block
-                  bg-white
-                  border
-                  border-gray-100
-                  rounded-2xl
-                  p-4
-                  sm:p-5
-                "
-              >
-
-                <div className="flex items-center gap-3">
-
-                  <div
-                    className="
-                      w-10
-                      h-10
-                      rounded-xl
-                      bg-blue-100
-                      text-blue-600
-                      flex
-                      items-center
-                      justify-center
-                    "
-                  >
-                    <FiUsers size={19} />
-                  </div>
-
-                  <div>
-
-                    <p className="text-xs text-gray-500">
-                      Buyers Online
-                    </p>
-
-                    <p className="text-xl font-bold text-gray-800">
-                      {onlineUsers}
-                    </p>
-
-                  </div>
-
-                </div>
-
-              </div>
-
-            </div>
-
-            {/* =================================================
-                SEARCH
-            ================================================= */}
-
-            <div className="relative">
-
-              <FiSearch
-                className="
-                  absolute
-                  left-4
-                  top-1/2
-                  -translate-y-1/2
-                  text-gray-400
-                "
-                size={18}
-              />
-
-              <input
-                type="text"
-                value={search}
-                onChange={(e) =>
-                  setSearch(e.target.value)
-                }
-                placeholder="Search conversations..."
-                className="
-                  w-full
-                  bg-white
-                  border
-                  border-gray-200
-                  rounded-xl
-                  py-3.5
-                  pl-11
-                  pr-4
-                  text-sm
-                  outline-none
-                  focus:border-green-500
-                  focus:ring-2
-                  focus:ring-green-100
-                  transition
-                "
-              />
-
-            </div>
-
-            {/* =================================================
-                CONVERSATIONS CARD
-            ================================================= */}
-
-            <div
-              className="
-                bg-white
-                rounded-2xl
-                border
-                border-gray-100
-                overflow-hidden
-              "
-            >
-
-              {/* CARD HEADER */}
-
-              <div
-                className="
-                  p-5
-                  border-b
-                  border-gray-100
-                  flex
-                  items-center
-                  justify-between
-                "
-              >
-
-                <div className="flex items-center gap-3">
-
-                  <div
-                    className="
-                      w-11
-                      h-11
-                      rounded-xl
-                      bg-green-100
-                      text-green-600
-                      flex
-                      items-center
-                      justify-center
-                    "
-                  >
-                    <FiMessageCircle size={21} />
-                  </div>
-
-                  <div>
-
-                    <h2 className="font-bold text-gray-800">
-                      Buyer Conversations
-                    </h2>
-
-                    <p className="text-sm text-gray-400 mt-0.5">
-                      {filteredMessages.length}{" "}
-                      {filteredMessages.length === 1
-                        ? "conversation"
-                        : "conversations"}
-                    </p>
-
-                  </div>
-
-                </div>
-
                 <button
                   type="button"
-                  className="
-                    w-9
-                    h-9
-                    rounded-lg
-                    flex
-                    items-center
-                    justify-center
-                    text-gray-400
-                    hover:bg-gray-100
-                    hover:text-gray-600
-                    transition
-                  "
+                  onClick={() => toggleSelection(messageId)}
+                  disabled={deleting}
+                  className={`max-w-[88%] sm:max-w-[68%] text-left px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-2xl focus:outline-none transition ${
+                    selected ? "ring-2 ring-green-500 ring-offset-2" : ""
+                  } ${
+                    mine
+                      ? "bg-green-600 text-white rounded-br-md shadow-sm"
+                      : "bg-white text-gray-700 rounded-bl-md shadow-sm border border-green-50"
+                  }`}
                 >
-                  <FiMoreVertical />
-                </button>
+                  {selected && (
+                    <div className="flex justify-end mb-1">
+                      <span className="w-5 h-5 rounded-full bg-white text-green-600 flex items-center justify-center">
+                        <FiCheck size={13} />
+                      </span>
+                    </div>
+                  )}
 
-              </div>
-
-              {/* =================================================
-                  LIST
-              ================================================= */}
-
-              {filteredMessages.length > 0 ? (
-
-                <div>
-
-                  {filteredMessages.map((message) => (
-
-                    <button
-                      key={message.id}
-                      type="button"
-                      onClick={() =>
-                        openChat(message.id)
-                      }
-                      className="
-                        w-full
-                        flex
-                        items-center
-                        gap-4
-                        p-4
-                        sm:p-5
-                        text-left
-                        hover:bg-gray-50
-                        transition
-                        border-b
-                        border-gray-100
-                        last:border-b-0
-                      "
-                    >
-
-                      {/* AVATAR */}
-
-                      <div className="relative shrink-0">
-
-                        {message.profileImage ? (
-
-                          <img
-                            src={message.profileImage}
-                            alt={message.name}
-                            className="
-                              w-12
-                              h-12
-                              sm:w-13
-                              sm:h-13
-                              rounded-full
-                              object-cover
-                            "
-                          />
-
-                        ) : (
-
-                          <div
-                            className="
-                              w-12
-                              h-12
-                              sm:w-13
-                              sm:h-13
-                              rounded-full
-                              bg-green-100
-                              text-green-700
-                              flex
-                              items-center
-                              justify-center
-                              font-bold
-                              text-lg
-                            "
-                          >
-                            {getInitial(message.name)}
-                          </div>
-
-                        )}
-
-                        {message.online && (
-                          <span
-                            className="
-                              absolute
-                              bottom-0
-                              right-0
-                              w-3
-                              h-3
-                              bg-green-500
-                              border-2
-                              border-white
-                              rounded-full
-                            "
-                          />
-                        )}
-
-                      </div>
-
-                      {/* DETAILS */}
-
-                      <div className="flex-1 min-w-0">
-
-                        <div
-                          className="
-                            flex
-                            items-center
-                            justify-between
-                            gap-3
-                          "
-                        >
-
-                          <h3
-                            className="
-                              font-semibold
-                              text-gray-800
-                              truncate
-                            "
-                          >
-                            {message.name}
-                          </h3>
-
-                          <span
-                            className="
-                              text-xs
-                              text-gray-400
-                              shrink-0
-                            "
-                          >
-                            {message.time}
-                          </span>
-
-                        </div>
-
-                        {message.productName && (
-                          <p
-                            className="
-                              text-[11px]
-                              text-green-600
-                              font-medium
-                              mt-0.5
-                              truncate
-                            "
-                          >
-                            {message.productName}
-                          </p>
-                        )}
-
-                        <p
-                          className={`
-                            text-sm
-                            truncate
-                            mt-1
-                            ${
-                              message.unread > 0
-                                ? "font-semibold text-gray-700"
-                                : "text-gray-500"
-                            }
-                          `}
-                        >
-                          {message.lastMessage ||
-                            "No messages yet."}
-                        </p>
-
-                      </div>
-
-                      {/* UNREAD */}
-
-                      {message.unread > 0 && (
-                        <span
-                          className="
-                            min-w-5
-                            h-5
-                            px-1.5
-                            rounded-full
-                            bg-green-600
-                            text-white
-                            text-[11px]
-                            font-bold
-                            flex
-                            items-center
-                            justify-center
-                            shrink-0
-                          "
-                        >
-                          {message.unread}
-                        </span>
-                      )}
-
-                      <FiChevronRight
-                        className="
-                          text-gray-300
-                          shrink-0
-                        "
-                        size={18}
-                      />
-
-                    </button>
-
-                  ))}
-
-                </div>
-
-              ) : (
-
-                /* =================================================
-                    EMPTY STATE
-                ================================================= */
-
-                <div
-                  className="
-                    py-16
-                    px-6
-                    text-center
-                  "
-                >
-
-                  <div
-                    className="
-                      w-16
-                      h-16
-                      mx-auto
-                      rounded-2xl
-                      bg-gray-100
-                      flex
-                      items-center
-                      justify-center
-                    "
-                  >
-                    <FiMessageCircle
-                      className="text-gray-400"
-                      size={26}
-                    />
-                  </div>
-
-                  <h3
-                    className="
-                      font-semibold
-                      text-gray-800
-                      mt-4
-                    "
-                  >
-                    {search
-                      ? "No conversations found"
-                      : "No buyer messages yet"}
-                  </h3>
-
-                  <p
-                    className="
-                      text-sm
-                      text-gray-500
-                      mt-1
-                      max-w-sm
-                      mx-auto
-                    "
-                  >
-                    {search
-                      ? "We couldn't find any conversations matching your search."
-                      : "When buyers contact you about your products, their conversations will appear here."}
+                  <p className="text-sm leading-5 break-words whitespace-pre-wrap">
+                    {message.text || (message.imageUrl ? "📷 Photo" : "")}
                   </p>
 
-                  {search && (
-                    <button
-                      type="button"
-                      onClick={() => setSearch("")}
-                      className="
-                        mt-4
-                        text-sm
-                        font-medium
-                        text-green-600
-                        hover:underline
-                      "
-                    >
-                      Clear search
-                    </button>
-                  )}
-
-                </div>
-
-              )}
-
-            </div>
-
-            {/* =================================================
-                FOOTER
-            ================================================= */}
-
-            <div
-              className="
-                rounded-2xl
-                bg-green-50
-                border
-                border-green-100
-                p-4
-                sm:p-5
-                flex
-                items-center
-                gap-3
-              "
-            >
-
-              <div
-                className="
-                  w-9
-                  h-9
-                  rounded-xl
-                  bg-white
-                  text-green-700
-                  flex
-                  items-center
-                  justify-center
-                  shadow-sm
-                  shrink-0
-                "
-              >
-                <FiCheckCircle size={18} />
+                  <p className={`text-[10px] mt-1 ${mine ? "text-green-100" : "text-gray-400"}`}>
+                    {formatTime(message)}
+                  </p>
+                </button>
               </div>
-
-              <div>
-
-                <p className="text-sm font-semibold text-gray-800">
-                  Stay connected with your buyers
-                </p>
-
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Reply quickly to questions about your products.
-                </p>
-
-              </div>
-
-            </div>
-
-          </div>
-
-        </main>
-
+            );
+          })}
+        </div>
+        <div ref={bottomRef} className="h-1" />
       </div>
 
+      {selectedIds.length === 0 ? (
+        <div className="shrink-0 border-t border-green-100 bg-white p-3 sm:p-4">
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={text}
+              onChange={(event) => setText(event.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={sending}
+              placeholder={`Reply to ${buyerName}...`}
+              className="flex-1 min-w-0 bg-gray-100 rounded-full px-4 py-3 text-sm outline-none border border-transparent focus:bg-white focus:border-green-500 focus:ring-2 focus:ring-green-100 disabled:opacity-60"
+            />
+            <button
+              type="button"
+              onClick={handleSend}
+              disabled={!text.trim() || sending}
+              className="w-11 h-11 rounded-full bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white flex items-center justify-center shrink-0"
+            >
+              {sending ? (
+                <span className="w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+              ) : (
+                <FiSend size={18} />
+              )}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {showDeleteMenu && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-4"
+          onClick={() => !deleting && setShowDeleteMenu(false)}
+        >
+          <div
+            className="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden border border-green-100"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="p-5 border-b border-green-100 bg-green-50">
+              <h3 className="text-lg font-bold text-gray-900">
+                Delete message{selectedIds.length > 1 ? "s" : ""}
+              </h3>
+              <p className="text-sm text-gray-500 mt-1">Choose an option.</p>
+            </div>
+
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={() => handleDelete("me")}
+              className="w-full text-left px-5 py-4 hover:bg-green-50 border-b border-gray-100 disabled:opacity-50"
+            >
+              <div className="flex items-center gap-3">
+                <FiTrash2 className="text-green-700" />
+                <div>
+                  <p className="font-semibold text-gray-800">Delete for me</p>
+                  <p className="text-xs text-gray-500 mt-1">Remove from your chat only.</p>
+                </div>
+              </div>
+            </button>
+
+            {canDeleteForEveryone && (
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => handleDelete("everyone")}
+                className="w-full text-left px-5 py-4 hover:bg-green-50 border-b border-gray-100 disabled:opacity-50"
+              >
+                <div className="flex items-center gap-3">
+                  <FiTrash2 className="text-green-700" />
+                  <div>
+                    <p className="font-semibold text-green-700">Delete for everyone</p>
+                    <p className="text-xs text-gray-500 mt-1">Remove your message for both users.</p>
+                  </div>
+                </div>
+              </button>
+            )}
+
+            <div className="p-4 bg-gray-50">
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => setShowDeleteMenu(false)}
+                className="w-full h-11 rounded-xl border border-gray-200 bg-white text-gray-600 font-semibold hover:bg-gray-100 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </SellerChatShell>
+  );
+}
+
+function SellerChatShell({
+  sellerName,
+  buyerName,
+  buyerImage,
+  productName,
+  unreadMessages,
+  navigate,
+  children,
+  selectedCount = 0,
+  onCancelSelection,
+  onDelete,
+}) {
+  const initial = String(buyerName || "B").trim().charAt(0).toUpperCase() || "B";
+
+  return (
+    <div className="h-screen w-full bg-gray-50 text-gray-800 flex flex-col overflow-hidden">
+      <header className="h-[70px] shrink-0 bg-green-800 text-white flex items-center px-4 sm:px-6 gap-3">
+        <button
+          type="button"
+          onClick={() => navigate("/seller/messages")}
+          className="w-10 h-10 rounded-full hover:bg-green-700 flex items-center justify-center"
+          title="Back to messages"
+        >
+          <FiArrowLeft size={19} />
+        </button>
+
+        {selectedCount > 0 ? (
+          <>
+            <button
+              type="button"
+              onClick={onCancelSelection}
+              className="w-10 h-10 rounded-full hover:bg-green-700 flex items-center justify-center"
+            >
+              <FiX size={19} />
+            </button>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold">{selectedCount} selected</p>
+              <p className="text-xs text-green-100">Choose delete to continue.</p>
+            </div>
+            <button
+              type="button"
+              onClick={onDelete}
+              className="h-10 px-3 sm:px-4 rounded-xl bg-white text-green-700 font-semibold flex items-center gap-2"
+            >
+              <FiTrash2 size={16} />
+              <span className="hidden sm:inline">Delete</span>
+            </button>
+          </>
+        ) : (
+          <>
+            {buyerImage ? (
+              <img
+                src={buyerImage}
+                alt={buyerName}
+                className="w-10 h-10 rounded-full object-cover ring-2 ring-green-100"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-full bg-white text-green-700 flex items-center justify-center font-bold">
+                {initial}
+              </div>
+            )}
+
+            <div className="flex-1 min-w-0">
+              <p className="font-bold truncate">{buyerName}</p>
+              <p className="text-xs text-green-100 truncate">
+                {productName ? `About ${productName}` : `Chat with ${sellerName}'s buyer`}
+              </p>
+            </div>
+
+            {unreadMessages > 0 && (
+              <span className="hidden sm:inline-flex items-center gap-1 text-xs bg-green-700 px-3 py-1.5 rounded-full">
+                {unreadMessages} unread
+              </span>
+            )}
+          </>
+        )}
+      </header>
+
+      {children}
     </div>
   );
 }
 
-export default SellerMessages;
+export default SellerChat;
