@@ -11,9 +11,7 @@ import {
 import {
   FiGrid,
   FiPackage,
-  FiBriefcase,
   FiShoppingBag,
-  FiCalendar,
   FiMessageCircle,
   FiDollarSign,
   FiStar,
@@ -87,6 +85,9 @@ function SellerMessages({
   // =====================================================
   // SIDEBAR
   // =====================================================
+  // Same seller dashboard navigation.
+  // Services and Bookings have been removed.
+  // =====================================================
 
   const menuItems = [
     {
@@ -100,19 +101,9 @@ function SellerMessages({
       path: "/seller/products",
     },
     {
-      label: "Services",
-      icon: FiBriefcase,
-      path: "/seller/services",
-    },
-    {
       label: "Orders",
       icon: FiShoppingBag,
       path: "/seller/orders",
-    },
-    {
-      label: "Bookings",
-      icon: FiCalendar,
-      path: "/seller/bookings",
     },
     {
       label: "Messages",
@@ -216,10 +207,6 @@ function SellerMessages({
       return null;
     }
 
-    // ---------------------------------------------------
-    // DIRECT BUYER ID
-    // ---------------------------------------------------
-
     const directBuyerId =
       message?.buyerId ||
       message?.buyerUID ||
@@ -231,16 +218,11 @@ function SellerMessages({
       message?.otherParticipantUid ||
       message?.otherParticipantUID ||
       message?.otherUserId ||
-      message?.otherUserId ||
       message?.recipientId;
 
     if (directBuyerId) {
       return String(directBuyerId);
     }
-
-    // ---------------------------------------------------
-    // BUYER OBJECT ID
-    // ---------------------------------------------------
 
     const buyerObjectId =
       message?.buyer?.uid ||
@@ -258,10 +240,6 @@ function SellerMessages({
       return String(buyerObjectId);
     }
 
-    // ---------------------------------------------------
-    // PARTICIPANTS ARRAY
-    // ---------------------------------------------------
-
     if (
       Array.isArray(
         message?.participants
@@ -278,10 +256,6 @@ function SellerMessages({
         return String(otherParticipant);
       }
     }
-
-    // ---------------------------------------------------
-    // PARTICIPANT OBJECTS ARRAY
-    // ---------------------------------------------------
 
     const participantObjects =
       message?.participantProfilesArray ||
@@ -321,10 +295,6 @@ function SellerMessages({
       }
     }
 
-    // ---------------------------------------------------
-    // PARTICIPANT IMAGES
-    // ---------------------------------------------------
-
     if (
       message?.participantImages &&
       typeof message.participantImages ===
@@ -343,10 +313,6 @@ function SellerMessages({
         return String(otherId);
       }
     }
-
-    // ---------------------------------------------------
-    // PARTICIPANT PROFILES
-    // ---------------------------------------------------
 
     if (
       message?.participantProfiles &&
@@ -367,10 +333,6 @@ function SellerMessages({
       }
     }
 
-    // ---------------------------------------------------
-    // PARTICIPANT NAMES
-    // ---------------------------------------------------
-
     if (
       message?.participantNames &&
       typeof message.participantNames ===
@@ -389,10 +351,6 @@ function SellerMessages({
         return String(otherId);
       }
     }
-
-    // ---------------------------------------------------
-    // NESTED CONVERSATION
-    // ---------------------------------------------------
 
     const nestedConversation =
       message?.conversationData ||
@@ -533,10 +491,6 @@ function SellerMessages({
     const buyerId =
       getBuyerId(message);
 
-    // ---------------------------------------------------
-    // 1. DIRECT BUYER IMAGE
-    // ---------------------------------------------------
-
     const directBuyerImage =
       message?.buyerProfileImage ||
       message?.buyerProfileImg ||
@@ -560,10 +514,6 @@ function SellerMessages({
       );
     }
 
-    // ---------------------------------------------------
-    // 2. BUYER OBJECT
-    // ---------------------------------------------------
-
     const buyerObjectImage =
       extractProfileImage(
         message?.buyer
@@ -582,10 +532,6 @@ function SellerMessages({
       return buyerObjectImage;
     }
 
-    // ---------------------------------------------------
-    // 3. OTHER PARTICIPANT OBJECT
-    // ---------------------------------------------------
-
     const otherParticipantImage =
       extractProfileImage(
         message?.otherParticipant
@@ -598,10 +544,6 @@ function SellerMessages({
       return otherParticipantImage;
     }
 
-    // ---------------------------------------------------
-    // 4. USER OBJECT
-    // ---------------------------------------------------
-
     const userImage =
       extractProfileImage(
         message?.user
@@ -611,23 +553,12 @@ function SellerMessages({
       return userImage;
     }
 
-    // ---------------------------------------------------
-    // 5. DIRECT MESSAGE IMAGE
-    //
-    // IMPORTANT:
-    // Do this AFTER buyer-specific fields.
-    // ---------------------------------------------------
-
     const directImage =
       extractProfileImage(message);
 
     if (directImage) {
       return directImage;
     }
-
-    // ---------------------------------------------------
-    // 6. PARTICIPANT IMAGES
-    // ---------------------------------------------------
 
     const participantImages =
       message?.participantImages;
@@ -637,8 +568,6 @@ function SellerMessages({
       typeof participantImages ===
         "object"
     ) {
-      // First use the exact buyer ID.
-
       if (
         buyerId &&
         participantImages[buyerId]
@@ -652,9 +581,6 @@ function SellerMessages({
           return image;
         }
       }
-
-      // Otherwise find the participant
-      // who is not the seller.
 
       const otherParticipantId =
         Object.keys(
@@ -679,10 +605,6 @@ function SellerMessages({
       }
     }
 
-    // ---------------------------------------------------
-    // 7. PARTICIPANT PROFILES
-    // ---------------------------------------------------
-
     const participantProfiles =
       message?.participantProfiles;
 
@@ -691,8 +613,6 @@ function SellerMessages({
       typeof participantProfiles ===
         "object"
     ) {
-      // Exact buyer profile.
-
       if (
         buyerId &&
         participantProfiles[buyerId]
@@ -706,8 +626,6 @@ function SellerMessages({
           return image;
         }
       }
-
-      // Other participant.
 
       const otherParticipantId =
         Object.keys(
@@ -731,10 +649,6 @@ function SellerMessages({
         }
       }
     }
-
-    // ---------------------------------------------------
-    // 8. PARTICIPANT DATA
-    // ---------------------------------------------------
 
     const participantData =
       message?.participantData;
@@ -781,10 +695,6 @@ function SellerMessages({
       }
     }
 
-    // ---------------------------------------------------
-    // 9. NESTED CONVERSATION
-    // ---------------------------------------------------
-
     const nestedConversation =
       message?.conversationData ||
       message?.conversationInfo ||
@@ -796,8 +706,6 @@ function SellerMessages({
       typeof nestedConversation ===
         "object"
     ) {
-      // Nested buyer.
-
       const nestedBuyerImage =
         extractProfileImage(
           nestedConversation?.buyer
@@ -815,8 +723,6 @@ function SellerMessages({
       if (nestedBuyerImage) {
         return nestedBuyerImage;
       }
-
-      // Nested participant images.
 
       const nestedImages =
         nestedConversation
@@ -862,8 +768,6 @@ function SellerMessages({
         }
       }
 
-      // Nested participant profiles.
-
       const nestedProfiles =
         nestedConversation
           ?.participantProfiles;
@@ -907,8 +811,6 @@ function SellerMessages({
           }
         }
       }
-
-      // Nested buyer profile image.
 
       const nestedDirectImage =
         nestedConversation?.buyerProfileImage ||
@@ -975,10 +877,6 @@ function SellerMessages({
     ) {
       return String(name).trim();
     }
-
-    // ---------------------------------------------------
-    // NESTED CONVERSATION NAME
-    // ---------------------------------------------------
 
     const nestedConversation =
       message?.conversationData ||
@@ -1608,9 +1506,7 @@ function SellerMessages({
         />
       )}
 
-      {/* ================================================= */}
       {/* SIDEBAR */}
-      {/* ================================================= */}
 
       <aside
         className={`
@@ -1618,11 +1514,16 @@ function SellerMessages({
           inset-y-0
           left-0
           z-50
-          w-[270px]
+          w-[291px]
+          min-w-[285px]
+          lg:w-[291px]
+          lg:min-w-[250px]
           bg-green-700
           text-white
           flex
           flex-col
+          h-screen
+          overflow-hidden
           shadow-2xl
           lg:shadow-none
           transition-transform
@@ -1635,222 +1536,260 @@ function SellerMessages({
           }
         `}
       >
-        <div
-          className="
-            h-[86px]
-            px-5
-            flex
-            items-center
-            justify-between
-            shrink-0
-          "
-        >
+        {/* SIDEBAR HEADER */}
+
+        <div className="relative px-5 pt-19 lg:pt-5 pb-4 flex-shrink-0">
           <button
             type="button"
-            onClick={() =>
-              handleNavigation(
-                "/seller-dashboard"
-              )
-            }
+            onClick={() => setSidebarOpen(false)}
+            aria-label="Close sidebar"
             className="
+              lg:hidden
+              absolute
+              top-3
+              right-3
+              w-9
+              h-9
+              rounded-lg
+              text-white
+              hover:bg-white/10
+              active:bg-white/20
               flex
               items-center
-              gap-3
+              justify-center
+              transition
+              z-20
             "
           >
+            <FiX size={21} strokeWidth={2.5} />
+          </button>
+
+          <div className="flex items-center gap-3 pr-10">
             <div
               className="
                 w-10
                 h-10
+                min-w-[40px]
                 rounded-xl
-                bg-green-800
-                text-white
+                bg-[#008236]
                 flex
                 items-center
                 justify-center
-                font-extrabold
-                shadow-sm
-                mt-7
+                shadow-lg
+                shadow-black/30
+                border
+                border-white/10
+                flex-shrink-0
               "
             >
-              CM
+              <span className="text-white text-[16px] font-black tracking-tight">
+                CM
+              </span>
             </div>
 
-            <div className="text-left">
-              <p
-                className="
-                  text-lg
-                  font-extrabold
-                  leading-none
-                  mt-7
-                  text-[26px]
-                "
-              >
-                CampusMart
-              </p>
+            <div className="min-w-0">
+              <h1 className="text-[30px] font-extrabold tracking-tight leading-none whitespace-nowrap">
+                <span className="text-white">
+                  Campus
+                </span>
+                <span className="text-green-300">
+                  Mart
+                </span>
+              </h1>
 
-              <p
-                className="
-                  text-[10px]
-                  text-green-100
-                  mt-1
-                "
-              >
-                Buy. Sell. Connect.
+              <p className="text-[10px] text-green-100 mt-1 whitespace-nowrap">
+                Sell. Connect. Grow.
               </p>
             </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              setSidebarOpen(false)
-            }
-            className="
-              lg:hidden
-              text-green-100
-            "
-          >
-            <FiX size={22} />
-          </button>
+          </div>
         </div>
 
-        <div
+        {/* NAVIGATION */}
+
+        <nav
           className="
             flex-1
+            px-4
+            py-3
             overflow-y-auto
-            px-3
-            pb-5
+            overflow-x-hidden
+            overscroll-contain
+            flex
+            flex-col
+            justify-start
+            gap-1
           "
         >
-          <nav className="space-y-1 mt-5">
-            {menuItems.map(
-              (item) => {
-                const Icon =
-                  item.icon;
+          {menuItems.map(
+            ({
+              label,
+              icon: Icon,
+              path,
+              badge,
+              new: isNew,
+            }) => {
+              const active = isActive(path);
 
-                const active =
-                  isActive(
-                    item.path
-                  );
-
-                return (
-                  <button
-                    key={
-                      item.path
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() =>
+                    handleNavigation(path)
+                  }
+                  className={`
+                    w-full
+                    flex
+                    items-center
+                    gap-3
+                    px-3.5
+                    py-3
+                    rounded-xl
+                    text-left
+                    transition-all
+                    flex-shrink-0
+                    ${
+                      active
+                        ? "bg-white text-[#008236] shadow-sm font-semibold"
+                        : "text-white hover:bg-white/10 active:bg-white/20"
                     }
-                    type="button"
-                    onClick={() =>
-                      handleNavigation(
-                        item.path
-                      )
-                    }
-                    className={`
-                      w-full
-                      flex
-                      items-center
-                      gap-3
-                      px-3
-                      py-3
-          
-                      rounded-xl
-                      text-sm
-                      font-medium
-                      transition
-                      ${
-                        active
-                          ? "bg-white text-green-700 shadow-sm"
-                          : "text-white hover:bg-green-600"
-                      }
-                    `}
-                  >
-                    <Icon size={18} />
+                  `}
+                >
+                  <Icon
+                    size={19}
+                    strokeWidth={active ? 2.5 : 2}
+                    className="flex-shrink-0"
+                  />
 
+                  <span className="flex-1 text-[14px] whitespace-nowrap">
+                    {label}
+                  </span>
+
+                  {badge > 0 && (
                     <span
                       className="
-                        flex-1
-                        text-left
+                        min-w-[21px]
+                        h-[21px]
+                        px-1.5
+                        rounded-full
+                        bg-red-500
+                        text-white
+                        text-[10px]
+                        font-bold
+                        flex
+                        items-center
+                        justify-center
+                        flex-shrink-0
                       "
                     >
-                      {item.label}
+                      {badge}
                     </span>
+                  )}
 
-                    {item.new && (
-                      <span
-                        className="
-                          px-1.5
-                          py-0.5
-                          rounded-md
-                          bg-yellow-400
-                          text-green-900
-                          text-[8px]
-                          font-bold
-                        "
-                      >
-                        NEW
-                      </span>
-                    )}
+                  {isNew && (
+                    <span
+                      className={`
+                        px-1.5
+                        py-0.5
+                        rounded-full
+                        text-[9px]
+                        font-bold
+                        flex-shrink-0
+                        ${
+                          active
+                            ? "bg-green-100 text-green-700"
+                            : "bg-green-500 text-white"
+                        }
+                      `}
+                    >
+                      New
+                    </span>
+                  )}
+                </button>
+              );
+            }
+          )}
+        </nav>
 
-                    {item.badge >
-                      0 && (
-                      <span
-                        className="
-                          min-w-5
-                          h-5
-                          px-1
-                          rounded-full
-                          bg-red-500
-                          text-white
-                          text-[10px]
-                          font-bold
-                          flex
-                          items-center
-                          justify-center
-                        "
-                      >
-                        {item.badge >
-                        99
-                          ? "99+"
-                          : item.badge}
-                      </span>
-                    )}
-                  </button>
-                );
-              }
-            )}
-          </nav>
-        </div>
+        {/* LOGOUT */}
 
-        <div
-          className="
-            px-3
-            pb-4
-            shrink-0
-          "
-        >
+        <div className="px-4 pb-4 flex-shrink-0">
           <button
             type="button"
-            onClick={
-              handleLogout
-            }
+            onClick={handleLogout}
             className="
               w-full
               flex
               items-center
               gap-3
-              px-3
+              px-3.5
               py-3
               rounded-xl
-              text-sm
-              font-medium
               text-white
-              hover:bg-green-600
+              hover:bg-white/10
+              active:bg-white/20
               transition
+              text-left
             "
           >
-            <FiLogOut size={18} />
-            Logout
+            <FiLogOut size={19} />
+
+            <span className="text-[14px]">
+              Logout
+            </span>
           </button>
+        </div>
+
+        {/* PREMIUM CARD */}
+
+        <div className="px-4 pb-3 flex-shrink-0">
+          <div
+            className="
+              border
+              border-green-300/30
+              bg-green-900/20
+              rounded-xl
+              p-3.5
+              text-center
+            "
+          >
+            <div className="text-2xl mb-1">
+              👑
+            </div>
+
+            <h3 className="font-bold text-sm">
+              Go Premium
+            </h3>
+
+            <p className="text-[10px] text-green-100 leading-4 mt-1">
+              Boost your products and services and
+              reach more students.
+            </p>
+
+            <button
+              type="button"
+              onClick={() =>
+                handleNavigation(
+                  "/seller/promotions"
+                )
+              }
+              className="
+                w-full
+                mt-2
+                h-9
+                rounded-lg
+                bg-white
+                text-[#008236]
+                font-bold
+                text-xs
+                hover:bg-green-50
+                active:bg-green-100
+                transition
+              "
+            >
+              Upgrade Now
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -1862,7 +1801,7 @@ function SellerMessages({
         className="
           flex-1
           min-w-0
-          lg:ml-[270px]
+          lg:ml-[291px]
           flex
           flex-col
           h-screen
@@ -2344,8 +2283,6 @@ function SellerMessages({
                 overflow-hidden
               "
             >
-              {/* HEADER */}
-
               <div
                 className="
                   p-5
@@ -2447,15 +2384,6 @@ function SellerMessages({
                           message
                         );
 
-                      // =========================================
-                      // BUYER PROFILE
-                      // =========================================
-
-                      const buyerId =
-                        getBuyerId(
-                          message
-                        );
-
                       const buyerName =
                         getBuyerName(
                           message
@@ -2500,10 +2428,6 @@ function SellerMessages({
                             disabled:cursor-not-allowed
                           "
                         >
-                          {/* ================================================= */}
-                          {/* BUYER PROFILE AVATAR */}
-                          {/* ================================================= */}
-
                           <div className="shrink-0">
                             {buyerProfileImage ? (
                               <img
@@ -2544,8 +2468,6 @@ function SellerMessages({
                               />
                             ) : null}
 
-                            {/* FALLBACK */}
-
                             <div
                               style={{
                                 display:
@@ -2572,10 +2494,6 @@ function SellerMessages({
                               )}
                             </div>
                           </div>
-
-                          {/* ================================================= */}
-                          {/* BUYER INFORMATION */}
-                          {/* ================================================= */}
 
                           <div className="flex-1 min-w-0">
                             <div
@@ -2613,8 +2531,6 @@ function SellerMessages({
                               </span>
                             </div>
 
-                            {/* PRODUCT */}
-
                             {message?.productName && (
                               <p
                                 className="
@@ -2630,8 +2546,6 @@ function SellerMessages({
                                 }
                               </p>
                             )}
-
-                            {/* LAST MESSAGE */}
 
                             <div
                               className="
@@ -2668,8 +2582,6 @@ function SellerMessages({
                               </p>
                             </div>
 
-                            {/* SEEN */}
-
                             {sellerSentLast &&
                               lastMessageSeen && (
                                 <p
@@ -2684,10 +2596,6 @@ function SellerMessages({
                                 </p>
                               )}
                           </div>
-
-                          {/* ================================================= */}
-                          {/* UNREAD */}
-                          {/* ================================================= */}
 
                           {unread >
                             0 && (
@@ -2714,10 +2622,6 @@ function SellerMessages({
                             </span>
                           )}
 
-                          {/* ================================================= */}
-                          {/* CHEVRON */}
-                          {/* ================================================= */}
-
                           <FiChevronRight
                             className="
                               text-gray-300
@@ -2731,10 +2635,6 @@ function SellerMessages({
                   )}
                 </div>
               ) : (
-                /* ================================================= */
-                /* EMPTY STATE */
-                /* ================================================= */
-
                 <div
                   className="
                     py-16

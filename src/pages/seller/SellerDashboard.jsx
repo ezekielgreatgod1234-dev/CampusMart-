@@ -130,19 +130,9 @@ function SellerDashboard({ unreadMessages = 0 }) {
       path: "/seller/products",
     },
     {
-      label: "Services",
-      icon: FiBriefcase,
-      path: "/seller/services",
-    },
-    {
       label: "Orders",
       icon: FiShoppingBag,
       path: "/seller/orders",
-    },
-    {
-      label: "Bookings",
-      icon: FiCalendar,
-      path: "/seller/bookings",
     },
     {
       label: "Messages",

@@ -21,9 +21,7 @@ import {
 import {
   FiGrid,
   FiPackage,
-  FiBriefcase,
   FiShoppingBag,
-  FiCalendar,
   FiMessageCircle,
   FiDollarSign,
   FiStar,
@@ -128,7 +126,7 @@ function SellerChat({
     useState(false);
 
   // =====================================================
-  // SIDEBAR MENU
+  // SIDEBAR MENU (matches SellerDashboard exactly)
   // =====================================================
 
   const menuItems = [
@@ -143,19 +141,9 @@ function SellerChat({
       path: "/seller/products",
     },
     {
-      label: "Services",
-      icon: FiBriefcase,
-      path: "/seller/services",
-    },
-    {
       label: "Orders",
       icon: FiShoppingBag,
       path: "/seller/orders",
-    },
-    {
-      label: "Bookings",
-      icon: FiCalendar,
-      path: "/seller/bookings",
     },
     {
       label: "Messages",
@@ -1199,6 +1187,297 @@ function SellerChat({
   };
 
   // =====================================================
+  // SHARED SIDEBAR (matches SellerDashboard exactly)
+  // =====================================================
+
+  const renderSidebar = () => (
+    <aside
+      className={`
+        fixed
+        inset-y-0
+        left-0
+        z-50
+        w-[291px]
+        min-w-[285px]
+        lg:w-[291px]
+        lg:min-w-[250px]
+        bg-green-700
+        text-white
+        flex
+        flex-col
+        h-screen
+        overflow-hidden
+        shadow-2xl
+        lg:shadow-none
+        transition-transform
+        duration-300
+        ease-in-out
+        ${
+          sidebarOpen
+            ? "translate-x-0"
+            : "-translate-x-full lg:translate-x-0"
+        }
+      `}
+    >
+      {/* SIDEBAR HEADER */}
+
+      <div className="relative px-5 pt-19 lg:pt-5 pb-4 flex-shrink-0">
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(false)}
+          aria-label="Close sidebar"
+          className="
+            lg:hidden
+            absolute
+            top-3
+            right-3
+            w-9
+            h-9
+            rounded-lg
+            text-white
+            hover:bg-white/10
+            active:bg-white/20
+            flex
+            items-center
+            justify-center
+            transition
+            z-20
+          "
+        >
+          <FiX size={21} strokeWidth={2.5} />
+        </button>
+
+        <div className="flex items-center gap-3 pr-10">
+          <div
+            className="
+              w-10
+              h-10
+              min-w-[40px]
+              rounded-xl
+              bg-[#008236]
+              flex
+              items-center
+              justify-center
+              shadow-lg
+              shadow-black/30
+              border
+              border-white/10
+              flex-shrink-0
+            "
+          >
+            <span className="text-white text-[16px] font-black tracking-tight">
+              CM
+            </span>
+          </div>
+
+          <div className="min-w-0">
+            <h1 className="text-[30px] font-extrabold tracking-tight leading-none whitespace-nowrap">
+              <span className="text-white">
+                Campus
+              </span>
+              <span className="text-green-300">
+                Mart
+              </span>
+            </h1>
+
+            <p className="text-[10px] text-green-100 mt-1 whitespace-nowrap">
+              Sell. Connect. Grow.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* NAVIGATION */}
+
+      <nav
+        className="
+          flex-1
+          px-4
+          py-3
+          overflow-y-auto
+          overflow-x-hidden
+          overscroll-contain
+          flex
+          flex-col
+          justify-start
+          gap-1
+        "
+      >
+        {menuItems.map(
+          ({
+            label,
+            icon: Icon,
+            path,
+            badge,
+            new: isNew,
+          }) => {
+            const active = isActive(path);
+
+            return (
+              <button
+                key={label}
+                type="button"
+                onClick={() =>
+                  handleNavigation(path)
+                }
+                className={`
+                  w-full
+                  flex
+                  items-center
+                  gap-3
+                  px-3.5
+                  py-3
+                  rounded-xl
+                  text-left
+                  transition-all
+                  flex-shrink-0
+                  ${
+                    active
+                      ? "bg-white text-[#008236] shadow-sm font-semibold"
+                      : "text-white hover:bg-white/10 active:bg-white/20"
+                  }
+                `}
+              >
+                <Icon
+                  size={19}
+                  strokeWidth={active ? 2.5 : 2}
+                  className="flex-shrink-0"
+                />
+
+                <span className="flex-1 text-[14px] whitespace-nowrap">
+                  {label}
+                </span>
+
+                {badge > 0 && (
+                  <span
+                    className="
+                      min-w-[21px]
+                      h-[21px]
+                      px-1.5
+                      rounded-full
+                      bg-red-500
+                      text-white
+                      text-[10px]
+                      font-bold
+                      flex
+                      items-center
+                      justify-center
+                      flex-shrink-0
+                    "
+                  >
+                    {badge}
+                  </span>
+                )}
+
+                {isNew && (
+                  <span
+                    className={`
+                      px-1.5
+                      py-0.5
+                      rounded-full
+                      text-[9px]
+                      font-bold
+                      flex-shrink-0
+                      ${
+                        active
+                          ? "bg-green-100 text-green-700"
+                          : "bg-green-500 text-white"
+                      }
+                    `}
+                  >
+                    New
+                  </span>
+                )}
+              </button>
+            );
+          }
+        )}
+      </nav>
+
+      {/* LOGOUT */}
+
+      <div className="px-4 pb-4 flex-shrink-0">
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="
+            w-full
+            flex
+            items-center
+            gap-3
+            px-3.5
+            py-3
+            rounded-xl
+            text-white
+            hover:bg-white/10
+            active:bg-white/20
+            transition
+            text-left
+          "
+        >
+          <FiLogOut size={19} />
+
+          <span className="text-[14px]">
+            Logout
+          </span>
+        </button>
+      </div>
+
+      {/* PREMIUM CARD */}
+
+      <div className="px-4 pb-3 flex-shrink-0">
+        <div
+          className="
+            border
+            border-green-300/30
+            bg-green-900/20
+            rounded-xl
+            p-3.5
+            text-center
+          "
+        >
+          <div className="text-2xl mb-1">
+            👑
+          </div>
+
+          <h3 className="font-bold text-sm">
+            Go Premium
+          </h3>
+
+          <p className="text-[10px] text-green-100 leading-4 mt-1">
+            Boost your products and services and
+            reach more students.
+          </p>
+
+          <button
+            type="button"
+            onClick={() =>
+              handleNavigation(
+                "/seller/promotions"
+              )
+            }
+            className="
+              w-full
+              mt-2
+              h-9
+              rounded-lg
+              bg-white
+              text-[#008236]
+              font-bold
+              text-xs
+              hover:bg-green-50
+              active:bg-green-100
+              transition
+            "
+          >
+            Upgrade Now
+          </button>
+        </div>
+      </div>
+    </aside>
+  );
+
+  // =====================================================
   // NOT FOUND
   // =====================================================
 
@@ -1208,146 +1487,69 @@ function SellerChat({
     !fallbackConversation
   ) {
     return (
-      <div className="h-[100svh] lg:h-[100dvh] w-full bg-gray-50 text-gray-800 flex overflow-hidden">
+      <div className="h-screen w-full bg-gray-50 text-gray-800 font-sans overflow-hidden">
+        {/* MOBILE SIDEBAR OVERLAY */}
 
-        {/* =================================================
-            SIDEBAR
-        ================================================= */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
 
-        <aside className="hidden lg:flex fixed inset-y-0 left-0 z-50 w-[230px] bg-green-700 text-white flex-col shadow-2xl">
+        {renderSidebar()}
 
-          {/* BRAND */}
-          <div className="px-5 pt-7 pb-5 shrink-0">
+        {/* MAIN AREA */}
 
+        <div
+          className="
+            min-w-0
+            flex
+            flex-col
+            h-screen
+            w-full
+            lg:ml-[291px]
+            lg:w-[calc(100%-291px)]
+          "
+        >
+          <header
+            className="
+              min-h-[70px]
+              bg-[#007233]
+              text-white
+              flex
+              items-center
+              px-3
+              sm:px-5
+              lg:px-8
+              py-3
+              gap-2
+              sm:gap-4
+              flex-shrink-0
+            "
+          >
             <button
               type="button"
-              onClick={() =>
-                handleNavigation(
-                  "/seller-dashboard"
-                )
-              }
-              className="w-full flex items-center gap-3 text-left"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Open sidebar"
+              className="
+                lg:hidden
+                w-10
+                h-10
+                min-w-[40px]
+                rounded-lg
+                hover:bg-white/10
+                active:bg-white/20
+                flex
+                items-center
+                justify-center
+                flex-shrink-0
+              "
             >
-
-              {/* CM LOGO */}
-              <div className="w-11 h-11 rounded-xl bg-green-800 border border-green-600 text-white flex items-center justify-center font-extrabold text-sm shadow-sm shrink-0">
-                CM
-              </div>
-
-              {/* BRAND TEXT */}
-              <div className="min-w-0">
-
-                <p className="text-lg font-extrabold leading-none text-white">
-                  CampusMart
-                </p>
-
-                <p className="text-[10px] text-green-100 mt-1.5 font-medium">
-                  Sell and Grow
-                </p>
-
-              </div>
-
-            </button>
-
-          </div>
-
-          <div className="flex-1 overflow-y-auto px-3 pb-5">
-
-            <nav className="space-y-1 mt-3">
-
-              {menuItems.map(
-                (item) => {
-                  const Icon =
-                    item.icon;
-
-                  return (
-                    <button
-                      key={
-                        item.path
-                      }
-                      type="button"
-                      onClick={() =>
-                        handleNavigation(
-                          item.path
-                        )
-                      }
-                      className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium ${
-                        isActive(
-                          item.path
-                        )
-                          ? "bg-white text-green-700"
-                          : "text-white hover:bg-green-600"
-                      }`}
-                    >
-
-                      <Icon size={18} />
-
-                      <span className="flex-1 text-left">
-                        {item.label}
-                      </span>
-
-                      {item.new && (
-                        <span className="px-1.5 py-0.5 rounded-md bg-yellow-400 text-green-900 text-[8px] font-bold">
-                          NEW
-                        </span>
-                      )}
-
-                      {item.badge >
-                        0 && (
-                        <span className="min-w-5 h-5 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
-                          {item.badge >
-                          99
-                            ? "99+"
-                            : item.badge}
-                        </span>
-                      )}
-
-                    </button>
-                  );
-                }
-              )}
-
-            </nav>
-
-          </div>
-
-          <div className="px-3 pb-4">
-
-            <button
-              type="button"
-              onClick={
-                handleLogout
-              }
-              className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium text-white hover:bg-green-600"
-            >
-              <FiLogOut size={18} />
-              Logout
-            </button>
-
-          </div>
-
-        </aside>
-
-        {/* =================================================
-            MAIN
-        ================================================= */}
-
-        <div className="flex-1 min-w-0 lg:ml-[230px] flex flex-col h-[100dvh]">
-
-          <header className="h-[70px] sm:h-[86px] bg-green-800 text-white flex items-center px-4 sm:px-6 gap-4 shrink-0">
-
-            <button
-              type="button"
-              onClick={() =>
-                setSidebarOpen(true)
-              }
-              className="lg:hidden"
-            >
-              <FiMenu size={23} />
+              <FiMenu size={24} />
             </button>
 
             <div className="relative flex-1 max-w-[500px]">
-
               <FiSearch
                 size={17}
                 className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
@@ -1364,15 +1566,11 @@ function SellerChat({
                 placeholder="Search messages..."
                 className="w-full h-10 bg-white text-gray-800 rounded-full pl-11 pr-4 text-sm outline-none"
               />
-
             </div>
-
           </header>
 
           <main className="flex-1 min-h-0 overflow-hidden p-3 sm:p-6 lg:p-7">
-
             <div className="h-full bg-white rounded-2xl border border-green-100 p-6 sm:p-10 text-center shadow-sm flex flex-col items-center justify-center">
-
               <div className="w-16 h-16 rounded-full bg-green-50 text-green-600 flex items-center justify-center mb-4">
                 <FiX size={28} />
               </div>
@@ -1397,154 +1595,9 @@ function SellerChat({
               >
                 Back to Messages
               </button>
-
             </div>
-
           </main>
-
         </div>
-
-        {/* =================================================
-            MOBILE DRAWER
-        ================================================= */}
-
-        {sidebarOpen && (
-          <>
-
-            <div
-              className="fixed inset-0 z-[60] bg-black/50 lg:hidden"
-              onClick={() =>
-                setSidebarOpen(false)
-              }
-            />
-
-            <aside className="fixed inset-y-0 left-0 z-[70] w-[250px] bg-green-700 text-white flex flex-col shadow-2xl lg:hidden">
-
-              {/* MOBILE BRAND */}
-              <div className="px-5 pt-7 pb-5 flex items-center justify-between shrink-0">
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleNavigation(
-                      "/seller-dashboard"
-                    )
-                  }
-                  className="flex items-center gap-3 text-left"
-                >
-
-                  <div className="w-11 h-11 rounded-xl bg-green-800 border border-green-600 text-white flex items-center justify-center font-extrabold text-sm shadow-sm shrink-0">
-                    CM
-                  </div>
-
-                  <div>
-
-                    <p className="text-lg font-extrabold leading-none text-white">
-                      CampusMart
-                    </p>
-
-                    <p className="text-[10px] text-green-100 mt-1.5 font-medium">
-                      Sell and Grow
-                    </p>
-
-                  </div>
-
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setSidebarOpen(false)
-                  }
-                  className="text-green-100"
-                >
-                  <FiX size={22} />
-                </button>
-
-              </div>
-
-              <div className="flex-1 overflow-y-auto px-3 pb-5">
-
-                <nav className="space-y-1">
-
-                  {menuItems.map(
-                    (item) => {
-                      const Icon =
-                        item.icon;
-
-                      return (
-                        <button
-                          key={
-                            item.path
-                          }
-                          type="button"
-                          onClick={() =>
-                            handleNavigation(
-                              item.path
-                            )
-                          }
-                          className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium ${
-                            isActive(
-                              item.path
-                            )
-                              ? "bg-white text-green-700"
-                              : "text-white hover:bg-green-600"
-                          }`}
-                        >
-
-                          <Icon size={18} />
-
-                          <span className="flex-1 text-left">
-                            {item.label}
-                          </span>
-
-                          {item.new && (
-                            <span className="px-1.5 py-0.5 rounded-md bg-yellow-400 text-green-900 text-[8px] font-bold">
-                              NEW
-                            </span>
-                          )}
-
-                          {item.badge >
-                            0 && (
-                            <span className="min-w-5 h-5 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
-                              {item.badge >
-                              99
-                                ? "99+"
-                                : item.badge}
-                            </span>
-                          )}
-
-                        </button>
-                      );
-                    }
-                  )}
-
-                </nav>
-
-              </div>
-
-              <div className="px-3 pb-4">
-
-                <button
-                  type="button"
-                  onClick={
-                    handleLogout
-                  }
-                  className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium text-white hover:bg-green-600"
-                >
-                  <FiLogOut
-                    size={18}
-                  />
-                  Logout
-                </button>
-
-              </div>
-
-            </aside>
-
-          </>
-        )}
-
       </div>
     );
   }
@@ -1559,17 +1612,13 @@ function SellerChat({
   ) {
     return (
       <div className="h-[100dvh] w-full bg-gray-50 flex items-center justify-center">
-
         <div className="text-center">
-
           <div className="w-10 h-10 mx-auto rounded-full border-4 border-green-100 border-t-green-600 animate-spin" />
 
           <p className="mt-4 text-sm text-gray-500">
             Loading conversation...
           </p>
-
         </div>
-
       </div>
     );
   }
@@ -1579,11 +1628,8 @@ function SellerChat({
   // =====================================================
 
   return (
-    <div className="h-[100dvh] w-full bg-gray-50 text-gray-800 flex overflow-hidden">
-
-      {/* =================================================
-          MOBILE OVERLAY
-      ================================================= */}
+    <div className="h-screen w-full bg-gray-50 text-gray-800 font-sans overflow-hidden">
+      {/* MOBILE SIDEBAR OVERLAY */}
 
       {sidebarOpen && (
         <div
@@ -1594,185 +1640,63 @@ function SellerChat({
         />
       )}
 
-      {/* =================================================
-          SIDEBAR
-      ================================================= */}
+      {renderSidebar()}
 
-      <aside
-        className={`
-          fixed inset-y-0 left-0 z-50
-          w-[270px] bg-green-700 text-white
-          flex flex-col shadow-2xl
-          transition-transform duration-300
-          ${
-            sidebarOpen
-              ? "translate-x-0"
-              : "-translate-x-full lg:translate-x-0"
-          }
-        `}
+      {/* MAIN AREA */}
+
+      <div
+        className="
+          min-w-0
+          flex
+          flex-col
+          h-screen
+          w-full
+          lg:ml-[291px]
+          lg:w-[calc(100%-291px)]
+        "
       >
+        {/* NAVBAR */}
 
-        {/* =================================================
-            BRAND / LOGO
-        ================================================= */}
-
-        <div className="px-5 pt-7 pb-5 shrink-0">
-
-          <button
-            type="button"
-            onClick={() =>
-              handleNavigation(
-                "/seller-dashboard"
-              )
-            }
-            className="w-full flex items-center gap-3 text-left"
-          >
-
-            {/* CM LOGO */}
-
-            <div className="w-11 h-11 mt-3 rounded-xl bg-green-800 border border-green-800 text-white flex items-center justify-center font-extrabold text-sm shadow-sm shrink-0">
-              CM
-            </div>
-
-            {/* CAMPUSMART BRAND */}
-
-            <div className="min-w-0">
-
-              <p className="text-lg mt-3 text-[26px] font-extrabold leading-none text-white">
-                CampusMart
-              </p>
-
-              <p className="text-[10px] text-green-100 mt-1.5 font-medium">
-                Buy. Sell. Grow
-              </p>
-
-            </div>
-
-          </button>
-
-        </div>
-
-        {/* =================================================
-            MENU
-        ================================================= */}
-
-        <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-5">
-
-          <nav className="space-y-1 mt-2">
-
-            {menuItems.map(
-              (item) => {
-                const Icon =
-                  item.icon;
-
-                const active =
-                  isActive(
-                    item.path
-                  );
-
-                return (
-                  <button
-                    key={
-                      item.path
-                    }
-                    type="button"
-                    onClick={() =>
-                      handleNavigation(
-                        item.path
-                      )
-                    }
-                    className={`
-                      w-full flex items-center gap-3
-                      px-3 py-3 rounded-xl
-                      text-sm font-medium transition
-                      ${
-                        active
-                          ? "bg-white text-green-700 shadow-sm"
-                          : "text-white hover:bg-green-600"
-                      }
-                    `}
-                  >
-
-                    <Icon size={18} />
-
-                    <span className="flex-1 text-left">
-                      {item.label}
-                    </span>
-
-                    {item.new && (
-                      <span className="px-1.5 py-0.5 rounded-md bg-yellow-400 text-green-900 text-[8px] font-bold">
-                        NEW
-                      </span>
-                    )}
-
-                    {item.badge >
-                      0 && (
-                      <span className="min-w-5 h-5 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
-                        {item.badge >
-                        99
-                          ? "99+"
-                          : item.badge}
-                      </span>
-                    )}
-
-                  </button>
-                );
-              }
-            )}
-
-          </nav>
-
-        </div>
-
-        {/* =================================================
-            LOGOUT
-        ================================================= */}
-
-        <div className="px-3 pb-4 shrink-0">
-
-          <button
-            type="button"
-            onClick={
-              handleLogout
-            }
-            className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium text-white hover:bg-green-600"
-          >
-            <FiLogOut
-              size={18}
-            />
-
-            Logout
-
-          </button>
-
-        </div>
-
-      </aside>
-
-      {/* =================================================
-          MAIN AREA
-      ================================================= */}
-
-      <div className="flex-1 min-w-0 lg:ml-[270px] flex flex-col h-[100dvh]">
-
-        {/* =================================================
-            NAVBAR
-        ================================================= */}
-
-        <header className="h-[70px] sm:h-[86px] bg-green-800 text-white flex items-center px-3 sm:px-6 gap-3 sm:gap-4 shrink-0">
-
+        <header
+          className="
+            min-h-[70px]
+            bg-[#007233]
+            text-white
+            flex
+            items-center
+            px-3
+            sm:px-5
+            lg:px-8
+            py-3
+            gap-2
+            sm:gap-4
+            flex-shrink-0
+          "
+        >
           <button
             type="button"
             onClick={() =>
               setSidebarOpen(true)
             }
-            className="lg:hidden w-10 h-10 rounded-full hover:bg-green-700 flex items-center justify-center shrink-0"
+            aria-label="Open sidebar"
+            className="
+              lg:hidden
+              w-10
+              h-10
+              min-w-[40px]
+              rounded-lg
+              hover:bg-white/10
+              active:bg-white/20
+              flex
+              items-center
+              justify-center
+              flex-shrink-0
+            "
           >
-            <FiMenu size={23} />
+            <FiMenu size={24} />
           </button>
 
           <div className="relative flex-1 min-w-0 max-w-[500px]">
-
             <FiSearch
               size={17}
               className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
@@ -1789,11 +1713,9 @@ function SellerChat({
               placeholder="Search messages..."
               className="w-full h-10 bg-white text-gray-800 rounded-full pl-11 pr-4 text-sm outline-none"
             />
-
           </div>
 
           <div className="ml-auto flex items-center gap-2 shrink-0">
-
             <button
               type="button"
               onClick={() =>
@@ -1801,23 +1723,21 @@ function SellerChat({
                   "/seller/messages"
                 )
               }
-              className="relative w-9 h-9 rounded-full hover:bg-green-700 flex items-center justify-center"
+              className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-full hover:bg-white/10 active:bg-white/20 flex items-center justify-center transition flex-shrink-0"
             >
-
               <FiMessageCircle
                 size={19}
               />
 
               {unreadMessages >
                 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center">
+                <span className="absolute -top-0.5 -right-0.5 min-w-[17px] h-[17px] px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
                   {unreadMessages >
                   9
                     ? "9+"
                     : unreadMessages}
                 </span>
               )}
-
             </button>
 
             <button
@@ -1827,9 +1747,21 @@ function SellerChat({
                   "/seller/profile"
                 )
               }
-              className="flex items-center gap-2 rounded-full bg-green-700 hover:bg-green-600 px-1.5 sm:px-2 py-1.5"
+              className="
+                flex
+                items-center
+                gap-2
+                ml-0.5
+                hover:bg-white/10
+                active:bg-white/20
+                rounded-lg
+                px-1
+                sm:px-1.5
+                py-1.5
+                transition
+                flex-shrink-0
+              "
             >
-
               {sellerImage ? (
                 <img
                   src={sellerImage}
@@ -1839,52 +1771,81 @@ function SellerChat({
                   onError={
                     handleProfileImageError
                   }
-                  className="w-8 h-8 rounded-full object-cover bg-green-50"
+                  className="
+                    w-8
+                    h-8
+                    sm:w-9
+                    sm:h-9
+                    rounded-full
+                    object-cover
+                    border-2
+                    border-white/30
+                  "
                 />
               ) : (
-                <div className="w-8 h-8 rounded-full bg-white text-green-700 flex items-center justify-center font-bold text-xs">
+                <div
+                  className="
+                    w-8
+                    h-8
+                    sm:w-9
+                    sm:h-9
+                    rounded-full
+                    bg-gray-200
+                    text-gray-700
+                    flex
+                    items-center
+                    justify-center
+                    font-bold
+                    text-sm
+                    border-2
+                    border-white/30
+                    flex-shrink-0
+                  "
+                >
                   {getInitial(
                     sellerFullName
                   )}
                 </div>
               )}
 
-              <div className="hidden sm:block text-left pr-2">
-
-                <p className="text-xs font-bold">
+              <div className="hidden sm:block text-left">
+                <p
+                  className="
+                    text-xs
+                    font-bold
+                    leading-4
+                    max-w-[180px]
+                    truncate
+                  "
+                  title={sellerFullName}
+                >
                   {sellerFullName}
                 </p>
 
-                <p className="text-[9px] text-green-100 mt-1">
+                <p
+                  className="
+                    text-[10px]
+                    text-green-100
+                    mt-0.5
+                  "
+                >
                   Seller
                 </p>
-
               </div>
-
             </button>
-
           </div>
-
         </header>
 
-        {/* =================================================
-            CHAT
-        ================================================= */}
+        {/* CHAT */}
 
         <main className="flex-1 min-h-0 overflow-hidden p-0 sm:p-4 lg:p-7">
-
           <div className="h-full min-h-0 w-full bg-white sm:rounded-xl lg:rounded-2xl border border-green-100 overflow-hidden flex flex-col shadow-sm">
-
-            {/* =================================================
-                CHAT HEADER
-            ================================================= */}
+            {/* CHAT HEADER */}
 
             <div className="flex items-center gap-2 sm:gap-3 px-2.5 sm:px-6 py-2.5 sm:py-4 border-b border-green-100 bg-white shrink-0 z-30">
-
               {selectedMessageIds.length >
               0 ? (
                 <>
-
                   <button
                     type="button"
                     onClick={
@@ -1899,7 +1860,6 @@ function SellerChat({
                   </button>
 
                   <div className="flex-1 min-w-0">
-
                     <p className="font-bold text-gray-800">
                       {
                         selectedMessageIds.length
@@ -1911,7 +1871,6 @@ function SellerChat({
                       Choose delete to
                       continue
                     </p>
-
                   </div>
 
                   <button
@@ -1924,7 +1883,6 @@ function SellerChat({
                     }
                     className="h-10 px-3 sm:px-4 rounded-xl bg-green-600 hover:bg-green-700 text-white flex items-center gap-2 font-semibold text-sm shrink-0"
                   >
-
                     <FiTrash2
                       size={17}
                     />
@@ -1932,13 +1890,10 @@ function SellerChat({
                     <span className="hidden sm:inline">
                       Delete
                     </span>
-
                   </button>
-
                 </>
               ) : (
                 <>
-
                   <button
                     type="button"
                     onClick={() =>
@@ -1997,7 +1952,6 @@ function SellerChat({
                   {/* BUYER NAME */}
 
                   <div className="flex-1 min-w-0">
-
                     <h2 className="
                       font-bold
                       text-gray-800
@@ -2009,7 +1963,6 @@ function SellerChat({
                     </h2>
 
                     <div className="flex items-center gap-1.5">
-
                       <span className="
                         w-1.5
                         h-1.5
@@ -2025,19 +1978,13 @@ function SellerChat({
                       ">
                         Buyer
                       </p>
-
                     </div>
-
                   </div>
-
                 </>
               )}
-
             </div>
 
-            {/* =================================================
-                MESSAGES BODY
-            ================================================= */}
+            {/* MESSAGES BODY */}
 
             <div className="
               flex-1
@@ -2053,22 +2000,16 @@ function SellerChat({
               to-gray-50
               [scrollbar-width:thin]
             ">
-
               <div className="text-center mb-3 sm:mb-5">
-
                 <span className="inline-block bg-white text-green-600 text-[10px] sm:text-xs font-medium px-3 py-1.5 rounded-full border border-green-100 shadow-sm">
-
                   Conversation with{" "}
                   {buyerName}
-
                 </span>
-
               </div>
 
               {searchedMessages.length ===
                 0 && (
                 <div className="text-center py-10">
-
                   <div className="w-14 h-14 mx-auto rounded-full bg-green-100 text-green-600 flex items-center justify-center mb-3">
                     <FiSend size={22} />
                   </div>
@@ -2084,7 +2025,6 @@ function SellerChat({
                       ? "Try another search."
                       : "Send a message to start the conversation."}
                   </p>
-
                 </div>
               )}
 
@@ -2118,7 +2058,6 @@ function SellerChat({
                           : "justify-start"
                       }`}
                     >
-
                       <button
                         type="button"
                         onClick={() =>
@@ -2146,16 +2085,13 @@ function SellerChat({
                           }
                         `}
                       >
-
                         {selected && (
                           <div className="flex justify-end mb-1">
-
                             <span className="w-5 h-5 rounded-full bg-white text-green-600 flex items-center justify-center">
                               <FiCheck
                                 size={13}
                               />
                             </span>
-
                           </div>
                         )}
 
@@ -2176,7 +2112,6 @@ function SellerChat({
                             text-green-100
                           "
                         >
-
                           <span>
                             {formatMessageTime(
                               message
@@ -2188,23 +2123,17 @@ function SellerChat({
                               message
                             }
                           />
-
                         </div>
-
                       </button>
-
                     </div>
                   );
                 }
               )}
 
               <div className="h-1 shrink-0" />
-
             </div>
 
-            {/* =================================================
-                INPUT
-            ================================================= */}
+            {/* INPUT */}
 
             {selectedMessageIds.length ===
               0 && (
@@ -2222,9 +2151,7 @@ function SellerChat({
                   z-40
                 "
               >
-
                 <div className="flex items-center gap-2 w-full">
-
                   <input
                     type="text"
                     value={messageText}
@@ -2284,7 +2211,6 @@ function SellerChat({
                       transition
                     "
                   >
-
                     {sending ? (
                       <span className="w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
                     ) : (
@@ -2292,17 +2218,12 @@ function SellerChat({
                         size={18}
                       />
                     )}
-
                   </button>
-
                 </div>
-
               </div>
             )}
 
-            {/* =================================================
-                DELETE MENU
-            ================================================= */}
+            {/* DELETE MENU */}
 
             {showDeleteMenu && (
               <div
@@ -2315,18 +2236,14 @@ function SellerChat({
                   }
                 }}
               >
-
                 <div
                   className="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden border border-green-100"
                   onClick={(e) =>
                     e.stopPropagation()
                   }
                 >
-
                   <div className="p-5 border-b border-green-100 bg-green-50">
-
                     <div className="flex items-center gap-3">
-
                       <div className="w-10 h-10 rounded-full bg-green-100 text-green-700 flex items-center justify-center">
                         <FiTrash2
                           size={18}
@@ -2334,7 +2251,6 @@ function SellerChat({
                       </div>
 
                       <div>
-
                         <h3 className="text-lg font-bold text-gray-900">
                           Delete message
                           {selectedMessageIds.length >
@@ -2346,11 +2262,8 @@ function SellerChat({
                         <p className="text-sm text-gray-500">
                           Choose an option
                         </p>
-
                       </div>
-
                     </div>
-
                   </div>
 
                   <button
@@ -2365,15 +2278,12 @@ function SellerChat({
                     }
                     className="w-full text-left px-5 py-4 hover:bg-green-50 border-b border-gray-100"
                   >
-
                     <div className="flex items-center gap-3">
-
                       <FiTrash2
                         size={16}
                       />
 
                       <div>
-
                         <p className="font-semibold text-gray-800">
                           Delete for me
                         </p>
@@ -2382,11 +2292,8 @@ function SellerChat({
                           Remove from your
                           chat only.
                         </p>
-
                       </div>
-
                     </div>
-
                   </button>
 
                   {canDeleteForEveryone && (
@@ -2402,15 +2309,12 @@ function SellerChat({
                       }
                       className="w-full text-left px-5 py-4 hover:bg-green-50 border-b border-gray-100"
                     >
-
                       <div className="flex items-center gap-3">
-
                         <FiTrash2
                           size={16}
                         />
 
                         <div>
-
                           <p className="font-semibold text-green-700">
                             Delete for
                             everyone
@@ -2421,16 +2325,12 @@ function SellerChat({
                             message for
                             everyone.
                           </p>
-
                         </div>
-
                       </div>
-
                     </button>
                   )}
 
                   <div className="p-4 bg-gray-50">
-
                     <button
                       type="button"
                       disabled={
@@ -2445,20 +2345,13 @@ function SellerChat({
                     >
                       Cancel
                     </button>
-
                   </div>
-
                 </div>
-
               </div>
             )}
-
           </div>
-
         </main>
-
       </div>
-
     </div>
   );
 }
