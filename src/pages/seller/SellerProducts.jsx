@@ -11,8 +11,6 @@ import {
   FiShoppingBag,
   FiMessageCircle,
   FiDollarSign,
-  FiStar,
-  FiBarChart2,
   FiTag,
   FiUser,
   FiSettings,
@@ -270,11 +268,9 @@ function SellerProducts({
   const [formError, setFormError] =
     useState("");
 
-  // Selected image from the user's gallery/device.
   const [selectedImageFile, setSelectedImageFile] =
     useState(null);
 
-  // Temporary preview URL for a newly selected image.
   const [imagePreview, setImagePreview] =
     useState("");
 
@@ -296,15 +292,6 @@ function SellerProducts({
 
   // =====================================================
   // FIRESTORE PRODUCT LISTENER
-  // =====================================================
-  //
-  // IMPORTANT:
-  // Every seller has sellerId = firebaseUser.uid.
-  //
-  // This listener makes the seller dashboard update
-  // automatically whenever the seller's products change.
-  //
-  // Firestore is now the source of truth.
   // =====================================================
 
   useEffect(() => {
@@ -379,7 +366,6 @@ function SellerProducts({
             };
           });
 
-        // Newest products first.
         loadedProducts.sort((a, b) => {
           const aTime =
             a.createdAt?.seconds ||
@@ -436,7 +422,7 @@ function SellerProducts({
     firebaseUser?.photoURL || null;
 
   // =====================================================
-  // MENU ITEMS
+  // MENU ITEMS (Reviews & Analytics removed)
   // =====================================================
 
   const menuItems = [
@@ -465,16 +451,6 @@ function SellerProducts({
       label: "Earnings",
       icon: FiDollarSign,
       path: "/seller/earnings",
-    },
-    {
-      label: "Reviews",
-      icon: FiStar,
-      path: "/seller/reviews",
-    },
-    {
-      label: "Analytics",
-      icon: FiBarChart2,
-      path: "/seller/analytics",
     },
     {
       label: "Promotions",
@@ -631,14 +607,12 @@ function SellerProducts({
 
     if (!file) return;
 
-    // Allow common image formats only.
     if (!file.type.startsWith("image/")) {
       setFormError("Please select a valid image file.");
       event.target.value = "";
       return;
     }
 
-    // Keep uploads reasonably small.
     const maxSize = 5 * 1024 * 1024;
 
     if (file.size > maxSize) {
@@ -649,7 +623,6 @@ function SellerProducts({
 
     setSelectedImageFile(file);
 
-    // Create a local preview immediately.
     const previewUrl = URL.createObjectURL(file);
     setImagePreview((oldUrl) => {
       if (oldUrl) URL.revokeObjectURL(oldUrl);
@@ -661,15 +634,6 @@ function SellerProducts({
 
   // =====================================================
   // CLOUDINARY IMAGE UPLOAD
-  // =====================================================
-  //
-  // IMPORTANT:
-  // Create these two values in your Cloudinary dashboard:
-  //
-  // 1. CLOUDINARY_CLOUD_NAME
-  // 2. CLOUDINARY_UPLOAD_PRESET
-  //
-  // Replace the values below with yours.
   // =====================================================
 
   const CLOUDINARY_CLOUD_NAME = "quj7ewsm";
@@ -697,7 +661,6 @@ function SellerProducts({
       CLOUDINARY_UPLOAD_PRESET
     );
 
-    // Keep CampusMart product images organized.
     formData.append(
       "folder",
       `campusmart/products/${firebaseUser.uid}`
@@ -733,21 +696,6 @@ function SellerProducts({
 
   // =====================================================
   // SAVE PRODUCT TO FIRESTORE
-  // =====================================================
-  //
-  // IMPORTANT:
-  // Firestore is saved FIRST.
-  //
-  // This means a Cloudinary problem will never leave the
-  // Add Product button stuck on "Saving..." forever.
-  //
-  // If a gallery image is selected:
-  //   1. Product is created with an empty image.
-  //   2. Modal closes immediately after Firestore succeeds.
-  //   3. Cloudinary uploads the image.
-  //   4. Firestore is updated with the Cloudinary URL.
-  //
-  // URL images are saved directly with the product.
   // =====================================================
 
   const handleSaveProduct = async (event) => {
@@ -803,16 +751,10 @@ function SellerProducts({
     setFormError("");
 
     try {
-      // =================================================
-      // EDIT EXISTING PRODUCT
-      // =================================================
-
       if (editingProduct) {
         let imageUrl =
           productForm.image.trim();
 
-        // If editing and a new gallery image was
-        // selected, upload it before updating.
         if (selectedImageFile) {
           imageUrl = await uploadProductImage(
             selectedImageFile
@@ -841,13 +783,6 @@ function SellerProducts({
         return;
       }
 
-      // =================================================
-      // ADD NEW PRODUCT
-      // =================================================
-
-      // URL images can be saved immediately.
-      // Gallery images are uploaded after Firestore
-      // confirms the product was created.
       const initialImageUrl =
         selectedImageFile
           ? ""
@@ -883,20 +818,11 @@ function SellerProducts({
         }
       );
 
-      // Keep a reference before resetting the form.
       const imageFileToUpload =
         selectedImageFile;
 
-      // =================================================
-      // CLOSE THE FORM IMMEDIATELY AFTER PRODUCT CREATION
-      // =================================================
-
       setShowProductModal(false);
       resetProductForm();
-
-      // =================================================
-      // UPLOAD GALLERY IMAGE IN THE BACKGROUND
-      // =================================================
 
       if (imageFileToUpload) {
         try {
@@ -918,10 +844,6 @@ function SellerProducts({
             "Product was created, but image upload failed:",
             imageError
           );
-
-          // The product remains in Firestore.
-          // The seller can edit it later and upload
-          // another image.
         }
       }
     } catch (error) {
@@ -1806,7 +1728,117 @@ function SellerProducts({
           "
         >
 
-          {/* PAGE HEADER */}
+          {/* ================================================= */}
+          {/* DARK GREEN BANNER (matches Earnings style) */}
+          {/* ================================================= */}
+
+          <div
+            className="
+              relative
+              overflow-hidden
+              rounded-2xl
+              bg-gradient-to-r
+              from-[#007233]
+                to-[#008f3f]
+               
+              p-6
+              sm:p-7
+              text-white
+              shadow-lg
+              shadow-green-700/20
+              mb-6
+            "
+          >
+            {/* Decorative circles */}
+            <div
+              className="
+                pointer-events-none
+                absolute
+                -right-8
+                -top-10
+                h-40
+                w-40
+                rounded-full
+                bg-white/10
+              "
+            />
+            <div
+              className="
+                pointer-events-none
+                absolute
+                -right-2
+                top-16
+                h-28
+                w-28
+                rounded-full
+                bg-white/10
+              "
+            />
+            <div
+              className="
+                pointer-events-none
+                absolute
+                right-24
+                -bottom-12
+                h-32
+                w-32
+                rounded-full
+                bg-white/5
+              "
+            />
+
+            {/* Pill label */}
+            <div
+              className="
+                relative
+                inline-flex
+                items-center
+                gap-1.5
+                rounded-full
+                bg-white/15
+                px-3
+                py-1
+                text-xs
+                font-medium
+                text-green-50
+                backdrop-blur-sm
+              "
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-green-300" />
+              Products
+            </div>
+
+            {/* Title — first name only */}
+            <h1
+              className="
+                relative
+                mt-3
+                text-2xl
+                sm:text-3xl
+                font-bold
+                tracking-tight
+              "
+            >
+              Your Products, {sellerFirstName}
+            </h1>
+
+            {/* Subtitle */}
+            <p
+              className="
+                relative
+                mt-2
+                max-w-xl
+                text-sm
+                sm:text-[15px]
+                text-green-100
+                leading-relaxed
+              "
+            >
+              Manage your products, track sales, and keep your store up to date.
+            </p>
+          </div>
+
+          {/* PAGE HEADER / ADD PRODUCT */}
 
           <section className="mb-6">
 
@@ -1844,17 +1876,17 @@ function SellerProducts({
                   </div>
 
                   <div>
-                    <h1
+                    <h2
                       className="
-                        text-2xl
-                        sm:text-3xl
+                        text-xl
+                        sm:text-2xl
                         font-bold
                         text-gray-800
                         tracking-tight
                       "
                     >
-                      Products
-                    </h1>
+                      Product Catalog
+                    </h2>
 
                     <p className="text-xs sm:text-sm text-gray-500 mt-1">
                       Manage your products and sales.
@@ -2149,505 +2181,238 @@ function SellerProducts({
                 sm:p-5
                 border-b
                 border-green-50
+                flex
+                flex-col
+                lg:flex-row
+                lg:items-center
+                gap-3
+                lg:gap-4
               "
             >
-              <div
-                className="
-                  flex
-                  flex-col
-                  xl:flex-row
-                  xl:items-center
-                  xl:justify-between
-                  gap-3
-                "
-              >
-
-                <div
+              <div className="relative flex-1">
+                <FiSearch
                   className="
-                    relative
+                    absolute
+                    left-3.5
+                    top-1/2
+                    -translate-y-1/2
+                    text-gray-400
+                  "
+                  size={17}
+                />
+
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) =>
+                    setSearchTerm(
+                      e.target.value
+                    )
+                  }
+                  placeholder="Search products..."
+                  className="
                     w-full
-                    xl:max-w-md
+                    h-11
+                    pl-10
+                    pr-4
+                    rounded-xl
+                    border
+                    border-gray-200
+                    bg-gray-50
+                    text-sm
+                    outline-none
+                    focus:border-[#008236]
+                    focus:ring-4
+                    focus:ring-green-50
+                    transition
                   "
-                >
-                  <FiSearch
-                    size={17}
-                    className="
-                      absolute
-                      left-3.5
-                      top-1/2
-                      -translate-y-1/2
-                      text-[#008236]
-                    "
-                  />
+                />
+              </div>
 
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(event) =>
-                      setSearchTerm(
-                        event.target.value
-                      )
-                    }
-                    placeholder="Search products..."
-                    className="
-                      w-full
-                      h-11
-                      pl-10
-                      pr-4
-                      rounded-xl
-                      border
-                      border-green-100
-                      bg-green-50/30
-                      text-sm
-                      text-gray-700
-                      placeholder:text-gray-400
-                      outline-none
-                      focus:border-[#008236]
-                      focus:ring-4
-                      focus:ring-green-50
-                      transition
-                    "
-                  />
-                </div>
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                <GreenDropdown
+                  value={selectedCategory}
+                  options={categories}
+                  onChange={setSelectedCategory}
+                  className="w-full sm:w-[180px]"
+                />
 
-                <div
-                  className="
-                    hidden
-                    md:flex
-                    items-center
-                    gap-2
-                  "
-                >
-                  <GreenDropdown
-                    value={
-                      selectedCategory
-                    }
-                    options={categories}
-                    onChange={
-                      setSelectedCategory
-                    }
-                    className="w-[180px]"
-                  />
-
-                  <GreenDropdown
-                    value={
-                      selectedStatus
-                    }
-                    options={
-                      statusOptions
-                    }
-                    onChange={
-                      setSelectedStatus
-                    }
-                    className="w-[150px]"
-                  />
-
-                  <div
-                    className="
-                      h-11
-                      p-1
-                      rounded-xl
-                      bg-green-50
-                      border
-                      border-green-100
-                      flex
-                      items-center
-                    "
-                  >
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setViewMode(
-                          "table"
-                        )
-                      }
-                      className={`
-                        h-9
-                        px-3
-                        rounded-lg
-                        text-xs
-                        font-semibold
-                        transition
-                        ${
-                          viewMode ===
-                          "table"
-                            ? "bg-white text-[#008236] shadow-sm"
-                            : "text-gray-400 hover:text-[#008236]"
-                        }
-                      `}
-                    >
-                      Table
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setViewMode(
-                          "cards"
-                        )
-                      }
-                      className={`
-                        h-9
-                        px-3
-                        rounded-lg
-                        text-xs
-                        font-semibold
-                        transition
-                        ${
-                          viewMode ===
-                          "cards"
-                            ? "bg-white text-[#008236] shadow-sm"
-                            : "text-gray-400 hover:text-[#008236]"
-                        }
-                      `}
-                    >
-                      Cards
-                    </button>
-                  </div>
-                </div>
+                <GreenDropdown
+                  value={selectedStatus}
+                  options={statusOptions}
+                  onChange={setSelectedStatus}
+                  className="w-full sm:w-[150px]"
+                />
 
                 <button
                   type="button"
                   onClick={() =>
-                    setShowFilters(
-                      !showFilters
+                    setViewMode(
+                      viewMode === "table"
+                        ? "grid"
+                        : "table"
                     )
                   }
                   className="
-                    md:hidden
-                    h-10
-                    px-3
+                    h-11
+                    px-4
                     rounded-xl
                     border
-                    border-green-100
-                    bg-green-50
-                    text-[#008236]
-                    text-xs
-                    font-semibold
+                    border-gray-200
+                    bg-white
+                    text-gray-600
+                    text-sm
+                    font-medium
+                    hover:bg-green-50
+                    hover:text-[#008236]
+                    hover:border-green-200
+                    transition
                     flex
                     items-center
-                    justify-center
                     gap-2
                   "
                 >
-                  <FiFilter size={15} />
-                  Filters
+                  <FiFilter size={16} />
+                  {viewMode === "table"
+                    ? "Grid"
+                    : "Table"}
                 </button>
               </div>
-
-              {showFilters && (
-                <div
-                  className="
-                    md:hidden
-                    grid
-                    grid-cols-1
-                    sm:grid-cols-2
-                    gap-3
-                    mt-3
-                    pt-3
-                    border-t
-                    border-green-50
-                  "
-                >
-                  <GreenDropdown
-                    value={
-                      selectedCategory
-                    }
-                    options={categories}
-                    onChange={
-                      setSelectedCategory
-                    }
-                    className="w-full"
-                  />
-
-                  <GreenDropdown
-                    value={
-                      selectedStatus
-                    }
-                    options={
-                      statusOptions
-                    }
-                    onChange={
-                      setSelectedStatus
-                    }
-                    className="w-full"
-                  />
-                </div>
-              )}
             </div>
 
-            {/* RESULT COUNT */}
-
-            <div
-              className="
-                px-5
-                py-3
-                bg-green-50/30
-                border-b
-                border-green-50
-                flex
-                items-center
-                justify-between
-                gap-3
-              "
-            >
-              <p className="text-xs text-gray-500">
-                Showing{" "}
-                <span className="font-semibold text-[#008236]">
-                  {filteredProducts.length}
-                </span>{" "}
-                of{" "}
-                <span className="font-semibold text-gray-700">
-                  {products.length}
-                </span>{" "}
-                products
-              </p>
-
-              {(searchTerm ||
-                selectedCategory !==
-                  "All Categories" ||
-                selectedStatus !==
-                  "All Status") && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchTerm("");
-                    setSelectedCategory(
-                      "All Categories"
-                    );
-                    setSelectedStatus(
-                      "All Status"
-                    );
-                  }}
-                  className="
-                    text-[11px]
-                    font-semibold
-                    text-[#008236]
-                    hover:underline
-                  "
-                >
-                  Clear filters
-                </button>
-              )}
-            </div>
-
-            {/* LOADING */}
+            {/* LOADING / EMPTY / LIST */}
 
             {loadingProducts ? (
-              <div
-                className="
-                  min-h-[400px]
-                  flex
-                  flex-col
-                  items-center
-                  justify-center
-                  px-6
-                  text-center
-                "
-              >
+              <div className="py-20 text-center">
+                <FiRefreshCw
+                  size={28}
+                  className="mx-auto text-[#008236] animate-spin"
+                />
+                <p className="text-sm text-gray-500 mt-3">
+                  Loading products...
+                </p>
+              </div>
+            ) : filteredProducts.length === 0 ? (
+              <div className="py-16 px-6 text-center">
                 <div
                   className="
-                    w-14
-                    h-14
+                    w-16
+                    h-16
+                    mx-auto
                     rounded-2xl
                     bg-green-50
-                    text-[#008236]
                     flex
                     items-center
                     justify-center
-                    mb-4
+                    border
+                    border-green-100
                   "
                 >
-                  <FiRefreshCw
-                    size={25}
-                    className="animate-spin"
+                  <FiPackage
+                    className="text-[#008236]"
+                    size={28}
                   />
                 </div>
 
-                <h3 className="text-base font-bold text-gray-800">
-                  Loading products...
+                <h3 className="font-semibold text-gray-800 mt-4">
+                  {searchTerm ||
+                  selectedCategory !==
+                    "All Categories" ||
+                  selectedStatus !== "All Status"
+                    ? "No products found"
+                    : "No products yet"}
                 </h3>
 
-                <p className="text-xs text-gray-500 mt-1">
-                  Connecting to your CampusMart store.
-                </p>
-              </div>
-            ) : filteredProducts.length ===
-              0 ? (
-              /* EMPTY STATE */
-
-              <div
-                className="
-                  min-h-[400px]
-                  flex
-                  flex-col
-                  items-center
-                  justify-center
-                  px-6
-                  text-center
-                "
-              >
-                <div
-                  className="
-                    w-20
-                    h-20
-                    rounded-3xl
-                    bg-green-50
-                    text-[#008236]
-                    border
-                    border-green-100
-                    flex
-                    items-center
-                    justify-center
-                    mb-5
-                  "
-                >
-                  <FiBox size={34} />
-                </div>
-
-                <h3 className="text-lg font-bold text-gray-800">
-                  No products found
-                </h3>
-
-                <p className="text-sm text-gray-500 max-w-md mt-2 leading-6">
-                  {products.length ===
-                  0
-                    ? "You haven't added any products yet. Add your first product to start selling on CampusMart."
-                    : "We couldn't find any products matching your current search or filters."}
+                <p className="text-sm text-gray-500 mt-1 max-w-sm mx-auto">
+                  {searchTerm ||
+                  selectedCategory !==
+                    "All Categories" ||
+                  selectedStatus !== "All Status"
+                    ? "Try adjusting your search or filters."
+                    : "Add your first product to start selling on CampusMart."}
                 </p>
 
-                {products.length ===
-                0 ? (
-                  <button
-                    type="button"
-                    onClick={
-                      handleAddProduct
-                    }
-                    className="
-                      mt-5
-                      h-10
-                      px-5
-                      rounded-xl
-                      bg-[#008236]
-                      text-white
-                      text-sm
-                      font-semibold
-                      flex
-                      items-center
-                      gap-2
-                      hover:bg-[#006f2e]
-                      transition
-                    "
-                  >
-                    <FiPlus size={17} />
-                    Add Your First Product
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearchTerm("");
-                      setSelectedCategory(
-                        "All Categories"
-                      );
-                      setSelectedStatus(
-                        "All Status"
-                      );
-                    }}
-                    className="
-                      mt-5
-                      h-10
-                      px-5
-                      rounded-xl
-                      border
-                      border-green-200
-                      text-[#008236]
-                      text-sm
-                      font-semibold
-                      flex
-                      items-center
-                      gap-2
-                      hover:bg-green-50
-                      transition
-                    "
-                  >
-                    <FiRefreshCw
-                      size={15}
-                    />
-                    Reset Filters
-                  </button>
-                )}
+                {!searchTerm &&
+                  selectedCategory ===
+                    "All Categories" &&
+                  selectedStatus ===
+                    "All Status" && (
+                    <button
+                      type="button"
+                      onClick={handleAddProduct}
+                      className="
+                        mt-5
+                        h-11
+                        px-5
+                        rounded-xl
+                        bg-[#008236]
+                        text-white
+                        text-sm
+                        font-semibold
+                        inline-flex
+                        items-center
+                        gap-2
+                        hover:bg-[#006f2e]
+                        transition
+                      "
+                    >
+                      <FiPlus size={17} />
+                      Add Product
+                    </button>
+                  )}
               </div>
             ) : (
               <>
-                {/* DESKTOP TABLE */}
+                {/* TABLE VIEW */}
 
                 <div
                   className={`
-                    hidden
-                    md:block
-                    overflow-x-auto
                     ${
-                      viewMode ===
-                      "cards"
-                        ? "md:hidden"
-                        : ""
+                      viewMode === "table"
+                        ? "hidden md:block"
+                        : "hidden"
                     }
+                    overflow-x-auto
                   `}
                 >
-                  <table className="w-full min-w-[820px]">
-
+                  <table className="w-full text-left">
                     <thead>
-                      <tr className="border-b border-green-50 bg-green-50/20">
-
-                        <th className="px-5 py-4 text-left text-[10px] font-semibold text-[#008236] uppercase">
+                      <tr className="bg-green-50/50 border-b border-green-100">
+                        <th className="px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                           Product
                         </th>
-
-                        <th className="px-4 py-4 text-left text-[10px] font-semibold text-[#008236] uppercase">
+                        <th className="px-4 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                           Category
                         </th>
-
-                        <th className="px-4 py-4 text-left text-[10px] font-semibold text-[#008236] uppercase">
+                        <th className="px-4 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                           Price
                         </th>
-
-                        <th className="px-4 py-4 text-left text-[10px] font-semibold text-[#008236] uppercase">
+                        <th className="px-4 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                           Sales
                         </th>
-
-                        <th className="px-4 py-4 text-left text-[10px] font-semibold text-[#008236] uppercase">
+                        <th className="px-4 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                           Status
                         </th>
-
-                        <th className="px-5 py-4 text-right text-[10px] font-semibold text-[#008236] uppercase">
+                        <th className="px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">
                           Actions
                         </th>
-
                       </tr>
                     </thead>
 
                     <tbody>
-
                       {filteredProducts.map(
                         (product) => (
                           <tr
-                            key={
-                              product.id
-                            }
+                            key={product.id}
                             className="
                               border-b
                               border-gray-50
-                              last:border-b-0
                               hover:bg-green-50/30
                               transition
                             "
                           >
-
                             <td className="px-5 py-4">
-
                               <div className="flex items-center gap-3">
-
                                 <div
                                   className="
                                     w-12
@@ -2662,38 +2427,18 @@ function SellerProducts({
                                 >
                                   {product.image ? (
                                     <img
-                                      src={
-                                        product.image
-                                      }
-                                      alt={
-                                        product.name
-                                      }
-                                      className="
-                                        w-full
-                                        h-full
-                                        object-cover
-                                      "
+                                      src={product.image}
+                                      alt={product.name}
+                                      className="w-full h-full object-cover"
                                     />
                                   ) : (
-                                    <div
-                                      className="
-                                        w-full
-                                        h-full
-                                        flex
-                                        items-center
-                                        justify-center
-                                        text-[#008236]
-                                      "
-                                    >
-                                      <FiPackage
-                                        size={20}
-                                      />
+                                    <div className="w-full h-full flex items-center justify-center text-[#008236]">
+                                      <FiPackage size={20} />
                                     </div>
                                   )}
                                 </div>
 
                                 <div className="min-w-0">
-
                                   <p
                                     className="
                                       text-sm
@@ -2702,30 +2447,18 @@ function SellerProducts({
                                       max-w-[220px]
                                       truncate
                                     "
-                                    title={
-                                      product.name
-                                    }
+                                    title={product.name}
                                   >
-                                    {
-                                      product.name
-                                    }
+                                    {product.name}
                                   </p>
-
                                   <p className="text-[10px] text-gray-400 mt-1">
-                                    ID:{" "}
-                                    {
-                                      product.id
-                                    }
+                                    ID: {product.id}
                                   </p>
-
                                 </div>
-
                               </div>
-
                             </td>
 
                             <td className="px-4 py-4">
-
                               <span
                                 className="
                                   inline-flex
@@ -2740,39 +2473,26 @@ function SellerProducts({
                                   font-semibold
                                 "
                               >
-                                {
-                                  product.category
-                                }
+                                {product.category}
                               </span>
-
                             </td>
 
                             <td className="px-4 py-4">
-
                               <p className="text-sm font-bold text-gray-800 whitespace-nowrap">
-                                {formatNaira(
-                                  product.price
-                                )}
+                                {formatNaira(product.price)}
                               </p>
-
                             </td>
 
                             <td className="px-4 py-4">
-
                               <p className="text-sm font-semibold text-gray-700">
-                                {
-                                  product.sales
-                                }
+                                {product.sales}
                               </p>
-
                               <p className="text-[10px] text-gray-400 mt-0.5">
                                 sold
                               </p>
-
                             </td>
 
                             <td className="px-4 py-4">
-
                               <span
                                 className={`
                                   inline-flex
@@ -2783,32 +2503,20 @@ function SellerProducts({
                                   rounded-full
                                   text-[10px]
                                   font-semibold
-                                  ${getStatusClasses(
-                                    product.status
-                                  )}
+                                  ${getStatusClasses(product.status)}
                                 `}
                               >
-                                {getStatusIcon(
-                                  product.status
-                                )}
-
-                                {
-                                  product.status
-                                }
+                                {getStatusIcon(product.status)}
+                                {product.status}
                               </span>
-
                             </td>
 
                             <td className="px-5 py-4">
-
                               <div className="flex items-center justify-end gap-1">
-
                                 <button
                                   type="button"
                                   onClick={() =>
-                                    handleEditProduct(
-                                      product
-                                    )
+                                    handleEditProduct(product)
                                   }
                                   className="
                                     w-9
@@ -2824,17 +2532,13 @@ function SellerProducts({
                                   "
                                   title="Edit product"
                                 >
-                                  <FiEdit2
-                                    size={16}
-                                  />
+                                  <FiEdit2 size={16} />
                                 </button>
 
                                 <button
                                   type="button"
                                   onClick={() =>
-                                    setDeleteProduct(
-                                      product
-                                    )
+                                    setDeleteProduct(product)
                                   }
                                   className="
                                     w-9
@@ -2850,23 +2554,16 @@ function SellerProducts({
                                   "
                                   title="Delete product"
                                 >
-                                  <FiTrash2
-                                    size={16}
-                                  />
+                                  <FiTrash2 size={16} />
                                 </button>
 
                                 <div className="relative">
-
                                   <button
                                     type="button"
-                                    onClick={(
-                                      event
-                                    ) => {
+                                    onClick={(event) => {
                                       event.stopPropagation();
-
                                       setOpenMenu(
-                                        openMenu ===
-                                          product.id
+                                        openMenu === product.id
                                           ? null
                                           : product.id
                                       );
@@ -2884,17 +2581,12 @@ function SellerProducts({
                                       transition
                                     "
                                   >
-                                    <FiMoreVertical
-                                      size={17}
-                                    />
+                                    <FiMoreVertical size={17} />
                                   </button>
 
-                                  {openMenu ===
-                                    product.id && (
+                                  {openMenu === product.id && (
                                     <div
-                                      onClick={(
-                                        event
-                                      ) =>
+                                      onClick={(event) =>
                                         event.stopPropagation()
                                       }
                                       className="
@@ -2914,9 +2606,7 @@ function SellerProducts({
                                       <button
                                         type="button"
                                         onClick={() =>
-                                          handleEditProduct(
-                                            product
-                                          )
+                                          handleEditProduct(product)
                                         }
                                         className="
                                           w-full
@@ -2933,21 +2623,15 @@ function SellerProducts({
                                           text-left
                                         "
                                       >
-                                        <FiEdit2
-                                          size={14}
-                                        />
+                                        <FiEdit2 size={14} />
                                         Edit Product
                                       </button>
 
                                       <button
                                         type="button"
                                         onClick={() => {
-                                          setDeleteProduct(
-                                            product
-                                          );
-                                          setOpenMenu(
-                                            null
-                                          );
+                                          setDeleteProduct(product);
+                                          setOpenMenu(null);
                                         }}
                                         className="
                                           w-full
@@ -2963,26 +2647,18 @@ function SellerProducts({
                                           text-left
                                         "
                                       >
-                                        <FiTrash2
-                                          size={14}
-                                        />
+                                        <FiTrash2 size={14} />
                                         Delete Product
                                       </button>
                                     </div>
                                   )}
-
                                 </div>
-
                               </div>
-
                             </td>
-
                           </tr>
                         )
                       )}
-
                     </tbody>
-
                   </table>
                 </div>
 
@@ -2991,8 +2667,7 @@ function SellerProducts({
                 <div
                   className={`
                     ${
-                      viewMode ===
-                      "table"
+                      viewMode === "table"
                         ? "md:hidden"
                         : "grid"
                     }
@@ -3004,362 +2679,244 @@ function SellerProducts({
                     sm:p-5
                   `}
                 >
-                  {filteredProducts.map(
-                    (product) => (
-                      <div
-                        key={
-                          product.id
-                        }
-                        className="
-                          border
-                          border-green-100
-                          rounded-2xl
-                          bg-white
-                          overflow-hidden
-                          hover:shadow-[0_10px_30px_rgba(0,130,54,0.09)]
-                          transition
-                        "
-                      >
+                  {filteredProducts.map((product) => (
+                    <div
+                      key={product.id}
+                      className="
+                        border
+                        border-green-100
+                        rounded-2xl
+                        bg-white
+                        overflow-hidden
+                        hover:shadow-[0_10px_30px_rgba(0,130,54,0.09)]
+                        transition
+                      "
+                    >
+                      <div className="h-44 bg-green-50 relative overflow-hidden">
+                        {product.image ? (
+                          <img
+                            src={product.image}
+                            alt={product.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-[#008236]">
+                            <FiPackage size={35} />
+                          </div>
+                        )}
 
-                        <div
-                          className="
-                            h-44
-                            bg-green-50
-                            relative
-                            overflow-hidden
-                          "
+                        <span
+                          className={`
+                            absolute
+                            top-3
+                            right-3
+                            inline-flex
+                            items-center
+                            gap-1
+                            px-2.5
+                            py-1
+                            rounded-full
+                            text-[9px]
+                            font-semibold
+                            bg-white
+                            shadow-sm
+                            ${getStatusClasses(product.status)}
+                          `}
                         >
-                          {product.image ? (
-                            <img
-                              src={
-                                product.image
-                              }
-                              alt={
-                                product.name
-                              }
+                          {getStatusIcon(product.status)}
+                          {product.status}
+                        </span>
+                      </div>
+
+                      <div className="p-4">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <h3 className="text-sm font-bold text-gray-800 truncate">
+                              {product.name}
+                            </h3>
+                            <p className="text-[10px] text-[#008236] font-semibold mt-1">
+                              {product.category}
+                            </p>
+                          </div>
+
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setOpenMenu(
+                                  openMenu === product.id
+                                    ? null
+                                    : product.id
+                                );
+                              }}
                               className="
-                                w-full
-                                h-full
-                                object-cover
-                              "
-                            />
-                          ) : (
-                            <div
-                              className="
-                                w-full
-                                h-full
+                                w-8
+                                h-8
+                                rounded-lg
+                                text-gray-400
+                                hover:bg-green-50
+                                hover:text-[#008236]
                                 flex
                                 items-center
                                 justify-center
-                                text-[#008236]
                               "
                             >
-                              <FiPackage
-                                size={35}
-                              />
-                            </div>
-                          )}
+                              <FiMoreVertical size={16} />
+                            </button>
 
-                          <span
-                            className={`
-                              absolute
-                              top-3
-                              right-3
-                              inline-flex
-                              items-center
-                              gap-1
-                              px-2.5
-                              py-1
-                              rounded-full
-                              text-[9px]
-                              font-semibold
-                              bg-white
-                              shadow-sm
-                              ${getStatusClasses(
-                                product.status
-                              )}
-                            `}
-                          >
-                            {getStatusIcon(
-                              product.status
-                            )}
-
-                            {
-                              product.status
-                            }
-                          </span>
-                        </div>
-
-                        <div className="p-4">
-
-                          <div className="flex items-start justify-between gap-2">
-
-                            <div className="min-w-0">
-
-                              <h3
+                            {openMenu === product.id && (
+                              <div
+                                onClick={(event) =>
+                                  event.stopPropagation()
+                                }
                                 className="
-                                  text-sm
-                                  font-bold
-                                  text-gray-800
-                                  truncate
+                                  absolute
+                                  right-0
+                                  top-9
+                                  z-30
+                                  w-36
+                                  bg-white
+                                  border
+                                  border-green-100
+                                  rounded-xl
+                                  shadow-xl
+                                  p-1
                                 "
                               >
-                                {
-                                  product.name
-                                }
-                              </h3>
-
-                              <p className="text-[10px] text-[#008236] font-semibold mt-1">
-                                {
-                                  product.category
-                                }
-                              </p>
-
-                            </div>
-
-                            <div className="relative">
-
-                              <button
-                                type="button"
-                                onClick={(
-                                  event
-                                ) => {
-                                  event.stopPropagation();
-
-                                  setOpenMenu(
-                                    openMenu ===
-                                      product.id
-                                      ? null
-                                      : product.id
-                                  );
-                                }}
-                                className="
-                                  w-8
-                                  h-8
-                                  rounded-lg
-                                  text-gray-400
-                                  hover:bg-green-50
-                                  hover:text-[#008236]
-                                  flex
-                                  items-center
-                                  justify-center
-                                "
-                              >
-                                <FiMoreVertical
-                                  size={16}
-                                />
-                              </button>
-
-                              {openMenu ===
-                                product.id && (
-                                <div
-                                  onClick={(
-                                    event
-                                  ) =>
-                                    event.stopPropagation()
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleEditProduct(product)
                                   }
                                   className="
-                                    absolute
-                                    right-0
-                                    top-9
-                                    z-30
-                                    w-36
-                                    bg-white
-                                    border
-                                    border-green-100
-                                    rounded-xl
-                                    shadow-xl
-                                    p-1
+                                    w-full
+                                    flex
+                                    items-center
+                                    gap-2
+                                    px-3
+                                    py-2.5
+                                    rounded-lg
+                                    text-xs
+                                    hover:bg-green-50
+                                    hover:text-[#008236]
+                                    text-left
                                   "
                                 >
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      handleEditProduct(
-                                        product
-                                      )
-                                    }
-                                    className="
-                                      w-full
-                                      flex
-                                      items-center
-                                      gap-2
-                                      px-3
-                                      py-2.5
-                                      rounded-lg
-                                      text-xs
-                                      hover:bg-green-50
-                                      hover:text-[#008236]
-                                      text-left
-                                    "
-                                  >
-                                    <FiEdit2
-                                      size={14}
-                                    />
-                                    Edit
-                                  </button>
+                                  <FiEdit2 size={14} />
+                                  Edit
+                                </button>
 
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setDeleteProduct(
-                                        product
-                                      );
-                                      setOpenMenu(
-                                        null
-                                      );
-                                    }}
-                                    className="
-                                      w-full
-                                      flex
-                                      items-center
-                                      gap-2
-                                      px-3
-                                      py-2.5
-                                      rounded-lg
-                                      text-xs
-                                      text-red-500
-                                      hover:bg-red-50
-                                      text-left
-                                    "
-                                  >
-                                    <FiTrash2
-                                      size={14}
-                                    />
-                                    Delete
-                                  </button>
-                                </div>
-                              )}
-
-                            </div>
-
-                          </div>
-
-                          <p className="text-lg font-bold text-gray-800 mt-3">
-                            {formatNaira(
-                              product.price
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setDeleteProduct(product);
+                                    setOpenMenu(null);
+                                  }}
+                                  className="
+                                    w-full
+                                    flex
+                                    items-center
+                                    gap-2
+                                    px-3
+                                    py-2.5
+                                    rounded-lg
+                                    text-xs
+                                    text-red-500
+                                    hover:bg-red-50
+                                    text-left
+                                  "
+                                >
+                                  <FiTrash2 size={14} />
+                                  Delete
+                                </button>
+                              </div>
                             )}
-                          </p>
+                          </div>
+                        </div>
 
-                          <div className="grid grid-cols-2 gap-2 mt-4">
+                        <p className="text-lg font-bold text-gray-800 mt-3">
+                          {formatNaira(product.price)}
+                        </p>
 
-                            <div
-                              className="
-                                bg-green-50
-                                rounded-xl
-                                p-3
-                                border
-                                border-green-100
-                              "
-                            >
-                              <p className="text-[9px] text-[#008236] uppercase font-semibold">
-                                Sales
-                              </p>
-
-                              <p className="text-sm font-bold text-gray-700 mt-1">
-                                {
-                                  product.sales
-                                }
-                              </p>
-                            </div>
-
-                            <div
-                              className="
-                                bg-green-50
-                                rounded-xl
-                                p-3
-                                border
-                                border-green-100
-                              "
-                            >
-                              <p className="text-[9px] text-[#008236] uppercase font-semibold">
-                                Product ID
-                              </p>
-
-                              <p className="text-[10px] font-semibold text-gray-600 mt-1 truncate">
-                                {
-                                  product.id
-                                }
-                              </p>
-                            </div>
-
+                        <div className="grid grid-cols-2 gap-2 mt-4">
+                          <div className="bg-green-50 rounded-xl p-3 border border-green-100">
+                            <p className="text-[9px] text-[#008236] uppercase font-semibold">
+                              Sales
+                            </p>
+                            <p className="text-sm font-bold text-gray-700 mt-1">
+                              {product.sales}
+                            </p>
                           </div>
 
-                          <div
+                          <div className="bg-green-50 rounded-xl p-3 border border-green-100">
+                            <p className="text-[9px] text-[#008236] uppercase font-semibold">
+                              Product ID
+                            </p>
+                            <p className="text-[10px] font-semibold text-gray-600 mt-1 truncate">
+                              {product.id}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 mt-3">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleEditProduct(product)
+                            }
                             className="
+                              flex-1
+                              h-10
+                              rounded-xl
+                              border
+                              border-green-200
+                              text-[#008236]
+                              bg-green-50/50
+                              text-xs
+                              font-semibold
                               flex
                               items-center
+                              justify-center
                               gap-2
-                              mt-3
+                              hover:bg-green-50
+                              transition
                             "
                           >
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleEditProduct(
-                                  product
-                                )
-                              }
-                              className="
-                                flex-1
-                                h-10
-                                rounded-xl
-                                border
-                                border-green-200
-                                text-[#008236]
-                                bg-green-50/50
-                                text-xs
-                                font-semibold
-                                flex
-                                items-center
-                                justify-center
-                                gap-2
-                                hover:bg-green-50
-                                transition
-                              "
-                            >
-                              <FiEdit2
-                                size={14}
-                              />
-                              Edit
-                            </button>
+                            <FiEdit2 size={14} />
+                            Edit
+                          </button>
 
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setDeleteProduct(
-                                  product
-                                )
-                              }
-                              className="
-                                flex-1
-                                h-10
-                                rounded-xl
-                                border
-                                border-red-100
-                                text-red-600
-                                bg-red-50/40
-                                text-xs
-                                font-semibold
-                                flex
-                                items-center
-                                justify-center
-                                gap-2
-                                hover:bg-red-50
-                                transition
-                              "
-                            >
-                              <FiTrash2
-                                size={14}
-                              />
-                              Delete
-                            </button>
-                          </div>
-
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setDeleteProduct(product)
+                            }
+                            className="
+                              flex-1
+                              h-10
+                              rounded-xl
+                              border
+                              border-red-100
+                              text-red-600
+                              bg-red-50/40
+                              text-xs
+                              font-semibold
+                              flex
+                              items-center
+                              justify-center
+                              gap-2
+                              hover:bg-red-50
+                              transition
+                            "
+                          >
+                            <FiTrash2 size={14} />
+                            Delete
+                          </button>
                         </div>
                       </div>
-                    )
-                  )}
+                    </div>
+                  ))}
                 </div>
               </>
             )}
@@ -3400,7 +2957,6 @@ function SellerProducts({
             </div>
 
             <div>
-
               <p className="text-sm font-semibold text-gray-800">
                 Products are connected to Firebase
               </p>
@@ -3411,7 +2967,6 @@ function SellerProducts({
                 account. Changes are synchronized in
                 real time.
               </p>
-
             </div>
           </div>
 
@@ -3493,9 +3048,7 @@ function SellerProducts({
                   "
                 >
                   {editingProduct ? (
-                    <FiEdit2
-                      size={19}
-                    />
+                    <FiEdit2 size={19} />
                   ) : (
                     <FiPlus size={20} />
                   )}
@@ -3521,9 +3074,7 @@ function SellerProducts({
                 type="button"
                 disabled={savingProduct}
                 onClick={() => {
-                  setShowProductModal(
-                    false
-                  );
+                  setShowProductModal(false);
                   resetProductForm();
                 }}
                 className="
@@ -3548,9 +3099,7 @@ function SellerProducts({
             {/* FORM */}
 
             <form
-              onSubmit={
-                handleSaveProduct
-              }
+              onSubmit={handleSaveProduct}
               className="p-5 sm:p-6"
             >
 
@@ -3571,9 +3120,7 @@ function SellerProducts({
                     gap-2
                   "
                 >
-                  <FiAlertCircle
-                    size={16}
-                  />
+                  <FiAlertCircle size={16} />
                   {formError}
                 </div>
               )}
@@ -3583,7 +3130,6 @@ function SellerProducts({
                 {/* NAME */}
 
                 <div className="sm:col-span-2">
-
                   <label className="block text-xs font-semibold text-gray-700 mb-2">
                     Product Name
                   </label>
@@ -3591,12 +3137,8 @@ function SellerProducts({
                   <input
                     type="text"
                     name="name"
-                    value={
-                      productForm.name
-                    }
-                    onChange={
-                      handleProductFormChange
-                    }
+                    value={productForm.name}
+                    onChange={handleProductFormChange}
                     disabled={savingProduct}
                     placeholder="e.g. HP EliteBook Laptop"
                     className="
@@ -3621,15 +3163,12 @@ function SellerProducts({
                 {/* CATEGORY */}
 
                 <div>
-
                   <label className="block text-xs font-semibold text-gray-700 mb-2">
                     Category
                   </label>
 
                   <GreenDropdown
-                    value={
-                      productForm.category
-                    }
+                    value={productForm.category}
                     options={[
                       "Electronics",
                       "Accessories",
@@ -3637,9 +3176,9 @@ function SellerProducts({
                       "Education",
                       "Home & Living",
                       "Food",
-                       "Phone",
-                       "Audio",
-                       "Gifts",
+                      "Phone",
+                      "Audio",
+                      "Gifts",
                       "Drinks",
                       "Beauty",
                       "Sports",
@@ -3647,13 +3186,10 @@ function SellerProducts({
                       "Other",
                     ]}
                     onChange={(value) =>
-                      setProductForm(
-                        (current) => ({
-                          ...current,
-                          category:
-                            value,
-                        })
-                      )
+                      setProductForm((current) => ({
+                        ...current,
+                        category: value,
+                      }))
                     }
                     className="w-full"
                   />
@@ -3662,13 +3198,11 @@ function SellerProducts({
                 {/* PRICE */}
 
                 <div>
-
                   <label className="block text-xs font-semibold text-gray-700 mb-2">
                     Price
                   </label>
 
                   <div className="relative">
-
                     <span
                       className="
                         absolute
@@ -3686,12 +3220,8 @@ function SellerProducts({
                     <input
                       type="number"
                       name="price"
-                      value={
-                        productForm.price
-                      }
-                      onChange={
-                        handleProductFormChange
-                      }
+                      value={productForm.price}
+                      onChange={handleProductFormChange}
                       disabled={savingProduct}
                       min="0"
                       placeholder="0"
@@ -3719,27 +3249,21 @@ function SellerProducts({
                 {/* STATUS */}
 
                 <div>
-
                   <label className="block text-xs font-semibold text-gray-700 mb-2">
                     Status
                   </label>
 
                   <GreenDropdown
-                    value={
-                      productForm.status
-                    }
+                    value={productForm.status}
                     options={[
                       "Active",
                       "Out of Stock",
                     ]}
                     onChange={(value) =>
-                      setProductForm(
-                        (current) => ({
-                          ...current,
-                          status:
-                            value,
-                        })
-                      )
+                      setProductForm((current) => ({
+                        ...current,
+                        status: value,
+                      }))
                     }
                     className="w-full"
                   />
@@ -3748,14 +3272,11 @@ function SellerProducts({
                 {/* IMAGE */}
 
                 <div className="sm:col-span-2">
-
                   <label className="block text-xs font-semibold text-gray-700 mb-2">
                     Product Image
                   </label>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-
-                    {/* IMAGE URL */}
                     <div className="relative">
                       <FiImage
                         size={16}
@@ -3782,7 +3303,6 @@ function SellerProducts({
                       />
                     </div>
 
-                    {/* GALLERY UPLOAD */}
                     <label
                       className={`
                         w-full h-11 px-3.5 rounded-xl border border-dashed
@@ -3802,15 +3322,13 @@ function SellerProducts({
                         className="hidden"
                       />
                     </label>
-
                   </div>
 
                   <p className="text-[10px] text-gray-400 mt-2">
                     You can paste an image URL or choose an image from your device.
-                    Gallery images are uploaded securely to Firebase Storage. Max 5MB.
+                    Gallery images are uploaded securely. Max 5MB.
                   </p>
 
-                  {/* SELECTED FILE */}
                   {selectedImageFile && (
                     <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-green-100 bg-green-50/40 px-3 py-2.5">
                       <div className="min-w-0 flex items-center gap-2">
@@ -3833,25 +3351,19 @@ function SellerProducts({
                       </button>
                     </div>
                   )}
-
                 </div>
 
                 {/* DESCRIPTION */}
 
                 <div className="sm:col-span-2">
-
                   <label className="block text-xs font-semibold text-gray-700 mb-2">
                     Description
                   </label>
 
                   <textarea
                     name="description"
-                    value={
-                      productForm.description
-                    }
-                    onChange={
-                      handleProductFormChange
-                    }
+                    value={productForm.description}
+                    onChange={handleProductFormChange}
                     disabled={savingProduct}
                     rows={4}
                     placeholder="Describe your product..."
@@ -3881,7 +3393,6 @@ function SellerProducts({
 
               {(imagePreview || productForm.image) && (
                 <div className="mt-4">
-
                   <p className="text-xs font-semibold text-gray-700 mb-2">
                     Image Preview
                   </p>
@@ -3900,14 +3411,9 @@ function SellerProducts({
                     <img
                       src={imagePreview || productForm.image}
                       alt="Product preview"
-                      className="
-                        w-full
-                        h-full
-                        object-cover
-                      "
+                      className="w-full h-full object-cover"
                       onError={(event) => {
-                        event.currentTarget.style.display =
-                          "none";
+                        event.currentTarget.style.display = "none";
                       }}
                     />
                   </div>
@@ -3929,14 +3435,11 @@ function SellerProducts({
                   border-green-50
                 "
               >
-
                 <button
                   type="button"
                   disabled={savingProduct}
                   onClick={() => {
-                    setShowProductModal(
-                      false
-                    );
+                    setShowProductModal(false);
                     resetProductForm();
                   }}
                   className="
@@ -3993,20 +3496,17 @@ function SellerProducts({
                         size={17}
                         className="animate-spin"
                       />
-
                       Saving...
                     </>
                   ) : (
                     <>
                       <FiSave size={17} />
-
                       {editingProduct
                         ? "Save Changes"
                         : "Add Product"}
                     </>
                   )}
                 </button>
-
               </div>
 
             </form>
@@ -4072,24 +3572,11 @@ function SellerProducts({
 
               <div className="min-w-0">
 
-                <h3
-                  className="
-                    text-lg
-                    font-bold
-                    text-gray-800
-                  "
-                >
+                <h3 className="text-lg font-bold text-gray-800">
                   Delete product?
                 </h3>
 
-                <p
-                  className="
-                    text-sm
-                    text-gray-500
-                    mt-1
-                    leading-5
-                  "
-                >
+                <p className="text-sm text-gray-500 mt-1 leading-5">
                   Are you sure you want to delete{" "}
                   <span className="font-semibold text-[#008236]">
                     {deleteProduct.name}

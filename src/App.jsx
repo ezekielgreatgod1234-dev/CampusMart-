@@ -1,8 +1,4 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   Routes,
@@ -63,6 +59,10 @@ import SellerDashboard from "./pages/seller/SellerDashboard";
 import SellerProducts from "./pages/seller/SellerProducts";
 import SellerMessages from "./pages/seller/SellerMessages";
 import SellerChat from "./pages/seller/SellerChat";
+import SellerEarnings from "./pages/seller/SellerEarnings";
+import WithdrawEarnings from "./pages/seller/WithdrawEarnings";
+import SellerPromotions from "./pages/seller/SellerPromotions";
+import SellerPayment from "./pages/seller/SellerPayment";
 
 // =========================================================
 // OTHER PAGES
@@ -102,9 +102,7 @@ const CUSTOMER_DATA_SAVE_DELAY = 800;
 // LOADING SCREEN
 // =========================================================
 
-function LoadingScreen({
-  text = "Loading CampusMart...",
-}) {
+function LoadingScreen({ text = "Loading CampusMart..." }) {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-5">
       <div className="text-center">
@@ -121,9 +119,7 @@ function LoadingScreen({
           "
         />
 
-        <p className="mt-5 text-sm font-medium text-gray-600">
-          {text}
-        </p>
+        <p className="mt-5 text-sm font-medium text-gray-600">{text}</p>
       </div>
     </div>
   );
@@ -158,10 +154,7 @@ function getProfileImage(profile, firebaseUser = null) {
 // GET PROFILE NAME
 // =========================================================
 
-function getProfileName(
-  profile,
-  firebaseUser = null
-) {
+function getProfileName(profile, firebaseUser = null) {
   return (
     profile?.fullName ||
     profile?.displayName ||
@@ -193,14 +186,9 @@ async function getPublicProfile(userId) {
   }
 
   try {
-    const publicProfileRef = doc(
-      db,
-      "publicProfiles",
-      String(userId)
-    );
+    const publicProfileRef = doc(db, "publicProfiles", String(userId));
 
-    const snapshot =
-      await getDoc(publicProfileRef);
+    const snapshot = await getDoc(publicProfileRef);
 
     if (!snapshot.exists()) {
       return null;
@@ -211,10 +199,7 @@ async function getPublicProfile(userId) {
       ...snapshot.data(),
     };
   } catch (error) {
-    console.error(
-      "Error loading public profile:",
-      error
-    );
+    console.error("Error loading public profile:", error);
 
     return null;
   }
@@ -231,22 +216,14 @@ async function getPublicProfile(userId) {
 // allow create/update if request.auth.uid == userId
 // =========================================================
 
-async function syncOwnPublicProfile(
-  firebaseUser,
-  profile
-) {
+async function syncOwnPublicProfile(firebaseUser, profile) {
   if (!firebaseUser) {
     return;
   }
 
-  const userId =
-    String(firebaseUser.uid);
+  const userId = String(firebaseUser.uid);
 
-  const publicProfileRef = doc(
-    db,
-    "publicProfiles",
-    userId
-  );
+  const publicProfileRef = doc(db, "publicProfiles", userId);
 
   const fullName =
     profile?.fullName ||
@@ -262,11 +239,7 @@ async function syncOwnPublicProfile(
     firebaseUser.email ||
     "CampusMart User";
 
-  const profileImage =
-    getProfileImage(
-      profile,
-      firebaseUser
-    );
+  const profileImage = getProfileImage(profile, firebaseUser);
 
   try {
     await setDoc(
@@ -274,27 +247,19 @@ async function syncOwnPublicProfile(
       {
         fullName,
         displayName,
-        profileImage:
-          profileImage || null,
+        profileImage: profileImage || null,
 
         photoURL:
-          profile?.photoURL ||
-          profileImage ||
-          firebaseUser.photoURL ||
-          null,
+          profile?.photoURL || profileImage || firebaseUser.photoURL || null,
 
-        updatedAt:
-          serverTimestamp(),
+        updatedAt: serverTimestamp(),
       },
       {
         merge: true,
-      }
+      },
     );
   } catch (error) {
-    console.error(
-      "Error syncing public profile:",
-      error
-    );
+    console.error("Error syncing public profile:", error);
   }
 }
 
@@ -302,54 +267,25 @@ async function syncOwnPublicProfile(
 // GUEST ROUTE
 // =========================================================
 
-function GuestRoute({
-  children,
-  profile,
-  profileResolved,
-}) {
-  const {
-    firebaseUser,
-    profileLoading,
-  } = useAuth();
+function GuestRoute({ children, profile, profileResolved }) {
+  const { firebaseUser, profileLoading } = useAuth();
 
-  if (
-    profileLoading ||
-    (firebaseUser && !profileResolved)
-  ) {
-    return (
-      <LoadingScreen
-        text="Checking your account..."
-      />
-    );
+  if (profileLoading || (firebaseUser && !profileResolved)) {
+    return <LoadingScreen text="Checking your account..." />;
   }
 
   if (firebaseUser) {
-    const role =
-      getUserRole(profile);
+    const role = getUserRole(profile);
 
     if (role === "seller") {
-      return (
-        <Navigate
-          to="/seller-dashboard"
-          replace
-        />
-      );
+      return <Navigate to="/seller-dashboard" replace />;
     }
 
     if (role === "buyer") {
-      return (
-        <Navigate
-          to="/dashboard"
-          replace
-        />
-      );
+      return <Navigate to="/dashboard" replace />;
     }
 
-    return (
-      <LoadingScreen
-        text="Preparing your account..."
-      />
-    );
+    return <LoadingScreen text="Preparing your account..." />;
   }
 
   return children;
@@ -359,38 +295,19 @@ function GuestRoute({
 // PROTECTED ROUTE
 // =========================================================
 
-function ProtectedRoute({
-  children,
-  profileResolved,
-}) {
-  const {
-    firebaseUser,
-    profileLoading,
-  } = useAuth();
+function ProtectedRoute({ children, profileResolved }) {
+  const { firebaseUser, profileLoading } = useAuth();
 
   if (profileLoading) {
-    return (
-      <LoadingScreen
-        text="Checking your account..."
-      />
-    );
+    return <LoadingScreen text="Checking your account..." />;
   }
 
   if (!firebaseUser) {
-    return (
-      <Navigate
-        to="/login"
-        replace
-      />
-    );
+    return <Navigate to="/login" replace />;
   }
 
   if (!profileResolved) {
-    return (
-      <LoadingScreen
-        text="Loading your profile..."
-      />
-    );
+    return <LoadingScreen text="Loading your profile..." />;
   }
 
   return children;
@@ -400,37 +317,19 @@ function ProtectedRoute({
 // CUSTOMER ROUTE
 // =========================================================
 
-function CustomerRoute({
-  children,
-  profile,
-  profileResolved,
-}) {
+function CustomerRoute({ children, profile, profileResolved }) {
   if (!profileResolved) {
-    return (
-      <LoadingScreen
-        text="Loading your profile..."
-      />
-    );
+    return <LoadingScreen text="Loading your profile..." />;
   }
 
-  const role =
-    getUserRole(profile);
+  const role = getUserRole(profile);
 
   if (role === "seller") {
-    return (
-      <Navigate
-        to="/seller-dashboard"
-        replace
-      />
-    );
+    return <Navigate to="/seller-dashboard" replace />;
   }
 
   if (role !== "buyer") {
-    return (
-      <LoadingScreen
-        text="Preparing your account..."
-      />
-    );
+    return <LoadingScreen text="Preparing your account..." />;
   }
 
   return children;
@@ -440,37 +339,19 @@ function CustomerRoute({
 // SELLER ROUTE
 // =========================================================
 
-function SellerRoute({
-  children,
-  profile,
-  profileResolved,
-}) {
+function SellerRoute({ children, profile, profileResolved }) {
   if (!profileResolved) {
-    return (
-      <LoadingScreen
-        text="Loading your seller account..."
-      />
-    );
+    return <LoadingScreen text="Loading your seller account..." />;
   }
 
-  const role =
-    getUserRole(profile);
+  const role = getUserRole(profile);
 
   if (role !== "seller") {
     if (role === "buyer") {
-      return (
-        <Navigate
-          to="/dashboard"
-          replace
-        />
-      );
+      return <Navigate to="/dashboard" replace />;
     }
 
-    return (
-      <LoadingScreen
-        text="Preparing your account..."
-      />
-    );
+    return <LoadingScreen text="Preparing your account..." />;
   }
 
   return children;
@@ -488,34 +369,23 @@ function SellerRoute({
 // This is the key fix.
 // =========================================================
 
-async function formatConversation(
-  conversationDoc,
-  currentUserId
-) {
-  const data =
-    conversationDoc.data();
+async function formatConversation(conversationDoc, currentUserId) {
+  const data = conversationDoc.data();
 
-  const participantNames =
-    data.participantNames || {};
+  const participantNames = data.participantNames || {};
 
-  const participantImages =
-    data.participantImages || {};
+  const participantImages = data.participantImages || {};
 
-  const participants =
-    Array.isArray(data.participants)
-      ? data.participants
-      : [];
+  const participants = Array.isArray(data.participants)
+    ? data.participants
+    : [];
 
   // =======================================================
   // FIND OTHER PARTICIPANT
   // =======================================================
 
   const otherParticipantId =
-    participants.find(
-      (uid) =>
-        String(uid) !==
-        String(currentUserId)
-    ) || null;
+    participants.find((uid) => String(uid) !== String(currentUserId)) || null;
 
   // =======================================================
   // GET PUBLIC PROFILE
@@ -530,10 +400,7 @@ async function formatConversation(
   let publicProfile = null;
 
   if (otherParticipantId) {
-    publicProfile =
-      await getPublicProfile(
-        otherParticipantId
-      );
+    publicProfile = await getPublicProfile(otherParticipantId);
   }
 
   // =======================================================
@@ -541,19 +408,12 @@ async function formatConversation(
   // =======================================================
 
   const publicProfileName =
-    publicProfile?.fullName ||
-    publicProfile?.displayName ||
-    "";
+    publicProfile?.fullName || publicProfile?.displayName || "";
 
-  const storedParticipantName =
-    participantNames[
-      otherParticipantId
-    ] || "";
+  const storedParticipantName = participantNames[otherParticipantId] || "";
 
   const otherName =
-    publicProfileName ||
-    storedParticipantName ||
-    "CampusMart User";
+    publicProfileName || storedParticipantName || "CampusMart User";
 
   // =======================================================
   // IMAGE
@@ -573,21 +433,13 @@ async function formatConversation(
     null;
 
   const storedParticipantImage =
-    participantImages[
-      otherParticipantId
-    ] ||
-    data.profileImages?.[
-      otherParticipantId
-    ] ||
-    data.participantPhotos?.[
-      otherParticipantId
-    ] ||
+    participantImages[otherParticipantId] ||
+    data.profileImages?.[otherParticipantId] ||
+    data.participantPhotos?.[otherParticipantId] ||
     null;
 
   const otherParticipantImage =
-    publicProfileImage ||
-    storedParticipantImage ||
-    null;
+    publicProfileImage || storedParticipantImage || null;
 
   // =======================================================
   // REPAIR OLD CONVERSATION
@@ -602,22 +454,9 @@ async function formatConversation(
   if (
     otherParticipantId &&
     publicProfile &&
-    (
-      String(
-        participantImages[
-          otherParticipantId
-        ] || ""
-      ) !==
-      String(
-        otherParticipantImage || ""
-      ) ||
-      String(
-        participantNames[
-          otherParticipantId
-        ] || ""
-      ) !==
-      String(otherName)
-    )
+    (String(participantImages[otherParticipantId] || "") !==
+      String(otherParticipantImage || "") ||
+      String(participantNames[otherParticipantId] || "") !== String(otherName))
   ) {
     try {
       await setDoc(
@@ -626,29 +465,23 @@ async function formatConversation(
           participantNames: {
             ...participantNames,
 
-            [otherParticipantId]:
-              otherName,
+            [otherParticipantId]: otherName,
           },
 
           participantImages: {
             ...participantImages,
 
-            [otherParticipantId]:
-              otherParticipantImage,
+            [otherParticipantId]: otherParticipantImage,
           },
 
-          updatedAt:
-            serverTimestamp(),
+          updatedAt: serverTimestamp(),
         },
         {
           merge: true,
-        }
+        },
       );
     } catch (error) {
-      console.error(
-        "Could not repair conversation profile:",
-        error
-      );
+      console.error("Could not repair conversation profile:", error);
     }
   }
 
@@ -656,99 +489,63 @@ async function formatConversation(
   // UNREAD COUNT
   // =======================================================
 
-  const unreadCount =
-    Number(
-      data.unreadCounts?.[
-        currentUserId
-      ] || 0
-    );
+  const unreadCount = Number(data.unreadCounts?.[currentUserId] || 0);
 
   // =======================================================
   // MESSAGES
   // =======================================================
 
-  const conversationMessages =
-    Array.isArray(data.messages)
-      ? data.messages
+  const conversationMessages = Array.isArray(data.messages)
+    ? data.messages
+    : [];
+
+  const visibleMessages = conversationMessages.filter((message) => {
+    const deletedFor = Array.isArray(message.deletedFor)
+      ? message.deletedFor
       : [];
 
-  const visibleMessages =
-    conversationMessages.filter(
-      (message) => {
-        const deletedFor =
-          Array.isArray(
-            message.deletedFor
-          )
-            ? message.deletedFor
-            : [];
+    if (deletedFor.includes(currentUserId)) {
+      return false;
+    }
 
-        if (
-          deletedFor.includes(
-            currentUserId
-          )
-        ) {
-          return false;
-        }
+    if (message.deletedForEveryone === true) {
+      return false;
+    }
 
-        if (
-          message.deletedForEveryone ===
-          true
-        ) {
-          return false;
-        }
-
-        return true;
-      }
-    );
+    return true;
+  });
 
   // =======================================================
   // SORT MESSAGES
   // =======================================================
 
-  const sortedVisibleMessages =
-    [...visibleMessages].sort(
-      (a, b) => {
-        const aTime =
-          a.createdAt?.toMillis
-            ? a.createdAt.toMillis()
-            : Number(
-                a.createdAt || 0
-              );
+  const sortedVisibleMessages = [...visibleMessages].sort((a, b) => {
+    const aTime = a.createdAt?.toMillis
+      ? a.createdAt.toMillis()
+      : Number(a.createdAt || 0);
 
-        const bTime =
-          b.createdAt?.toMillis
-            ? b.createdAt.toMillis()
-            : Number(
-                b.createdAt || 0
-              );
+    const bTime = b.createdAt?.toMillis
+      ? b.createdAt.toMillis()
+      : Number(b.createdAt || 0);
 
-        return aTime - bTime;
-      }
-    );
+    return aTime - bTime;
+  });
 
   // =======================================================
   // LAST VISIBLE MESSAGE
   // =======================================================
 
   const lastVisibleMessage =
-    sortedVisibleMessages.length >
-    0
-      ? sortedVisibleMessages[
-          sortedVisibleMessages.length -
-            1
-        ]
+    sortedVisibleMessages.length > 0
+      ? sortedVisibleMessages[sortedVisibleMessages.length - 1]
       : null;
 
   const lastMessage =
     lastVisibleMessage?.text ||
-    (lastVisibleMessage?.imageUrl
-      ? "📷 Photo"
-      : "") ||
+    (lastVisibleMessage?.imageUrl ? "📷 Photo" : "") ||
     "";
 
-  const lastMessageAt =
-    lastVisibleMessage?.createdAt ||
-    0;
+  const lastMessageAt = lastVisibleMessage?.createdAt || 0;
 
   // =======================================================
   // DISPLAY TIME
@@ -758,19 +555,14 @@ async function formatConversation(
 
   if (lastMessageAt) {
     try {
-      const date =
-        lastMessageAt?.toDate
-          ? lastMessageAt.toDate()
-          : new Date(lastMessageAt);
+      const date = lastMessageAt?.toDate
+        ? lastMessageAt.toDate()
+        : new Date(lastMessageAt);
 
-      displayTime =
-        date.toLocaleTimeString(
-          [],
-          {
-            hour: "2-digit",
-            minute: "2-digit",
-          }
-        );
+      displayTime = date.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
     } catch {
       displayTime = "";
     }
@@ -781,50 +573,35 @@ async function formatConversation(
   // =======================================================
 
   return {
-    id:
-      conversationDoc.id,
+    id: conversationDoc.id,
 
-    conversationId:
-      conversationDoc.id,
+    conversationId: conversationDoc.id,
 
     otherParticipantId,
 
-    name:
-      otherName,
+    name: otherName,
 
-    profileImage:
-      otherParticipantImage,
+    profileImage: otherParticipantImage,
 
     lastMessage,
 
-    time:
-      displayTime,
+    time: displayTime,
 
-    unread:
-      unreadCount,
+    unread: unreadCount,
 
-    online:
-      data.onlineStatus?.[
-        otherParticipantId
-      ] === true,
+    online: data.onlineStatus?.[otherParticipantId] === true,
 
-    conversation:
-      sortedVisibleMessages,
+    conversation: sortedVisibleMessages,
 
-    allMessages:
-      conversationMessages,
+    allMessages: conversationMessages,
 
-    productId:
-      data.productId || null,
+    productId: data.productId || null,
 
-    productName:
-      data.productName || "",
+    productName: data.productName || "",
 
-    buyerId:
-      data.buyerId || null,
+    buyerId: data.buyerId || null,
 
-    sellerId:
-      data.sellerId || null,
+    sellerId: data.sellerId || null,
   };
 }
 
@@ -832,40 +609,22 @@ async function formatConversation(
 // SORT CONVERSATIONS
 // =========================================================
 
-function sortConversations(
-  conversationList
-) {
-  return [...conversationList].sort(
-    (a, b) => {
-      const aMessages =
-        a.conversation || [];
+function sortConversations(conversationList) {
+  return [...conversationList].sort((a, b) => {
+    const aMessages = a.conversation || [];
 
-      const bMessages =
-        b.conversation || [];
+    const bMessages = b.conversation || [];
 
-      const aLast =
-        aMessages[
-          aMessages.length - 1
-        ]?.createdAt || 0;
+    const aLast = aMessages[aMessages.length - 1]?.createdAt || 0;
 
-      const bLast =
-        bMessages[
-          bMessages.length - 1
-        ]?.createdAt || 0;
+    const bLast = bMessages[bMessages.length - 1]?.createdAt || 0;
 
-      const aTime =
-        aLast?.toMillis
-          ? aLast.toMillis()
-          : Number(aLast) || 0;
+    const aTime = aLast?.toMillis ? aLast.toMillis() : Number(aLast) || 0;
 
-      const bTime =
-        bLast?.toMillis
-          ? bLast.toMillis()
-          : Number(bLast) || 0;
+    const bTime = bLast?.toMillis ? bLast.toMillis() : Number(bLast) || 0;
 
-      return bTime - aTime;
-    }
-  );
+    return bTime - aTime;
+  });
 }
 
 // =========================================================
@@ -873,18 +632,15 @@ function sortConversations(
 // =========================================================
 
 function App() {
-  const navigate =
-    useNavigate();
+  const navigate = useNavigate();
 
-  const location =
-    useLocation();
+  const location = useLocation();
 
   // =======================================================
   // INTERNET
   // =======================================================
 
-  const [isOnline, setIsOnline] =
-    useState(true);
+  const [isOnline, setIsOnline] = useState(true);
 
   useEffect(() => {
     let startupTimer;
@@ -897,37 +653,20 @@ function App() {
       setIsOnline(false);
     };
 
-    window.addEventListener(
-      "online",
-      handleOnline
-    );
+    window.addEventListener("online", handleOnline);
 
-    window.addEventListener(
-      "offline",
-      handleOffline
-    );
+    window.addEventListener("offline", handleOffline);
 
-    startupTimer =
-      window.setTimeout(() => {
-        setIsOnline(
-          navigator.onLine
-        );
-      }, 1000);
+    startupTimer = window.setTimeout(() => {
+      setIsOnline(navigator.onLine);
+    }, 1000);
 
     return () => {
-      window.clearTimeout(
-        startupTimer
-      );
+      window.clearTimeout(startupTimer);
 
-      window.removeEventListener(
-        "online",
-        handleOnline
-      );
+      window.removeEventListener("online", handleOnline);
 
-      window.removeEventListener(
-        "offline",
-        handleOffline
-      );
+      window.removeEventListener("offline", handleOffline);
     };
   }, []);
 
@@ -935,26 +674,17 @@ function App() {
   // FIREBASE AUTH
   // =======================================================
 
-  const {
-    firebaseUser,
-    profile: authProfile,
-    profileLoading,
-  } = useAuth();
+  const { firebaseUser, profile: authProfile, profileLoading } = useAuth();
 
   // =======================================================
   // PROFILE
   // =======================================================
 
-  const [profile, setProfile] =
-    useState(emptyProfile);
+  const [profile, setProfile] = useState(emptyProfile);
 
-  const [
-    profileResolved,
-    setProfileResolved,
-  ] = useState(false);
+  const [profileResolved, setProfileResolved] = useState(false);
 
-  const profileRequestId =
-    useRef(0);
+  const profileRequestId = useRef(0);
 
   // =======================================================
   // LOAD CURRENT USER PROFILE
@@ -963,276 +693,192 @@ function App() {
   useEffect(() => {
     let cancelled = false;
 
-    const currentRequest =
-      ++profileRequestId.current;
+    const currentRequest = ++profileRequestId.current;
 
-    const loadCurrentUserProfile =
-      async () => {
-        if (!firebaseUser) {
-          if (!cancelled) {
-            setProfile(
-              emptyProfile
-            );
+    const loadCurrentUserProfile = async () => {
+      if (!firebaseUser) {
+        if (!cancelled) {
+          setProfile(emptyProfile);
 
-            setProfileResolved(
-              true
-            );
-          }
+          setProfileResolved(true);
+        }
 
+        return;
+      }
+
+      setProfileResolved(false);
+
+      setProfile(emptyProfile);
+
+      try {
+        // =================================================
+        // PRIVATE USER PROFILE
+        //
+        // This is allowed because this is the current
+        // authenticated user's UID.
+        // =================================================
+
+        const userRef = doc(db, "users", firebaseUser.uid);
+
+        const snapshot = await getDoc(userRef);
+
+        if (cancelled || currentRequest !== profileRequestId.current) {
           return;
         }
 
-        setProfileResolved(
-          false
-        );
+        let resolvedProfile;
 
-        setProfile(
-          emptyProfile
-        );
+        if (snapshot.exists()) {
+          const firestoreProfile = snapshot.data();
 
-        try {
-          // =================================================
-          // PRIVATE USER PROFILE
-          //
-          // This is allowed because this is the current
-          // authenticated user's UID.
-          // =================================================
+          resolvedProfile = {
+            ...emptyProfile,
+            ...firestoreProfile,
 
-          const userRef =
-            doc(
-              db,
-              "users",
-              firebaseUser.uid
-            );
+            uid: firebaseUser.uid,
 
-          const snapshot =
-            await getDoc(userRef);
+            email: firestoreProfile.email || firebaseUser.email || "",
 
-          if (
-            cancelled ||
-            currentRequest !==
-              profileRequestId.current
-          ) {
-            return;
-          }
+            fullName:
+              firestoreProfile.fullName ||
+              firestoreProfile.displayName ||
+              firebaseUser.displayName ||
+              "",
 
-          let resolvedProfile;
+            displayName:
+              firestoreProfile.displayName ||
+              firestoreProfile.fullName ||
+              firebaseUser.displayName ||
+              "",
+          };
+        } else {
+          const authRole = getUserRole(authProfile);
 
-          if (snapshot.exists()) {
-            const firestoreProfile =
-              snapshot.data();
-
+          if (authRole === "seller" || authRole === "buyer") {
             resolvedProfile = {
               ...emptyProfile,
-              ...firestoreProfile,
+              ...authProfile,
 
-              uid:
-                firebaseUser.uid,
+              uid: firebaseUser.uid,
 
-              email:
-                firestoreProfile.email ||
-                firebaseUser.email ||
-                "",
+              email: authProfile?.email || firebaseUser.email || "",
 
               fullName:
-                firestoreProfile.fullName ||
-                firestoreProfile.displayName ||
+                authProfile?.fullName ||
+                authProfile?.displayName ||
                 firebaseUser.displayName ||
                 "",
 
               displayName:
-                firestoreProfile.displayName ||
-                firestoreProfile.fullName ||
+                authProfile?.displayName ||
+                authProfile?.fullName ||
                 firebaseUser.displayName ||
                 "",
             };
           } else {
-            const authRole =
-              getUserRole(
-                authProfile
-              );
-
-            if (
-              authRole === "seller" ||
-              authRole === "buyer"
-            ) {
-              resolvedProfile = {
-                ...emptyProfile,
-                ...authProfile,
-
-                uid:
-                  firebaseUser.uid,
-
-                email:
-                  authProfile?.email ||
-                  firebaseUser.email ||
-                  "",
-
-                fullName:
-                  authProfile?.fullName ||
-                  authProfile?.displayName ||
-                  firebaseUser.displayName ||
-                  "",
-
-                displayName:
-                  authProfile?.displayName ||
-                  authProfile?.fullName ||
-                  firebaseUser.displayName ||
-                  "",
-              };
-            } else {
-              resolvedProfile = {
-                ...emptyProfile,
-
-                uid:
-                  firebaseUser.uid,
-
-                email:
-                  firebaseUser.email ||
-                  "",
-
-                fullName:
-                  firebaseUser.displayName ||
-                  "",
-
-                displayName:
-                  firebaseUser.displayName ||
-                  "",
-
-                role: "",
-              };
-            }
-          }
-
-          if (cancelled) {
-            return;
-          }
-
-          setProfile(
-            resolvedProfile
-          );
-
-          // =================================================
-          // IMPORTANT:
-          //
-          // Make sure the current user's PUBLIC PROFILE
-          // exists so other authenticated users can see it.
-          // =================================================
-
-          await syncOwnPublicProfile(
-            firebaseUser,
-            resolvedProfile
-          );
-
-          if (
-            cancelled ||
-            currentRequest !==
-              profileRequestId.current
-          ) {
-            return;
-          }
-
-          setProfileResolved(
-            true
-          );
-        } catch (error) {
-          console.error(
-            "Error loading current user profile:",
-            error
-          );
-
-          if (
-            !cancelled &&
-            currentRequest ===
-              profileRequestId.current
-          ) {
-            const fallbackProfile = {
+            resolvedProfile = {
               ...emptyProfile,
 
-              uid:
-                firebaseUser.uid,
+              uid: firebaseUser.uid,
 
-              email:
-                firebaseUser.email ||
-                "",
+              email: firebaseUser.email || "",
 
-              fullName:
-                firebaseUser.displayName ||
-                "",
+              fullName: firebaseUser.displayName || "",
 
-              displayName:
-                firebaseUser.displayName ||
-                "",
+              displayName: firebaseUser.displayName || "",
 
               role: "",
             };
-
-            setProfile(
-              fallbackProfile
-            );
-
-            setProfileResolved(
-              true
-            );
           }
         }
-      };
+
+        if (cancelled) {
+          return;
+        }
+
+        setProfile(resolvedProfile);
+
+        // =================================================
+        // IMPORTANT:
+        //
+        // Make sure the current user's PUBLIC PROFILE
+        // exists so other authenticated users can see it.
+        // =================================================
+
+        await syncOwnPublicProfile(firebaseUser, resolvedProfile);
+
+        if (cancelled || currentRequest !== profileRequestId.current) {
+          return;
+        }
+
+        setProfileResolved(true);
+      } catch (error) {
+        console.error("Error loading current user profile:", error);
+
+        if (!cancelled && currentRequest === profileRequestId.current) {
+          const fallbackProfile = {
+            ...emptyProfile,
+
+            uid: firebaseUser.uid,
+
+            email: firebaseUser.email || "",
+
+            fullName: firebaseUser.displayName || "",
+
+            displayName: firebaseUser.displayName || "",
+
+            role: "",
+          };
+
+          setProfile(fallbackProfile);
+
+          setProfileResolved(true);
+        }
+      }
+    };
 
     loadCurrentUserProfile();
 
     return () => {
       cancelled = true;
     };
-  }, [
-    firebaseUser?.uid,
-    authProfile,
-  ]);
+  }, [firebaseUser?.uid, authProfile]);
 
   // =======================================================
   // CUSTOMER DATA
   // =======================================================
 
-  const [cart, setCart] =
-    useState([]);
+  const [cart, setCart] = useState([]);
 
-  const [wishlist, setWishlist] =
-    useState([]);
+  const [wishlist, setWishlist] = useState([]);
 
-  const [orders, setOrders] =
-    useState([]);
+  const [orders, setOrders] = useState([]);
 
   // =======================================================
   // CONVERSATIONS
   // =======================================================
 
-  const [messages, setMessages] =
-    useState([]);
+  const [messages, setMessages] = useState([]);
 
   // =======================================================
   // CUSTOMER DATA SAVE REF
   // =======================================================
 
-  const customerDataSaveTimer =
-    useRef(null);
+  const customerDataSaveTimer = useRef(null);
 
-  const pendingCustomerData =
-    useRef(null);
+  const pendingCustomerData = useRef(null);
 
   // =======================================================
   // GET CURRENT USER CHAT IMAGE
   // =======================================================
 
-  const getCurrentUserChatImage =
-    () => {
-      if (!firebaseUser) {
-        return null;
-      }
+  const getCurrentUserChatImage = () => {
+    if (!firebaseUser) {
+      return null;
+    }
 
-      return getProfileImage(
-        profile,
-        firebaseUser
-      );
-    };
+    return getProfileImage(profile, firebaseUser);
+  };
 
   // =======================================================
   // CUSTOMER DATA DOCUMENT
@@ -1243,140 +889,97 @@ function App() {
       return null;
     }
 
-    return doc(
-      db,
-      "users",
-      firebaseUser.uid,
-      "customerData",
-      "main"
-    );
+    return doc(db, "users", firebaseUser.uid, "customerData", "main");
   };
 
   // =======================================================
   // SAVE CUSTOMER DATA
   // =======================================================
 
-  const writeCustomerData =
-    async ({
-      nextCart,
-      nextWishlist,
-      nextOrders,
-    }) => {
-      if (!firebaseUser) {
-        return false;
-      }
+  const writeCustomerData = async ({ nextCart, nextWishlist, nextOrders }) => {
+    if (!firebaseUser) {
+      return false;
+    }
 
-      const customerDataRef =
-        getCustomerDataRef();
+    const customerDataRef = getCustomerDataRef();
 
-      if (!customerDataRef) {
-        return false;
-      }
+    if (!customerDataRef) {
+      return false;
+    }
 
-      try {
-        await setDoc(
-          customerDataRef,
-          {
-            cart:
-              Array.isArray(nextCart)
-                ? nextCart
-                : [],
+    try {
+      await setDoc(
+        customerDataRef,
+        {
+          cart: Array.isArray(nextCart) ? nextCart : [],
 
-            wishlist:
-              Array.isArray(
-                nextWishlist
-              )
-                ? nextWishlist
-                : [],
+          wishlist: Array.isArray(nextWishlist) ? nextWishlist : [],
 
-            orders:
-              Array.isArray(nextOrders)
-                ? nextOrders
-                : [],
+          orders: Array.isArray(nextOrders) ? nextOrders : [],
 
-            updatedAt:
-              serverTimestamp(),
-          },
-          {
-            merge: true,
-          }
-        );
+          updatedAt: serverTimestamp(),
+        },
+        {
+          merge: true,
+        },
+      );
 
-        return true;
-      } catch (error) {
-        console.error(
-          "Error saving customer data:",
-          error
-        );
+      return true;
+    } catch (error) {
+      console.error("Error saving customer data:", error);
 
-        return false;
-      }
-    };
+      return false;
+    }
+  };
 
   // =======================================================
   // QUEUE CUSTOMER DATA SAVE
   // =======================================================
 
-  const queueCustomerDataSave =
-    ({
+  const queueCustomerDataSave = ({
+    nextCart,
+    nextWishlist,
+    nextOrders,
+    immediate = false,
+  }) => {
+    if (!firebaseUser) {
+      return;
+    }
+
+    pendingCustomerData.current = {
       nextCart,
       nextWishlist,
       nextOrders,
-      immediate = false,
-    }) => {
-      if (!firebaseUser) {
-        return;
-      }
-
-      pendingCustomerData.current = {
-        nextCart,
-        nextWishlist,
-        nextOrders,
-      };
-
-      if (
-        customerDataSaveTimer.current
-      ) {
-        window.clearTimeout(
-          customerDataSaveTimer.current
-        );
-
-        customerDataSaveTimer.current =
-          null;
-      }
-
-      if (immediate) {
-        const dataToSave =
-          pendingCustomerData.current;
-
-        pendingCustomerData.current =
-          null;
-
-        writeCustomerData(
-          dataToSave
-        );
-
-        return;
-      }
-
-      customerDataSaveTimer.current =
-        window.setTimeout(() => {
-          const dataToSave =
-            pendingCustomerData.current;
-
-          pendingCustomerData.current =
-            null;
-
-          customerDataSaveTimer.current =
-            null;
-
-          if (dataToSave) {
-            writeCustomerData(
-              dataToSave
-            );
-          }
-        }, CUSTOMER_DATA_SAVE_DELAY);
     };
+
+    if (customerDataSaveTimer.current) {
+      window.clearTimeout(customerDataSaveTimer.current);
+
+      customerDataSaveTimer.current = null;
+    }
+
+    if (immediate) {
+      const dataToSave = pendingCustomerData.current;
+
+      pendingCustomerData.current = null;
+
+      writeCustomerData(dataToSave);
+
+      return;
+    }
+
+    customerDataSaveTimer.current = window.setTimeout(() => {
+      const dataToSave = pendingCustomerData.current;
+
+      pendingCustomerData.current = null;
+
+      customerDataSaveTimer.current = null;
+
+      if (dataToSave) {
+        writeCustomerData(dataToSave);
+      }
+    }, CUSTOMER_DATA_SAVE_DELAY);
+  };
 
   // =======================================================
   // LOAD CUSTOMER DATA
@@ -1385,104 +988,73 @@ function App() {
   useEffect(() => {
     let cancelled = false;
 
-    const loadCustomerData =
-      async () => {
-        if (!firebaseUser) {
+    const loadCustomerData = async () => {
+      if (!firebaseUser) {
+        setCart([]);
+        setWishlist([]);
+        setOrders([]);
+        return;
+      }
+
+      const customerDataRef = getCustomerDataRef();
+
+      if (!customerDataRef) {
+        return;
+      }
+
+      try {
+        const snapshot = await getDoc(customerDataRef);
+
+        if (cancelled) {
+          return;
+        }
+
+        if (!snapshot.exists()) {
           setCart([]);
           setWishlist([]);
           setOrders([]);
+
+          await setDoc(
+            customerDataRef,
+            {
+              cart: [],
+              wishlist: [],
+              orders: [],
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+            },
+            {
+              merge: true,
+            },
+          );
+
           return;
         }
 
-        const customerDataRef =
-          getCustomerDataRef();
+        const data = snapshot.data();
 
-        if (!customerDataRef) {
-          return;
+        setCart(Array.isArray(data.cart) ? data.cart : []);
+
+        setWishlist(Array.isArray(data.wishlist) ? data.wishlist : []);
+
+        setOrders(Array.isArray(data.orders) ? data.orders : []);
+      } catch (error) {
+        console.error("Error loading customer data:", error);
+
+        if (!cancelled) {
+          setCart([]);
+          setWishlist([]);
+          setOrders([]);
         }
-
-        try {
-          const snapshot =
-            await getDoc(
-              customerDataRef
-            );
-
-          if (cancelled) {
-            return;
-          }
-
-          if (!snapshot.exists()) {
-            setCart([]);
-            setWishlist([]);
-            setOrders([]);
-
-            await setDoc(
-              customerDataRef,
-              {
-                cart: [],
-                wishlist: [],
-                orders: [],
-                createdAt:
-                  serverTimestamp(),
-                updatedAt:
-                  serverTimestamp(),
-              },
-              {
-                merge: true,
-              }
-            );
-
-            return;
-          }
-
-          const data =
-            snapshot.data();
-
-          setCart(
-            Array.isArray(
-              data.cart
-            )
-              ? data.cart
-              : []
-          );
-
-          setWishlist(
-            Array.isArray(
-              data.wishlist
-            )
-              ? data.wishlist
-              : []
-          );
-
-          setOrders(
-            Array.isArray(
-              data.orders
-            )
-              ? data.orders
-              : []
-          );
-        } catch (error) {
-          console.error(
-            "Error loading customer data:",
-            error
-          );
-
-          if (!cancelled) {
-            setCart([]);
-            setWishlist([]);
-            setOrders([]);
-          }
-        }
-      };
+      }
+    };
 
     loadCustomerData();
 
     return () => {
       cancelled = true;
     };
-  }, [
-    firebaseUser?.uid,
-  ]);
+  }, [firebaseUser?.uid]);
 
   // =======================================================
   // CLEAN CUSTOMER SAVE
@@ -1490,19 +1062,13 @@ function App() {
 
   useEffect(() => {
     return () => {
-      if (
-        customerDataSaveTimer.current
-      ) {
-        window.clearTimeout(
-          customerDataSaveTimer.current
-        );
+      if (customerDataSaveTimer.current) {
+        window.clearTimeout(customerDataSaveTimer.current);
 
-        customerDataSaveTimer.current =
-          null;
+        customerDataSaveTimer.current = null;
       }
 
-      pendingCustomerData.current =
-        null;
+      pendingCustomerData.current = null;
     };
   }, []);
 
@@ -1522,223 +1088,145 @@ function App() {
   // So other users can see the new picture/name.
   // =======================================================
 
-  const updateProfile =
-    async (updates) => {
-      if (!firebaseUser) {
-        return;
-      }
+  const updateProfile = async (updates) => {
+    if (!firebaseUser) {
+      return;
+    }
 
-      const newProfile = {
-        ...profile,
-        ...updates,
-      };
+    const newProfile = {
+      ...profile,
+      ...updates,
+    };
 
-      setProfile(
-        newProfile
+    setProfile(newProfile);
+
+    try {
+      // =================================================
+      // PRIVATE PROFILE
+      // =================================================
+
+      const userRef = doc(db, "users", firebaseUser.uid);
+
+      await setDoc(
+        userRef,
+        {
+          ...updates,
+
+          uid: firebaseUser.uid,
+
+          email: newProfile.email || firebaseUser.email || "",
+
+          updatedAt: serverTimestamp(),
+        },
+        {
+          merge: true,
+        },
       );
 
-      try {
-        // =================================================
-        // PRIVATE PROFILE
-        // =================================================
+      // =================================================
+      // PUBLIC PROFILE
+      //
+      // ONLY safe public information is stored here.
+      // =================================================
 
-        const userRef =
-          doc(
-            db,
-            "users",
-            firebaseUser.uid
-          );
+      await syncOwnPublicProfile(firebaseUser, newProfile);
 
-        await setDoc(
-          userRef,
-          {
-            ...updates,
-
-            uid:
-              firebaseUser.uid,
-
-            email:
-              newProfile.email ||
-              firebaseUser.email ||
-              "",
-
-            updatedAt:
-              serverTimestamp(),
-          },
-          {
-            merge: true,
-          }
-        );
-
-        // =================================================
-        // PUBLIC PROFILE
-        //
-        // ONLY safe public information is stored here.
-        // =================================================
-
-        await syncOwnPublicProfile(
-          firebaseUser,
-          newProfile
-        );
-
-        console.log(
-          "Private and public profiles updated."
-        );
-      } catch (error) {
-        console.error(
-          "Error updating profile:",
-          error
-        );
-      }
-    };
+      console.log("Private and public profiles updated.");
+    } catch (error) {
+      console.error("Error updating profile:", error);
+    }
+  };
 
   // =======================================================
   // SYNC CURRENT USER PROFILE IMAGE TO CONVERSATIONS
   // =======================================================
 
   useEffect(() => {
-    if (
-      !firebaseUser ||
-      !profileResolved
-    ) {
+    if (!firebaseUser || !profileResolved) {
       return;
     }
 
-    const currentUserId =
-      String(firebaseUser.uid);
+    const currentUserId = String(firebaseUser.uid);
 
-    const currentUserImage =
-      getCurrentUserChatImage();
+    const currentUserImage = getCurrentUserChatImage();
 
-    const currentUserName =
-      getProfileName(
-        profile,
-        firebaseUser
-      );
+    const currentUserName = getProfileName(profile, firebaseUser);
 
     let cancelled = false;
 
-    const syncProfileImage =
-      async () => {
-        try {
-          const conversationsRef =
-            collection(
-              db,
-              "conversations"
-            );
+    const syncProfileImage = async () => {
+      try {
+        const conversationsRef = collection(db, "conversations");
 
-          const conversationsQuery =
-            query(
-              conversationsRef,
-              where(
-                "participants",
-                "array-contains",
-                currentUserId
-              )
-            );
+        const conversationsQuery = query(
+          conversationsRef,
+          where("participants", "array-contains", currentUserId),
+        );
 
-          const snapshot =
-            await getDocs(
-              conversationsQuery
-            );
+        const snapshot = await getDocs(conversationsQuery);
 
-          if (cancelled) {
-            return;
-          }
+        if (cancelled) {
+          return;
+        }
 
-          if (snapshot.empty) {
-            return;
-          }
+        if (snapshot.empty) {
+          return;
+        }
 
-          const updates = [];
+        const updates = [];
 
-          snapshot.docs.forEach(
-            (conversationDoc) => {
-              const data =
-                conversationDoc.data();
+        snapshot.docs.forEach((conversationDoc) => {
+          const data = conversationDoc.data();
 
-              const existingImages =
-                data.participantImages ||
-                {};
+          const existingImages = data.participantImages || {};
 
-              const existingNames =
-                data.participantNames ||
-                {};
+          const existingNames = data.participantNames || {};
 
-              const existingImage =
-                existingImages[
-                  currentUserId
-                ] || null;
+          const existingImage = existingImages[currentUserId] || null;
 
-              const existingName =
-                existingNames[
-                  currentUserId
-                ] || "";
-
-              if (
-                String(
-                  existingImage || ""
-                ) !==
-                  String(
-                    currentUserImage || ""
-                  ) ||
-                String(
-                  existingName || ""
-                ) !==
-                  String(
-                    currentUserName || ""
-                  )
-              ) {
-                updates.push(
-                  setDoc(
-                    conversationDoc.ref,
-                    {
-                      participantImages: {
-                        ...existingImages,
-
-                        [currentUserId]:
-                          currentUserImage,
-                      },
-
-                      participantNames: {
-                        ...existingNames,
-
-                        [currentUserId]:
-                          currentUserName,
-                      },
-
-                      updatedAt:
-                        serverTimestamp(),
-                    },
-                    {
-                      merge: true,
-                    }
-                  )
-                );
-              }
-            }
-          );
+          const existingName = existingNames[currentUserId] || "";
 
           if (
-            updates.length > 0
+            String(existingImage || "") !== String(currentUserImage || "") ||
+            String(existingName || "") !== String(currentUserName || "")
           ) {
-            await Promise.all(
-              updates
-            );
+            updates.push(
+              setDoc(
+                conversationDoc.ref,
+                {
+                  participantImages: {
+                    ...existingImages,
 
-            console.log(
-              "Current user's chat profile synchronized."
+                    [currentUserId]: currentUserImage,
+                  },
+
+                  participantNames: {
+                    ...existingNames,
+
+                    [currentUserId]: currentUserName,
+                  },
+
+                  updatedAt: serverTimestamp(),
+                },
+                {
+                  merge: true,
+                },
+              ),
             );
           }
-        } catch (error) {
-          if (!cancelled) {
-            console.error(
-              "Error synchronizing chat profile:",
-              error
-            );
-          }
+        });
+
+        if (updates.length > 0) {
+          await Promise.all(updates);
+
+          console.log("Current user's chat profile synchronized.");
         }
-      };
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Error synchronizing chat profile:", error);
+        }
+      }
+    };
 
     syncProfileImage();
 
@@ -1760,48 +1248,30 @@ function App() {
   // ADD TO CART
   // =======================================================
 
-  const addToCart = (
-    product,
-    quantity = 1
-  ) => {
-    if (
-      !product ||
-      !firebaseUser
-    ) {
+  const addToCart = (product, quantity = 1) => {
+    if (!product || !firebaseUser) {
       return;
     }
 
-    const existingProduct =
-      cart.find(
-        (item) =>
-          item.id === product.id
-      );
+    const existingProduct = cart.find((item) => item.id === product.id);
 
     let nextCart;
 
     if (existingProduct) {
-      nextCart =
-        cart.map((item) =>
-          item.id === product.id
-            ? {
-                ...item,
-                quantity:
-                  Number(
-                    item.quantity || 0
-                  ) +
-                  Number(
-                    quantity || 0
-                  ),
-              }
-            : item
-        );
+      nextCart = cart.map((item) =>
+        item.id === product.id
+          ? {
+              ...item,
+              quantity: Number(item.quantity || 0) + Number(quantity || 0),
+            }
+          : item,
+      );
     } else {
       nextCart = [
         ...cart,
         {
           ...product,
-          quantity:
-            Number(quantity) || 1,
+          quantity: Number(quantity) || 1,
         },
       ];
     }
@@ -1819,21 +1289,15 @@ function App() {
   // INCREASE QUANTITY
   // =======================================================
 
-  const increaseQuantity = (
-    productId
-  ) => {
-    const nextCart =
-      cart.map((item) =>
-        item.id === productId
-          ? {
-              ...item,
-              quantity:
-                Number(
-                  item.quantity || 0
-                ) + 1,
-            }
-          : item
-      );
+  const increaseQuantity = (productId) => {
+    const nextCart = cart.map((item) =>
+      item.id === productId
+        ? {
+            ...item,
+            quantity: Number(item.quantity || 0) + 1,
+          }
+        : item,
+    );
 
     setCart(nextCart);
 
@@ -1848,24 +1312,15 @@ function App() {
   // DECREASE QUANTITY
   // =======================================================
 
-  const decreaseQuantity = (
-    productId
-  ) => {
-    const nextCart =
-      cart.map((item) =>
-        item.id === productId
-          ? {
-              ...item,
-              quantity:
-                Math.max(
-                  1,
-                  Number(
-                    item.quantity || 1
-                  ) - 1
-                ),
-            }
-          : item
-      );
+  const decreaseQuantity = (productId) => {
+    const nextCart = cart.map((item) =>
+      item.id === productId
+        ? {
+            ...item,
+            quantity: Math.max(1, Number(item.quantity || 1) - 1),
+          }
+        : item,
+    );
 
     setCart(nextCart);
 
@@ -1880,14 +1335,8 @@ function App() {
   // REMOVE FROM CART
   // =======================================================
 
-  const removeFromCart = (
-    productId
-  ) => {
-    const nextCart =
-      cart.filter(
-        (item) =>
-          item.id !== productId
-      );
+  const removeFromCart = (productId) => {
+    const nextCart = cart.filter((item) => item.id !== productId);
 
     setCart(nextCart);
 
@@ -1902,47 +1351,29 @@ function App() {
   // CART COUNT
   // =======================================================
 
-  const cartCount =
-    cart.reduce(
-      (total, item) =>
-        total +
-        Number(
-          item.quantity || 0
-        ),
-      0
-    );
+  const cartCount = cart.reduce(
+    (total, item) => total + Number(item.quantity || 0),
+    0,
+  );
 
   // =======================================================
   // TOGGLE WISHLIST
   // =======================================================
 
-  const toggleWishlist = (
-    productId
-  ) => {
+  const toggleWishlist = (productId) => {
     if (!firebaseUser) {
       return;
     }
 
     let nextWishlist;
 
-    if (
-      wishlist.includes(productId)
-    ) {
-      nextWishlist =
-        wishlist.filter(
-          (id) =>
-            id !== productId
-        );
+    if (wishlist.includes(productId)) {
+      nextWishlist = wishlist.filter((id) => id !== productId);
     } else {
-      nextWishlist = [
-        ...wishlist,
-        productId,
-      ];
+      nextWishlist = [...wishlist, productId];
     }
 
-    setWishlist(
-      nextWishlist
-    );
+    setWishlist(nextWishlist);
 
     queueCustomerDataSave({
       nextCart: cart,
@@ -1955,18 +1386,10 @@ function App() {
   // REMOVE FROM WISHLIST
   // =======================================================
 
-  const removeFromWishlist = (
-    productId
-  ) => {
-    const nextWishlist =
-      wishlist.filter(
-        (id) =>
-          id !== productId
-      );
+  const removeFromWishlist = (productId) => {
+    const nextWishlist = wishlist.filter((id) => id !== productId);
 
-    setWishlist(
-      nextWishlist
-    );
+    setWishlist(nextWishlist);
 
     queueCustomerDataSave({
       nextCart: cart,
@@ -1979,106 +1402,56 @@ function App() {
   // PLACE ORDER
   // =======================================================
 
-  const placeOrder = (
-    orderData
-  ) => {
-    if (
-      !orderData ||
-      !firebaseUser
-    ) {
+  const placeOrder = (orderData) => {
+    if (!orderData || !firebaseUser) {
       return null;
     }
 
-    const timestamp =
-      Date.now();
+    const timestamp = Date.now();
 
     const newOrder = {
-      id:
-        timestamp
-          .toString()
-          .slice(-8),
+      id: timestamp.toString().slice(-8),
 
-      orderNumber:
-        `CM-${timestamp
-          .toString()
-          .slice(-8)}`,
+      orderNumber: `CM-${timestamp.toString().slice(-8)}`,
 
-      items:
-        orderData.items || [],
+      items: orderData.items || [],
 
-      total:
-        orderData.total || 0,
+      total: orderData.total || 0,
 
-      paymentMethod:
-        orderData.paymentMethod ||
-        "",
+      paymentMethod: orderData.paymentMethod || "",
 
-      type:
-        orderData.type ||
-        "",
+      type: orderData.type || "",
 
-      fullName:
-        orderData.customer
-          ?.fullName || "",
+      fullName: orderData.customer?.fullName || "",
 
-      phone:
-        orderData.customer
-          ?.phone || "",
+      phone: orderData.customer?.phone || "",
 
-      campus:
-        orderData.customer
-          ?.campus || "",
+      campus: orderData.customer?.campus || "",
 
-      address:
-        orderData.customer
-          ?.address || "",
+      address: orderData.customer?.address || "",
 
-      note:
-        orderData.customer
-          ?.note || "",
+      note: orderData.customer?.note || "",
 
-      customer:
-        orderData.customer || {},
+      customer: orderData.customer || {},
 
-      date:
-        new Date().toLocaleDateString(),
+      date: new Date().toLocaleDateString(),
 
-      createdAt:
-        new Date().toISOString(),
+      createdAt: new Date().toISOString(),
 
-      status:
-        "Placed",
+      status: "Placed",
     };
 
-    const nextOrders = [
-      ...orders,
-      newOrder,
-    ];
+    const nextOrders = [...orders, newOrder];
 
-    const purchasedIds =
-      Array.isArray(
-        orderData.items
-      )
-        ? orderData.items.map(
-            (item) => item.id
-          )
-        : [];
+    const purchasedIds = Array.isArray(orderData.items)
+      ? orderData.items.map((item) => item.id)
+      : [];
 
-    const nextCart =
-      cart.filter(
-        (item) =>
-          !purchasedIds.includes(
-            item.id
-          )
-      );
+    const nextCart = cart.filter((item) => !purchasedIds.includes(item.id));
 
-    setOrders(
-      nextOrders
-    );
+    setOrders(nextOrders);
 
-    setCart(
-      nextCart
-    );
+    setCart(nextCart);
 
     queueCustomerDataSave({
       nextCart,
@@ -2095,16 +1468,10 @@ function App() {
   // =======================================================
 
   const isMessagesPage =
-    location.pathname ===
-      "/messages" ||
-    location.pathname.startsWith(
-      "/messages/"
-    ) ||
-    location.pathname ===
-      "/seller/messages" ||
-    location.pathname.startsWith(
-      "/seller/messages/"
-    );
+    location.pathname === "/messages" ||
+    location.pathname.startsWith("/messages/") ||
+    location.pathname === "/seller/messages" ||
+    location.pathname.startsWith("/seller/messages/");
 
   useEffect(() => {
     if (!firebaseUser) {
@@ -2112,21 +1479,12 @@ function App() {
       return undefined;
     }
 
-    const conversationsRef =
-      collection(
-        db,
-        "conversations"
-      );
+    const conversationsRef = collection(db, "conversations");
 
-    const conversationsQuery =
-      query(
-        conversationsRef,
-        where(
-          "participants",
-          "array-contains",
-          firebaseUser.uid
-        )
-      );
+    const conversationsQuery = query(
+      conversationsRef,
+      where("participants", "array-contains", firebaseUser.uid),
+    );
 
     // =====================================================
     // PROCESS CONVERSATIONS
@@ -2136,59 +1494,40 @@ function App() {
     // publicProfiles/{otherUid}
     // =====================================================
 
-    const processSnapshot =
-      async (snapshot) => {
-        try {
-          const conversationList =
-            await Promise.all(
-              snapshot.docs.map(
-                (conversationDoc) =>
-                  formatConversation(
-                    conversationDoc,
-                    firebaseUser.uid
-                  )
-              )
-            );
+    const processSnapshot = async (snapshot) => {
+      try {
+        const conversationList = await Promise.all(
+          snapshot.docs.map((conversationDoc) =>
+            formatConversation(conversationDoc, firebaseUser.uid),
+          ),
+        );
 
-          setMessages(
-            sortConversations(
-              conversationList
-            )
-          );
-        } catch (error) {
-          console.error(
-            "Error processing conversations:",
-            error
-          );
+        setMessages(sortConversations(conversationList));
+      } catch (error) {
+        console.error("Error processing conversations:", error);
 
-          setMessages([]);
-        }
-      };
+        setMessages([]);
+      }
+    };
 
     // =====================================================
     // MESSAGES PAGES
     // =====================================================
 
     if (isMessagesPage) {
-      const unsubscribe =
-        onSnapshot(
-          conversationsQuery,
+      const unsubscribe = onSnapshot(
+        conversationsQuery,
 
-          (snapshot) => {
-            processSnapshot(
-              snapshot
-            );
-          },
+        (snapshot) => {
+          processSnapshot(snapshot);
+        },
 
-          (error) => {
-            console.error(
-              "Conversation listener error:",
-              error
-            );
+        (error) => {
+          console.error("Conversation listener error:", error);
 
-            setMessages([]);
-          }
-        );
+          setMessages([]);
+        },
+      );
 
       return () => {
         unsubscribe();
@@ -2201,574 +1540,328 @@ function App() {
 
     let cancelled = false;
 
-    const loadConversationsOnce =
-      async () => {
-        try {
-          const snapshot =
-            await getDocs(
-              conversationsQuery
-            );
+    const loadConversationsOnce = async () => {
+      try {
+        const snapshot = await getDocs(conversationsQuery);
 
-          if (cancelled) {
-            return;
-          }
-
-          const conversationList =
-            await Promise.all(
-              snapshot.docs.map(
-                (conversationDoc) =>
-                  formatConversation(
-                    conversationDoc,
-                    firebaseUser.uid
-                  )
-              )
-            );
-
-          if (cancelled) {
-            return;
-          }
-
-          setMessages(
-            sortConversations(
-              conversationList
-            )
-          );
-        } catch (error) {
-          console.error(
-            "Error loading conversations:",
-            error
-          );
-
-          if (!cancelled) {
-            setMessages([]);
-          }
+        if (cancelled) {
+          return;
         }
-      };
+
+        const conversationList = await Promise.all(
+          snapshot.docs.map((conversationDoc) =>
+            formatConversation(conversationDoc, firebaseUser.uid),
+          ),
+        );
+
+        if (cancelled) {
+          return;
+        }
+
+        setMessages(sortConversations(conversationList));
+      } catch (error) {
+        console.error("Error loading conversations:", error);
+
+        if (!cancelled) {
+          setMessages([]);
+        }
+      }
+    };
 
     loadConversationsOnce();
 
     return () => {
       cancelled = true;
     };
-  }, [
-    firebaseUser?.uid,
-    isMessagesPage,
-  ]);
+  }, [firebaseUser?.uid, isMessagesPage]);
 
   // =======================================================
   // UNREAD MESSAGE COUNT
   // =======================================================
 
-  const unreadMessages =
-    messages.reduce(
-      (total, message) =>
-        total +
-        Number(
-          message.unread || 0
-        ),
-      0
-    );
+  const unreadMessages = messages.reduce(
+    (total, message) => total + Number(message.unread || 0),
+    0,
+  );
 
   // =======================================================
   // MARK MESSAGE AS READ
   // =======================================================
 
-  const markMessageAsRead =
-    async (messageId) => {
-      if (
-        !firebaseUser ||
-        !messageId
-      ) {
-        return false;
-      }
+  const markMessageAsRead = async (messageId) => {
+    if (!firebaseUser || !messageId) {
+      return false;
+    }
 
-      try {
-        const conversationRef =
-          doc(
-            db,
-            "conversations",
-            String(messageId)
-          );
+    try {
+      const conversationRef = doc(db, "conversations", String(messageId));
 
-        await updateDoc(
-          conversationRef,
-          {
-            [`unreadCounts.${firebaseUser.uid}`]:
-              0,
-          }
-        );
+      await updateDoc(conversationRef, {
+        [`unreadCounts.${firebaseUser.uid}`]: 0,
+      });
 
-        return true;
-      } catch (error) {
-        console.error(
-          "Error marking conversation as read:",
-          error
-        );
+      return true;
+    } catch (error) {
+      console.error("Error marking conversation as read:", error);
 
-        return false;
-      }
-    };
+      return false;
+    }
+  };
 
   // =======================================================
   // SEND MESSAGE
   // =======================================================
 
-  const sendMessage =
-    async (
-      messageId,
-      text
-    ) => {
-      const cleanText =
-        String(text || "").trim();
+  const sendMessage = async (messageId, text) => {
+    const cleanText = String(text || "").trim();
 
-      if (
-        !cleanText ||
-        !firebaseUser ||
-        !messageId
-      ) {
-        return false;
-      }
+    if (!cleanText || !firebaseUser || !messageId) {
+      return false;
+    }
 
-      try {
-        const conversationRef =
-          doc(
-            db,
-            "conversations",
-            String(messageId)
-          );
+    try {
+      const conversationRef = doc(db, "conversations", String(messageId));
 
-        let success = false;
+      let success = false;
 
-        await runTransaction(
-          db,
-          async (
-            transaction
-          ) => {
-            const conversationSnapshot =
-              await transaction.get(
-                conversationRef
-              );
+      await runTransaction(db, async (transaction) => {
+        const conversationSnapshot = await transaction.get(conversationRef);
 
-            if (
-              !conversationSnapshot.exists()
-            ) {
-              throw new Error(
-                "Conversation not found."
-              );
-            }
+        if (!conversationSnapshot.exists()) {
+          throw new Error("Conversation not found.");
+        }
 
-            const data =
-              conversationSnapshot.data();
+        const data = conversationSnapshot.data();
 
-            const participants =
-              Array.isArray(
-                data.participants
-              )
-                ? data.participants
-                : [];
+        const participants = Array.isArray(data.participants)
+          ? data.participants
+          : [];
 
-            if (
-              !participants.includes(
-                firebaseUser.uid
-              )
-            ) {
-              throw new Error(
-                "You are not a participant in this conversation."
-              );
-            }
+        if (!participants.includes(firebaseUser.uid)) {
+          throw new Error("You are not a participant in this conversation.");
+        }
 
-            const receiverId =
-              participants.find(
-                (uid) =>
-                  String(uid) !==
-                  String(
-                    firebaseUser.uid
-                  )
-              );
-
-            if (!receiverId) {
-              throw new Error(
-                "Receiver ID is missing."
-              );
-            }
-
-            const existingMessages =
-              Array.isArray(
-                data.messages
-              )
-                ? data.messages
-                : [];
-
-            const newMessage = {
-              id:
-                `${firebaseUser.uid}_${Date.now()}_${Math.random()
-                  .toString(36)
-                  .slice(2, 8)}`,
-
-              senderId:
-                firebaseUser.uid,
-
-              sender:
-                "me",
-
-              text:
-                cleanText,
-
-              createdAt:
-                Date.now(),
-
-              deletedFor: [],
-            };
-
-            const currentUnread =
-              Number(
-                data.unreadCounts?.[
-                  receiverId
-                ] || 0
-              );
-
-            transaction.update(
-              conversationRef,
-              {
-                messages: [
-                  ...existingMessages,
-                  newMessage,
-                ],
-
-                lastMessage:
-                  cleanText,
-
-                lastMessageAt:
-                  Date.now(),
-
-                [`unreadCounts.${receiverId}`]:
-                  currentUnread + 1,
-
-                [`unreadCounts.${firebaseUser.uid}`]:
-                  0,
-
-                updatedAt:
-                  serverTimestamp(),
-              }
-            );
-
-            success = true;
-          }
+        const receiverId = participants.find(
+          (uid) => String(uid) !== String(firebaseUser.uid),
         );
 
-        return success;
-      } catch (error) {
-        console.error(
-          "Error sending message:",
-          error
-        );
+        if (!receiverId) {
+          throw new Error("Receiver ID is missing.");
+        }
 
-        return false;
-      }
-    };
+        const existingMessages = Array.isArray(data.messages)
+          ? data.messages
+          : [];
+
+        const newMessage = {
+          id: `${firebaseUser.uid}_${Date.now()}_${Math.random()
+            .toString(36)
+            .slice(2, 8)}`,
+
+          senderId: firebaseUser.uid,
+
+          sender: "me",
+
+          text: cleanText,
+
+          createdAt: Date.now(),
+
+          deletedFor: [],
+        };
+
+        const currentUnread = Number(data.unreadCounts?.[receiverId] || 0);
+
+        transaction.update(conversationRef, {
+          messages: [...existingMessages, newMessage],
+
+          lastMessage: cleanText,
+
+          lastMessageAt: Date.now(),
+
+          [`unreadCounts.${receiverId}`]: currentUnread + 1,
+
+          [`unreadCounts.${firebaseUser.uid}`]: 0,
+
+          updatedAt: serverTimestamp(),
+        });
+
+        success = true;
+      });
+
+      return success;
+    } catch (error) {
+      console.error("Error sending message:", error);
+
+      return false;
+    }
+  };
 
   // =======================================================
   // DELETE MESSAGES
   // =======================================================
 
-  const deleteMessages =
-    async (
-      conversationId,
-      messageIds,
-      deleteType
-    ) => {
-      if (
-        !firebaseUser ||
-        !conversationId ||
-        !Array.isArray(messageIds) ||
-        messageIds.length === 0
-      ) {
-        return false;
-      }
+  const deleteMessages = async (conversationId, messageIds, deleteType) => {
+    if (
+      !firebaseUser ||
+      !conversationId ||
+      !Array.isArray(messageIds) ||
+      messageIds.length === 0
+    ) {
+      return false;
+    }
 
-      if (
-        deleteType !== "me" &&
-        deleteType !== "everyone"
-      ) {
-        return false;
-      }
+    if (deleteType !== "me" && deleteType !== "everyone") {
+      return false;
+    }
 
-      try {
-        const conversationRef =
-          doc(
-            db,
-            "conversations",
-            String(conversationId)
-          );
+    try {
+      const conversationRef = doc(db, "conversations", String(conversationId));
 
-        const result =
-          await runTransaction(
-            db,
-            async (
-              transaction
-            ) => {
-              const snapshot =
-                await transaction.get(
-                  conversationRef
-                );
+      const result = await runTransaction(db, async (transaction) => {
+        const snapshot = await transaction.get(conversationRef);
 
-              if (
-                !snapshot.exists()
-              ) {
-                throw new Error(
-                  "Conversation not found."
-                );
-              }
+        if (!snapshot.exists()) {
+          throw new Error("Conversation not found.");
+        }
 
-              const data =
-                snapshot.data();
+        const data = snapshot.data();
 
-              const participants =
-                Array.isArray(
-                  data.participants
-                )
-                  ? data.participants
-                  : [];
+        const participants = Array.isArray(data.participants)
+          ? data.participants
+          : [];
 
-              if (
-                !participants.includes(
-                  firebaseUser.uid
-                )
-              ) {
-                throw new Error(
-                  "You are not a participant in this conversation."
-                );
-              }
+        if (!participants.includes(firebaseUser.uid)) {
+          throw new Error("You are not a participant in this conversation.");
+        }
 
-              const existingMessages =
-                Array.isArray(
-                  data.messages
-                )
-                  ? data.messages
-                  : [];
+        const existingMessages = Array.isArray(data.messages)
+          ? data.messages
+          : [];
 
-              const selectedIds =
-                new Set(
-                  messageIds.map(
-                    (messageId) =>
-                      String(
-                        messageId
-                      )
-                  )
-                );
-
-              // ===========================================
-              // DELETE FOR EVERYONE
-              // ===========================================
-
-              if (
-                deleteType ===
-                "everyone"
-              ) {
-                const updatedMessages =
-                  existingMessages.filter(
-                    (message) => {
-                      const messageId =
-                        String(
-                          message.id
-                        );
-
-                      if (
-                        !selectedIds.has(
-                          messageId
-                        )
-                      ) {
-                        return true;
-                      }
-
-                      const isMine =
-                        String(
-                          message.senderId
-                        ) ===
-                        String(
-                          firebaseUser.uid
-                        );
-
-                      if (!isMine) {
-                        return true;
-                      }
-
-                      return false;
-                    }
-                  );
-
-                const visibleMessages =
-                  updatedMessages.filter(
-                    (message) => {
-                      const deletedFor =
-                        Array.isArray(
-                          message.deletedFor
-                        )
-                          ? message.deletedFor
-                          : [];
-
-                      return (
-                        !deletedFor.includes(
-                          firebaseUser.uid
-                        ) &&
-                        message.deletedForEveryone !==
-                          true
-                      );
-                    }
-                  );
-
-                const lastMessage =
-                  visibleMessages.length >
-                  0
-                    ? visibleMessages[
-                        visibleMessages.length -
-                          1
-                      ]
-                    : null;
-
-                transaction.update(
-                  conversationRef,
-                  {
-                    messages:
-                      updatedMessages,
-
-                    lastMessage:
-                      lastMessage?.text ||
-                      (lastMessage?.imageUrl
-                        ? "📷 Photo"
-                        : ""),
-
-                    lastMessageAt:
-                      lastMessage?.createdAt ||
-                      0,
-
-                    updatedAt:
-                      serverTimestamp(),
-                  }
-                );
-
-                return true;
-              }
-
-              // ===========================================
-              // DELETE FOR ME
-              // ===========================================
-
-              const updatedMessages =
-                existingMessages.map(
-                  (message) => {
-                    const messageId =
-                      String(
-                        message.id
-                      );
-
-                    if (
-                      !selectedIds.has(
-                        messageId
-                      )
-                    ) {
-                      return message;
-                    }
-
-                    const deletedFor =
-                      Array.isArray(
-                        message.deletedFor
-                      )
-                        ? message.deletedFor
-                        : [];
-
-                    if (
-                      deletedFor.includes(
-                        firebaseUser.uid
-                      )
-                    ) {
-                      return message;
-                    }
-
-                    return {
-                      ...message,
-
-                      deletedFor: [
-                        ...deletedFor,
-                        firebaseUser.uid,
-                      ],
-                    };
-                  }
-                );
-
-              const visibleForCurrentUser =
-                updatedMessages.filter(
-                  (message) => {
-                    const deletedFor =
-                      Array.isArray(
-                        message.deletedFor
-                      )
-                        ? message.deletedFor
-                        : [];
-
-                    if (
-                      deletedFor.includes(
-                        firebaseUser.uid
-                      )
-                    ) {
-                      return false;
-                    }
-
-                    if (
-                      message.deletedForEveryone ===
-                      true
-                    ) {
-                      return false;
-                    }
-
-                    return true;
-                  }
-                );
-
-              const lastMessage =
-                visibleForCurrentUser.length >
-                0
-                  ? visibleForCurrentUser[
-                      visibleForCurrentUser.length -
-                        1
-                    ]
-                  : null;
-
-              transaction.update(
-                conversationRef,
-                {
-                  messages:
-                    updatedMessages,
-
-                  lastMessage:
-                    lastMessage?.text ||
-                    (lastMessage?.imageUrl
-                      ? "📷 Photo"
-                      : ""),
-
-                  lastMessageAt:
-                    lastMessage?.createdAt ||
-                    0,
-
-                  updatedAt:
-                    serverTimestamp(),
-                }
-              );
-
-              return true;
-            }
-          );
-
-        return result === true;
-      } catch (error) {
-        console.error(
-          "Error deleting messages:",
-          error
+        const selectedIds = new Set(
+          messageIds.map((messageId) => String(messageId)),
         );
 
-        return false;
-      }
-    };
+        // ===========================================
+        // DELETE FOR EVERYONE
+        // ===========================================
+
+        if (deleteType === "everyone") {
+          const updatedMessages = existingMessages.filter((message) => {
+            const messageId = String(message.id);
+
+            if (!selectedIds.has(messageId)) {
+              return true;
+            }
+
+            const isMine =
+              String(message.senderId) === String(firebaseUser.uid);
+
+            if (!isMine) {
+              return true;
+            }
+
+            return false;
+          });
+
+          const visibleMessages = updatedMessages.filter((message) => {
+            const deletedFor = Array.isArray(message.deletedFor)
+              ? message.deletedFor
+              : [];
+
+            return (
+              !deletedFor.includes(firebaseUser.uid) &&
+              message.deletedForEveryone !== true
+            );
+          });
+
+          const lastMessage =
+            visibleMessages.length > 0
+              ? visibleMessages[visibleMessages.length - 1]
+              : null;
+
+          transaction.update(conversationRef, {
+            messages: updatedMessages,
+
+            lastMessage:
+              lastMessage?.text || (lastMessage?.imageUrl ? "📷 Photo" : ""),
+
+            lastMessageAt: lastMessage?.createdAt || 0,
+
+            updatedAt: serverTimestamp(),
+          });
+
+          return true;
+        }
+
+        // ===========================================
+        // DELETE FOR ME
+        // ===========================================
+
+        const updatedMessages = existingMessages.map((message) => {
+          const messageId = String(message.id);
+
+          if (!selectedIds.has(messageId)) {
+            return message;
+          }
+
+          const deletedFor = Array.isArray(message.deletedFor)
+            ? message.deletedFor
+            : [];
+
+          if (deletedFor.includes(firebaseUser.uid)) {
+            return message;
+          }
+
+          return {
+            ...message,
+
+            deletedFor: [...deletedFor, firebaseUser.uid],
+          };
+        });
+
+        const visibleForCurrentUser = updatedMessages.filter((message) => {
+          const deletedFor = Array.isArray(message.deletedFor)
+            ? message.deletedFor
+            : [];
+
+          if (deletedFor.includes(firebaseUser.uid)) {
+            return false;
+          }
+
+          if (message.deletedForEveryone === true) {
+            return false;
+          }
+
+          return true;
+        });
+
+        const lastMessage =
+          visibleForCurrentUser.length > 0
+            ? visibleForCurrentUser[visibleForCurrentUser.length - 1]
+            : null;
+
+        transaction.update(conversationRef, {
+          messages: updatedMessages,
+
+          lastMessage:
+            lastMessage?.text || (lastMessage?.imageUrl ? "📷 Photo" : ""),
+
+          lastMessageAt: lastMessage?.createdAt || 0,
+
+          updatedAt: serverTimestamp(),
+        });
+
+        return true;
+      });
+
+      return result === true;
+    } catch (error) {
+      console.error("Error deleting messages:", error);
+
+      return false;
+    }
+  };
 
   // =======================================================
   // OPEN SELLER CHAT
@@ -2782,373 +1875,286 @@ function App() {
   // NOT users/{sellerId}
   // =======================================================
 
-  const openSellerChat =
-    async (product) => {
-      // =====================================================
-      // CHECK USER
-      // =====================================================
+  const openSellerChat = async (product) => {
+    // =====================================================
+    // CHECK USER
+    // =====================================================
 
-      if (!firebaseUser) {
-        console.error(
-          "Cannot open seller chat: user is not logged in."
-        );
+    if (!firebaseUser) {
+      console.error("Cannot open seller chat: user is not logged in.");
 
-        return false;
-      }
+      return false;
+    }
 
-      // =====================================================
-      // CHECK PRODUCT
-      // =====================================================
+    // =====================================================
+    // CHECK PRODUCT
+    // =====================================================
 
-      if (!product) {
-        console.error(
-          "Cannot open seller chat: product is missing."
-        );
+    if (!product) {
+      console.error("Cannot open seller chat: product is missing.");
 
-        return false;
-      }
+      return false;
+    }
 
-      // =====================================================
-      // SELLER UID
-      // =====================================================
+    // =====================================================
+    // SELLER UID
+    // =====================================================
 
-      const sellerId =
-        product.sellerId ||
-        product.sellerUid ||
-        product.seller?.uid ||
-        "";
+    const sellerId =
+      product.sellerId || product.sellerUid || product.seller?.uid || "";
 
-      if (!sellerId) {
-        console.error(
-          "Cannot open seller chat: this product has no seller ID.",
-          product
-        );
+    if (!sellerId) {
+      console.error(
+        "Cannot open seller chat: this product has no seller ID.",
+        product,
+      );
 
-        return false;
-      }
+      return false;
+    }
 
-      // =====================================================
-      // PREVENT SELF CHAT
-      // =====================================================
+    // =====================================================
+    // PREVENT SELF CHAT
+    // =====================================================
 
-      if (
-        String(sellerId) ===
-        String(firebaseUser.uid)
-      ) {
-        console.error(
-          "Cannot open seller chat: buyer and seller are the same user."
-        );
+    if (String(sellerId) === String(firebaseUser.uid)) {
+      console.error(
+        "Cannot open seller chat: buyer and seller are the same user.",
+      );
 
-        return false;
-      }
+      return false;
+    }
 
-      // =====================================================
-      // STABLE CONVERSATION ID
-      // =====================================================
+    // =====================================================
+    // STABLE CONVERSATION ID
+    // =====================================================
 
-      const participantIds = [
-        String(firebaseUser.uid),
-        String(sellerId),
-      ].sort();
+    const participantIds = [String(firebaseUser.uid), String(sellerId)].sort();
 
-      const conversationId =
-        participantIds.join("_");
+    const conversationId = participantIds.join("_");
 
-      const conversationRef =
-        doc(
-          db,
-          "conversations",
-          conversationId
-        );
+    const conversationRef = doc(db, "conversations", conversationId);
 
-      try {
-        // ===================================================
-        // GET EXISTING CONVERSATION
-        // ===================================================
+    try {
+      // ===================================================
+      // GET EXISTING CONVERSATION
+      // ===================================================
 
-        const existingSnapshot =
-          await getDoc(
-            conversationRef
-          );
+      const existingSnapshot = await getDoc(conversationRef);
 
-        // ===================================================
-        // BUYER INFORMATION
-        // ===================================================
+      // ===================================================
+      // BUYER INFORMATION
+      // ===================================================
 
-        const buyerName =
-          getProfileName(
-            profile,
-            firebaseUser
-          );
+      const buyerName = getProfileName(profile, firebaseUser);
 
-        const buyerImage =
-          getProfileImage(
-            profile,
-            firebaseUser
-          );
+      const buyerImage = getProfileImage(profile, firebaseUser);
 
-        // ===================================================
-        // GET SELLER PUBLIC PROFILE
-        //
-        // THIS IS THE IMPORTANT FIX.
-        // ===================================================
+      // ===================================================
+      // GET SELLER PUBLIC PROFILE
+      //
+      // THIS IS THE IMPORTANT FIX.
+      // ===================================================
 
-        const sellerPublicProfile =
-          await getPublicProfile(
-            sellerId
-          );
+      const sellerPublicProfile = await getPublicProfile(sellerId);
 
-        // ===================================================
-        // SELLER NAME
-        // ===================================================
+      // ===================================================
+      // SELLER NAME
+      // ===================================================
 
-        const sellerName =
-          sellerPublicProfile?.fullName ||
-          sellerPublicProfile?.displayName ||
-          product.sellerName ||
-          product.seller?.name ||
-          product.seller?.fullName ||
-          "CampusMart Seller";
+      const sellerName =
+        sellerPublicProfile?.fullName ||
+        sellerPublicProfile?.displayName ||
+        product.sellerName ||
+        product.seller?.name ||
+        product.seller?.fullName ||
+        "CampusMart Seller";
 
-        // ===================================================
-        // SELLER IMAGE
-        // ===================================================
+      // ===================================================
+      // SELLER IMAGE
+      // ===================================================
 
-        const sellerImage =
-          sellerPublicProfile?.profileImage ||
-          sellerPublicProfile?.photoURL ||
-          sellerPublicProfile?.image ||
-          sellerPublicProfile?.avatar ||
-          product.sellerImage ||
-          product.seller?.profileImage ||
-          product.seller?.image ||
-          product.seller?.photoURL ||
-          product.seller?.avatar ||
-          null;
+      const sellerImage =
+        sellerPublicProfile?.profileImage ||
+        sellerPublicProfile?.photoURL ||
+        sellerPublicProfile?.image ||
+        sellerPublicProfile?.avatar ||
+        product.sellerImage ||
+        product.seller?.profileImage ||
+        product.seller?.image ||
+        product.seller?.photoURL ||
+        product.seller?.avatar ||
+        null;
 
-        // ===================================================
-        // EXISTING CONVERSATION
-        // ===================================================
+      // ===================================================
+      // EXISTING CONVERSATION
+      // ===================================================
 
-        if (
-          existingSnapshot.exists()
-        ) {
-          console.log(
-            "Existing seller conversation found:",
-            conversationId
-          );
+      if (existingSnapshot.exists()) {
+        console.log("Existing seller conversation found:", conversationId);
 
-          const existingData =
-            existingSnapshot.data();
+        const existingData = existingSnapshot.data();
 
-          const existingParticipantImages =
-            existingData.participantImages ||
-            {};
+        const existingParticipantImages = existingData.participantImages || {};
 
-          const existingParticipantNames =
-            existingData.participantNames ||
-            {};
+        const existingParticipantNames = existingData.participantNames || {};
 
-          const updatedImages = {
-            ...existingParticipantImages,
+        const updatedImages = {
+          ...existingParticipantImages,
 
-            [String(firebaseUser.uid)]:
-              buyerImage,
+          [String(firebaseUser.uid)]: buyerImage,
 
-            [String(sellerId)]:
-              sellerImage,
-          };
+          [String(sellerId)]: sellerImage,
+        };
 
-          const updatedNames = {
-            ...existingParticipantNames,
+        const updatedNames = {
+          ...existingParticipantNames,
 
-            [String(firebaseUser.uid)]:
-              buyerName,
+          [String(firebaseUser.uid)]: buyerName,
 
-            [String(sellerId)]:
-              sellerName,
-          };
+          [String(sellerId)]: sellerName,
+        };
 
-          // =================================================
-          // REPAIR / UPDATE CONVERSATION PROFILE DATA
-          // =================================================
-
-          await setDoc(
-            conversationRef,
-            {
-              participants:
-                participantIds,
-
-              buyerId:
-                String(firebaseUser.uid),
-
-              sellerId:
-                String(sellerId),
-
-              participantNames:
-                updatedNames,
-
-              participantImages:
-                updatedImages,
-
-              updatedAt:
-                serverTimestamp(),
-            },
-            {
-              merge: true,
-            }
-          );
-
-          navigate(
-            `/messages/${conversationId}`
-          );
-
-          return true;
-        }
-
-        // ===================================================
-        // CREATE NEW CONVERSATION
-        // ===================================================
+        // =================================================
+        // REPAIR / UPDATE CONVERSATION PROFILE DATA
+        // =================================================
 
         await setDoc(
           conversationRef,
           {
-            // -----------------------------------------------
-            // PARTICIPANTS
-            // -----------------------------------------------
+            participants: participantIds,
 
-            participants:
-              participantIds,
+            buyerId: String(firebaseUser.uid),
 
-            buyerId:
-              String(firebaseUser.uid),
+            sellerId: String(sellerId),
 
-            sellerId:
-              String(sellerId),
+            participantNames: updatedNames,
 
-            // -----------------------------------------------
-            // NAMES
-            // -----------------------------------------------
+            participantImages: updatedImages,
 
-            participantNames: {
-              [String(firebaseUser.uid)]:
-                buyerName,
-
-              [String(sellerId)]:
-                sellerName,
-            },
-
-            // -----------------------------------------------
-            // PROFILE IMAGES
-            // -----------------------------------------------
-
-            participantImages: {
-              [String(firebaseUser.uid)]:
-                buyerImage,
-
-              [String(sellerId)]:
-                sellerImage,
-            },
-
-            // -----------------------------------------------
-            // UNREAD COUNTS
-            // -----------------------------------------------
-
-            unreadCounts: {
-              [String(firebaseUser.uid)]:
-                0,
-
-              [String(sellerId)]:
-                0,
-            },
-
-            // -----------------------------------------------
-            // ONLINE STATUS
-            // -----------------------------------------------
-
-            onlineStatus: {
-              [String(firebaseUser.uid)]:
-                true,
-
-              [String(sellerId)]:
-                false,
-            },
-
-            // -----------------------------------------------
-            // LAST MESSAGE
-            // -----------------------------------------------
-
-            lastMessage:
-              "",
-
-            lastMessageAt:
-              0,
-
-            // -----------------------------------------------
-            // MESSAGES
-            // -----------------------------------------------
-
-            messages: [],
-
-            // -----------------------------------------------
-            // PRODUCT
-            // -----------------------------------------------
-
-            productId:
-              product.id || null,
-
-            productName:
-              product.name || "",
-
-            // -----------------------------------------------
-            // TIMESTAMPS
-            // -----------------------------------------------
-
-            createdAt:
-              serverTimestamp(),
-
-            updatedAt:
-              serverTimestamp(),
+            updatedAt: serverTimestamp(),
           },
           {
             merge: true,
-          }
+          },
         );
 
-        console.log(
-          "Seller conversation created successfully:",
-          conversationId
-        );
-
-        navigate(
-          `/messages/${conversationId}`
-        );
+        navigate(`/messages/${conversationId}`);
 
         return true;
-      } catch (error) {
-        console.error(
-          "Error opening seller chat:",
-          error
-        );
-
-        return false;
       }
-    };
+
+      // ===================================================
+      // CREATE NEW CONVERSATION
+      // ===================================================
+
+      await setDoc(
+        conversationRef,
+        {
+          // -----------------------------------------------
+          // PARTICIPANTS
+          // -----------------------------------------------
+
+          participants: participantIds,
+
+          buyerId: String(firebaseUser.uid),
+
+          sellerId: String(sellerId),
+
+          // -----------------------------------------------
+          // NAMES
+          // -----------------------------------------------
+
+          participantNames: {
+            [String(firebaseUser.uid)]: buyerName,
+
+            [String(sellerId)]: sellerName,
+          },
+
+          // -----------------------------------------------
+          // PROFILE IMAGES
+          // -----------------------------------------------
+
+          participantImages: {
+            [String(firebaseUser.uid)]: buyerImage,
+
+            [String(sellerId)]: sellerImage,
+          },
+
+          // -----------------------------------------------
+          // UNREAD COUNTS
+          // -----------------------------------------------
+
+          unreadCounts: {
+            [String(firebaseUser.uid)]: 0,
+
+            [String(sellerId)]: 0,
+          },
+
+          // -----------------------------------------------
+          // ONLINE STATUS
+          // -----------------------------------------------
+
+          onlineStatus: {
+            [String(firebaseUser.uid)]: true,
+
+            [String(sellerId)]: false,
+          },
+
+          // -----------------------------------------------
+          // LAST MESSAGE
+          // -----------------------------------------------
+
+          lastMessage: "",
+
+          lastMessageAt: 0,
+
+          // -----------------------------------------------
+          // MESSAGES
+          // -----------------------------------------------
+
+          messages: [],
+
+          // -----------------------------------------------
+          // PRODUCT
+          // -----------------------------------------------
+
+          productId: product.id || null,
+
+          productName: product.name || "",
+
+          // -----------------------------------------------
+          // TIMESTAMPS
+          // -----------------------------------------------
+
+          createdAt: serverTimestamp(),
+
+          updatedAt: serverTimestamp(),
+        },
+        {
+          merge: true,
+        },
+      );
+
+      console.log("Seller conversation created successfully:", conversationId);
+
+      navigate(`/messages/${conversationId}`);
+
+      return true;
+    } catch (error) {
+      console.error("Error opening seller chat:", error);
+
+      return false;
+    }
+  };
 
   // =======================================================
   // AUTH INITIALIZATION
   // =======================================================
 
-  if (
-    profileLoading ||
-    (firebaseUser &&
-      !profileResolved)
-  ) {
+  if (profileLoading || (firebaseUser && !profileResolved)) {
     return (
       <>
-        {!isOnline && (
-          <InternetRequired />
-        )}
+        {!isOnline && <InternetRequired />}
 
         <LoadingScreen
           text={
@@ -3167,22 +2173,14 @@ function App() {
 
   return (
     <>
-      {!isOnline && (
-        <InternetRequired />
-      )}
+      {!isOnline && <InternetRequired />}
 
       <Routes>
-
         {/* ================================================= */}
         {/* LANDING */}
         {/* ================================================= */}
 
-        <Route
-          path="/"
-          element={
-            <Landing />
-          }
-        />
+        <Route path="/" element={<Landing />} />
 
         {/* ================================================= */}
         {/* LOGIN */}
@@ -3191,12 +2189,7 @@ function App() {
         <Route
           path="/login"
           element={
-            <GuestRoute
-              profile={profile}
-              profileResolved={
-                profileResolved
-              }
-            >
+            <GuestRoute profile={profile} profileResolved={profileResolved}>
               <Login />
             </GuestRoute>
           }
@@ -3209,12 +2202,7 @@ function App() {
         <Route
           path="/register"
           element={
-            <GuestRoute
-              profile={profile}
-              profileResolved={
-                profileResolved
-              }
-            >
+            <GuestRoute profile={profile} profileResolved={profileResolved}>
               <Register />
             </GuestRoute>
           }
@@ -3227,12 +2215,7 @@ function App() {
         <Route
           path="/forgot-password"
           element={
-            <GuestRoute
-              profile={profile}
-              profileResolved={
-                profileResolved
-              }
-            >
+            <GuestRoute profile={profile} profileResolved={profileResolved}>
               <ForgotPassword />
             </GuestRoute>
           }
@@ -3242,23 +2225,13 @@ function App() {
         {/* PRIVACY POLICY */}
         {/* ================================================= */}
 
-        <Route
-          path="/privacy-policy"
-          element={
-            <PrivacyPolicy />
-          }
-        />
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
 
         {/* ================================================= */}
         {/* TERMS */}
         {/* ================================================= */}
 
-        <Route
-          path="/terms-and-conditions"
-          element={
-            <TermsAndConditions />
-          }
-        />
+        <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
 
         {/* ================================================= */}
         {/* CUSTOMER DASHBOARD */}
@@ -3267,42 +2240,20 @@ function App() {
         <Route
           path="/dashboard"
           element={
-            <ProtectedRoute
-              profileResolved={
-                profileResolved
-              }
-            >
+            <ProtectedRoute profileResolved={profileResolved}>
               <CustomerRoute
                 profile={profile}
-                profileResolved={
-                  profileResolved
-                }
+                profileResolved={profileResolved}
               >
                 <Dashboard
-                  addToCart={
-                    addToCart
-                  }
-                  cartCount={
-                    cartCount
-                  }
-                  orders={
-                    orders
-                  }
-                  wishlist={
-                    wishlist
-                  }
-                  toggleWishlist={
-                    toggleWishlist
-                  }
-                  unreadMessages={
-                    unreadMessages
-                  }
-                  messages={
-                    messages
-                  }
-                  profile={
-                    profile
-                  }
+                  addToCart={addToCart}
+                  cartCount={cartCount}
+                  orders={orders}
+                  wishlist={wishlist}
+                  toggleWishlist={toggleWishlist}
+                  unreadMessages={unreadMessages}
+                  messages={messages}
+                  profile={profile}
                 />
               </CustomerRoute>
             </ProtectedRoute>
@@ -3316,33 +2267,17 @@ function App() {
         <Route
           path="/browse-products"
           element={
-            <ProtectedRoute
-              profileResolved={
-                profileResolved
-              }
-            >
+            <ProtectedRoute profileResolved={profileResolved}>
               <CustomerRoute
                 profile={profile}
-                profileResolved={
-                  profileResolved
-                }
+                profileResolved={profileResolved}
               >
                 <BrowseProducts
-                  addToCart={
-                    addToCart
-                  }
-                  cartCount={
-                    cartCount
-                  }
-                  wishlist={
-                    wishlist
-                  }
-                  toggleWishlist={
-                    toggleWishlist
-                  }
-                  profile={
-                    profile
-                  }
+                  addToCart={addToCart}
+                  cartCount={cartCount}
+                  wishlist={wishlist}
+                  toggleWishlist={toggleWishlist}
+                  profile={profile}
                 />
               </CustomerRoute>
             </ProtectedRoute>
@@ -3356,36 +2291,18 @@ function App() {
         <Route
           path="/products/:id"
           element={
-            <ProtectedRoute
-              profileResolved={
-                profileResolved
-              }
-            >
+            <ProtectedRoute profileResolved={profileResolved}>
               <CustomerRoute
                 profile={profile}
-                profileResolved={
-                  profileResolved
-                }
+                profileResolved={profileResolved}
               >
                 <ProductDetails
-                  addToCart={
-                    addToCart
-                  }
-                  cartCount={
-                    cartCount
-                  }
-                  wishlist={
-                    wishlist
-                  }
-                  toggleWishlist={
-                    toggleWishlist
-                  }
-                  openSellerChat={
-                    openSellerChat
-                  }
-                  profile={
-                    profile
-                  }
+                  addToCart={addToCart}
+                  cartCount={cartCount}
+                  wishlist={wishlist}
+                  toggleWishlist={toggleWishlist}
+                  openSellerChat={openSellerChat}
+                  profile={profile}
                 />
               </CustomerRoute>
             </ProtectedRoute>
@@ -3399,39 +2316,19 @@ function App() {
         <Route
           path="/cart"
           element={
-            <ProtectedRoute
-              profileResolved={
-                profileResolved
-              }
-            >
+            <ProtectedRoute profileResolved={profileResolved}>
               <CustomerRoute
                 profile={profile}
-                profileResolved={
-                  profileResolved
-                }
+                profileResolved={profileResolved}
               >
                 <Cart
-                  cart={
-                    cart
-                  }
-                  cartCount={
-                    cartCount
-                  }
-                  increaseQuantity={
-                    increaseQuantity
-                  }
-                  decreaseQuantity={
-                    decreaseQuantity
-                  }
-                  removeFromCart={
-                    removeFromCart
-                  }
-                  openSellerChat={
-                    openSellerChat
-                  }
-                  profile={
-                    profile
-                  }
+                  cart={cart}
+                  cartCount={cartCount}
+                  increaseQuantity={increaseQuantity}
+                  decreaseQuantity={decreaseQuantity}
+                  removeFromCart={removeFromCart}
+                  openSellerChat={openSellerChat}
+                  profile={profile}
                 />
               </CustomerRoute>
             </ProtectedRoute>
@@ -3445,27 +2342,15 @@ function App() {
         <Route
           path="/orders"
           element={
-            <ProtectedRoute
-              profileResolved={
-                profileResolved
-              }
-            >
+            <ProtectedRoute profileResolved={profileResolved}>
               <CustomerRoute
                 profile={profile}
-                profileResolved={
-                  profileResolved
-                }
+                profileResolved={profileResolved}
               >
                 <Orders
-                  orders={
-                    orders
-                  }
-                  cartCount={
-                    cartCount
-                  }
-                  profile={
-                    profile
-                  }
+                  orders={orders}
+                  cartCount={cartCount}
+                  profile={profile}
                 />
               </CustomerRoute>
             </ProtectedRoute>
@@ -3479,27 +2364,15 @@ function App() {
         <Route
           path="/orders/:id"
           element={
-            <ProtectedRoute
-              profileResolved={
-                profileResolved
-              }
-            >
+            <ProtectedRoute profileResolved={profileResolved}>
               <CustomerRoute
                 profile={profile}
-                profileResolved={
-                  profileResolved
-                }
+                profileResolved={profileResolved}
               >
                 <OrderDetails
-                  orders={
-                    orders
-                  }
-                  cartCount={
-                    cartCount
-                  }
-                  profile={
-                    profile
-                  }
+                  orders={orders}
+                  cartCount={cartCount}
+                  profile={profile}
                 />
               </CustomerRoute>
             </ProtectedRoute>
@@ -3513,36 +2386,18 @@ function App() {
         <Route
           path="/messages"
           element={
-            <ProtectedRoute
-              profileResolved={
-                profileResolved
-              }
-            >
+            <ProtectedRoute profileResolved={profileResolved}>
               <CustomerRoute
                 profile={profile}
-                profileResolved={
-                  profileResolved
-                }
+                profileResolved={profileResolved}
               >
                 <Messages
-                  cartCount={
-                    cartCount
-                  }
-                  wishlist={
-                    wishlist
-                  }
-                  messages={
-                    messages
-                  }
-                  unreadMessages={
-                    unreadMessages
-                  }
-                  markMessageAsRead={
-                    markMessageAsRead
-                  }
-                  profile={
-                    profile
-                  }
+                  cartCount={cartCount}
+                  wishlist={wishlist}
+                  messages={messages}
+                  unreadMessages={unreadMessages}
+                  markMessageAsRead={markMessageAsRead}
+                  profile={profile}
                 />
               </CustomerRoute>
             </ProtectedRoute>
@@ -3556,42 +2411,20 @@ function App() {
         <Route
           path="/messages/:id"
           element={
-            <ProtectedRoute
-              profileResolved={
-                profileResolved
-              }
-            >
+            <ProtectedRoute profileResolved={profileResolved}>
               <CustomerRoute
                 profile={profile}
-                profileResolved={
-                  profileResolved
-                }
+                profileResolved={profileResolved}
               >
                 <Chat
-                  cartCount={
-                    cartCount
-                  }
-                  wishlist={
-                    wishlist
-                  }
-                  messages={
-                    messages
-                  }
-                  unreadMessages={
-                    unreadMessages
-                  }
-                  markMessageAsRead={
-                    markMessageAsRead
-                  }
-                  sendMessage={
-                    sendMessage
-                  }
-                  deleteMessages={
-                    deleteMessages
-                  }
-                  profile={
-                    profile
-                  }
+                  cartCount={cartCount}
+                  wishlist={wishlist}
+                  messages={messages}
+                  unreadMessages={unreadMessages}
+                  markMessageAsRead={markMessageAsRead}
+                  sendMessage={sendMessage}
+                  deleteMessages={deleteMessages}
+                  profile={profile}
                 />
               </CustomerRoute>
             </ProtectedRoute>
@@ -3605,30 +2438,16 @@ function App() {
         <Route
           path="/checkout"
           element={
-            <ProtectedRoute
-              profileResolved={
-                profileResolved
-              }
-            >
+            <ProtectedRoute profileResolved={profileResolved}>
               <CustomerRoute
                 profile={profile}
-                profileResolved={
-                  profileResolved
-                }
+                profileResolved={profileResolved}
               >
                 <Checkout
-                  cart={
-                    cart
-                  }
-                  cartCount={
-                    cartCount
-                  }
-                  placeOrder={
-                    placeOrder
-                  }
-                  profile={
-                    profile
-                  }
+                  cart={cart}
+                  cartCount={cartCount}
+                  placeOrder={placeOrder}
+                  profile={profile}
                 />
               </CustomerRoute>
             </ProtectedRoute>
@@ -3642,22 +2461,12 @@ function App() {
         <Route
           path="/order-success"
           element={
-            <ProtectedRoute
-              profileResolved={
-                profileResolved
-              }
-            >
+            <ProtectedRoute profileResolved={profileResolved}>
               <CustomerRoute
                 profile={profile}
-                profileResolved={
-                  profileResolved
-                }
+                profileResolved={profileResolved}
               >
-                <OrderSuccess
-                  profile={
-                    profile
-                  }
-                />
+                <OrderSuccess profile={profile} />
               </CustomerRoute>
             </ProtectedRoute>
           }
@@ -3670,33 +2479,17 @@ function App() {
         <Route
           path="/wishlist"
           element={
-            <ProtectedRoute
-              profileResolved={
-                profileResolved
-              }
-            >
+            <ProtectedRoute profileResolved={profileResolved}>
               <CustomerRoute
                 profile={profile}
-                profileResolved={
-                  profileResolved
-                }
+                profileResolved={profileResolved}
               >
                 <Wishlist
-                  wishlist={
-                    wishlist
-                  }
-                  removeFromWishlist={
-                    removeFromWishlist
-                  }
-                  addToCart={
-                    addToCart
-                  }
-                  cartCount={
-                    cartCount
-                  }
-                  profile={
-                    profile
-                  }
+                  wishlist={wishlist}
+                  removeFromWishlist={removeFromWishlist}
+                  addToCart={addToCart}
+                  cartCount={cartCount}
+                  profile={profile}
                 />
               </CustomerRoute>
             </ProtectedRoute>
@@ -3710,25 +2503,12 @@ function App() {
         <Route
           path="/payment"
           element={
-            <ProtectedRoute
-              profileResolved={
-                profileResolved
-              }
-            >
+            <ProtectedRoute profileResolved={profileResolved}>
               <CustomerRoute
                 profile={profile}
-                profileResolved={
-                  profileResolved
-                }
+                profileResolved={profileResolved}
               >
-                <Payment
-                  cartCount={
-                    cartCount
-                  }
-                  profile={
-                    profile
-                  }
-                />
+                <Payment cartCount={cartCount} profile={profile} />
               </CustomerRoute>
             </ProtectedRoute>
           }
@@ -3741,33 +2521,17 @@ function App() {
         <Route
           path="/profile"
           element={
-            <ProtectedRoute
-              profileResolved={
-                profileResolved
-              }
-            >
+            <ProtectedRoute profileResolved={profileResolved}>
               <CustomerRoute
                 profile={profile}
-                profileResolved={
-                  profileResolved
-                }
+                profileResolved={profileResolved}
               >
                 <Profile
-                  profile={
-                    profile
-                  }
-                  updateProfile={
-                    updateProfile
-                  }
-                  cartCount={
-                    cartCount
-                  }
-                  wishlist={
-                    wishlist
-                  }
-                  unreadMessages={
-                    unreadMessages
-                  }
+                  profile={profile}
+                  updateProfile={updateProfile}
+                  cartCount={cartCount}
+                  wishlist={wishlist}
+                  unreadMessages={unreadMessages}
                 />
               </CustomerRoute>
             </ProtectedRoute>
@@ -3781,33 +2545,17 @@ function App() {
         <Route
           path="/settings"
           element={
-            <ProtectedRoute
-              profileResolved={
-                profileResolved
-              }
-            >
+            <ProtectedRoute profileResolved={profileResolved}>
               <CustomerRoute
                 profile={profile}
-                profileResolved={
-                  profileResolved
-                }
+                profileResolved={profileResolved}
               >
                 <Settings
-                  profile={
-                    profile
-                  }
-                  updateProfile={
-                    updateProfile
-                  }
-                  cartCount={
-                    cartCount
-                  }
-                  wishlist={
-                    wishlist
-                  }
-                  unreadMessages={
-                    unreadMessages
-                  }
+                  profile={profile}
+                  updateProfile={updateProfile}
+                  cartCount={cartCount}
+                  wishlist={wishlist}
+                  unreadMessages={unreadMessages}
                 />
               </CustomerRoute>
             </ProtectedRoute>
@@ -3821,21 +2569,11 @@ function App() {
         <Route
           path="/logout"
           element={
-            <ProtectedRoute
-              profileResolved={
-                profileResolved
-              }
-            >
+            <ProtectedRoute profileResolved={profileResolved}>
               <Logout
-                cartCount={
-                  cartCount
-                }
-                wishlist={
-                  wishlist
-                }
-                unreadMessages={
-                  unreadMessages
-                }
+                cartCount={cartCount}
+                wishlist={wishlist}
+                unreadMessages={unreadMessages}
               />
             </ProtectedRoute>
           }
@@ -3848,30 +2586,13 @@ function App() {
         <Route
           path="/seller-dashboard"
           element={
-            <ProtectedRoute
-              profileResolved={
-                profileResolved
-              }
-            >
-              <SellerRoute
-                profile={profile}
-                profileResolved={
-                  profileResolved
-                }
-              >
+            <ProtectedRoute profileResolved={profileResolved}>
+              <SellerRoute profile={profile} profileResolved={profileResolved}>
                 <SellerDashboard
-                  profile={
-                    profile
-                  }
-                  cartCount={
-                    cartCount
-                  }
-                  wishlist={
-                    wishlist
-                  }
-                  unreadMessages={
-                    unreadMessages
-                  }
+                  profile={profile}
+                  cartCount={cartCount}
+                  wishlist={wishlist}
+                  unreadMessages={unreadMessages}
                 />
               </SellerRoute>
             </ProtectedRoute>
@@ -3885,27 +2606,12 @@ function App() {
         <Route
           path="/seller/products"
           element={
-            <ProtectedRoute
-              profileResolved={
-                profileResolved
-              }
-            >
-              <SellerRoute
-                profile={profile}
-                profileResolved={
-                  profileResolved
-                }
-              >
+            <ProtectedRoute profileResolved={profileResolved}>
+              <SellerRoute profile={profile} profileResolved={profileResolved}>
                 <SellerProducts
-                  profile={
-                    profile
-                  }
-                  cartCount={
-                    cartCount
-                  }
-                  unreadMessages={
-                    unreadMessages
-                  }
+                  profile={profile}
+                  cartCount={cartCount}
+                  unreadMessages={unreadMessages}
                 />
               </SellerRoute>
             </ProtectedRoute>
@@ -3919,30 +2625,13 @@ function App() {
         <Route
           path="/seller/messages"
           element={
-            <ProtectedRoute
-              profileResolved={
-                profileResolved
-              }
-            >
-              <SellerRoute
-                profile={profile}
-                profileResolved={
-                  profileResolved
-                }
-              >
+            <ProtectedRoute profileResolved={profileResolved}>
+              <SellerRoute profile={profile} profileResolved={profileResolved}>
                 <SellerMessages
-                  messages={
-                    messages
-                  }
-                  unreadMessages={
-                    unreadMessages
-                  }
-                  markMessageAsRead={
-                    markMessageAsRead
-                  }
-                  profile={
-                    profile
-                  }
+                  messages={messages}
+                  unreadMessages={unreadMessages}
+                  markMessageAsRead={markMessageAsRead}
+                  profile={profile}
                 />
               </SellerRoute>
             </ProtectedRoute>
@@ -3956,37 +2645,67 @@ function App() {
         <Route
           path="/seller/messages/:id"
           element={
-            <ProtectedRoute
-              profileResolved={
-                profileResolved
-              }
-            >
-              <SellerRoute
-                profile={profile}
-                profileResolved={
-                  profileResolved
-                }
-              >
+            <ProtectedRoute profileResolved={profileResolved}>
+              <SellerRoute profile={profile} profileResolved={profileResolved}>
                 <SellerChat
-                  messages={
-                    messages
-                  }
-                  unreadMessages={
-                    unreadMessages
-                  }
-                  markMessageAsRead={
-                    markMessageAsRead
-                  }
-                  sendMessage={
-                    sendMessage
-                  }
-                  deleteMessages={
-                    deleteMessages
-                  }
-                  profile={
-                    profile
-                  }
+                  messages={messages}
+                  unreadMessages={unreadMessages}
+                  markMessageAsRead={markMessageAsRead}
+                  sendMessage={sendMessage}
+                  deleteMessages={deleteMessages}
+                  profile={profile}
                 />
+              </SellerRoute>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ================================================= */}
+        {/* SELLER EARNINGS */}
+        {/* ================================================= */}
+
+        <Route
+          path="/seller/earnings"
+          element={
+            <ProtectedRoute profileResolved={profileResolved}>
+              <SellerRoute profile={profile} profileResolved={profileResolved}>
+                <SellerEarnings
+                  profile={profile}
+                  unreadMessages={unreadMessages}
+                />
+              </SellerRoute>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/seller/withdraw"
+          element={
+            <ProtectedRoute profileResolved={profileResolved}>
+              <SellerRoute profile={profile} profileResolved={profileResolved}>
+                <WithdrawEarnings unreadMessages={unreadMessages} />
+              </SellerRoute>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/seller/promotions"
+          element={
+            <ProtectedRoute profileResolved={profileResolved}>
+              <SellerRoute profile={profile} profileResolved={profileResolved}>
+                <SellerPromotions unreadMessages={unreadMessages} />
+              </SellerRoute>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/seller/payment"
+          element={
+            <ProtectedRoute profileResolved={profileResolved}>
+              <SellerRoute profile={profile} profileResolved={profileResolved}>
+                <SellerPayment unreadMessages={unreadMessages} />
               </SellerRoute>
             </ProtectedRoute>
           }
@@ -3996,16 +2715,7 @@ function App() {
         {/* FALLBACK */}
         {/* ================================================= */}
 
-        <Route
-          path="*"
-          element={
-            <Navigate
-              to="/"
-              replace
-            />
-          }
-        />
-
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>
   );

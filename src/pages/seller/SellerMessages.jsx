@@ -14,8 +14,6 @@ import {
   FiShoppingBag,
   FiMessageCircle,
   FiDollarSign,
-  FiStar,
-  FiBarChart2,
   FiTag,
   FiUser,
   FiSettings,
@@ -85,8 +83,7 @@ function SellerMessages({
   // =====================================================
   // SIDEBAR
   // =====================================================
-  // Same seller dashboard navigation.
-  // Services and Bookings have been removed.
+  // Reviews and Analytics removed as requested.
   // =====================================================
 
   const menuItems = [
@@ -115,16 +112,6 @@ function SellerMessages({
       label: "Earnings",
       icon: FiDollarSign,
       path: "/seller/earnings",
-    },
-    {
-      label: "Reviews",
-      icon: FiStar,
-      path: "/seller/reviews",
-    },
-    {
-      label: "Analytics",
-      icon: FiBarChart2,
-      path: "/seller/analytics",
     },
     {
       label: "Promotions",
@@ -2033,62 +2020,111 @@ function SellerMessages({
           <div className="space-y-6">
 
             {/* ================================================= */}
-            {/* TITLE */}
+            {/* GREEN BANNER (matches Earnings style) */}
             {/* ================================================= */}
 
             <div
               className="
-                flex
-                flex-col
-                sm:flex-row
-                sm:items-center
-                sm:justify-between
-                gap-4
+                relative
+                overflow-hidden
+                rounded-2xl
+                bg-gradient-to-r
+                from-[#007233]
+                to-[#008f3f]
+                p-6
+                sm:p-7
+                text-white
+                shadow-lg
+                shadow-green-700/20
               "
             >
-              <div>
-                <h1
-                  className="
-                    text-2xl
-                    sm:text-3xl
-                    font-bold
-                    text-gray-800
-                  "
-                >
-                  Messages
-                </h1>
-
-                <p
-                  className="
-                    text-gray-500
-                    mt-1
-                  "
-                >
-                  Chat with buyers
-                  about your products.
-                </p>
-              </div>
-
+              {/* Decorative circles */}
               <div
                 className="
-                  hidden
-                  sm:flex
+                  pointer-events-none
+                  absolute
+                  -right-8
+                  -top-10
+                  h-40
+                  w-40
+                  rounded-full
+                  bg-white/10
+                "
+              />
+              <div
+                className="
+                  pointer-events-none
+                  absolute
+                  -right-2
+                  top-16
+                  h-28
+                  w-28
+                  rounded-full
+                  bg-white/10
+                "
+              />
+              <div
+                className="
+                  pointer-events-none
+                  absolute
+                  right-24
+                  -bottom-12
+                  h-32
+                  w-32
+                  rounded-full
+                  bg-white/5
+                "
+              />
+
+              {/* Pill label */}
+              <div
+                className="
+                  relative
+                  inline-flex
                   items-center
-                  gap-2
-                  bg-green-50
-                  text-green-700
-                  px-4
-                  py-2.5
-                  rounded-xl
-                  text-sm
+                  gap-1.5
+                  rounded-full
+                  bg-white/15
+                  px-3
+                  py-1
+                  text-xs
                   font-medium
+                  text-green-50
+                  backdrop-blur-sm
                 "
               >
-                <FiMessageCircle
-                  size={16}
-                />
-                Seller Inbox
+                <span className="h-1.5 w-1.5 rounded-full bg-green-300" />
+                Messages
               </div>
+
+              {/* Title */}
+              <h1
+                className="
+                  relative
+                  mt-3
+                  text-2xl
+                  sm:text-3xl
+                  font-bold
+                  tracking-tight
+                "
+              >
+                Your Messages, {sellerFullName}
+              </h1>
+
+              {/* Subtitle */}
+              <p
+                className="
+                  relative
+                  mt-2
+                  max-w-xl
+                  text-sm
+                  sm:text-[15px]
+                  text-green-100
+                  leading-relaxed
+                "
+              >
+                Chat with buyers about your products and stay on top of every conversation.
+              </p>
             </div>
 
             {/* ================================================= */}
