@@ -34,6 +34,7 @@ import {
   useAuth,
 } from "../../context/AuthContext";
 
+
 function Messages({
   cartCount = 0,
   wishlist = [],
@@ -45,48 +46,69 @@ function Messages({
     profileLoading,
   } = useAuth();
 
+
   // =====================================================
   // STATE
   // =====================================================
 
-  const [search, setSearch] =
-    useState("");
+  const [
+    search,
+    setSearch,
+  ] = useState("");
 
-  const [conversations, setConversations] =
-    useState([]);
+  const [
+    conversations,
+    setConversations,
+  ] = useState([]);
 
-  const [loading, setLoading] =
-    useState(true);
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
+
 
   // =====================================================
-  // PUBLIC PROFILE MAP
+  // PUBLIC PROFILE STATE
   // =====================================================
   //
+  // Stores:
+  //
+  // publicProfiles/{uid}
+  //
+  // Example:
+  //
   // {
-  //   uid: {
-  //     fullName: "...",
-  //     profileImage: "...",
-  //     photoURL: "..."
-  //   }
+  //   fullName: "...",
+  //   displayName: "...",
+  //   profileImage: "...",
+  //   photoURL: "..."
   // }
   //
   // =====================================================
 
-  const [publicProfiles, setPublicProfiles] =
-    useState({});
+  const [
+    profileMap,
+    setProfileMap,
+  ] = useState({});
+
 
   // =====================================================
-  // REAL PRESENCE
+  // PRESENCE STATE
   // =====================================================
 
-  const [presenceMap, setPresenceMap] =
-    useState({});
+  const [
+    presenceMap,
+    setPresenceMap,
+  ] = useState({});
+
 
   // =====================================================
   // FORMAT TIME
   // =====================================================
 
-  const formatTime = (timestamp) => {
+  const formatTime = (
+    timestamp
+  ) => {
     if (!timestamp) {
       return "";
     }
@@ -116,6 +138,7 @@ function Messages({
       return "";
     }
   };
+
 
   // =====================================================
   // TIMESTAMP TO MILLISECONDS
@@ -168,6 +191,7 @@ function Messages({
       return 0;
     }
   };
+
 
   // =====================================================
   // GET LAST VISIBLE MESSAGE
@@ -233,6 +257,7 @@ function Messages({
       null
     );
   };
+
 
   // =====================================================
   // CHECK LAST MESSAGE SENDER
@@ -307,6 +332,7 @@ function Messages({
       return false;
     };
 
+
   // =====================================================
   // CHECK IF OTHER USER READ LAST MESSAGE
   // =====================================================
@@ -331,6 +357,11 @@ function Messages({
       ) {
         return false;
       }
+
+
+      // =================================================
+      // MESSAGE LEVEL ARRAYS
+      // =================================================
 
       const readArrays = [
         lastMessage?.readBy,
@@ -360,6 +391,11 @@ function Messages({
         }
       }
 
+
+      // =================================================
+      // MESSAGE LEVEL OBJECTS
+      // =================================================
+
       const readObjects = [
         lastMessage?.readBy,
         lastMessage?.seenBy,
@@ -388,6 +424,11 @@ function Messages({
         }
       }
 
+
+      // =================================================
+      // MESSAGE LEVEL FLAGS
+      // =================================================
+
       if (
         lastMessage?.seen ===
           true ||
@@ -398,6 +439,11 @@ function Messages({
       ) {
         return true;
       }
+
+
+      // =================================================
+      // CONVERSATION LEVEL FLAGS
+      // =================================================
 
       if (
         conversation?.lastMessageSeen ===
@@ -411,6 +457,11 @@ function Messages({
       ) {
         return true;
       }
+
+
+      // =================================================
+      // UNREAD COUNT FALLBACK
+      // =================================================
 
       if (
         conversation?.unreadCounts &&
@@ -436,6 +487,7 @@ function Messages({
 
       return false;
     };
+
 
   // =====================================================
   // MESSAGE CHECKS
@@ -482,6 +534,7 @@ function Messages({
       </span>
     );
   };
+
 
   // =====================================================
   // LOAD CONVERSATIONS
@@ -534,22 +587,27 @@ function Messages({
                     Array.isArray(
                       data.participants
                     )
-                      ? data.participants.map(
-                          String
-                        )
+                      ? data.participants
                       : [];
 
-                  const currentUid =
-                    String(
-                      firebaseUser.uid
-                    );
+
+                  // =================================================
+                  // FIND OTHER USER
+                  // =================================================
 
                   const otherParticipantId =
                     participants.find(
                       (uid) =>
                         String(uid) !==
-                        currentUid
+                        String(
+                          firebaseUser.uid
+                        )
                     ) || null;
+
+
+                  // =================================================
+                  // OLD FALLBACK PROFILE DATA
+                  // =================================================
 
                   const participantNames =
                     data.participantNames ||
@@ -559,6 +617,11 @@ function Messages({
                     data.participantImages ||
                     {};
 
+
+                  // =================================================
+                  // UNREAD
+                  // =================================================
+
                   const unread =
                     Number(
                       data
@@ -567,6 +630,11 @@ function Messages({
                       ] || 0
                     );
 
+
+                  // =================================================
+                  // RAW MESSAGES
+                  // =================================================
+
                   const rawMessages =
                     Array.isArray(
                       data.messages
@@ -574,13 +642,17 @@ function Messages({
                       ? data.messages
                       : [];
 
+
+                  // =================================================
+                  // LAST MESSAGE
+                  // =================================================
+
                   const lastVisibleMessage =
-                    getLastVisibleMessage(
-                      {
-                        messages:
-                          rawMessages,
-                      }
-                    );
+                    getLastVisibleMessage({
+                      messages:
+                        rawMessages,
+                    });
+
 
                   const lastMessage =
                     lastVisibleMessage
@@ -588,16 +660,22 @@ function Messages({
                     (
                       lastVisibleMessage
                         ?.imageUrl
-                    )
-                      ? "📷 Photo"
-                      : data.lastMessage ||
-                        "No messages yet";
+                        ? "📷 Photo"
+                        : data.lastMessage ||
+                          "No messages yet"
+                    );
+
 
                   const lastMessageAt =
                     lastVisibleMessage
                       ?.createdAt ||
                     data.lastMessageAt ||
                     0;
+
+
+                  // =================================================
+                  // RETURN
+                  // =================================================
 
                   return {
                     id:
@@ -608,19 +686,21 @@ function Messages({
 
                     otherParticipantId,
 
-                    name:
+                    /*
+                     * These are only fallbacks.
+                     *
+                     * The real profile will come from:
+                     *
+                     * publicProfiles/{otherParticipantId}
+                     */
+
+                    fallbackName:
                       participantNames[
                         otherParticipantId
                       ] ||
                       "CampusMart User",
 
-                    image:
-                      participantImages[
-                        otherParticipantId
-                      ] ||
-                      null,
-
-                    profileImage:
+                    fallbackImage:
                       participantImages[
                         otherParticipantId
                       ] ||
@@ -646,13 +726,14 @@ function Messages({
 
                     messages:
                       rawMessages,
-
-                    participantNames,
-
-                    participantImages,
                   };
                 }
               );
+
+
+            // =================================================
+            // NEWEST FIRST
+            // =================================================
 
             loaded.sort(
               (a, b) => {
@@ -672,6 +753,7 @@ function Messages({
               }
             );
 
+
             setConversations(
               loaded
             );
@@ -684,6 +766,7 @@ function Messages({
             );
 
             setConversations([]);
+
             setLoading(false);
           }
         },
@@ -694,9 +777,11 @@ function Messages({
           );
 
           setConversations([]);
+
           setLoading(false);
         }
       );
+
 
     return () => {
       unsubscribe();
@@ -706,29 +791,33 @@ function Messages({
     profileLoading,
   ]);
 
+
   // =====================================================
   // LOAD OTHER USERS' PUBLIC PROFILES
   // =====================================================
   //
-  // IMPORTANT:
+  // THIS IS THE IMPORTANT FIX.
   //
-  // We read:
+  // For every other participant we listen to:
   //
   // publicProfiles/{uid}
   //
-  // NEVER:
-  //
-  // users/{uid}
-  //
-  // because users/{uid} is private.
+  // This means the profile picture/name does NOT have
+  // to be copied into the conversation document.
   //
   // =====================================================
 
   useEffect(() => {
     if (!firebaseUser?.uid) {
-      setPublicProfiles({});
+      setProfileMap({});
+
       return undefined;
     }
+
+
+    // ===================================================
+    // GET UNIQUE OTHER USER IDS
+    // ===================================================
 
     const participantIds =
       Array.from(
@@ -736,8 +825,7 @@ function Messages({
           conversations
             .map(
               (conversation) =>
-                conversation
-                  ?.otherParticipantId
+                conversation?.otherParticipantId
             )
             .filter(
               (uid) =>
@@ -747,91 +835,138 @@ function Messages({
                     firebaseUser.uid
                   )
             )
-            .map(String)
         )
       );
+
 
     if (
       participantIds.length ===
       0
     ) {
-      setPublicProfiles({});
+      setProfileMap({});
+
       return undefined;
     }
 
+
     const unsubscribers = [];
+
+
+    // ===================================================
+    // REMOVE PROFILES THAT ARE NO LONGER NEEDED
+    // ===================================================
+
+    setProfileMap(
+      (previous) => {
+        const next = {};
+
+        participantIds.forEach(
+          (uid) => {
+            if (
+              previous?.[uid]
+            ) {
+              next[uid] =
+                previous[uid];
+            }
+          }
+        );
+
+        return next;
+      }
+    );
+
+
+    // ===================================================
+    // LISTEN TO EACH PUBLIC PROFILE
+    // ===================================================
 
     participantIds.forEach(
       (participantId) => {
+
         const profileRef =
           doc(
             db,
             "publicProfiles",
-            String(
-              participantId
-            )
+            participantId
           );
+
 
         const unsubscribe =
           onSnapshot(
             profileRef,
             (snapshot) => {
+
               if (
                 snapshot.exists()
               ) {
                 const data =
-                  snapshot.data() ||
-                  {};
+                  snapshot.data();
 
-                setPublicProfiles(
+
+                console.log(
+                  "Loaded public profile:",
+                  participantId,
+                  data
+                );
+
+
+                setProfileMap(
                   (previous) => ({
                     ...previous,
 
                     [participantId]: {
                       ...data,
-                      uid:
-                        participantId,
                     },
                   })
                 );
+
               } else {
-                setPublicProfiles(
+
+                console.warn(
+                  "No public profile found for:",
+                  participantId
+                );
+
+
+                setProfileMap(
                   (previous) => ({
                     ...previous,
 
                     [participantId]: {
-                      uid:
-                        participantId,
+                      __missing: true,
                     },
                   })
                 );
               }
             },
             (error) => {
+
               console.error(
-                "Could not load public participant profile:",
+                "Public profile listener error for:",
                 participantId,
                 error
               );
 
-              setPublicProfiles(
+
+              setProfileMap(
                 (previous) => ({
                   ...previous,
 
                   [participantId]: {
-                    uid:
-                      participantId,
+                    __error: true,
                   },
                 })
               );
             }
           );
 
+
         unsubscribers.push(
           unsubscribe
         );
       }
     );
+
 
     return () => {
       unsubscribers.forEach(
@@ -845,120 +980,18 @@ function Messages({
     conversations,
   ]);
 
-  // =====================================================
-  // SEARCH
-  // =====================================================
-
-  const filteredMessages =
-    useMemo(() => {
-      const searchText =
-        search
-          .trim()
-          .toLowerCase();
-
-      if (!searchText) {
-        return conversations;
-      }
-
-      return conversations.filter(
-        (conversation) => {
-          const name =
-            String(
-              conversation?.name ||
-                ""
-            ).toLowerCase();
-
-          const lastMessage =
-            String(
-              conversation?.lastMessage ||
-                ""
-            ).toLowerCase();
-
-          const publicProfile =
-            publicProfiles?.[
-              conversation?.otherParticipantId
-            ];
-
-          const publicName =
-            String(
-              publicProfile?.fullName ||
-                publicProfile?.displayName ||
-                ""
-            ).toLowerCase();
-
-          return (
-            name.includes(
-              searchText
-            ) ||
-            publicName.includes(
-              searchText
-            ) ||
-            lastMessage.includes(
-              searchText
-            )
-          );
-        }
-      );
-    }, [
-      conversations,
-      publicProfiles,
-      search,
-    ]);
 
   // =====================================================
-  // UNREAD COUNT
-  // =====================================================
-
-  const unreadMessages =
-    useMemo(() => {
-      return conversations.reduce(
-        (
-          total,
-          conversation
-        ) =>
-          total +
-          Number(
-            conversation?.unread ||
-              0
-          ),
-        0
-      );
-    }, [
-      conversations,
-    ]);
-
-  // =====================================================
-  // REAL ONLINE USERS
-  // =====================================================
-
-  const onlineUsers =
-    useMemo(() => {
-      return conversations.filter(
-        (conversation) => {
-          const uid =
-            conversation?.otherParticipantId;
-
-          return (
-            uid &&
-            presenceMap?.[uid]
-              ?.online === true
-          );
-        }
-      ).length;
-    }, [
-      conversations,
-      presenceMap,
-    ]);
-
-  // =====================================================
-  // PRESENCE LISTENERS
+  // REAL-TIME PRESENCE LISTENERS
   // =====================================================
 
   useEffect(() => {
     if (!firebaseUser?.uid) {
       setPresenceMap({});
+
       return undefined;
     }
+
 
     const participantIds =
       Array.from(
@@ -966,8 +999,7 @@ function Messages({
           conversations
             .map(
               (conversation) =>
-                conversation
-                  ?.otherParticipantId
+                conversation?.otherParticipantId
             )
             .filter(
               (uid) =>
@@ -977,19 +1009,22 @@ function Messages({
                     firebaseUser.uid
                   )
             )
-            .map(String)
         )
       );
+
 
     if (
       participantIds.length ===
       0
     ) {
       setPresenceMap({});
+
       return undefined;
     }
 
+
     const unsubscribers = [];
+
 
     setPresenceMap(
       (previous) => {
@@ -1009,8 +1044,10 @@ function Messages({
       }
     );
 
+
     participantIds.forEach(
       (participantId) => {
+
         const presenceRef =
           doc(
             db,
@@ -1018,15 +1055,19 @@ function Messages({
             participantId
           );
 
+
         const unsubscribe =
           onSnapshot(
             presenceRef,
             (snapshot) => {
+
               if (
                 snapshot.exists()
               ) {
+
                 const data =
                   snapshot.data();
+
 
                 setPresenceMap(
                   (previous) => ({
@@ -1043,7 +1084,9 @@ function Messages({
                     },
                   })
                 );
+
               } else {
+
                 setPresenceMap(
                   (previous) => ({
                     ...previous,
@@ -1058,11 +1101,13 @@ function Messages({
               }
             },
             (error) => {
+
               console.error(
                 "Presence listener error for",
                 participantId,
                 error
               );
+
 
               setPresenceMap(
                 (previous) => ({
@@ -1078,11 +1123,13 @@ function Messages({
             }
           );
 
+
         unsubscribers.push(
           unsubscribe
         );
       }
     );
+
 
     return () => {
       unsubscribers.forEach(
@@ -1096,6 +1143,125 @@ function Messages({
     conversations,
   ]);
 
+
+  // =====================================================
+  // SEARCH
+  // =====================================================
+
+  const filteredMessages =
+    useMemo(() => {
+
+      const searchText =
+        search
+          .trim()
+          .toLowerCase();
+
+
+      if (!searchText) {
+        return conversations;
+      }
+
+
+      return conversations.filter(
+        (conversation) => {
+
+          const uid =
+            conversation?.otherParticipantId;
+
+
+          const profile =
+            profileMap?.[uid] ||
+            {};
+
+
+          const name =
+            String(
+              profile?.displayName ||
+              profile?.fullName ||
+              profile?.name ||
+              conversation?.fallbackName ||
+              ""
+            ).toLowerCase();
+
+
+          const lastMessage =
+            String(
+              conversation?.lastMessage ||
+                ""
+            ).toLowerCase();
+
+
+          return (
+            name.includes(
+              searchText
+            ) ||
+            lastMessage.includes(
+              searchText
+            )
+          );
+        }
+      );
+
+    }, [
+      conversations,
+      profileMap,
+      search,
+    ]);
+
+
+  // =====================================================
+  // UNREAD COUNT
+  // =====================================================
+
+  const unreadMessages =
+    useMemo(() => {
+
+      return conversations.reduce(
+        (
+          total,
+          conversation
+        ) =>
+          total +
+          Number(
+            conversation?.unread ||
+              0
+          ),
+        0
+      );
+
+    }, [
+      conversations,
+    ]);
+
+
+  // =====================================================
+  // ONLINE USERS
+  // =====================================================
+
+  const onlineUsers =
+    useMemo(() => {
+
+      return conversations.filter(
+        (conversation) => {
+
+          const uid =
+            conversation?.otherParticipantId;
+
+
+          return (
+            uid &&
+            presenceMap?.[uid]
+              ?.online === true
+          );
+        }
+      ).length;
+
+    }, [
+      conversations,
+      presenceMap,
+    ]);
+
+
   // =====================================================
   // INITIAL
   // =====================================================
@@ -1103,6 +1269,7 @@ function Messages({
   const getInitial = (
     name
   ) => {
+
     return (
       String(
         name || "U"
@@ -1114,6 +1281,7 @@ function Messages({
     );
   };
 
+
   // =====================================================
   // OPEN CHAT
   // =====================================================
@@ -1121,11 +1289,14 @@ function Messages({
   const openChat = (
     conversation
   ) => {
+
     const conversationId =
       conversation?.conversationId ||
       conversation?.id;
 
+
     if (!conversationId) {
+
       console.error(
         "Cannot open chat: conversation ID is missing.",
         conversation
@@ -1133,6 +1304,7 @@ function Messages({
 
       return;
     }
+
 
     navigate(
       `/messages/${encodeURIComponent(
@@ -1143,6 +1315,7 @@ function Messages({
     );
   };
 
+
   // =====================================================
   // LOADING
   // =====================================================
@@ -1151,6 +1324,7 @@ function Messages({
     profileLoading ||
     loading
   ) {
+
     return (
       <CustomerLayout
         cartCount={
@@ -1161,8 +1335,11 @@ function Messages({
         }
         unreadMessages={0}
       >
+
         <div className="space-y-6">
+
           <div>
+
             <div
               className="
                 h-8
@@ -1184,7 +1361,9 @@ function Messages({
                 animate-pulse
               "
             />
+
           </div>
+
 
           <div
             className="
@@ -1194,8 +1373,10 @@ function Messages({
               gap-4
             "
           >
+
             {[1, 2, 3].map(
               (item) => (
+
                 <div
                   key={item}
                   className="
@@ -1207,6 +1388,7 @@ function Messages({
                     animate-pulse
                   "
                 >
+
                   <div
                     className="
                       h-10
@@ -1215,10 +1397,13 @@ function Messages({
                       bg-gray-100
                     "
                   />
+
                 </div>
               )
             )}
+
           </div>
+
 
           <div
             className="
@@ -1229,6 +1414,7 @@ function Messages({
             "
           />
 
+
           <div
             className="
               bg-white
@@ -1238,8 +1424,10 @@ function Messages({
               overflow-hidden
             "
           >
+
             {[1, 2, 3].map(
               (item) => (
+
                 <div
                   key={item}
                   className="
@@ -1251,6 +1439,7 @@ function Messages({
                     border-gray-100
                   "
                 >
+
                   <div
                     className="
                       w-12
@@ -1262,6 +1451,7 @@ function Messages({
                   />
 
                   <div className="flex-1">
+
                     <div
                       className="
                         h-4
@@ -1282,15 +1472,21 @@ function Messages({
                         animate-pulse
                       "
                     />
+
                   </div>
+
                 </div>
               )
             )}
+
           </div>
+
         </div>
+
       </CustomerLayout>
     );
   }
+
 
   // =====================================================
   // PAGE
@@ -1308,9 +1504,13 @@ function Messages({
         unreadMessages
       }
     >
+
       <div className="space-y-6">
 
-        {/* HEADER */}
+
+        {/* =================================================
+            HEADER
+        ================================================= */}
 
         <div
           className="
@@ -1322,7 +1522,9 @@ function Messages({
             gap-4
           "
         >
+
           <div>
+
             <h1
               className="
                 text-2xl
@@ -1338,7 +1540,9 @@ function Messages({
               Chat with buyers and
               sellers on CampusMart.
             </p>
+
           </div>
+
 
           <button
             type="button"
@@ -1358,13 +1562,19 @@ function Messages({
               transition
             "
           >
+
             <FiMessageCircle />
 
             New Message
+
           </button>
+
         </div>
 
-        {/* STATS */}
+
+        {/* =================================================
+            STATS
+        ================================================= */}
 
         <div
           className="
@@ -1374,6 +1584,9 @@ function Messages({
             gap-4
           "
         >
+
+          {/* CONVERSATIONS */}
+
           <div
             className="
               bg-white
@@ -1384,6 +1597,7 @@ function Messages({
               sm:p-5
             "
           >
+
             <div className="flex items-center gap-3">
 
               <div
@@ -1404,6 +1618,7 @@ function Messages({
               </div>
 
               <div>
+
                 <p className="text-xs text-gray-500">
                   Conversations
                 </p>
@@ -1413,10 +1628,15 @@ function Messages({
                     conversations.length
                   }
                 </p>
+
               </div>
 
             </div>
+
           </div>
+
+
+          {/* UNREAD */}
 
           <div
             className="
@@ -1428,6 +1648,7 @@ function Messages({
               sm:p-5
             "
           >
+
             <div className="flex items-center gap-3">
 
               <div
@@ -1448,6 +1669,7 @@ function Messages({
               </div>
 
               <div>
+
                 <p className="text-xs text-gray-500">
                   Unread Messages
                 </p>
@@ -1457,10 +1679,15 @@ function Messages({
                     unreadMessages
                   }
                 </p>
+
               </div>
 
             </div>
+
           </div>
+
+
+          {/* ONLINE */}
 
           <div
             className="
@@ -1474,6 +1701,7 @@ function Messages({
               sm:p-5
             "
           >
+
             <div className="flex items-center gap-3">
 
               <div
@@ -1494,6 +1722,7 @@ function Messages({
               </div>
 
               <div>
+
                 <p className="text-xs text-gray-500">
                   Online Now
                 </p>
@@ -1503,13 +1732,19 @@ function Messages({
                     onlineUsers
                   }
                 </p>
+
               </div>
 
             </div>
+
           </div>
+
         </div>
 
-        {/* SEARCH */}
+
+        {/* =================================================
+            SEARCH
+        ================================================= */}
 
         <div className="relative">
 
@@ -1550,9 +1785,13 @@ function Messages({
               transition
             "
           />
+
         </div>
 
-        {/* MESSAGES CARD */}
+
+        {/* =================================================
+            MESSAGES CARD
+        ================================================= */}
 
         <div
           className="
@@ -1576,6 +1815,7 @@ function Messages({
               justify-between
             "
           >
+
             <div className="flex items-center gap-3">
 
               <div
@@ -1617,6 +1857,7 @@ function Messages({
 
             </div>
 
+
             <button
               type="button"
               className="
@@ -1637,7 +1878,10 @@ function Messages({
 
           </div>
 
-          {/* MESSAGE LIST */}
+
+          {/* =================================================
+              MESSAGE LIST
+          ================================================= */}
 
           {filteredMessages.length >
           0 ? (
@@ -1653,10 +1897,73 @@ function Messages({
                     conversation?.conversationId ||
                     conversation?.id;
 
+
+                  // =================================================
+                  // OTHER USER UID
+                  // =================================================
+
+                  const otherUid =
+                    conversation?.otherParticipantId;
+
+
+                  // =================================================
+                  // PUBLIC PROFILE
+                  // =================================================
+
+                  const publicProfile =
+                    profileMap?.[
+                      otherUid
+                    ] || {};
+
+
+                  // =================================================
+                  // GET NAME
+                  // =================================================
+                  //
+                  // Priority:
+                  //
+                  // 1. displayName
+                  // 2. fullName
+                  // 3. name
+                  // 4. conversation fallback
+                  //
+                  // =================================================
+
+                  const otherUserName =
+                    publicProfile?.displayName ||
+                    publicProfile?.fullName ||
+                    publicProfile?.name ||
+                    conversation?.fallbackName ||
+                    "CampusMart User";
+
+
+                  // =================================================
+                  // GET PROFILE IMAGE
+                  // =================================================
+                  //
+                  // Supports all common field names.
+                  //
+                  // =================================================
+
+                  const otherUserImage =
+                    publicProfile?.profileImage ||
+                    publicProfile?.photoURL ||
+                    publicProfile?.photoUrl ||
+                    publicProfile?.image ||
+                    publicProfile?.avatar ||
+                    conversation?.fallbackImage ||
+                    null;
+
+
+                  // =================================================
+                  // LAST MESSAGE
+                  // =================================================
+
                   const lastMessage =
                     getLastVisibleMessage(
                       conversation
                     );
+
 
                   const sentByMe =
                     isLastMessageFromCurrentUser(
@@ -1664,58 +1971,24 @@ function Messages({
                       lastMessage
                     );
 
+
                   const seenByOther =
                     isLastMessageSeenByOther(
                       conversation,
                       lastMessage
                     );
 
-                  const otherUid =
-                    conversation?.otherParticipantId;
-
-                  const publicProfile =
-                    publicProfiles?.[
-                      String(
-                        otherUid || ""
-                      )
-                    ] || {};
 
                   // =================================================
-                  // REAL PROFILE NAME
+                  // ONLINE
                   // =================================================
-
-                  const displayName =
-                    publicProfile?.fullName ||
-                    publicProfile?.displayName ||
-                    publicProfile?.name ||
-                    conversation?.participantNames?.[
-                      otherUid
-                    ] ||
-                    conversation?.name ||
-                    "CampusMart User";
-
-                  // =================================================
-                  // REAL PROFILE IMAGE
-                  // =================================================
-
-                  const profileImage =
-                    publicProfile?.profileImage ||
-                    publicProfile?.photoURL ||
-                    publicProfile?.photoUrl ||
-                    publicProfile?.avatar ||
-                    publicProfile?.image ||
-                    conversation?.participantImages?.[
-                      otherUid
-                    ] ||
-                    conversation?.profileImage ||
-                    conversation?.image ||
-                    null;
 
                   const isOnline =
                     otherUid &&
                     presenceMap?.[
                       otherUid
                     ]?.online === true;
+
 
                   return (
 
@@ -1750,18 +2023,21 @@ function Messages({
                       "
                     >
 
-                      {/* AVATAR */}
+
+                      {/* =================================================
+                          AVATAR
+                      ================================================= */}
 
                       <div className="relative shrink-0">
 
-                        {profileImage ? (
+                        {otherUserImage ? (
 
                           <img
                             src={
-                              profileImage
+                              otherUserImage
                             }
                             alt={
-                              displayName
+                              otherUserName
                             }
                             className="
                               w-12
@@ -1770,15 +2046,14 @@ function Messages({
                               sm:h-13
                               rounded-full
                               object-cover
+                              bg-gray-100
                             "
-                            onError={(
-                              event
-                            ) => {
-                              event.currentTarget.style.display =
+                            onError={(e) => {
+                              e.currentTarget.style.display =
                                 "none";
 
                               const fallback =
-                                event.currentTarget
+                                e.currentTarget
                                   .nextElementSibling;
 
                               if (
@@ -1792,7 +2067,18 @@ function Messages({
 
                         ) : null}
 
+
+                        {/* =================================================
+                            INITIAL FALLBACK
+                        ================================================= */}
+
                         <div
+                          style={{
+                            display:
+                              otherUserImage
+                                ? "none"
+                                : "flex",
+                          }}
                           className="
                             w-12
                             h-12
@@ -1806,19 +2092,18 @@ function Messages({
                             font-bold
                             text-lg
                           "
-                          style={{
-                            display:
-                              profileImage
-                                ? "none"
-                                : "flex",
-                          }}
                         >
                           {
                             getInitial(
-                              displayName
+                              otherUserName
                             )
                           }
                         </div>
+
+
+                        {/* =================================================
+                            ONLINE DOT
+                        ================================================= */}
 
                         {isOnline && (
 
@@ -1842,7 +2127,10 @@ function Messages({
 
                       </div>
 
-                      {/* DETAILS */}
+
+                      {/* =================================================
+                          DETAILS
+                      ================================================= */}
 
                       <div className="flex-1 min-w-0">
 
@@ -1867,9 +2155,10 @@ function Messages({
                             `}
                           >
                             {
-                              displayName
+                              otherUserName
                             }
                           </h3>
+
 
                           <span
                             className="
@@ -1885,16 +2174,22 @@ function Messages({
 
                         </div>
 
-                        {isOnline && (
 
-                          <div
-                            className="
-                              flex
-                              items-center
-                              gap-1.5
-                              mt-0.5
-                            "
-                          >
+                        {/* =================================================
+                            ONLINE LABEL
+                        ================================================= */}
+
+                        <div
+                          className="
+                            flex
+                            items-center
+                            gap-1.5
+                            mt-0.5
+                          "
+                        >
+
+                          {isOnline && (
+
                             <span
                               className="
                                 text-[11px]
@@ -1904,9 +2199,15 @@ function Messages({
                             >
                               Online
                             </span>
-                          </div>
 
-                        )}
+                          )}
+
+                        </div>
+
+
+                        {/* =================================================
+                            LAST MESSAGE
+                        ================================================= */}
 
                         <div
                           className="
@@ -1926,6 +2227,7 @@ function Messages({
                               seenByOther
                             }
                           />
+
 
                           <p
                             className={`
@@ -1949,7 +2251,10 @@ function Messages({
 
                       </div>
 
-                      {/* UNREAD */}
+
+                      {/* =================================================
+                          UNREAD
+                      ================================================= */}
 
                       {conversation.unread >
                         0 && (
@@ -1977,6 +2282,11 @@ function Messages({
                         </span>
 
                       )}
+
+
+                      {/* =================================================
+                          ARROW
+                      ================================================= */}
 
                       <FiChevronRight
                         className="
@@ -2021,6 +2331,7 @@ function Messages({
                 />
               </div>
 
+
               <h3
                 className="
                   font-semibold
@@ -2032,6 +2343,7 @@ function Messages({
                   ? "No messages found"
                   : "No conversations yet"}
               </h3>
+
 
               <p
                 className="
@@ -2046,6 +2358,7 @@ function Messages({
                   ? "We couldn't find any conversations matching your search."
                   : "Your conversations with buyers and sellers will appear here."}
               </p>
+
 
               {search && (
 
@@ -2073,7 +2386,10 @@ function Messages({
 
         </div>
 
-        {/* MOBILE NEW MESSAGE */}
+
+        {/* =================================================
+            MOBILE NEW MESSAGE
+        ================================================= */}
 
         <button
           type="button"
@@ -2099,8 +2415,10 @@ function Messages({
         </button>
 
       </div>
+
     </CustomerLayout>
   );
 }
+
 
 export default Messages;
