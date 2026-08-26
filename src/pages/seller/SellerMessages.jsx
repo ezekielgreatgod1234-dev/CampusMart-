@@ -58,6 +58,11 @@ function SellerMessages({
     firebaseUser?.email ||
     "Seller";
 
+    const sellerFirstName =
+  String(sellerFullName || "Seller")
+    .trim()
+    .split(/\s+/)[0] || "Seller";
+
   const sellerImage =
     profile?.profileImage ||
     profile?.photoURL ||
@@ -2108,7 +2113,7 @@ function SellerMessages({
                   tracking-tight
                 "
               >
-                Your Messages, {sellerFullName}
+                Your Messages, {sellerFirstName}
               </h1>
 
               {/* Subtitle */}
