@@ -999,7 +999,7 @@ function SellerChat({
     !fallbackConversation
   ) {
     return (
-      <div className="h-[100dvh] w-full bg-gray-50 text-gray-800 flex overflow-hidden">
+      <div className="h-[100svh] lg:h-[100dvh] w-full bg-gray-50 text-gray-800 flex overflow-hidden">
         {/* SIDEBAR */}
 
         <aside className="hidden lg:flex fixed inset-y-0 left-0 z-50 w-[230px] bg-green-700 text-white flex-col shadow-2xl">
@@ -1552,17 +1552,8 @@ function SellerChat({
             CHAT
         ================================================= */}
 
-        <main
-          className="
-            flex-1 min-h-0 overflow-hidden
-            fixed lg:static
-            top-[70px] sm:top-[86px]
-            bottom-0 left-0 right-0
-            lg:inset-auto
-            p-0 sm:p-4 lg:p-7
-          "
-        >
-          <div className="h-full min-h-0 w-full bg-white sm:rounded-xl lg:rounded-2xl border border-green-100 overflow-hidden flex flex-col shadow-sm relative">
+        <main className="flex-1 min-h-0 overflow-hidden p-0 sm:p-4 lg:p-7">
+          <div className="h-full min-h-0 w-full bg-white sm:rounded-xl lg:rounded-2xl border border-green-100 overflow-hidden flex flex-col shadow-sm">
             {/* =================================================
                 CHAT HEADER
             ================================================= */}
@@ -1665,7 +1656,7 @@ function SellerChat({
                 MESSAGES BODY
             ================================================= */}
 
-            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain pb-[90px] sm:pb-6 p-2.5 sm:p-6 space-y-2 sm:space-y-3 bg-gradient-to-b from-green-50/40 to-gray-50 [scrollbar-width:thin]">
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-2.5 sm:p-6 space-y-2 sm:space-y-3 bg-gradient-to-b from-green-50/40 to-gray-50 [scrollbar-width:thin]">
               <div className="text-center mb-3 sm:mb-5">
                 <span className="inline-block bg-white text-green-600 text-[10px] sm:text-xs font-medium px-3 py-1.5 rounded-full border border-green-100 shadow-sm">
                   Conversation with{" "}
@@ -1809,16 +1800,12 @@ function SellerChat({
               <div
                 className="
                   shrink-0
-                  fixed sm:relative
-                  left-0 sm:left-auto
-                  right-0 sm:right-auto
-                  bottom-0 sm:bottom-auto
                   w-full
                   border-t border-green-100
                   bg-white
                   px-2.5 sm:px-4
                   pt-2.5 sm:pt-4
-                  pb-[env(safe-area-inset-bottom)]
+                  pb-2
                   sm:pb-4
                   relative
                   z-40
