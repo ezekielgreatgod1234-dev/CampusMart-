@@ -8,9 +8,7 @@ import {
 import {
   FiGrid,
   FiPackage,
-  FiBriefcase,
   FiShoppingBag,
-  FiCalendar,
   FiMessageCircle,
   FiDollarSign,
   FiStar,
@@ -447,69 +445,48 @@ function SellerProducts({
       icon: FiGrid,
       path: "/seller-dashboard",
     },
-
     {
       label: "Products",
       icon: FiPackage,
       path: "/seller/products",
     },
-
-    {
-      label: "Services",
-      icon: FiBriefcase,
-      path: "/seller/services",
-    },
-
     {
       label: "Orders",
       icon: FiShoppingBag,
       path: "/seller/orders",
     },
-
-    {
-      label: "Bookings",
-      icon: FiCalendar,
-      path: "/seller/bookings",
-    },
-
     {
       label: "Messages",
       icon: FiMessageCircle,
       path: "/seller/messages",
       badge: unreadMessages,
     },
-
     {
       label: "Earnings",
       icon: FiDollarSign,
       path: "/seller/earnings",
     },
-
     {
       label: "Reviews",
       icon: FiStar,
       path: "/seller/reviews",
     },
-
     {
       label: "Analytics",
       icon: FiBarChart2,
       path: "/seller/analytics",
     },
-
     {
       label: "Promotions",
       icon: FiTag,
       path: "/seller/promotions",
       new: true,
     },
-
     {
       label: "Profile",
       icon: FiUser,
       path: "/seller/profile",
     },
-
     {
       label: "Settings",
       icon: FiSettings,
