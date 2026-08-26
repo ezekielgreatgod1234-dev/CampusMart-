@@ -1210,11 +1210,15 @@ function SellerChat({
     return (
       <div className="h-[100svh] lg:h-[100dvh] w-full bg-gray-50 text-gray-800 flex overflow-hidden">
 
-        {/* SIDEBAR */}
+        {/* =================================================
+            SIDEBAR
+        ================================================= */}
 
         <aside className="hidden lg:flex fixed inset-y-0 left-0 z-50 w-[230px] bg-green-700 text-white flex-col shadow-2xl">
 
-          <div className="h-[86px] px-5 flex items-center">
+          {/* BRAND */}
+          <div className="px-5 pt-7 pb-5 shrink-0">
+
             <button
               type="button"
               onClick={() =>
@@ -1222,26 +1226,35 @@ function SellerChat({
                   "/seller-dashboard"
                 )
               }
-              className="flex items-center gap-3"
+              className="w-full flex items-center gap-3 text-left"
             >
-              <div className="w-10 h-10 rounded-xl bg-white text-green-700 flex items-center justify-center font-extrabold">
+
+              {/* CM LOGO */}
+              <div className="w-11 h-11 rounded-xl bg-green-800 border border-green-600 text-white flex items-center justify-center font-extrabold text-sm shadow-sm shrink-0">
                 CM
               </div>
 
-              <div className="text-left">
-                <p className="text-lg font-extrabold">
+              {/* BRAND TEXT */}
+              <div className="min-w-0">
+
+                <p className="text-lg font-extrabold leading-none text-white">
                   CampusMart
                 </p>
 
-                <p className="text-[10px] text-green-100">
-                  Buy. Sell. Connect.
+                <p className="text-[10px] text-green-100 mt-1.5 font-medium">
+                  Sell and Grow
                 </p>
+
               </div>
+
             </button>
+
           </div>
 
           <div className="flex-1 overflow-y-auto px-3 pb-5">
-            <nav className="space-y-1">
+
+            <nav className="space-y-1 mt-3">
+
               {menuItems.map(
                 (item) => {
                   const Icon =
@@ -1266,6 +1279,7 @@ function SellerChat({
                           : "text-white hover:bg-green-600"
                       }`}
                     >
+
                       <Icon size={18} />
 
                       <span className="flex-1 text-left">
@@ -1287,14 +1301,18 @@ function SellerChat({
                             : item.badge}
                         </span>
                       )}
+
                     </button>
                   );
                 }
               )}
+
             </nav>
+
           </div>
 
           <div className="px-3 pb-4">
+
             <button
               type="button"
               onClick={
@@ -1305,10 +1323,14 @@ function SellerChat({
               <FiLogOut size={18} />
               Logout
             </button>
+
           </div>
+
         </aside>
 
-        {/* MAIN */}
+        {/* =================================================
+            MAIN
+        ================================================= */}
 
         <div className="flex-1 min-w-0 lg:ml-[230px] flex flex-col h-[100dvh]">
 
@@ -1382,10 +1404,13 @@ function SellerChat({
 
         </div>
 
-        {/* MOBILE DRAWER */}
+        {/* =================================================
+            MOBILE DRAWER
+        ================================================= */}
 
         {sidebarOpen && (
           <>
+
             <div
               className="fixed inset-0 z-[60] bg-black/50 lg:hidden"
               onClick={() =>
@@ -1395,31 +1420,43 @@ function SellerChat({
 
             <aside className="fixed inset-y-0 left-0 z-[70] w-[250px] bg-green-700 text-white flex flex-col shadow-2xl lg:hidden">
 
-              <div className="h-[86px] px-5 flex items-center justify-between">
+              {/* MOBILE BRAND */}
+              <div className="px-5 pt-7 pb-5 flex items-center justify-between shrink-0">
 
-                <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleNavigation(
+                      "/seller-dashboard"
+                    )
+                  }
+                  className="flex items-center gap-3 text-left"
+                >
 
-                  <div className="w-10 h-10 rounded-xl bg-white text-green-700 flex items-center justify-center font-extrabold">
+                  <div className="w-11 h-11 rounded-xl bg-green-800 border border-green-600 text-white flex items-center justify-center font-extrabold text-sm shadow-sm shrink-0">
                     CM
                   </div>
 
                   <div>
-                    <p className="text-lg font-extrabold">
+
+                    <p className="text-lg font-extrabold leading-none text-white">
                       CampusMart
                     </p>
 
-                    <p className="text-[10px] text-green-100">
-                      Buy. Sell. Connect.
+                    <p className="text-[10px] text-green-100 mt-1.5 font-medium">
+                      Sell and Grow
                     </p>
+
                   </div>
 
-                </div>
+                </button>
 
                 <button
                   type="button"
                   onClick={() =>
                     setSidebarOpen(false)
                   }
+                  className="text-green-100"
                 >
                   <FiX size={22} />
                 </button>
@@ -1454,6 +1491,7 @@ function SellerChat({
                               : "text-white hover:bg-green-600"
                           }`}
                         >
+
                           <Icon size={18} />
 
                           <span className="flex-1 text-left">
@@ -1475,6 +1513,7 @@ function SellerChat({
                                 : item.badge}
                             </span>
                           )}
+
                         </button>
                       );
                     }
@@ -1502,6 +1541,7 @@ function SellerChat({
               </div>
 
             </aside>
+
           </>
         )}
 
@@ -1541,7 +1581,9 @@ function SellerChat({
   return (
     <div className="h-[100dvh] w-full bg-gray-50 text-gray-800 flex overflow-hidden">
 
-      {/* MOBILE OVERLAY */}
+      {/* =================================================
+          MOBILE OVERLAY
+      ================================================= */}
 
       {sidebarOpen && (
         <div
@@ -1570,7 +1612,11 @@ function SellerChat({
         `}
       >
 
-        <div className="h-[86px] px-5 flex items-center justify-between shrink-0">
+        {/* =================================================
+            BRAND / LOGO
+        ================================================= */}
+
+        <div className="px-5 pt-7 pb-5 shrink-0">
 
           <button
             type="button"
@@ -1579,42 +1625,40 @@ function SellerChat({
                 "/seller-dashboard"
               )
             }
-            className="flex items-center gap-3"
+            className="w-full flex items-center gap-3 text-left"
           >
 
-            <div className="w-10 h-10 rounded-xl bg-white text-green-700 flex items-center justify-center font-extrabold">
+            {/* CM LOGO */}
+
+            <div className="w-11 h-11 mt-3 rounded-xl bg-green-800 border border-green-800 text-white flex items-center justify-center font-extrabold text-sm shadow-sm shrink-0">
               CM
             </div>
 
-            <div className="text-left">
+            {/* CAMPUSMART BRAND */}
 
-              <p className="text-lg font-extrabold leading-none">
+            <div className="min-w-0">
+
+              <p className="text-lg mt-3 text-[26px] font-extrabold leading-none text-white">
                 CampusMart
               </p>
 
-              <p className="text-[10px] text-green-100 mt-1">
-                Buy. Sell. Connect.
+              <p className="text-[10px] text-green-100 mt-1.5 font-medium">
+                Buy. Sell. Grow
               </p>
 
             </div>
 
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              setSidebarOpen(false)
-            }
-            className="lg:hidden text-green-100"
-          >
-            <FiX size={22} />
           </button>
 
         </div>
 
+        {/* =================================================
+            MENU
+        ================================================= */}
+
         <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-5">
 
-          <nav className="space-y-1">
+          <nav className="space-y-1 mt-2">
 
             {menuItems.map(
               (item) => {
@@ -1680,6 +1724,10 @@ function SellerChat({
 
         </div>
 
+        {/* =================================================
+            LOGOUT
+        ================================================= */}
+
         <div className="px-3 pb-4 shrink-0">
 
           <button
@@ -1692,7 +1740,9 @@ function SellerChat({
             <FiLogOut
               size={18}
             />
+
             Logout
+
           </button>
 
         </div>
@@ -1834,6 +1884,7 @@ function SellerChat({
               {selectedMessageIds.length >
               0 ? (
                 <>
+
                   <button
                     type="button"
                     onClick={
@@ -1883,9 +1934,11 @@ function SellerChat({
                     </span>
 
                   </button>
+
                 </>
               ) : (
                 <>
+
                   <button
                     type="button"
                     onClick={() =>
@@ -1900,9 +1953,7 @@ function SellerChat({
                     />
                   </button>
 
-                  {/* =================================================
-                      BUYER PROFILE PHOTO
-                  ================================================= */}
+                  {/* BUYER PROFILE PHOTO */}
 
                   {buyerImage ? (
                     <img
@@ -1943,9 +1994,7 @@ function SellerChat({
                     </div>
                   )}
 
-                  {/* =================================================
-                      BUYER NAME
-                  ================================================= */}
+                  {/* BUYER NAME */}
 
                   <div className="flex-1 min-w-0">
 
@@ -1980,6 +2029,7 @@ function SellerChat({
                     </div>
 
                   </div>
+
                 </>
               )}
 

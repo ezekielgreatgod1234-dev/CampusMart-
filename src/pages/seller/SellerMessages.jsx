@@ -1663,13 +1663,14 @@ function SellerMessages({
                 w-10
                 h-10
                 rounded-xl
-                bg-white
-                text-green-700
+                bg-green-800
+                text-white
                 flex
                 items-center
                 justify-center
                 font-extrabold
                 shadow-sm
+                mt-7
               "
             >
               CM
@@ -1681,6 +1682,8 @@ function SellerMessages({
                   text-lg
                   font-extrabold
                   leading-none
+                  mt-7
+                  text-[26px]
                 "
               >
                 CampusMart
@@ -1720,7 +1723,7 @@ function SellerMessages({
             pb-5
           "
         >
-          <nav className="space-y-1">
+          <nav className="space-y-1 mt-5">
             {menuItems.map(
               (item) => {
                 const Icon =
@@ -1749,6 +1752,7 @@ function SellerMessages({
                       gap-3
                       px-3
                       py-3
+          
                       rounded-xl
                       text-sm
                       font-medium
