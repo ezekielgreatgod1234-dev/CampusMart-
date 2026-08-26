@@ -43,9 +43,7 @@ function SellerMessages({
   const navigate = useNavigate();
   const location = useLocation();
 
-  const {
-    firebaseUser,
-  } = useAuth();
+  const { firebaseUser } = useAuth();
 
   const [sidebarOpen, setSidebarOpen] =
     useState(false);
@@ -59,12 +57,23 @@ function SellerMessages({
 
   const sellerFullName =
     profile?.fullName ||
+    profile?.name ||
     firebaseUser?.displayName ||
     firebaseUser?.email ||
     "Seller";
 
   const sellerImage =
     profile?.profileImage ||
+    profile?.photoURL ||
+    profile?.photoUrl ||
+    profile?.profilePicture ||
+    profile?.profilePic ||
+    profile?.avatar ||
+    profile?.avatarUrl ||
+    profile?.avatarURL ||
+    profile?.imageUrl ||
+    profile?.imageURL ||
+    profile?.image ||
     firebaseUser?.photoURL ||
     null;
 
@@ -72,6 +81,7 @@ function SellerMessages({
     firebaseUser?.uid ||
     profile?.uid ||
     profile?.userId ||
+    profile?.id ||
     null;
 
   // =====================================================
@@ -148,19 +158,14 @@ function SellerMessages({
   // =====================================================
 
   const isActive = (path) => {
-    if (
-      path ===
-      "/seller-dashboard"
-    ) {
+    if (path === "/seller-dashboard") {
       return (
         location.pathname ===
         "/seller-dashboard"
       );
     }
 
-    return location.pathname.startsWith(
-      path
-    );
+    return location.pathname.startsWith(path);
   };
 
   // =====================================================
@@ -185,21 +190,823 @@ function SellerMessages({
   // CONVERSATION ID
   // =====================================================
 
-  const getConversationId = (
-    message
-  ) => {
+  const getConversationId = (message) => {
     if (!message) {
       return null;
     }
 
     return (
-      message.conversationId ||
-      message.chatId ||
-      message.conversationID ||
-      message.chatID ||
-      message.id ||
+      message?.conversationId ||
+      message?.chatId ||
+      message?.conversationID ||
+      message?.chatID ||
+      message?.conversation_id ||
+      message?.chat_id ||
+      message?.id ||
       null
     );
+  };
+
+  // =====================================================
+  // BUYER ID
+  // =====================================================
+
+  const getBuyerId = (message) => {
+    if (!message) {
+      return null;
+    }
+
+    // ---------------------------------------------------
+    // DIRECT BUYER ID
+    // ---------------------------------------------------
+
+    const directBuyerId =
+      message?.buyerId ||
+      message?.buyerUID ||
+      message?.buyerUid ||
+      message?.buyerUserId ||
+      message?.buyerUserID ||
+      message?.buyer_id ||
+      message?.otherParticipantId ||
+      message?.otherParticipantUid ||
+      message?.otherParticipantUID ||
+      message?.otherUserId ||
+      message?.otherUserId ||
+      message?.recipientId;
+
+    if (directBuyerId) {
+      return String(directBuyerId);
+    }
+
+    // ---------------------------------------------------
+    // BUYER OBJECT ID
+    // ---------------------------------------------------
+
+    const buyerObjectId =
+      message?.buyer?.uid ||
+      message?.buyer?.userId ||
+      message?.buyer?.userID ||
+      message?.buyer?.id ||
+      message?.buyerProfile?.uid ||
+      message?.buyerProfile?.userId ||
+      message?.buyerData?.uid ||
+      message?.buyerData?.userId ||
+      message?.buyerInfo?.uid ||
+      message?.buyerInfo?.userId;
+
+    if (buyerObjectId) {
+      return String(buyerObjectId);
+    }
+
+    // ---------------------------------------------------
+    // PARTICIPANTS ARRAY
+    // ---------------------------------------------------
+
+    if (
+      Array.isArray(
+        message?.participants
+      )
+    ) {
+      const otherParticipant =
+        message.participants.find(
+          (uid) =>
+            String(uid) !==
+            String(sellerId)
+        );
+
+      if (otherParticipant) {
+        return String(otherParticipant);
+      }
+    }
+
+    // ---------------------------------------------------
+    // PARTICIPANT OBJECTS ARRAY
+    // ---------------------------------------------------
+
+    const participantObjects =
+      message?.participantProfilesArray ||
+      message?.participantUsers ||
+      message?.users;
+
+    if (
+      Array.isArray(
+        participantObjects
+      )
+    ) {
+      const otherParticipant =
+        participantObjects.find(
+          (participant) => {
+            const uid =
+              participant?.uid ||
+              participant?.userId ||
+              participant?.id;
+
+            return (
+              uid &&
+              String(uid) !==
+                String(sellerId)
+            );
+          }
+        );
+
+      if (otherParticipant) {
+        const uid =
+          otherParticipant?.uid ||
+          otherParticipant?.userId ||
+          otherParticipant?.id;
+
+        if (uid) {
+          return String(uid);
+        }
+      }
+    }
+
+    // ---------------------------------------------------
+    // PARTICIPANT IMAGES
+    // ---------------------------------------------------
+
+    if (
+      message?.participantImages &&
+      typeof message.participantImages ===
+        "object"
+    ) {
+      const otherId =
+        Object.keys(
+          message.participantImages
+        ).find(
+          (uid) =>
+            String(uid) !==
+            String(sellerId)
+        );
+
+      if (otherId) {
+        return String(otherId);
+      }
+    }
+
+    // ---------------------------------------------------
+    // PARTICIPANT PROFILES
+    // ---------------------------------------------------
+
+    if (
+      message?.participantProfiles &&
+      typeof message.participantProfiles ===
+        "object"
+    ) {
+      const otherId =
+        Object.keys(
+          message.participantProfiles
+        ).find(
+          (uid) =>
+            String(uid) !==
+            String(sellerId)
+        );
+
+      if (otherId) {
+        return String(otherId);
+      }
+    }
+
+    // ---------------------------------------------------
+    // PARTICIPANT NAMES
+    // ---------------------------------------------------
+
+    if (
+      message?.participantNames &&
+      typeof message.participantNames ===
+        "object"
+    ) {
+      const otherId =
+        Object.keys(
+          message.participantNames
+        ).find(
+          (uid) =>
+            String(uid) !==
+            String(sellerId)
+        );
+
+      if (otherId) {
+        return String(otherId);
+      }
+    }
+
+    // ---------------------------------------------------
+    // NESTED CONVERSATION
+    // ---------------------------------------------------
+
+    const nestedConversation =
+      message?.conversationData ||
+      message?.conversationInfo ||
+      message?.chatData ||
+      message?.chatInfo;
+
+    if (
+      nestedConversation &&
+      typeof nestedConversation ===
+        "object"
+    ) {
+      const nestedBuyerId =
+        nestedConversation?.buyerId ||
+        nestedConversation?.buyerUID ||
+        nestedConversation?.buyerUid ||
+        nestedConversation?.buyerUserId ||
+        nestedConversation?.buyer?.uid ||
+        nestedConversation?.buyer?.userId ||
+        nestedConversation?.buyer?.id;
+
+      if (nestedBuyerId) {
+        return String(nestedBuyerId);
+      }
+
+      if (
+        Array.isArray(
+          nestedConversation?.participants
+        )
+      ) {
+        const otherParticipant =
+          nestedConversation.participants.find(
+            (uid) =>
+              String(uid) !==
+              String(sellerId)
+          );
+
+        if (otherParticipant) {
+          return String(
+            otherParticipant
+          );
+        }
+      }
+
+      if (
+        nestedConversation
+          ?.participantImages &&
+        typeof nestedConversation
+          .participantImages === "object"
+      ) {
+        const otherId =
+          Object.keys(
+            nestedConversation.participantImages
+          ).find(
+            (uid) =>
+              String(uid) !==
+              String(sellerId)
+          );
+
+        if (otherId) {
+          return String(otherId);
+        }
+      }
+
+      if (
+        nestedConversation
+          ?.participantProfiles &&
+        typeof nestedConversation
+          .participantProfiles ===
+          "object"
+      ) {
+        const otherId =
+          Object.keys(
+            nestedConversation.participantProfiles
+          ).find(
+            (uid) =>
+              String(uid) !==
+              String(sellerId)
+          );
+
+        if (otherId) {
+          return String(otherId);
+        }
+      }
+    }
+
+    return null;
+  };
+
+  // =====================================================
+  // EXTRACT PROFILE IMAGE
+  // =====================================================
+
+  const extractProfileImage = (data) => {
+    if (!data) {
+      return null;
+    }
+
+    if (typeof data === "string") {
+      return data;
+    }
+
+    if (typeof data !== "object") {
+      return null;
+    }
+
+    return (
+      data?.profileImage ||
+      data?.profile_image ||
+      data?.photoURL ||
+      data?.photoUrl ||
+      data?.photo ||
+      data?.profilePicture ||
+      data?.profilePic ||
+      data?.avatar ||
+      data?.avatarUrl ||
+      data?.avatarURL ||
+      data?.imageUrl ||
+      data?.imageURL ||
+      data?.image ||
+      data?.picture ||
+      data?.userImage ||
+      data?.userPhoto ||
+      data?.displayPhoto ||
+      null
+    );
+  };
+
+  // =====================================================
+  // GET BUYER PROFILE IMAGE
+  // =====================================================
+
+  const getBuyerProfileImage = (message) => {
+    if (!message) {
+      return null;
+    }
+
+    const buyerId =
+      getBuyerId(message);
+
+    // ---------------------------------------------------
+    // 1. DIRECT BUYER IMAGE
+    // ---------------------------------------------------
+
+    const directBuyerImage =
+      message?.buyerProfileImage ||
+      message?.buyerProfileImg ||
+      message?.buyerPhotoURL ||
+      message?.buyerPhotoUrl ||
+      message?.buyerPhoto ||
+      message?.buyerProfilePicture ||
+      message?.buyerProfilePic ||
+      message?.buyerAvatar ||
+      message?.buyerAvatarUrl ||
+      message?.buyerAvatarURL ||
+      message?.buyerImage ||
+      message?.buyerImageUrl ||
+      message?.buyerImageURL ||
+      message?.buyerPicture ||
+      null;
+
+    if (directBuyerImage) {
+      return extractProfileImage(
+        directBuyerImage
+      );
+    }
+
+    // ---------------------------------------------------
+    // 2. BUYER OBJECT
+    // ---------------------------------------------------
+
+    const buyerObjectImage =
+      extractProfileImage(
+        message?.buyer
+      ) ||
+      extractProfileImage(
+        message?.buyerProfile
+      ) ||
+      extractProfileImage(
+        message?.buyerData
+      ) ||
+      extractProfileImage(
+        message?.buyerInfo
+      );
+
+    if (buyerObjectImage) {
+      return buyerObjectImage;
+    }
+
+    // ---------------------------------------------------
+    // 3. OTHER PARTICIPANT OBJECT
+    // ---------------------------------------------------
+
+    const otherParticipantImage =
+      extractProfileImage(
+        message?.otherParticipant
+      ) ||
+      extractProfileImage(
+        message?.otherUser
+      );
+
+    if (otherParticipantImage) {
+      return otherParticipantImage;
+    }
+
+    // ---------------------------------------------------
+    // 4. USER OBJECT
+    // ---------------------------------------------------
+
+    const userImage =
+      extractProfileImage(
+        message?.user
+      );
+
+    if (userImage) {
+      return userImage;
+    }
+
+    // ---------------------------------------------------
+    // 5. DIRECT MESSAGE IMAGE
+    //
+    // IMPORTANT:
+    // Do this AFTER buyer-specific fields.
+    // ---------------------------------------------------
+
+    const directImage =
+      extractProfileImage(message);
+
+    if (directImage) {
+      return directImage;
+    }
+
+    // ---------------------------------------------------
+    // 6. PARTICIPANT IMAGES
+    // ---------------------------------------------------
+
+    const participantImages =
+      message?.participantImages;
+
+    if (
+      participantImages &&
+      typeof participantImages ===
+        "object"
+    ) {
+      // First use the exact buyer ID.
+
+      if (
+        buyerId &&
+        participantImages[buyerId]
+      ) {
+        const image =
+          extractProfileImage(
+            participantImages[buyerId]
+          );
+
+        if (image) {
+          return image;
+        }
+      }
+
+      // Otherwise find the participant
+      // who is not the seller.
+
+      const otherParticipantId =
+        Object.keys(
+          participantImages
+        ).find(
+          (uid) =>
+            String(uid) !==
+            String(sellerId)
+        );
+
+      if (otherParticipantId) {
+        const image =
+          extractProfileImage(
+            participantImages[
+              otherParticipantId
+            ]
+          );
+
+        if (image) {
+          return image;
+        }
+      }
+    }
+
+    // ---------------------------------------------------
+    // 7. PARTICIPANT PROFILES
+    // ---------------------------------------------------
+
+    const participantProfiles =
+      message?.participantProfiles;
+
+    if (
+      participantProfiles &&
+      typeof participantProfiles ===
+        "object"
+    ) {
+      // Exact buyer profile.
+
+      if (
+        buyerId &&
+        participantProfiles[buyerId]
+      ) {
+        const image =
+          extractProfileImage(
+            participantProfiles[buyerId]
+          );
+
+        if (image) {
+          return image;
+        }
+      }
+
+      // Other participant.
+
+      const otherParticipantId =
+        Object.keys(
+          participantProfiles
+        ).find(
+          (uid) =>
+            String(uid) !==
+            String(sellerId)
+        );
+
+      if (otherParticipantId) {
+        const image =
+          extractProfileImage(
+            participantProfiles[
+              otherParticipantId
+            ]
+          );
+
+        if (image) {
+          return image;
+        }
+      }
+    }
+
+    // ---------------------------------------------------
+    // 8. PARTICIPANT DATA
+    // ---------------------------------------------------
+
+    const participantData =
+      message?.participantData;
+
+    if (
+      participantData &&
+      typeof participantData ===
+        "object"
+    ) {
+      if (
+        buyerId &&
+        participantData[buyerId]
+      ) {
+        const image =
+          extractProfileImage(
+            participantData[buyerId]
+          );
+
+        if (image) {
+          return image;
+        }
+      }
+
+      const otherParticipantId =
+        Object.keys(
+          participantData
+        ).find(
+          (uid) =>
+            String(uid) !==
+            String(sellerId)
+        );
+
+      if (otherParticipantId) {
+        const image =
+          extractProfileImage(
+            participantData[
+              otherParticipantId
+            ]
+          );
+
+        if (image) {
+          return image;
+        }
+      }
+    }
+
+    // ---------------------------------------------------
+    // 9. NESTED CONVERSATION
+    // ---------------------------------------------------
+
+    const nestedConversation =
+      message?.conversationData ||
+      message?.conversationInfo ||
+      message?.chatData ||
+      message?.chatInfo;
+
+    if (
+      nestedConversation &&
+      typeof nestedConversation ===
+        "object"
+    ) {
+      // Nested buyer.
+
+      const nestedBuyerImage =
+        extractProfileImage(
+          nestedConversation?.buyer
+        ) ||
+        extractProfileImage(
+          nestedConversation?.buyerProfile
+        ) ||
+        extractProfileImage(
+          nestedConversation?.buyerData
+        ) ||
+        extractProfileImage(
+          nestedConversation?.buyerInfo
+        );
+
+      if (nestedBuyerImage) {
+        return nestedBuyerImage;
+      }
+
+      // Nested participant images.
+
+      const nestedImages =
+        nestedConversation
+          ?.participantImages;
+
+      if (
+        nestedImages &&
+        typeof nestedImages ===
+          "object"
+      ) {
+        if (
+          buyerId &&
+          nestedImages[buyerId]
+        ) {
+          const image =
+            extractProfileImage(
+              nestedImages[buyerId]
+            );
+
+          if (image) {
+            return image;
+          }
+        }
+
+        const otherId =
+          Object.keys(
+            nestedImages
+          ).find(
+            (uid) =>
+              String(uid) !==
+              String(sellerId)
+          );
+
+        if (otherId) {
+          const image =
+            extractProfileImage(
+              nestedImages[otherId]
+            );
+
+          if (image) {
+            return image;
+          }
+        }
+      }
+
+      // Nested participant profiles.
+
+      const nestedProfiles =
+        nestedConversation
+          ?.participantProfiles;
+
+      if (
+        nestedProfiles &&
+        typeof nestedProfiles ===
+          "object"
+      ) {
+        if (
+          buyerId &&
+          nestedProfiles[buyerId]
+        ) {
+          const image =
+            extractProfileImage(
+              nestedProfiles[buyerId]
+            );
+
+          if (image) {
+            return image;
+          }
+        }
+
+        const otherId =
+          Object.keys(
+            nestedProfiles
+          ).find(
+            (uid) =>
+              String(uid) !==
+              String(sellerId)
+          );
+
+        if (otherId) {
+          const image =
+            extractProfileImage(
+              nestedProfiles[otherId]
+            );
+
+          if (image) {
+            return image;
+          }
+        }
+      }
+
+      // Nested buyer profile image.
+
+      const nestedDirectImage =
+        nestedConversation?.buyerProfileImage ||
+        nestedConversation?.buyerPhotoURL ||
+        nestedConversation?.buyerPhotoUrl ||
+        nestedConversation?.buyerAvatar ||
+        nestedConversation?.buyerImage;
+
+      if (nestedDirectImage) {
+        return extractProfileImage(
+          nestedDirectImage
+        );
+      }
+    }
+
+    return null;
+  };
+
+  // =====================================================
+  // GET BUYER NAME
+  // =====================================================
+
+  const getBuyerName = (message) => {
+    if (!message) {
+      return "Buyer";
+    }
+
+    const buyerId =
+      getBuyerId(message);
+
+    const participantNames =
+      message?.participantNames;
+
+    const name =
+      message?.buyerName ||
+      message?.buyerFullName ||
+      message?.buyerDisplayName ||
+      message?.buyer?.fullName ||
+      message?.buyer?.name ||
+      message?.buyer?.displayName ||
+      message?.buyerProfile?.fullName ||
+      message?.buyerProfile?.name ||
+      message?.buyerProfile?.displayName ||
+      message?.buyerData?.fullName ||
+      message?.buyerData?.name ||
+      message?.buyerData?.displayName ||
+      message?.buyerInfo?.fullName ||
+      message?.buyerInfo?.name ||
+      message?.buyerInfo?.displayName ||
+      message?.otherParticipant?.fullName ||
+      message?.otherParticipant?.name ||
+      message?.otherParticipant?.displayName ||
+      message?.user?.fullName ||
+      message?.user?.name ||
+      message?.user?.displayName ||
+      (buyerId &&
+        participantNames?.[buyerId]) ||
+      message?.name ||
+      null;
+
+    if (
+      name &&
+      String(name).trim()
+    ) {
+      return String(name).trim();
+    }
+
+    // ---------------------------------------------------
+    // NESTED CONVERSATION NAME
+    // ---------------------------------------------------
+
+    const nestedConversation =
+      message?.conversationData ||
+      message?.conversationInfo ||
+      message?.chatData ||
+      message?.chatInfo;
+
+    const nestedBuyerName =
+      nestedConversation?.buyerName ||
+      nestedConversation?.buyerFullName ||
+      nestedConversation?.buyer?.fullName ||
+      nestedConversation?.buyer?.name ||
+      nestedConversation?.buyer?.displayName ||
+      nestedConversation?.buyerProfile?.fullName ||
+      nestedConversation?.buyerProfile?.name ||
+      nestedConversation?.buyerData?.fullName ||
+      nestedConversation?.buyerData?.name;
+
+    if (
+      nestedBuyerName &&
+      String(nestedBuyerName).trim()
+    ) {
+      return String(
+        nestedBuyerName
+      ).trim();
+    }
+
+    return "Buyer";
   };
 
   // =====================================================
@@ -219,31 +1026,26 @@ function SellerMessages({
 
       return messages.filter(
         (message) => {
+          const buyerName =
+            getBuyerName(message);
+
           return (
-            String(
-              message?.name || ""
-            )
+            String(buyerName)
               .toLowerCase()
-              .includes(
-                searchText
-              ) ||
+              .includes(searchText) ||
             String(
               message?.lastMessage ||
                 message?.lastMessageText ||
                 ""
             )
               .toLowerCase()
-              .includes(
-                searchText
-              ) ||
+              .includes(searchText) ||
             String(
               message?.productName ||
                 ""
             )
               .toLowerCase()
-              .includes(
-                searchText
-              )
+              .includes(searchText)
           );
         }
       );
@@ -254,9 +1056,6 @@ function SellerMessages({
 
   // =====================================================
   // ONLINE USERS
-  //
-  // This uses the REAL online value supplied by the
-  // conversation listener.
   // =====================================================
 
   const onlineUsers =
@@ -273,13 +1072,10 @@ function SellerMessages({
 
   const getInitial = (name) => {
     return (
-      String(
-        name || "U"
-      )
+      String(name || "U")
         .trim()
         .charAt(0)
-        .toUpperCase() ||
-      "U"
+        .toUpperCase() || "U"
     );
   };
 
@@ -287,9 +1083,7 @@ function SellerMessages({
   // LAST MESSAGE
   // =====================================================
 
-  const getLastMessage = (
-    message
-  ) => {
+  const getLastMessage = (message) => {
     return (
       message?.lastMessage ||
       message?.lastMessageText ||
@@ -301,16 +1095,12 @@ function SellerMessages({
   // TIME
   // =====================================================
 
-  const getMessageTime = (
-    message
-  ) => {
+  const getMessageTime = (message) => {
     if (message?.time) {
       return message.time;
     }
 
-    if (
-      message?.lastMessageAt
-    ) {
+    if (message?.lastMessageAt) {
       try {
         const date =
           message.lastMessageAt
@@ -354,14 +1144,6 @@ function SellerMessages({
       return null;
     }
 
-    /*
-     * Your conversation list can provide the full
-     * conversation through:
-     *
-     * message.conversation
-     * message.messages
-     */
-
     const conversation =
       Array.isArray(
         message?.conversation
@@ -374,8 +1156,7 @@ function SellerMessages({
         : [];
 
     if (
-      conversation.length ===
-      0
+      conversation.length === 0
     ) {
       return null;
     }
@@ -397,9 +1178,7 @@ function SellerMessages({
                   b?.createdAt || 0
                 );
 
-          return (
-            aTime - bTime
-          );
+          return aTime - bTime;
         }
       );
 
@@ -427,34 +1206,22 @@ function SellerMessages({
       );
 
     if (!lastMessage) {
-      /*
-       * If your parent already calculated this,
-       * respect it.
-       */
       if (
         typeof message?.lastMessageFromSeller ===
         "boolean"
       ) {
-        return (
-          message.lastMessageFromSeller
-        );
+        return message.lastMessageFromSeller;
       }
 
       if (
         typeof message?.sellerSentLast ===
         "boolean"
       ) {
-        return (
-          message.sellerSentLast
-        );
+        return message.sellerSentLast;
       }
 
       return false;
     }
-
-    // ---------------------------------------------------
-    // BEST CHECK: senderId
-    // ---------------------------------------------------
 
     if (
       sellerId &&
@@ -468,13 +1235,9 @@ function SellerMessages({
       );
     }
 
-    // ---------------------------------------------------
-    // SUPPORT OTHER COMMON SCHEMAS
-    // ---------------------------------------------------
-
     if (
-      lastMessage?.senderUid &&
-      sellerId
+      sellerId &&
+      lastMessage?.senderUid
     ) {
       return (
         String(
@@ -485,8 +1248,8 @@ function SellerMessages({
     }
 
     if (
-      lastMessage?.userId &&
-      sellerId
+      sellerId &&
+      lastMessage?.userId
     ) {
       return (
         String(
@@ -543,43 +1306,15 @@ function SellerMessages({
         message
       );
 
-    // ---------------------------------------------------
-    // 1. MESSAGE-LEVEL SEEN
-    // ---------------------------------------------------
-
     if (
-      lastMessage?.seen === true
-    ) {
-      return true;
-    }
-
-    if (
-      lastMessage?.isRead === true
-    ) {
-      return true;
-    }
-
-    if (
-      lastMessage?.read === true
-    ) {
-      return true;
-    }
-
-    if (
-      lastMessage?.seenAt
-    ) {
-      return true;
-    }
-
-    if (
+      lastMessage?.seen === true ||
+      lastMessage?.isRead === true ||
+      lastMessage?.read === true ||
+      lastMessage?.seenAt ||
       lastMessage?.readAt
     ) {
       return true;
     }
-
-    // ---------------------------------------------------
-    // 2. SEEN BY ARRAY
-    // ---------------------------------------------------
 
     if (
       Array.isArray(
@@ -614,10 +1349,6 @@ function SellerMessages({
         return true;
       }
     }
-
-    // ---------------------------------------------------
-    // 3. MESSAGE-LEVEL SEEN BY OBJECT
-    // ---------------------------------------------------
 
     if (
       lastMessage?.seenBy &&
@@ -665,10 +1396,6 @@ function SellerMessages({
       }
     }
 
-    // ---------------------------------------------------
-    // 4. CONVERSATION-LEVEL SEEN
-    // ---------------------------------------------------
-
     if (
       message?.lastMessageSeen ===
       true
@@ -677,102 +1404,39 @@ function SellerMessages({
     }
 
     if (
-      message?.seen === true
-    ) {
-      return true;
-    }
-
-    if (
+      message?.seen === true ||
       message?.seenAt
     ) {
       return true;
     }
 
-    // ---------------------------------------------------
-    // 5. LAST MESSAGE SEEN BY ARRAY
-    // ---------------------------------------------------
-
-    if (
-      Array.isArray(
-        message?.lastMessageSeenBy
-      )
-    ) {
-      return message.lastMessageSeenBy.some(
-        (uid) =>
-          String(uid) !==
-          String(sellerId)
-      );
-    }
-
-    // ---------------------------------------------------
-    // 6. LAST MESSAGE SEEN BY OBJECT
-    // ---------------------------------------------------
-
-    if (
-      message?.lastMessageSeenBy &&
-      typeof message.lastMessageSeenBy ===
-        "object" &&
-      !Array.isArray(
-        message.lastMessageSeenBy
-      )
-    ) {
-      return Object.entries(
-        message.lastMessageSeenBy
-      ).some(
-        ([uid, seen]) =>
-          String(uid) !==
-            String(sellerId) &&
-          seen === true
-      );
-    }
-
-    // ---------------------------------------------------
-    // 7. UNREAD COUNT FALLBACK
-    //
-    // If buyer has zero unread messages,
-    // seller's latest message has been read.
-    // ---------------------------------------------------
-
     const buyerUnread =
       message?.otherParticipantUnread;
 
     if (
-      buyerUnread !==
-        undefined &&
-      buyerUnread !== null
+      buyerUnread !== undefined &&
+      buyerUnread !== null &&
+      Number(buyerUnread) === 0 &&
+      isLastMessageFromSeller(
+        message
+      )
     ) {
-      if (
-        Number(
-          buyerUnread
-        ) === 0 &&
-        isLastMessageFromSeller(
-          message
-        )
-      ) {
-        return true;
-      }
+      return true;
     }
-
-    // ---------------------------------------------------
-    // 8. DIRECT BUYER UNREAD COUNT
-    // ---------------------------------------------------
 
     if (
       message?.buyerUnread !==
         undefined &&
       message?.buyerUnread !==
-        null
+        null &&
+      Number(
+        message.buyerUnread
+      ) === 0 &&
+      isLastMessageFromSeller(
+        message
+      )
     ) {
-      if (
-        Number(
-          message.buyerUnread
-        ) === 0 &&
-        isLastMessageFromSeller(
-          message
-        )
-      ) {
-        return true;
-      }
+      return true;
     }
 
     return false;
@@ -780,9 +1444,6 @@ function SellerMessages({
 
   // =====================================================
   // MESSAGE STATUS
-  //
-  // "sent" = one check
-  // "seen" = two checks
   // =====================================================
 
   const getLastMessageStatus = (
@@ -797,16 +1458,11 @@ function SellerMessages({
       return "none";
     }
 
-    const seen =
-      isLastMessageSeen(
-        message
-      );
-
-    if (seen) {
-      return "seen";
-    }
-
-    return "sent";
+    return isLastMessageSeen(
+      message
+    )
+      ? "seen"
+      : "sent";
   };
 
   // =====================================================
@@ -821,15 +1477,11 @@ function SellerMessages({
         message
       );
 
-    if (
-      status === "none"
-    ) {
+    if (status === "none") {
       return null;
     }
 
-    if (
-      status === "seen"
-    ) {
+    if (status === "seen") {
       return (
         <span
           className="
@@ -839,7 +1491,6 @@ function SellerMessages({
             text-green-600
           "
           title="Seen by buyer"
-          aria-label="Seen by buyer"
         >
           <FiCheck
             size={14}
@@ -864,7 +1515,6 @@ function SellerMessages({
           text-gray-400
         "
         title="Sent"
-        aria-label="Sent"
       >
         <FiCheck
           size={14}
@@ -897,9 +1547,6 @@ function SellerMessages({
 
     setSidebarOpen(false);
 
-    /*
-     * Navigate immediately.
-     */
     navigate(
       `/seller/messages/${encodeURIComponent(
         String(
@@ -908,9 +1555,6 @@ function SellerMessages({
       )}`
     );
 
-    /*
-     * Mark buyer messages as read.
-     */
     if (
       typeof markMessageAsRead ===
       "function"
@@ -945,10 +1589,9 @@ function SellerMessages({
         overflow-hidden
       "
     >
-
-      {/* =================================================
-          MOBILE OVERLAY
-      ================================================= */}
+      {/* ================================================= */}
+      {/* MOBILE SIDEBAR OVERLAY */}
+      {/* ================================================= */}
 
       {sidebarOpen && (
         <div
@@ -960,16 +1603,14 @@ function SellerMessages({
             lg:hidden
           "
           onClick={() =>
-            setSidebarOpen(
-              false
-            )
+            setSidebarOpen(false)
           }
         />
       )}
 
-      {/* =================================================
-          SIDEBAR
-      ================================================= */}
+      {/* ================================================= */}
+      {/* SIDEBAR */}
+      {/* ================================================= */}
 
       <aside
         className={`
@@ -987,7 +1628,6 @@ function SellerMessages({
           transition-transform
           duration-300
           ease-in-out
-
           ${
             sidebarOpen
               ? "translate-x-0"
@@ -995,9 +1635,6 @@ function SellerMessages({
           }
         `}
       >
-
-        {/* LOGO */}
-
         <div
           className="
             h-[86px]
@@ -1008,7 +1645,6 @@ function SellerMessages({
             shrink-0
           "
         >
-
           <button
             type="button"
             onClick={() =>
@@ -1022,7 +1658,6 @@ function SellerMessages({
               gap-3
             "
           >
-
             <div
               className="
                 w-10
@@ -1041,7 +1676,6 @@ function SellerMessages({
             </div>
 
             <div className="text-left">
-
               <p
                 className="
                   text-lg
@@ -1061,17 +1695,13 @@ function SellerMessages({
               >
                 Buy. Sell. Connect.
               </p>
-
             </div>
-
           </button>
 
           <button
             type="button"
             onClick={() =>
-              setSidebarOpen(
-                false
-              )
+              setSidebarOpen(false)
             }
             className="
               lg:hidden
@@ -1080,10 +1710,7 @@ function SellerMessages({
           >
             <FiX size={22} />
           </button>
-
         </div>
-
-        {/* MENU */}
 
         <div
           className="
@@ -1093,9 +1720,7 @@ function SellerMessages({
             pb-5
           "
         >
-
           <nav className="space-y-1">
-
             {menuItems.map(
               (item) => {
                 const Icon =
@@ -1128,7 +1753,6 @@ function SellerMessages({
                       text-sm
                       font-medium
                       transition
-
                       ${
                         active
                           ? "bg-white text-green-700 shadow-sm"
@@ -1136,7 +1760,6 @@ function SellerMessages({
                       }
                     `}
                   >
-
                     <Icon size={18} />
 
                     <span
@@ -1145,9 +1768,7 @@ function SellerMessages({
                         text-left
                       "
                     >
-                      {
-                        item.label
-                      }
+                      {item.label}
                     </span>
 
                     {item.new && (
@@ -1189,17 +1810,12 @@ function SellerMessages({
                           : item.badge}
                       </span>
                     )}
-
                   </button>
                 );
               }
             )}
-
           </nav>
-
         </div>
-
-        {/* LOGOUT */}
 
         <div
           className="
@@ -1208,7 +1824,6 @@ function SellerMessages({
             shrink-0
           "
         >
-
           <button
             type="button"
             onClick={
@@ -1229,20 +1844,15 @@ function SellerMessages({
               transition
             "
           >
-
             <FiLogOut size={18} />
-
             Logout
-
           </button>
-
         </div>
-
       </aside>
 
-      {/* =================================================
-          MAIN AREA
-      ================================================= */}
+      {/* ================================================= */}
+      {/* MAIN */}
+      {/* ================================================= */}
 
       <div
         className="
@@ -1254,10 +1864,9 @@ function SellerMessages({
           h-screen
         "
       >
-
-        {/* =================================================
-            TOP BAR
-        ================================================= */}
+        {/* ================================================= */}
+        {/* HEADER */}
+        {/* ================================================= */}
 
         <header
           className="
@@ -1272,22 +1881,15 @@ function SellerMessages({
             shrink-0
           "
         >
-
-          {/* MOBILE MENU */}
-
           <button
             type="button"
             onClick={() =>
-              setSidebarOpen(
-                true
-              )
+              setSidebarOpen(true)
             }
             className="lg:hidden"
           >
             <FiMenu size={23} />
           </button>
-
-          {/* SEARCH */}
 
           <div
             className="
@@ -1296,7 +1898,6 @@ function SellerMessages({
               max-w-[500px]
             "
           >
-
             <FiSearch
               size={17}
               className="
@@ -1330,10 +1931,7 @@ function SellerMessages({
                 placeholder:text-gray-400
               "
             />
-
           </div>
-
-          {/* RIGHT */}
 
           <div
             className="
@@ -1343,9 +1941,6 @@ function SellerMessages({
               gap-3
             "
           >
-
-            {/* MESSAGE BUTTON */}
-
             <button
               type="button"
               onClick={() =>
@@ -1364,7 +1959,6 @@ function SellerMessages({
                 justify-center
               "
             >
-
               <FiMessageCircle
                 size={19}
               />
@@ -1395,10 +1989,7 @@ function SellerMessages({
                     : unreadMessages}
                 </span>
               )}
-
             </button>
-
-            {/* PROFILE */}
 
             <button
               type="button"
@@ -1419,15 +2010,10 @@ function SellerMessages({
                 transition
               "
             >
-
               {sellerImage ? (
                 <img
-                  src={
-                    sellerImage
-                  }
-                  alt={
-                    sellerFullName
-                  }
+                  src={sellerImage}
+                  alt={sellerFullName}
                   className="
                     w-8
                     h-8
@@ -1464,7 +2050,6 @@ function SellerMessages({
                   pr-2
                 "
               >
-
                 <p
                   className="
                     text-xs
@@ -1472,9 +2057,7 @@ function SellerMessages({
                     leading-none
                   "
                 >
-                  {
-                    sellerFullName
-                  }
+                  {sellerFullName}
                 </p>
 
                 <p
@@ -1486,18 +2069,14 @@ function SellerMessages({
                 >
                   Seller
                 </p>
-
               </div>
-
             </button>
-
           </div>
-
         </header>
 
-        {/* =================================================
-            CONTENT
-        ================================================= */}
+        {/* ================================================= */}
+        {/* CONTENT */}
+        {/* ================================================= */}
 
         <main
           className="
@@ -1508,10 +2087,11 @@ function SellerMessages({
             lg:p-7
           "
         >
-
           <div className="space-y-6">
 
-            {/* HEADER */}
+            {/* ================================================= */}
+            {/* TITLE */}
+            {/* ================================================= */}
 
             <div
               className="
@@ -1523,9 +2103,7 @@ function SellerMessages({
                 gap-4
               "
             >
-
               <div>
-
                 <h1
                   className="
                     text-2xl
@@ -1544,10 +2122,8 @@ function SellerMessages({
                   "
                 >
                   Chat with buyers
-                  about your
-                  products.
+                  about your products.
                 </p>
-
               </div>
 
               <div
@@ -1565,20 +2141,16 @@ function SellerMessages({
                   font-medium
                 "
               >
-
                 <FiMessageCircle
                   size={16}
                 />
-
                 Seller Inbox
-
               </div>
-
             </div>
 
-            {/* =================================================
-                STATS
-            ================================================= */}
+            {/* ================================================= */}
+            {/* STATS */}
+            {/* ================================================= */}
 
             <div
               className="
@@ -1588,9 +2160,6 @@ function SellerMessages({
                 gap-4
               "
             >
-
-              {/* CONVERSATIONS */}
-
               <div
                 className="
                   bg-white
@@ -1601,9 +2170,7 @@ function SellerMessages({
                   sm:p-5
                 "
               >
-
                 <div className="flex items-center gap-3">
-
                   <div
                     className="
                       w-10
@@ -1622,24 +2189,16 @@ function SellerMessages({
                   </div>
 
                   <div>
-
                     <p className="text-xs text-gray-500">
                       Conversations
                     </p>
 
                     <p className="text-xl font-bold text-gray-800">
-                      {
-                        messages.length
-                      }
+                      {messages.length}
                     </p>
-
                   </div>
-
                 </div>
-
               </div>
-
-              {/* UNREAD */}
 
               <div
                 className="
@@ -1651,9 +2210,7 @@ function SellerMessages({
                   sm:p-5
                 "
               >
-
                 <div className="flex items-center gap-3">
-
                   <div
                     className="
                       w-10
@@ -1672,24 +2229,16 @@ function SellerMessages({
                   </div>
 
                   <div>
-
                     <p className="text-xs text-gray-500">
                       Unread Messages
                     </p>
 
                     <p className="text-xl font-bold text-gray-800">
-                      {
-                        unreadMessages
-                      }
+                      {unreadMessages}
                     </p>
-
                   </div>
-
                 </div>
-
               </div>
-
-              {/* ONLINE */}
 
               <div
                 className="
@@ -1703,9 +2252,7 @@ function SellerMessages({
                   sm:p-5
                 "
               >
-
                 <div className="flex items-center gap-3">
-
                   <div
                     className="
                       w-10
@@ -1724,31 +2271,23 @@ function SellerMessages({
                   </div>
 
                   <div>
-
                     <p className="text-xs text-gray-500">
                       Buyers Online
                     </p>
 
                     <p className="text-xl font-bold text-gray-800">
-                      {
-                        onlineUsers
-                      }
+                      {onlineUsers}
                     </p>
-
                   </div>
-
                 </div>
-
               </div>
-
             </div>
 
-            {/* =================================================
-                SEARCH
-            ================================================= */}
+            {/* ================================================= */}
+            {/* SEARCH */}
+            {/* ================================================= */}
 
             <div className="relative">
-
               <FiSearch
                 className="
                   absolute
@@ -1786,12 +2325,11 @@ function SellerMessages({
                   transition
                 "
               />
-
             </div>
 
-            {/* =================================================
-                CONVERSATIONS CARD
-            ================================================= */}
+            {/* ================================================= */}
+            {/* CONVERSATIONS */}
+            {/* ================================================= */}
 
             <div
               className="
@@ -1802,8 +2340,7 @@ function SellerMessages({
                 overflow-hidden
               "
             >
-
-              {/* CARD HEADER */}
+              {/* HEADER */}
 
               <div
                 className="
@@ -1815,9 +2352,7 @@ function SellerMessages({
                   justify-between
                 "
               >
-
                 <div className="flex items-center gap-3">
-
                   <div
                     className="
                       w-11
@@ -1836,25 +2371,18 @@ function SellerMessages({
                   </div>
 
                   <div>
-
                     <h2 className="font-bold text-gray-800">
                       Buyer Conversations
                     </h2>
 
                     <p className="text-sm text-gray-400 mt-0.5">
-                      {
-                        filteredMessages.length
-                      }{" "}
-                      {
-                        filteredMessages.length ===
-                        1
-                          ? "conversation"
-                          : "conversations"
-                      }
+                      {filteredMessages.length}{" "}
+                      {filteredMessages.length ===
+                      1
+                        ? "conversation"
+                        : "conversations"}
                     </p>
-
                   </div>
-
                 </div>
 
                 <button
@@ -1874,24 +2402,20 @@ function SellerMessages({
                 >
                   <FiMoreVertical />
                 </button>
-
               </div>
 
-              {/* =================================================
-                  LIST
-              ================================================= */}
+              {/* ================================================= */}
+              {/* MESSAGE LIST */}
+              {/* ================================================= */}
 
               {filteredMessages.length >
               0 ? (
-
                 <div>
-
                   {filteredMessages.map(
                     (
                       message,
                       index
                     ) => {
-
                       const conversationId =
                         getConversationId(
                           message
@@ -1900,6 +2424,7 @@ function SellerMessages({
                       const unread =
                         Number(
                           message?.unread ||
+                            message?.unreadCount ||
                             0
                         );
 
@@ -1915,6 +2440,25 @@ function SellerMessages({
 
                       const lastMessageSeen =
                         isLastMessageSeen(
+                          message
+                        );
+
+                      // =========================================
+                      // BUYER PROFILE
+                      // =========================================
+
+                      const buyerId =
+                        getBuyerId(
+                          message
+                        );
+
+                      const buyerName =
+                        getBuyerName(
+                          message
+                        );
+
+                      const buyerProfileImage =
+                        getBuyerProfileImage(
                           message
                         );
 
@@ -1952,19 +2496,18 @@ function SellerMessages({
                             disabled:cursor-not-allowed
                           "
                         >
+                          {/* ================================================= */}
+                          {/* BUYER PROFILE AVATAR */}
+                          {/* ================================================= */}
 
-                          {/* AVATAR */}
-
-                          <div className="relative shrink-0">
-
-                            {message?.profileImage ? (
+                          <div className="shrink-0">
+                            {buyerProfileImage ? (
                               <img
                                 src={
-                                  message.profileImage
+                                  buyerProfileImage
                                 }
                                 alt={
-                                  message?.name ||
-                                  "Buyer"
+                                  buyerName
                                 }
                                 className="
                                   w-12
@@ -1973,58 +2516,64 @@ function SellerMessages({
                                   sm:h-13
                                   rounded-full
                                   object-cover
+                                  border
+                                  border-gray-100
+                                  bg-gray-100
                                 "
+                                onError={(
+                                  event
+                                ) => {
+                                  event.currentTarget.style.display =
+                                    "none";
+
+                                  const fallback =
+                                    event.currentTarget
+                                      .nextElementSibling;
+
+                                  if (
+                                    fallback
+                                  ) {
+                                    fallback.style.display =
+                                      "flex";
+                                  }
+                                }}
                               />
-                            ) : (
-                              <div
-                                className="
-                                  w-12
-                                  h-12
-                                  sm:w-13
-                                  sm:h-13
-                                  rounded-full
-                                  bg-green-100
-                                  text-green-700
-                                  flex
-                                  items-center
-                                  justify-center
-                                  font-bold
-                                  text-lg
-                                "
-                              >
-                                {getInitial(
-                                  message?.name
-                                )}
-                              </div>
-                            )}
+                            ) : null}
 
-                            {/* REAL ONLINE INDICATOR */}
+                            {/* FALLBACK */}
 
-                            {message?.online ===
-                              true && (
-                              <span
-                                className="
-                                  absolute
-                                  bottom-0
-                                  right-0
-                                  w-3
-                                  h-3
-                                  bg-green-500
-                                  border-2
-                                  border-white
-                                  rounded-full
-                                  shadow-sm
-                                "
-                                title="Online"
-                              />
-                            )}
-
+                            <div
+                              style={{
+                                display:
+                                  buyerProfileImage
+                                    ? "none"
+                                    : "flex",
+                              }}
+                              className="
+                                w-12
+                                h-12
+                                sm:w-13
+                                sm:h-13
+                                rounded-full
+                                bg-green-100
+                                text-green-700
+                                items-center
+                                justify-center
+                                font-bold
+                                text-lg
+                              "
+                            >
+                              {getInitial(
+                                buyerName
+                              )}
+                            </div>
                           </div>
 
-                          {/* DETAILS */}
+                          {/* ================================================= */}
+                          {/* BUYER INFORMATION */}
+                          {/* ================================================= */}
 
                           <div className="flex-1 min-w-0">
-
                             <div
                               className="
                                 flex
@@ -2033,7 +2582,6 @@ function SellerMessages({
                                 gap-3
                               "
                             >
-
                               <h3
                                 className={`
                                   truncate
@@ -2045,10 +2593,7 @@ function SellerMessages({
                                   }
                                 `}
                               >
-                                {
-                                  message?.name ||
-                                  "Buyer"
-                                }
+                                {buyerName}
                               </h3>
 
                               <span
@@ -2062,7 +2607,6 @@ function SellerMessages({
                                   message
                                 )}
                               </span>
-
                             </div>
 
                             {/* PRODUCT */}
@@ -2083,7 +2627,7 @@ function SellerMessages({
                               </p>
                             )}
 
-                            {/* LAST MESSAGE + CHECK */}
+                            {/* LAST MESSAGE */}
 
                             <div
                               className="
@@ -2094,7 +2638,6 @@ function SellerMessages({
                                 min-w-0
                               "
                             >
-
                               {sellerSentLast && (
                                 <MessageStatus
                                   message={
@@ -2119,10 +2662,9 @@ function SellerMessages({
                                   lastMessage
                                 }
                               </p>
-
                             </div>
 
-                            {/* SEEN LABEL */}
+                            {/* SEEN */}
 
                             {sellerSentLast &&
                               lastMessageSeen && (
@@ -2137,10 +2679,11 @@ function SellerMessages({
                                   Seen by buyer
                                 </p>
                               )}
-
                           </div>
 
+                          {/* ================================================= */}
                           {/* UNREAD */}
+                          {/* ================================================= */}
 
                           {unread >
                             0 && (
@@ -2167,7 +2710,9 @@ function SellerMessages({
                             </span>
                           )}
 
-                          {/* ARROW */}
+                          {/* ================================================= */}
+                          {/* CHEVRON */}
+                          {/* ================================================= */}
 
                           <FiChevronRight
                             className="
@@ -2176,17 +2721,15 @@ function SellerMessages({
                             "
                             size={18}
                           />
-
                         </button>
                       );
                     }
                   )}
-
                 </div>
-
               ) : (
-
-                /* EMPTY */
+                /* ================================================= */
+                /* EMPTY STATE */
+                /* ================================================= */
 
                 <div
                   className="
@@ -2195,7 +2738,6 @@ function SellerMessages({
                     text-center
                   "
                 >
-
                   <div
                     className="
                       w-16
@@ -2257,16 +2799,13 @@ function SellerMessages({
                       Clear search
                     </button>
                   )}
-
                 </div>
-
               )}
-
             </div>
 
-            {/* =================================================
-                FOOTER
-            ================================================= */}
+            {/* ================================================= */}
+            {/* FOOTER INFO */}
+            {/* ================================================= */}
 
             <div
               className="
@@ -2281,7 +2820,6 @@ function SellerMessages({
                 gap-3
               "
             >
-
               <div
                 className="
                   w-9
@@ -2302,7 +2840,6 @@ function SellerMessages({
               </div>
 
               <div>
-
                 <p
                   className="
                     text-sm
@@ -2325,17 +2862,11 @@ function SellerMessages({
                   questions about
                   your products.
                 </p>
-
               </div>
-
             </div>
-
           </div>
-
         </main>
-
       </div>
-
     </div>
   );
 }

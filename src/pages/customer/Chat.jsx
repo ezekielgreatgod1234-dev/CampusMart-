@@ -91,15 +91,23 @@ function Chat({
     );
 
   // =====================================================
-  // MOBILE VIEWPORT
+  // LOCK PAGE SCROLL
   // =====================================================
 
   useEffect(() => {
-    const originalOverflow =
+    const originalBodyOverflow =
       document.body.style.overflow;
 
-    const originalHeight =
+    const originalBodyHeight =
       document.body.style.height;
+
+    const originalHtmlOverflow =
+      document.documentElement.style
+        .overflow;
+
+    const originalHtmlHeight =
+      document.documentElement.style
+        .height;
 
     document.body.style.overflow =
       "hidden";
@@ -107,12 +115,24 @@ function Chat({
     document.body.style.height =
       "100%";
 
+    document.documentElement.style.overflow =
+      "hidden";
+
+    document.documentElement.style.height =
+      "100%";
+
     return () => {
       document.body.style.overflow =
-        originalOverflow;
+        originalBodyOverflow;
 
       document.body.style.height =
-        originalHeight;
+        originalBodyHeight;
+
+      document.documentElement.style.overflow =
+        originalHtmlOverflow;
+
+      document.documentElement.style.height =
+        originalHtmlHeight;
     };
   }, []);
 
@@ -144,6 +164,7 @@ function Chat({
           if (!snapshot.exists()) {
             setLiveConversation(null);
             setConversationLoading(false);
+
             return;
           }
 
@@ -211,6 +232,8 @@ function Chat({
         otherParticipantId
       ] ||
     fallbackPerson?.profileImage ||
+    fallbackPerson?.image ||
+    fallbackPerson?.photoURL ||
     null;
 
   // =====================================================
@@ -227,7 +250,7 @@ function Chat({
         [];
 
   // =====================================================
-  // SORT
+  // SORT MESSAGES
   // =====================================================
 
   const sortedMessages = [
@@ -297,11 +320,7 @@ function Chat({
   };
 
   // =====================================================
-  // MARK SELLER MESSAGES AS SEEN
-  //
-  // BUYER OPENS CHAT
-  // => seller messages get seenAt
-  // => seller sees double ticks
+  // MARK INCOMING MESSAGES AS SEEN
   // =====================================================
 
   useEffect(() => {
@@ -360,7 +379,9 @@ function Chat({
 
                     const belongsToOtherPerson =
                       senderId &&
-                      String(senderId) !==
+                      String(
+                        senderId
+                      ) !==
                         String(
                           firebaseUser.uid
                         );
@@ -515,12 +536,14 @@ function Chat({
   // READ RECEIPT
   // =====================================================
 
-  const isMessageSeen = (message) => {
+  const isMessageSeen = (
+    message
+  ) => {
     return Boolean(
       message?.seenAt ||
-      message?.readAt ||
-      message?.isRead === true ||
-      message?.seen === true
+        message?.readAt ||
+        message?.isRead === true ||
+        message?.seen === true
     );
   };
 
@@ -912,14 +935,46 @@ function Chat({
         unreadMessages
       }
     >
-      <div className="fixed inset-0 md:static md:h-[calc(100vh-140px)] z-20 md:z-auto bg-white md:rounded-2xl border border-green-100 overflow-hidden flex flex-col shadow-sm h-[100dvh] min-h-0">
-
+      <div
+        className="
+          fixed
+          inset-0
+          md:static
+          md:h-[calc(100vh-140px)]
+          z-20
+          md:z-auto
+          bg-white
+          md:rounded-2xl
+          border
+          border-green-100
+          overflow-hidden
+          flex
+          flex-col
+          shadow-sm
+          h-[100dvh]
+          min-h-0
+        "
+      >
         {/* =================================================
-            HEADER
+            FIXED CHAT HEADER
         ================================================= */}
 
-        <div className="flex items-center gap-3 px-3 sm:px-6 py-3 sm:py-4 border-b border-green-100 bg-white flex-shrink-0 z-10">
-
+        <div
+          className="
+            flex
+            items-center
+            gap-3
+            px-3
+            sm:px-6
+            py-3
+            sm:py-4
+            border-b
+            border-green-100
+            bg-white
+            flex-shrink-0
+            z-30
+          "
+        >
           {selectedMessageIds.length >
           0 ? (
             <>
@@ -931,20 +986,30 @@ function Chat({
                 disabled={
                   deleting
                 }
-                className="w-10 h-10 rounded-full hover:bg-green-50 flex items-center justify-center text-green-700"
+                className="
+                  w-10
+                  h-10
+                  rounded-full
+                  hover:bg-green-50
+                  flex
+                  items-center
+                  justify-center
+                  text-green-700
+                  flex-shrink-0
+                "
               >
                 <FiX size={20} />
               </button>
 
               <div className="flex-1 min-w-0">
-                <p className="font-bold text-gray-800">
+                <p className="font-bold text-gray-800 truncate">
                   {
                     selectedMessageIds.length
                   }{" "}
                   selected
                 </p>
 
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-gray-400 truncate">
                   Choose delete to
                   continue
                 </p>
@@ -958,7 +1023,21 @@ function Chat({
                 disabled={
                   deleting
                 }
-                className="h-10 px-3 sm:px-4 rounded-xl bg-green-600 hover:bg-green-700 text-white flex items-center gap-2 font-semibold text-sm"
+                className="
+                  h-10
+                  px-3
+                  sm:px-4
+                  rounded-xl
+                  bg-green-600
+                  hover:bg-green-700
+                  text-white
+                  flex
+                  items-center
+                  gap-2
+                  font-semibold
+                  text-sm
+                  flex-shrink-0
+                "
               >
                 <FiTrash2
                   size={17}
@@ -971,6 +1050,8 @@ function Chat({
             </>
           ) : (
             <>
+              {/* BACK BUTTON */}
+
               <button
                 type="button"
                 onClick={() =>
@@ -978,33 +1059,77 @@ function Chat({
                     "/messages"
                   )
                 }
-                className="w-10 h-10 rounded-full hover:bg-green-50 flex items-center justify-center text-green-700"
+                className="
+                  w-10
+                  h-10
+                  rounded-full
+                  hover:bg-green-50
+                  flex
+                  items-center
+                  justify-center
+                  text-green-700
+                  flex-shrink-0
+                "
               >
                 <FiArrowLeft
                   size={19}
                 />
               </button>
 
+              {/* =================================================
+                  PROFILE IMAGE
+              ================================================= */}
+
               {personImage ? (
                 <img
                   src={personImage}
                   alt={personName}
-                  className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover ring-2 ring-green-100"
+                  className="
+                    w-10
+                    h-10
+                    sm:w-11
+                    sm:h-11
+                    rounded-full
+                    object-cover
+                    ring-2
+                    ring-green-100
+                    flex-shrink-0
+                  "
                 />
               ) : (
-                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-green-100 text-green-700 flex items-center justify-center font-bold text-lg">
+                <div
+                  className="
+                    w-10
+                    h-10
+                    sm:w-11
+                    sm:h-11
+                    rounded-full
+                    bg-green-100
+                    text-green-700
+                    flex
+                    items-center
+                    justify-center
+                    font-bold
+                    text-lg
+                    flex-shrink-0
+                  "
+                >
                   {getInitial(
                     personName
                   )}
                 </div>
               )}
 
+              {/* =================================================
+                  PROFILE NAME
+              ================================================= */}
+
               <div className="flex-1 min-w-0">
                 <h2 className="font-bold text-gray-800 truncate text-sm sm:text-base">
                   {personName}
                 </h2>
 
-                <p className="text-xs text-green-600">
+                <p className="text-xs text-green-600 truncate">
                   CampusMart
                   conversation
                 </p>
@@ -1014,11 +1139,26 @@ function Chat({
         </div>
 
         {/* =================================================
-            CHAT BODY
+            ONLY THIS SECTION SCROLLS
         ================================================= */}
 
-        <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-6 space-y-2 sm:space-y-3 bg-gradient-to-b from-green-50/40 to-gray-50 [scrollbar-width:thin]">
-
+        <div
+          className="
+            flex-1
+            min-h-0
+            overflow-y-auto
+            overscroll-contain
+            p-3
+            sm:p-6
+            space-y-2
+            sm:space-y-3
+            bg-gradient-to-b
+            from-green-50/40
+            to-gray-50
+            [scrollbar-width:thin]
+            touch-pan-y
+          "
+        >
           <div className="text-center mb-4 sm:mb-5">
             <span className="inline-block bg-white text-green-600 text-[11px] sm:text-xs font-medium px-3 py-1.5 rounded-full border border-green-100 shadow-sm">
               Conversation with{" "}
@@ -1084,10 +1224,13 @@ function Chat({
                       deleting
                     }
                     className={`
-                      max-w-[82%] sm:max-w-[65%]
+                      max-w-[82%]
+                      sm:max-w-[65%]
                       text-left
-                      px-3.5 py-2.5
-                      sm:px-4 sm:py-3
+                      px-3.5
+                      py-2.5
+                      sm:px-4
+                      sm:py-3
                       rounded-2xl
                       transition
                       ${
@@ -1117,19 +1260,15 @@ function Chat({
                     </p>
 
                     <div
-                      className={`
+                      className="
                         flex
                         items-center
                         justify-end
                         gap-0.5
                         text-[10px]
                         mt-1
-                        ${
-                          mine
-                            ? "text-green-100"
-                            : "text-green-100"
-                        }
-                      `}
+                        text-green-100
+                      "
                     >
                       <span>
                         {formatMessageTime(
@@ -1153,17 +1292,33 @@ function Chat({
         </div>
 
         {/* =================================================
-            INPUT
+            FIXED INPUT
         ================================================= */}
 
         {selectedMessageIds.length ===
           0 && (
-          <div className="flex-shrink-0 border-t border-green-100 p-2.5 sm:p-4 bg-white z-20 pb-[calc(0.625rem+env(safe-area-inset-bottom))] sm:pb-4">
+          <div
+            className="
+              flex-shrink-0
+              border-t
+              border-green-100
+              bg-white
+              z-30
+              px-2.5
+              sm:px-4
+              pt-2.5
+              sm:pt-4
+              pb-2
+              sm:pb-4
+              [padding-bottom:env(safe-area-inset-bottom)]
+            "
+          >
             <div className="flex items-center gap-2">
-
               <input
                 type="text"
-                value={messageText}
+                value={
+                  messageText
+                }
                 onChange={(e) =>
                   setMessageText(
                     e.target.value
@@ -1174,7 +1329,23 @@ function Chat({
                 }
                 disabled={sending}
                 placeholder={`Message ${personName}...`}
-                className="flex-1 min-w-0 bg-gray-100 rounded-full px-4 py-3 text-sm outline-none border border-transparent focus:ring-2 focus:ring-green-100 focus:border-green-500 focus:bg-white disabled:opacity-60"
+                className="
+                  flex-1
+                  min-w-0
+                  bg-gray-100
+                  rounded-full
+                  px-4
+                  py-3
+                  text-sm
+                  outline-none
+                  border
+                  border-transparent
+                  focus:ring-2
+                  focus:ring-green-100
+                  focus:border-green-500
+                  focus:bg-white
+                  disabled:opacity-60
+                "
               />
 
               <button
@@ -1186,7 +1357,19 @@ function Chat({
                   !messageText.trim() ||
                   sending
                 }
-                className="w-11 h-11 rounded-full bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white flex items-center justify-center shrink-0"
+                className="
+                  w-11
+                  h-11
+                  rounded-full
+                  bg-green-600
+                  hover:bg-green-700
+                  disabled:bg-gray-300
+                  text-white
+                  flex
+                  items-center
+                  justify-center
+                  shrink-0
+                "
               >
                 {sending ? (
                   <span className="w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
@@ -1196,7 +1379,6 @@ function Chat({
                   />
                 )}
               </button>
-
             </div>
           </div>
         )}
@@ -1207,7 +1389,18 @@ function Chat({
 
         {showDeleteMenu && (
           <div
-            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-4"
+            className="
+              fixed
+              inset-0
+              z-50
+              bg-black/40
+              backdrop-blur-[2px]
+              flex
+              items-end
+              sm:items-center
+              justify-center
+              p-4
+            "
             onClick={() => {
               if (!deleting) {
                 setShowDeleteMenu(
@@ -1217,15 +1410,22 @@ function Chat({
             }}
           >
             <div
-              className="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden border border-green-100"
+              className="
+                w-full
+                max-w-sm
+                bg-white
+                rounded-2xl
+                shadow-2xl
+                overflow-hidden
+                border
+                border-green-100
+              "
               onClick={(e) =>
                 e.stopPropagation()
               }
             >
-
               <div className="p-5 border-b border-green-100 bg-green-50">
                 <div className="flex items-center gap-3">
-
                   <div className="w-10 h-10 rounded-full bg-green-100 text-green-700 flex items-center justify-center">
                     <FiTrash2
                       size={18}
@@ -1245,7 +1445,6 @@ function Chat({
                       Choose an option
                     </p>
                   </div>
-
                 </div>
               </div>
 
@@ -1255,10 +1454,17 @@ function Chat({
                 onClick={() =>
                   handleDelete("me")
                 }
-                className="w-full text-left px-5 py-4 hover:bg-green-50 border-b border-gray-100"
+                className="
+                  w-full
+                  text-left
+                  px-5
+                  py-4
+                  hover:bg-green-50
+                  border-b
+                  border-gray-100
+                "
               >
                 <div className="flex items-center gap-3">
-
                   <FiTrash2
                     size={16}
                   />
@@ -1273,7 +1479,6 @@ function Chat({
                       chat only.
                     </p>
                   </div>
-
                 </div>
               </button>
 
@@ -1288,10 +1493,17 @@ function Chat({
                       "everyone"
                     )
                   }
-                  className="w-full text-left px-5 py-4 hover:bg-green-50 border-b border-gray-100"
+                  className="
+                    w-full
+                    text-left
+                    px-5
+                    py-4
+                    hover:bg-green-50
+                    border-b
+                    border-gray-100
+                  "
                 >
                   <div className="flex items-center gap-3">
-
                     <FiTrash2
                       size={16}
                     />
@@ -1308,7 +1520,6 @@ function Chat({
                         everyone.
                       </p>
                     </div>
-
                   </div>
                 </button>
               )}
@@ -1324,16 +1535,23 @@ function Chat({
                       false
                     )
                   }
-                  className="w-full h-11 rounded-xl border border-gray-200 bg-white text-gray-600 font-semibold"
+                  className="
+                    w-full
+                    h-11
+                    rounded-xl
+                    border
+                    border-gray-200
+                    bg-white
+                    text-gray-600
+                    font-semibold
+                  "
                 >
                   Cancel
                 </button>
               </div>
-
             </div>
           </div>
         )}
-
       </div>
     </CustomerLayout>
   );

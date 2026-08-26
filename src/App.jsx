@@ -1,4 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import {
   Routes,
@@ -78,11 +82,13 @@ import TermsAndConditions from "./pages/customer/TermsAndConditions";
 
 const emptyProfile = {
   fullName: "",
+  displayName: "",
   email: "",
   phone: "",
   campus: "",
   address: "",
   profileImage: null,
+  photoURL: null,
   role: "",
 };
 
@@ -134,6 +140,165 @@ function getUserRole(profile) {
 }
 
 // =========================================================
+// GET PROFILE IMAGE
+// =========================================================
+
+function getProfileImage(profile, firebaseUser = null) {
+  return (
+    profile?.profileImage ||
+    profile?.photoURL ||
+    profile?.image ||
+    profile?.avatar ||
+    firebaseUser?.photoURL ||
+    null
+  );
+}
+
+// =========================================================
+// GET PROFILE NAME
+// =========================================================
+
+function getProfileName(
+  profile,
+  firebaseUser = null
+) {
+  return (
+    profile?.fullName ||
+    profile?.displayName ||
+    firebaseUser?.displayName ||
+    firebaseUser?.email ||
+    "CampusMart User"
+  );
+}
+
+// =========================================================
+// GET PUBLIC PROFILE
+//
+// IMPORTANT:
+//
+// This reads:
+//
+// publicProfiles/{userId}
+//
+// NOT:
+//
+// users/{userId}
+//
+// Therefore it matches your Firestore rules.
+// =========================================================
+
+async function getPublicProfile(userId) {
+  if (!userId) {
+    return null;
+  }
+
+  try {
+    const publicProfileRef = doc(
+      db,
+      "publicProfiles",
+      String(userId)
+    );
+
+    const snapshot =
+      await getDoc(publicProfileRef);
+
+    if (!snapshot.exists()) {
+      return null;
+    }
+
+    return {
+      uid: String(userId),
+      ...snapshot.data(),
+    };
+  } catch (error) {
+    console.error(
+      "Error loading public profile:",
+      error
+    );
+
+    return null;
+  }
+}
+
+// =========================================================
+// SAVE CURRENT USER PUBLIC PROFILE
+//
+// Only the logged-in user's own public profile is written.
+// This matches:
+//
+// publicProfiles/{userId}
+//
+// allow create/update if request.auth.uid == userId
+// =========================================================
+
+async function syncOwnPublicProfile(
+  firebaseUser,
+  profile
+) {
+  if (!firebaseUser) {
+    return;
+  }
+
+  const userId =
+    String(firebaseUser.uid);
+
+  const publicProfileRef = doc(
+    db,
+    "publicProfiles",
+    userId
+  );
+
+  const fullName =
+    profile?.fullName ||
+    profile?.displayName ||
+    firebaseUser.displayName ||
+    firebaseUser.email ||
+    "CampusMart User";
+
+  const displayName =
+    profile?.displayName ||
+    profile?.fullName ||
+    firebaseUser.displayName ||
+    firebaseUser.email ||
+    "CampusMart User";
+
+  const profileImage =
+    getProfileImage(
+      profile,
+      firebaseUser
+    );
+
+  try {
+    await setDoc(
+      publicProfileRef,
+      {
+        fullName,
+        displayName,
+        profileImage:
+          profileImage || null,
+
+        photoURL:
+          profile?.photoURL ||
+          profileImage ||
+          firebaseUser.photoURL ||
+          null,
+
+        updatedAt:
+          serverTimestamp(),
+      },
+      {
+        merge: true,
+      }
+    );
+  } catch (error) {
+    console.error(
+      "Error syncing public profile:",
+      error
+    );
+  }
+}
+
+// =========================================================
 // GUEST ROUTE
 // =========================================================
 
@@ -159,7 +324,8 @@ function GuestRoute({
   }
 
   if (firebaseUser) {
-    const role = getUserRole(profile);
+    const role =
+      getUserRole(profile);
 
     if (role === "seller") {
       return (
@@ -247,7 +413,8 @@ function CustomerRoute({
     );
   }
 
-  const role = getUserRole(profile);
+  const role =
+    getUserRole(profile);
 
   if (role === "seller") {
     return (
@@ -286,7 +453,8 @@ function SellerRoute({
     );
   }
 
-  const role = getUserRole(profile);
+  const role =
+    getUserRole(profile);
 
   if (role !== "seller") {
     if (role === "buyer") {
@@ -309,14 +477,23 @@ function SellerRoute({
 }
 
 // =========================================================
-// CONVERT FIRESTORE CONVERSATION
+// FORMAT FIRESTORE CONVERSATION
+//
+// IMPORTANT:
+//
+// This function gets the OTHER USER's profile from:
+//
+// publicProfiles/{otherParticipantId}
+//
+// This is the key fix.
 // =========================================================
 
-function formatConversation(
+async function formatConversation(
   conversationDoc,
   currentUserId
 ) {
-  const data = conversationDoc.data();
+  const data =
+    conversationDoc.data();
 
   const participantNames =
     data.participantNames || {};
@@ -329,6 +506,10 @@ function formatConversation(
       ? data.participants
       : [];
 
+  // =======================================================
+  // FIND OTHER PARTICIPANT
+  // =======================================================
+
   const otherParticipantId =
     participants.find(
       (uid) =>
@@ -336,11 +517,144 @@ function formatConversation(
         String(currentUserId)
     ) || null;
 
-  const otherName =
+  // =======================================================
+  // GET PUBLIC PROFILE
+  //
+  // We NEVER read:
+  //
+  // users/{otherParticipantId}
+  //
+  // because your rules do not permit that.
+  // =======================================================
+
+  let publicProfile = null;
+
+  if (otherParticipantId) {
+    publicProfile =
+      await getPublicProfile(
+        otherParticipantId
+      );
+  }
+
+  // =======================================================
+  // NAME
+  // =======================================================
+
+  const publicProfileName =
+    publicProfile?.fullName ||
+    publicProfile?.displayName ||
+    "";
+
+  const storedParticipantName =
     participantNames[
       otherParticipantId
-    ] ||
+    ] || "";
+
+  const otherName =
+    publicProfileName ||
+    storedParticipantName ||
     "CampusMart User";
+
+  // =======================================================
+  // IMAGE
+  //
+  // PUBLIC PROFILE HAS PRIORITY.
+  //
+  // This means if the user changes their profile picture,
+  // the conversation can show the new image even when the
+  // old conversation contains an outdated/null image.
+  // =======================================================
+
+  const publicProfileImage =
+    publicProfile?.profileImage ||
+    publicProfile?.photoURL ||
+    publicProfile?.image ||
+    publicProfile?.avatar ||
+    null;
+
+  const storedParticipantImage =
+    participantImages[
+      otherParticipantId
+    ] ||
+    data.profileImages?.[
+      otherParticipantId
+    ] ||
+    data.participantPhotos?.[
+      otherParticipantId
+    ] ||
+    null;
+
+  const otherParticipantImage =
+    publicProfileImage ||
+    storedParticipantImage ||
+    null;
+
+  // =======================================================
+  // REPAIR OLD CONVERSATION
+  //
+  // If participantImages is missing the other user's image,
+  // update it using their public profile.
+  //
+  // This is allowed because the current user is a
+  // participant in the conversation.
+  // =======================================================
+
+  if (
+    otherParticipantId &&
+    publicProfile &&
+    (
+      String(
+        participantImages[
+          otherParticipantId
+        ] || ""
+      ) !==
+      String(
+        otherParticipantImage || ""
+      ) ||
+      String(
+        participantNames[
+          otherParticipantId
+        ] || ""
+      ) !==
+      String(otherName)
+    )
+  ) {
+    try {
+      await setDoc(
+        conversationDoc.ref,
+        {
+          participantNames: {
+            ...participantNames,
+
+            [otherParticipantId]:
+              otherName,
+          },
+
+          participantImages: {
+            ...participantImages,
+
+            [otherParticipantId]:
+              otherParticipantImage,
+          },
+
+          updatedAt:
+            serverTimestamp(),
+        },
+        {
+          merge: true,
+        }
+      );
+    } catch (error) {
+      console.error(
+        "Could not repair conversation profile:",
+        error
+      );
+    }
+  }
+
+  // =======================================================
+  // UNREAD COUNT
+  // =======================================================
 
   const unreadCount =
     Number(
@@ -348,6 +662,10 @@ function formatConversation(
         currentUserId
       ] || 0
     );
+
+  // =======================================================
+  // MESSAGES
+  // =======================================================
 
   const conversationMessages =
     Array.isArray(data.messages)
@@ -383,26 +701,41 @@ function formatConversation(
       }
     );
 
-  const sortedVisibleMessages = [
-    ...visibleMessages,
-  ].sort((a, b) => {
-    const aTime =
-      a.createdAt?.toMillis
-        ? a.createdAt.toMillis()
-        : Number(a.createdAt || 0);
+  // =======================================================
+  // SORT MESSAGES
+  // =======================================================
 
-    const bTime =
-      b.createdAt?.toMillis
-        ? b.createdAt.toMillis()
-        : Number(b.createdAt || 0);
+  const sortedVisibleMessages =
+    [...visibleMessages].sort(
+      (a, b) => {
+        const aTime =
+          a.createdAt?.toMillis
+            ? a.createdAt.toMillis()
+            : Number(
+                a.createdAt || 0
+              );
 
-    return aTime - bTime;
-  });
+        const bTime =
+          b.createdAt?.toMillis
+            ? b.createdAt.toMillis()
+            : Number(
+                b.createdAt || 0
+              );
+
+        return aTime - bTime;
+      }
+    );
+
+  // =======================================================
+  // LAST VISIBLE MESSAGE
+  // =======================================================
 
   const lastVisibleMessage =
-    sortedVisibleMessages.length > 0
+    sortedVisibleMessages.length >
+    0
       ? sortedVisibleMessages[
-          sortedVisibleMessages.length - 1
+          sortedVisibleMessages.length -
+            1
         ]
       : null;
 
@@ -417,6 +750,10 @@ function formatConversation(
     lastVisibleMessage?.createdAt ||
     0;
 
+  // =======================================================
+  // DISPLAY TIME
+  // =======================================================
+
   let displayTime = "";
 
   if (lastMessageAt) {
@@ -427,35 +764,44 @@ function formatConversation(
           : new Date(lastMessageAt);
 
       displayTime =
-        date.toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        });
+        date.toLocaleTimeString(
+          [],
+          {
+            hour: "2-digit",
+            minute: "2-digit",
+          }
+        );
     } catch {
       displayTime = "";
     }
   }
 
+  // =======================================================
+  // RETURN
+  // =======================================================
+
   return {
-    id: conversationDoc.id,
+    id:
+      conversationDoc.id,
 
     conversationId:
       conversationDoc.id,
 
     otherParticipantId,
 
-    name: otherName,
+    name:
+      otherName,
 
     profileImage:
-      participantImages[
-        otherParticipantId
-      ] || null,
+      otherParticipantImage,
 
     lastMessage,
 
-    time: displayTime,
+    time:
+      displayTime,
 
-    unread: unreadCount,
+    unread:
+      unreadCount,
 
     online:
       data.onlineStatus?.[
@@ -527,8 +873,11 @@ function sortConversations(
 // =========================================================
 
 function App() {
-  const navigate = useNavigate();
-  const location = useLocation();
+  const navigate =
+    useNavigate();
+
+  const location =
+    useLocation();
 
   // =======================================================
   // INTERNET
@@ -599,11 +948,17 @@ function App() {
   const [profile, setProfile] =
     useState(emptyProfile);
 
-  const [profileResolved, setProfileResolved] =
-    useState(false);
+  const [
+    profileResolved,
+    setProfileResolved,
+  ] = useState(false);
 
   const profileRequestId =
     useRef(0);
+
+  // =======================================================
+  // LOAD CURRENT USER PROFILE
+  // =======================================================
 
   useEffect(() => {
     let cancelled = false;
@@ -615,23 +970,40 @@ function App() {
       async () => {
         if (!firebaseUser) {
           if (!cancelled) {
-            setProfile(emptyProfile);
-            setProfileResolved(true);
+            setProfile(
+              emptyProfile
+            );
+
+            setProfileResolved(
+              true
+            );
           }
 
           return;
         }
 
-        setProfileResolved(false);
+        setProfileResolved(
+          false
+        );
 
-        setProfile(emptyProfile);
+        setProfile(
+          emptyProfile
+        );
 
         try {
-          const userRef = doc(
-            db,
-            "users",
-            firebaseUser.uid
-          );
+          // =================================================
+          // PRIVATE USER PROFILE
+          //
+          // This is allowed because this is the current
+          // authenticated user's UID.
+          // =================================================
+
+          const userRef =
+            doc(
+              db,
+              "users",
+              firebaseUser.uid
+            );
 
           const snapshot =
             await getDoc(userRef);
@@ -644,11 +1016,13 @@ function App() {
             return;
           }
 
+          let resolvedProfile;
+
           if (snapshot.exists()) {
             const firestoreProfile =
               snapshot.data();
 
-            const resolvedProfile = {
+            resolvedProfile = {
               ...emptyProfile,
               ...firestoreProfile,
 
@@ -662,22 +1036,27 @@ function App() {
 
               fullName:
                 firestoreProfile.fullName ||
+                firestoreProfile.displayName ||
+                firebaseUser.displayName ||
+                "",
+
+              displayName:
+                firestoreProfile.displayName ||
+                firestoreProfile.fullName ||
                 firebaseUser.displayName ||
                 "",
             };
-
-            setProfile(
-              resolvedProfile
-            );
           } else {
             const authRole =
-              getUserRole(authProfile);
+              getUserRole(
+                authProfile
+              );
 
             if (
               authRole === "seller" ||
               authRole === "buyer"
             ) {
-              setProfile({
+              resolvedProfile = {
                 ...emptyProfile,
                 ...authProfile,
 
@@ -691,11 +1070,18 @@ function App() {
 
                 fullName:
                   authProfile?.fullName ||
+                  authProfile?.displayName ||
                   firebaseUser.displayName ||
                   "",
-              });
+
+                displayName:
+                  authProfile?.displayName ||
+                  authProfile?.fullName ||
+                  firebaseUser.displayName ||
+                  "",
+              };
             } else {
-              setProfile({
+              resolvedProfile = {
                 ...emptyProfile,
 
                 uid:
@@ -709,12 +1095,46 @@ function App() {
                   firebaseUser.displayName ||
                   "",
 
+                displayName:
+                  firebaseUser.displayName ||
+                  "",
+
                 role: "",
-              });
+              };
             }
           }
 
-          setProfileResolved(true);
+          if (cancelled) {
+            return;
+          }
+
+          setProfile(
+            resolvedProfile
+          );
+
+          // =================================================
+          // IMPORTANT:
+          //
+          // Make sure the current user's PUBLIC PROFILE
+          // exists so other authenticated users can see it.
+          // =================================================
+
+          await syncOwnPublicProfile(
+            firebaseUser,
+            resolvedProfile
+          );
+
+          if (
+            cancelled ||
+            currentRequest !==
+              profileRequestId.current
+          ) {
+            return;
+          }
+
+          setProfileResolved(
+            true
+          );
         } catch (error) {
           console.error(
             "Error loading current user profile:",
@@ -726,7 +1146,7 @@ function App() {
             currentRequest ===
               profileRequestId.current
           ) {
-            setProfile({
+            const fallbackProfile = {
               ...emptyProfile,
 
               uid:
@@ -740,10 +1160,20 @@ function App() {
                 firebaseUser.displayName ||
                 "",
 
-              role: "",
-            });
+              displayName:
+                firebaseUser.displayName ||
+                "",
 
-            setProfileResolved(true);
+              role: "",
+            };
+
+            setProfile(
+              fallbackProfile
+            );
+
+            setProfileResolved(
+              true
+            );
           }
         }
       };
@@ -789,6 +1219,22 @@ function App() {
     useRef(null);
 
   // =======================================================
+  // GET CURRENT USER CHAT IMAGE
+  // =======================================================
+
+  const getCurrentUserChatImage =
+    () => {
+      if (!firebaseUser) {
+        return null;
+      }
+
+      return getProfileImage(
+        profile,
+        firebaseUser
+      );
+    };
+
+  // =======================================================
   // CUSTOMER DATA DOCUMENT
   // =======================================================
 
@@ -807,7 +1253,7 @@ function App() {
   };
 
   // =======================================================
-  // ACTUALLY SAVE CUSTOMER DATA
+  // SAVE CUSTOMER DATA
   // =======================================================
 
   const writeCustomerData =
@@ -993,19 +1439,25 @@ function App() {
             snapshot.data();
 
           setCart(
-            Array.isArray(data.cart)
+            Array.isArray(
+              data.cart
+            )
               ? data.cart
               : []
           );
 
           setWishlist(
-            Array.isArray(data.wishlist)
+            Array.isArray(
+              data.wishlist
+            )
               ? data.wishlist
               : []
           );
 
           setOrders(
-            Array.isArray(data.orders)
+            Array.isArray(
+              data.orders
+            )
               ? data.orders
               : []
           );
@@ -1028,10 +1480,12 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [firebaseUser?.uid]);
+  }, [
+    firebaseUser?.uid,
+  ]);
 
   // =======================================================
-  // CLEAN UP CUSTOMER SAVE
+  // CLEAN CUSTOMER SAVE
   // =======================================================
 
   useEffect(() => {
@@ -1054,6 +1508,18 @@ function App() {
 
   // =======================================================
   // UPDATE PROFILE
+  //
+  // IMPORTANT:
+  //
+  // Updates:
+  //
+  // users/{currentUid}
+  //
+  // AND
+  //
+  // publicProfiles/{currentUid}
+  //
+  // So other users can see the new picture/name.
   // =======================================================
 
   const updateProfile =
@@ -1067,9 +1533,15 @@ function App() {
         ...updates,
       };
 
-      setProfile(newProfile);
+      setProfile(
+        newProfile
+      );
 
       try {
+        // =================================================
+        // PRIVATE PROFILE
+        // =================================================
+
         const userRef =
           doc(
             db,
@@ -1097,6 +1569,21 @@ function App() {
             merge: true,
           }
         );
+
+        // =================================================
+        // PUBLIC PROFILE
+        //
+        // ONLY safe public information is stored here.
+        // =================================================
+
+        await syncOwnPublicProfile(
+          firebaseUser,
+          newProfile
+        );
+
+        console.log(
+          "Private and public profiles updated."
+        );
       } catch (error) {
         console.error(
           "Error updating profile:",
@@ -1104,6 +1591,170 @@ function App() {
         );
       }
     };
+
+  // =======================================================
+  // SYNC CURRENT USER PROFILE IMAGE TO CONVERSATIONS
+  // =======================================================
+
+  useEffect(() => {
+    if (
+      !firebaseUser ||
+      !profileResolved
+    ) {
+      return;
+    }
+
+    const currentUserId =
+      String(firebaseUser.uid);
+
+    const currentUserImage =
+      getCurrentUserChatImage();
+
+    const currentUserName =
+      getProfileName(
+        profile,
+        firebaseUser
+      );
+
+    let cancelled = false;
+
+    const syncProfileImage =
+      async () => {
+        try {
+          const conversationsRef =
+            collection(
+              db,
+              "conversations"
+            );
+
+          const conversationsQuery =
+            query(
+              conversationsRef,
+              where(
+                "participants",
+                "array-contains",
+                currentUserId
+              )
+            );
+
+          const snapshot =
+            await getDocs(
+              conversationsQuery
+            );
+
+          if (cancelled) {
+            return;
+          }
+
+          if (snapshot.empty) {
+            return;
+          }
+
+          const updates = [];
+
+          snapshot.docs.forEach(
+            (conversationDoc) => {
+              const data =
+                conversationDoc.data();
+
+              const existingImages =
+                data.participantImages ||
+                {};
+
+              const existingNames =
+                data.participantNames ||
+                {};
+
+              const existingImage =
+                existingImages[
+                  currentUserId
+                ] || null;
+
+              const existingName =
+                existingNames[
+                  currentUserId
+                ] || "";
+
+              if (
+                String(
+                  existingImage || ""
+                ) !==
+                  String(
+                    currentUserImage || ""
+                  ) ||
+                String(
+                  existingName || ""
+                ) !==
+                  String(
+                    currentUserName || ""
+                  )
+              ) {
+                updates.push(
+                  setDoc(
+                    conversationDoc.ref,
+                    {
+                      participantImages: {
+                        ...existingImages,
+
+                        [currentUserId]:
+                          currentUserImage,
+                      },
+
+                      participantNames: {
+                        ...existingNames,
+
+                        [currentUserId]:
+                          currentUserName,
+                      },
+
+                      updatedAt:
+                        serverTimestamp(),
+                    },
+                    {
+                      merge: true,
+                    }
+                  )
+                );
+              }
+            }
+          );
+
+          if (
+            updates.length > 0
+          ) {
+            await Promise.all(
+              updates
+            );
+
+            console.log(
+              "Current user's chat profile synchronized."
+            );
+          }
+        } catch (error) {
+          if (!cancelled) {
+            console.error(
+              "Error synchronizing chat profile:",
+              error
+            );
+          }
+        }
+      };
+
+    syncProfileImage();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    firebaseUser?.uid,
+    profileResolved,
+    profile?.profileImage,
+    profile?.photoURL,
+    profile?.image,
+    profile?.avatar,
+    profile?.fullName,
+    profile?.displayName,
+  ]);
 
   // =======================================================
   // ADD TO CART
@@ -1289,7 +1940,9 @@ function App() {
       ];
     }
 
-    setWishlist(nextWishlist);
+    setWishlist(
+      nextWishlist
+    );
 
     queueCustomerDataSave({
       nextCart: cart,
@@ -1311,7 +1964,9 @@ function App() {
           id !== productId
       );
 
-    setWishlist(nextWishlist);
+    setWishlist(
+      nextWishlist
+    );
 
     queueCustomerDataSave({
       nextCart: cart,
@@ -1417,8 +2072,13 @@ function App() {
           )
       );
 
-    setOrders(nextOrders);
-    setCart(nextCart);
+    setOrders(
+      nextOrders
+    );
+
+    setCart(
+      nextCart
+    );
 
     queueCustomerDataSave({
       nextCart,
@@ -1469,6 +2129,43 @@ function App() {
       );
 
     // =====================================================
+    // PROCESS CONVERSATIONS
+    //
+    // formatConversation is async because it reads:
+    //
+    // publicProfiles/{otherUid}
+    // =====================================================
+
+    const processSnapshot =
+      async (snapshot) => {
+        try {
+          const conversationList =
+            await Promise.all(
+              snapshot.docs.map(
+                (conversationDoc) =>
+                  formatConversation(
+                    conversationDoc,
+                    firebaseUser.uid
+                  )
+              )
+            );
+
+          setMessages(
+            sortConversations(
+              conversationList
+            )
+          );
+        } catch (error) {
+          console.error(
+            "Error processing conversations:",
+            error
+          );
+
+          setMessages([]);
+        }
+      };
+
+    // =====================================================
     // MESSAGES PAGES
     // =====================================================
 
@@ -1478,29 +2175,9 @@ function App() {
           conversationsQuery,
 
           (snapshot) => {
-            try {
-              const conversationList =
-                snapshot.docs.map(
-                  (conversationDoc) =>
-                    formatConversation(
-                      conversationDoc,
-                      firebaseUser.uid
-                    )
-                );
-
-              setMessages(
-                sortConversations(
-                  conversationList
-                )
-              );
-            } catch (error) {
-              console.error(
-                "Error processing conversations:",
-                error
-              );
-
-              setMessages([]);
-            }
+            processSnapshot(
+              snapshot
+            );
           },
 
           (error) => {
@@ -1537,13 +2214,19 @@ function App() {
           }
 
           const conversationList =
-            snapshot.docs.map(
-              (conversationDoc) =>
-                formatConversation(
-                  conversationDoc,
-                  firebaseUser.uid
-                )
+            await Promise.all(
+              snapshot.docs.map(
+                (conversationDoc) =>
+                  formatConversation(
+                    conversationDoc,
+                    firebaseUser.uid
+                  )
+              )
             );
+
+          if (cancelled) {
+            return;
+          }
 
           setMessages(
             sortConversations(
@@ -1610,7 +2293,8 @@ function App() {
         await updateDoc(
           conversationRef,
           {
-            [`unreadCounts.${firebaseUser.uid}`]: 0,
+            [`unreadCounts.${firebaseUser.uid}`]:
+              0,
           }
         );
 
@@ -1657,7 +2341,9 @@ function App() {
 
         await runTransaction(
           db,
-          async (transaction) => {
+          async (
+            transaction
+          ) => {
             const conversationSnapshot =
               await transaction.get(
                 conversationRef
@@ -1818,7 +2504,9 @@ function App() {
         const result =
           await runTransaction(
             db,
-            async (transaction) => {
+            async (
+              transaction
+            ) => {
               const snapshot =
                 await transaction.get(
                   conversationRef
@@ -1869,9 +2557,9 @@ function App() {
                   )
                 );
 
-              // ============================================
+              // ===========================================
               // DELETE FOR EVERYONE
-              // ============================================
+              // ===========================================
 
               if (
                 deleteType ===
@@ -1962,9 +2650,9 @@ function App() {
                 return true;
               }
 
-              // ============================================
+              // ===========================================
               // DELETE FOR ME
-              // ============================================
+              // ===========================================
 
               const updatedMessages =
                 existingMessages.map(
@@ -2084,13 +2772,21 @@ function App() {
 
   // =======================================================
   // OPEN SELLER CHAT
+  //
+  // IMPORTANT:
+  //
+  // Seller profile is obtained from:
+  //
+  // publicProfiles/{sellerId}
+  //
+  // NOT users/{sellerId}
   // =======================================================
 
   const openSellerChat =
     async (product) => {
-      // ---------------------------------------------------
-      // CHECK LOGGED-IN USER
-      // ---------------------------------------------------
+      // =====================================================
+      // CHECK USER
+      // =====================================================
 
       if (!firebaseUser) {
         console.error(
@@ -2100,9 +2796,9 @@ function App() {
         return false;
       }
 
-      // ---------------------------------------------------
+      // =====================================================
       // CHECK PRODUCT
-      // ---------------------------------------------------
+      // =====================================================
 
       if (!product) {
         console.error(
@@ -2112,14 +2808,9 @@ function App() {
         return false;
       }
 
-      // ---------------------------------------------------
-      // GET SELLER UID
-      //
-      // Supports:
-      // product.sellerId
-      // product.sellerUid
-      // product.seller.uid
-      // ---------------------------------------------------
+      // =====================================================
+      // SELLER UID
+      // =====================================================
 
       const sellerId =
         product.sellerId ||
@@ -2136,9 +2827,9 @@ function App() {
         return false;
       }
 
-      // ---------------------------------------------------
-      // PREVENT CHAT WITH YOURSELF
-      // ---------------------------------------------------
+      // =====================================================
+      // PREVENT SELF CHAT
+      // =====================================================
 
       if (
         String(sellerId) ===
@@ -2151,19 +2842,9 @@ function App() {
         return false;
       }
 
-      // ---------------------------------------------------
-      // CREATE STABLE CONVERSATION ID
-      //
-      // Sorting means:
-      //
-      // buyer_seller
-      //
-      // and
-      //
-      // seller_buyer
-      //
-      // always produce the same ID.
-      // ---------------------------------------------------
+      // =====================================================
+      // STABLE CONVERSATION ID
+      // =====================================================
 
       const participantIds = [
         String(firebaseUser.uid),
@@ -2181,14 +2862,73 @@ function App() {
         );
 
       try {
-        // =================================================
-        // CHECK EXISTING CONVERSATION
-        // =================================================
+        // ===================================================
+        // GET EXISTING CONVERSATION
+        // ===================================================
 
         const existingSnapshot =
           await getDoc(
             conversationRef
           );
+
+        // ===================================================
+        // BUYER INFORMATION
+        // ===================================================
+
+        const buyerName =
+          getProfileName(
+            profile,
+            firebaseUser
+          );
+
+        const buyerImage =
+          getProfileImage(
+            profile,
+            firebaseUser
+          );
+
+        // ===================================================
+        // GET SELLER PUBLIC PROFILE
+        //
+        // THIS IS THE IMPORTANT FIX.
+        // ===================================================
+
+        const sellerPublicProfile =
+          await getPublicProfile(
+            sellerId
+          );
+
+        // ===================================================
+        // SELLER NAME
+        // ===================================================
+
+        const sellerName =
+          sellerPublicProfile?.fullName ||
+          sellerPublicProfile?.displayName ||
+          product.sellerName ||
+          product.seller?.name ||
+          product.seller?.fullName ||
+          "CampusMart Seller";
+
+        // ===================================================
+        // SELLER IMAGE
+        // ===================================================
+
+        const sellerImage =
+          sellerPublicProfile?.profileImage ||
+          sellerPublicProfile?.photoURL ||
+          sellerPublicProfile?.image ||
+          sellerPublicProfile?.avatar ||
+          product.sellerImage ||
+          product.seller?.profileImage ||
+          product.seller?.image ||
+          product.seller?.photoURL ||
+          product.seller?.avatar ||
+          null;
+
+        // ===================================================
+        // EXISTING CONVERSATION
+        // ===================================================
 
         if (
           existingSnapshot.exists()
@@ -2198,6 +2938,67 @@ function App() {
             conversationId
           );
 
+          const existingData =
+            existingSnapshot.data();
+
+          const existingParticipantImages =
+            existingData.participantImages ||
+            {};
+
+          const existingParticipantNames =
+            existingData.participantNames ||
+            {};
+
+          const updatedImages = {
+            ...existingParticipantImages,
+
+            [String(firebaseUser.uid)]:
+              buyerImage,
+
+            [String(sellerId)]:
+              sellerImage,
+          };
+
+          const updatedNames = {
+            ...existingParticipantNames,
+
+            [String(firebaseUser.uid)]:
+              buyerName,
+
+            [String(sellerId)]:
+              sellerName,
+          };
+
+          // =================================================
+          // REPAIR / UPDATE CONVERSATION PROFILE DATA
+          // =================================================
+
+          await setDoc(
+            conversationRef,
+            {
+              participants:
+                participantIds,
+
+              buyerId:
+                String(firebaseUser.uid),
+
+              sellerId:
+                String(sellerId),
+
+              participantNames:
+                updatedNames,
+
+              participantImages:
+                updatedImages,
+
+              updatedAt:
+                serverTimestamp(),
+            },
+            {
+              merge: true,
+            }
+          );
+
           navigate(
             `/messages/${conversationId}`
           );
@@ -2205,46 +3006,16 @@ function App() {
           return true;
         }
 
-        // =================================================
-        // BUYER INFORMATION
-        // =================================================
-
-        const buyerName =
-          profile?.fullName ||
-          firebaseUser.displayName ||
-          firebaseUser.email ||
-          "CampusMart User";
-
-        const buyerImage =
-          profile?.profileImage ||
-          firebaseUser.photoURL ||
-          null;
-
-        // =================================================
-        // SELLER INFORMATION
-        // =================================================
-
-        const sellerName =
-          product.sellerName ||
-          product.seller?.name ||
-          "CampusMart Seller";
-
-        const sellerImage =
-          product.sellerImage ||
-          product.seller?.image ||
-          product.seller?.profileImage ||
-          null;
-
-        // =================================================
-        // CREATE CONVERSATION
-        // =================================================
+        // ===================================================
+        // CREATE NEW CONVERSATION
+        // ===================================================
 
         await setDoc(
           conversationRef,
           {
-            // ---------------------------------------------
+            // -----------------------------------------------
             // PARTICIPANTS
-            // ---------------------------------------------
+            // -----------------------------------------------
 
             participants:
               participantIds,
@@ -2255,9 +3026,9 @@ function App() {
             sellerId:
               String(sellerId),
 
-            // ---------------------------------------------
+            // -----------------------------------------------
             // NAMES
-            // ---------------------------------------------
+            // -----------------------------------------------
 
             participantNames: {
               [String(firebaseUser.uid)]:
@@ -2267,9 +3038,9 @@ function App() {
                 sellerName,
             },
 
-            // ---------------------------------------------
+            // -----------------------------------------------
             // PROFILE IMAGES
-            // ---------------------------------------------
+            // -----------------------------------------------
 
             participantImages: {
               [String(firebaseUser.uid)]:
@@ -2279,9 +3050,9 @@ function App() {
                 sellerImage,
             },
 
-            // ---------------------------------------------
+            // -----------------------------------------------
             // UNREAD COUNTS
-            // ---------------------------------------------
+            // -----------------------------------------------
 
             unreadCounts: {
               [String(firebaseUser.uid)]:
@@ -2291,9 +3062,9 @@ function App() {
                 0,
             },
 
-            // ---------------------------------------------
+            // -----------------------------------------------
             // ONLINE STATUS
-            // ---------------------------------------------
+            // -----------------------------------------------
 
             onlineStatus: {
               [String(firebaseUser.uid)]:
@@ -2303,9 +3074,9 @@ function App() {
                 false,
             },
 
-            // ---------------------------------------------
+            // -----------------------------------------------
             // LAST MESSAGE
-            // ---------------------------------------------
+            // -----------------------------------------------
 
             lastMessage:
               "",
@@ -2313,15 +3084,15 @@ function App() {
             lastMessageAt:
               0,
 
-            // ---------------------------------------------
+            // -----------------------------------------------
             // MESSAGES
-            // ---------------------------------------------
+            // -----------------------------------------------
 
             messages: [],
 
-            // ---------------------------------------------
+            // -----------------------------------------------
             // PRODUCT
-            // ---------------------------------------------
+            // -----------------------------------------------
 
             productId:
               product.id || null,
@@ -2329,9 +3100,9 @@ function App() {
             productName:
               product.name || "",
 
-            // ---------------------------------------------
+            // -----------------------------------------------
             // TIMESTAMPS
-            // ---------------------------------------------
+            // -----------------------------------------------
 
             createdAt:
               serverTimestamp(),
@@ -2349,19 +3120,11 @@ function App() {
           conversationId
         );
 
-        // =================================================
-        // OPEN BUYER CHAT
-        // =================================================
-
         navigate(
           `/messages/${conversationId}`
         );
 
-        // VERY IMPORTANT:
-        // ProductDetails can now know that
-        // opening the chat succeeded.
         return true;
-
       } catch (error) {
         console.error(
           "Error opening seller chat:",
@@ -2744,7 +3507,7 @@ function App() {
         />
 
         {/* ================================================= */}
-        {/* MESSAGES */}
+        {/* CUSTOMER MESSAGES */}
         {/* ================================================= */}
 
         <Route
@@ -3187,7 +3950,7 @@ function App() {
         />
 
         {/* ================================================= */}
-        {/* SELLER CHAT - direct conversation route */}
+        {/* SELLER CHAT */}
         {/* ================================================= */}
 
         <Route

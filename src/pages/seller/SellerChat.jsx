@@ -12,6 +12,7 @@ import {
 
 import {
   doc,
+  getDoc,
   onSnapshot,
   runTransaction,
   Timestamp,
@@ -53,20 +54,6 @@ function SellerChat({
 }) {
   const navigate = useNavigate();
   const location = useLocation();
-
-  /*
-   * IMPORTANT:
-   * Support both:
-   *
-   * /seller/messages/:id
-   *
-   * and
-   *
-   * /seller/messages/:conversationId
-   *
-   * This prevents the chat from failing when your route
-   * parameter is named differently.
-   */
   const params = useParams();
 
   const conversationId =
@@ -83,11 +70,17 @@ function SellerChat({
 
   const sellerFullName =
     profile?.fullName ||
+    profile?.displayName ||
     firebaseUser?.displayName ||
     "Seller";
 
   const sellerImage =
     profile?.profileImage ||
+    profile?.photoURL ||
+    profile?.profilePicture ||
+    profile?.avatar ||
+    profile?.imageUrl ||
+    profile?.image ||
     firebaseUser?.photoURL ||
     null;
 
@@ -114,6 +107,12 @@ function SellerChat({
     useState(false);
 
   const [liveConversation, setLiveConversation] =
+    useState(null);
+
+  const [participantProfile, setParticipantProfile] =
+    useState(null);
+
+  const [participantProfileImage, setParticipantProfileImage] =
     useState(null);
 
   const [conversationLoading, setConversationLoading] =
@@ -274,10 +273,6 @@ function SellerChat({
   // =====================================================
 
   useEffect(() => {
-    /*
-     * If there is no conversation ID, there is nothing
-     * to listen to.
-     */
     if (!conversationId) {
       setLiveConversation(null);
       setConversationLoading(false);
@@ -301,13 +296,6 @@ function SellerChat({
             ...snapshot.data(),
           });
         } else {
-          /*
-           * Do NOT destroy the fallback conversation.
-           *
-           * Some existing conversations may be supplied
-           * through the messages prop instead of being
-           * available as a conversation document.
-           */
           setLiveConversation(null);
         }
 
@@ -319,10 +307,6 @@ function SellerChat({
           error
         );
 
-        /*
-         * Keep fallback data available if Firestore
-         * temporarily fails.
-         */
         setLiveConversation(null);
         setConversationLoading(false);
       }
@@ -334,7 +318,7 @@ function SellerChat({
   }, [conversationId]);
 
   // =====================================================
-  // OTHER PARTICIPANT
+  // OTHER PARTICIPANT ID
   // =====================================================
 
   const otherParticipantId =
@@ -346,13 +330,187 @@ function SellerChat({
     fallbackConversation?.otherParticipantId ||
     fallbackConversation?.buyerId ||
     fallbackConversation?.receiverId ||
+    fallbackConversation?.participantId ||
     null;
+
+  // =====================================================
+  // LOAD BUYER PROFILE
+  // =====================================================
+
+  useEffect(() => {
+    if (!otherParticipantId) {
+      setParticipantProfile(null);
+      setParticipantProfileImage(null);
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const loadParticipantProfile = async () => {
+      try {
+        // =================================================
+        // MAIN USER DOCUMENT
+        // =================================================
+
+        const userRef = doc(
+          db,
+          "users",
+          String(otherParticipantId)
+        );
+
+        const userSnapshot =
+          await getDoc(userRef);
+
+        let userData = {};
+
+        if (userSnapshot.exists()) {
+          userData =
+            userSnapshot.data() || {};
+        }
+
+        // =================================================
+        // CUSTOMER DATA
+        // =================================================
+
+        let customerData = {};
+
+        const possibleCustomerDocuments = [
+          "profile",
+          "personalInfo",
+          "customer",
+          "data",
+        ];
+
+        for (
+          const documentId of possibleCustomerDocuments
+        ) {
+          try {
+            const customerRef = doc(
+              db,
+              "users",
+              String(otherParticipantId),
+              "customerData",
+              documentId
+            );
+
+            const customerSnapshot =
+              await getDoc(customerRef);
+
+            if (
+              customerSnapshot.exists()
+            ) {
+              customerData = {
+                ...customerData,
+                ...customerSnapshot.data(),
+              };
+            }
+          } catch {
+            // Ignore inaccessible fallback documents.
+          }
+        }
+
+        if (cancelled) {
+          return;
+        }
+
+        // =================================================
+        // MERGE PROFILE DATA
+        // =================================================
+
+        const mergedProfile = {
+          ...customerData,
+          ...userData,
+        };
+
+        // =================================================
+        // PROFILE NAME
+        // =================================================
+
+        const fullName =
+          mergedProfile?.fullName ||
+          mergedProfile?.displayName ||
+          mergedProfile?.name ||
+          [
+            mergedProfile?.firstName,
+            mergedProfile?.lastName,
+          ]
+            .filter(Boolean)
+            .join(" ") ||
+          liveConversation?.participantNames?.[
+            otherParticipantId
+          ] ||
+          fallbackConversation?.buyerName ||
+          fallbackConversation?.name ||
+          fallbackConversation?.participantName ||
+          "Buyer";
+
+        // =================================================
+        // PROFILE IMAGE
+        // =================================================
+
+        const profileImage =
+          mergedProfile?.profileImage ||
+          mergedProfile?.photoURL ||
+          mergedProfile?.profilePicture ||
+          mergedProfile?.avatar ||
+          mergedProfile?.imageUrl ||
+          mergedProfile?.image ||
+          mergedProfile?.profilePhoto ||
+          mergedProfile?.picture ||
+          null;
+
+        // =================================================
+        // SAVE PROFILE
+        // =================================================
+
+        setParticipantProfile({
+          ...mergedProfile,
+          fullName,
+          profileImage,
+          uid: otherParticipantId,
+        });
+
+        setParticipantProfileImage(
+          profileImage
+        );
+      } catch (error) {
+        console.warn(
+          "Could not load participant profile:",
+          error
+        );
+
+        if (!cancelled) {
+          setParticipantProfile(null);
+          setParticipantProfileImage(null);
+        }
+      }
+    };
+
+    loadParticipantProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    otherParticipantId,
+    liveConversation?.id,
+    fallbackConversation?.id,
+  ]);
 
   // =====================================================
   // BUYER NAME
   // =====================================================
 
   const buyerName =
+    participantProfile?.fullName ||
+    participantProfile?.displayName ||
+    participantProfile?.name ||
+    [
+      participantProfile?.firstName,
+      participantProfile?.lastName,
+    ]
+      .filter(Boolean)
+      .join(" ") ||
     liveConversation?.participantNames?.[
       otherParticipantId
     ] ||
@@ -366,10 +524,27 @@ function SellerChat({
   // =====================================================
 
   const buyerImage =
+    participantProfile?.profileImage ||
+    participantProfile?.photoURL ||
+    participantProfile?.profilePicture ||
+    participantProfile?.avatar ||
+    participantProfile?.imageUrl ||
+    participantProfile?.image ||
     liveConversation?.participantImages?.[
       otherParticipantId
     ] ||
+    liveConversation?.participantProfiles?.[
+      otherParticipantId
+    ]?.profileImage ||
+    liveConversation?.participantProfiles?.[
+      otherParticipantId
+    ]?.photoURL ||
+    participantProfileImage ||
     fallbackConversation?.profileImage ||
+    fallbackConversation?.photoURL ||
+    fallbackConversation?.profilePicture ||
+    fallbackConversation?.avatar ||
+    fallbackConversation?.imageUrl ||
     fallbackConversation?.image ||
     fallbackConversation?.buyerImage ||
     null;
@@ -382,14 +557,18 @@ function SellerChat({
     liveConversation &&
     Array.isArray(liveConversation.messages)
       ? liveConversation.messages
-      : Array.isArray(fallbackConversation?.conversation)
+      : Array.isArray(
+          fallbackConversation?.conversation
+        )
       ? fallbackConversation.conversation
-      : Array.isArray(fallbackConversation?.messages)
+      : Array.isArray(
+          fallbackConversation?.messages
+        )
       ? fallbackConversation.messages
       : [];
 
   // =====================================================
-  // SORT
+  // SORT MESSAGES
   // =====================================================
 
   const sortedMessages = useMemo(() => {
@@ -465,9 +644,6 @@ function SellerChat({
       return true;
     }
 
-    /*
-     * Also support sender === current user's uid.
-     */
     if (
       message?.sender &&
       firebaseUser?.uid &&
@@ -515,9 +691,7 @@ function SellerChat({
                   conversationRef
                 );
 
-              if (
-                !snapshot.exists()
-              ) {
+              if (!snapshot.exists()) {
                 return;
               }
 
@@ -643,6 +817,30 @@ function SellerChat({
     );
 
   // =====================================================
+  // SEARCH MESSAGES
+  // =====================================================
+
+  const searchedMessages =
+    visibleMessages.filter(
+      (message) => {
+        if (!search.trim()) {
+          return true;
+        }
+
+        const text =
+          message?.text ||
+          message?.message ||
+          "";
+
+        return String(text)
+          .toLowerCase()
+          .includes(
+            search.trim().toLowerCase()
+          );
+      }
+    );
+
+  // =====================================================
   // FORMAT TIME
   // =====================================================
 
@@ -687,7 +885,7 @@ function SellerChat({
   };
 
   // =====================================================
-  // HAS MESSAGE BEEN SEEN
+  // MESSAGE SEEN
   // =====================================================
 
   const isMessageSeen = (message) => {
@@ -990,6 +1188,17 @@ function SellerChat({
   };
 
   // =====================================================
+  // PROFILE IMAGE ERROR FALLBACK
+  // =====================================================
+
+  const handleProfileImageError = (
+    e
+  ) => {
+    e.currentTarget.style.display =
+      "none";
+  };
+
+  // =====================================================
   // NOT FOUND
   // =====================================================
 
@@ -1000,9 +1209,11 @@ function SellerChat({
   ) {
     return (
       <div className="h-[100svh] lg:h-[100dvh] w-full bg-gray-50 text-gray-800 flex overflow-hidden">
+
         {/* SIDEBAR */}
 
         <aside className="hidden lg:flex fixed inset-y-0 left-0 z-50 w-[230px] bg-green-700 text-white flex-col shadow-2xl">
+
           <div className="h-[86px] px-5 flex items-center">
             <button
               type="button"
@@ -1100,7 +1311,9 @@ function SellerChat({
         {/* MAIN */}
 
         <div className="flex-1 min-w-0 lg:ml-[230px] flex flex-col h-[100dvh]">
+
           <header className="h-[70px] sm:h-[86px] bg-green-800 text-white flex items-center px-4 sm:px-6 gap-4 shrink-0">
+
             <button
               type="button"
               onClick={() =>
@@ -1112,6 +1325,7 @@ function SellerChat({
             </button>
 
             <div className="relative flex-1 max-w-[500px]">
+
               <FiSearch
                 size={17}
                 className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
@@ -1128,11 +1342,15 @@ function SellerChat({
                 placeholder="Search messages..."
                 className="w-full h-10 bg-white text-gray-800 rounded-full pl-11 pr-4 text-sm outline-none"
               />
+
             </div>
+
           </header>
 
           <main className="flex-1 min-h-0 overflow-hidden p-3 sm:p-6 lg:p-7">
+
             <div className="h-full bg-white rounded-2xl border border-green-100 p-6 sm:p-10 text-center shadow-sm flex flex-col items-center justify-center">
+
               <div className="w-16 h-16 rounded-full bg-green-50 text-green-600 flex items-center justify-center mb-4">
                 <FiX size={28} />
               </div>
@@ -1157,8 +1375,11 @@ function SellerChat({
               >
                 Back to Messages
               </button>
+
             </div>
+
           </main>
+
         </div>
 
         {/* MOBILE DRAWER */}
@@ -1173,8 +1394,11 @@ function SellerChat({
             />
 
             <aside className="fixed inset-y-0 left-0 z-[70] w-[250px] bg-green-700 text-white flex flex-col shadow-2xl lg:hidden">
+
               <div className="h-[86px] px-5 flex items-center justify-between">
+
                 <div className="flex items-center gap-3">
+
                   <div className="w-10 h-10 rounded-xl bg-white text-green-700 flex items-center justify-center font-extrabold">
                     CM
                   </div>
@@ -1188,6 +1412,7 @@ function SellerChat({
                       Buy. Sell. Connect.
                     </p>
                   </div>
+
                 </div>
 
                 <button
@@ -1198,10 +1423,13 @@ function SellerChat({
                 >
                   <FiX size={22} />
                 </button>
+
               </div>
 
               <div className="flex-1 overflow-y-auto px-3 pb-5">
+
                 <nav className="space-y-1">
+
                   {menuItems.map(
                     (item) => {
                       const Icon =
@@ -1251,10 +1479,13 @@ function SellerChat({
                       );
                     }
                   )}
+
                 </nav>
+
               </div>
 
               <div className="px-3 pb-4">
+
                 <button
                   type="button"
                   onClick={
@@ -1267,10 +1498,13 @@ function SellerChat({
                   />
                   Logout
                 </button>
+
               </div>
+
             </aside>
           </>
         )}
+
       </div>
     );
   }
@@ -1285,13 +1519,17 @@ function SellerChat({
   ) {
     return (
       <div className="h-[100dvh] w-full bg-gray-50 flex items-center justify-center">
+
         <div className="text-center">
+
           <div className="w-10 h-10 mx-auto rounded-full border-4 border-green-100 border-t-green-600 animate-spin" />
 
           <p className="mt-4 text-sm text-gray-500">
             Loading conversation...
           </p>
+
         </div>
+
       </div>
     );
   }
@@ -1302,9 +1540,8 @@ function SellerChat({
 
   return (
     <div className="h-[100dvh] w-full bg-gray-50 text-gray-800 flex overflow-hidden">
-      {/* =================================================
-          MOBILE OVERLAY
-      ================================================= */}
+
+      {/* MOBILE OVERLAY */}
 
       {sidebarOpen && (
         <div
@@ -1332,7 +1569,9 @@ function SellerChat({
           }
         `}
       >
+
         <div className="h-[86px] px-5 flex items-center justify-between shrink-0">
+
           <button
             type="button"
             onClick={() =>
@@ -1342,11 +1581,13 @@ function SellerChat({
             }
             className="flex items-center gap-3"
           >
+
             <div className="w-10 h-10 rounded-xl bg-white text-green-700 flex items-center justify-center font-extrabold">
               CM
             </div>
 
             <div className="text-left">
+
               <p className="text-lg font-extrabold leading-none">
                 CampusMart
               </p>
@@ -1354,7 +1595,9 @@ function SellerChat({
               <p className="text-[10px] text-green-100 mt-1">
                 Buy. Sell. Connect.
               </p>
+
             </div>
+
           </button>
 
           <button
@@ -1366,10 +1609,13 @@ function SellerChat({
           >
             <FiX size={22} />
           </button>
+
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-5">
+
           <nav className="space-y-1">
+
             {menuItems.map(
               (item) => {
                 const Icon =
@@ -1402,6 +1648,7 @@ function SellerChat({
                       }
                     `}
                   >
+
                     <Icon size={18} />
 
                     <span className="flex-1 text-left">
@@ -1423,14 +1670,18 @@ function SellerChat({
                           : item.badge}
                       </span>
                     )}
+
                   </button>
                 );
               }
             )}
+
           </nav>
+
         </div>
 
         <div className="px-3 pb-4 shrink-0">
+
           <button
             type="button"
             onClick={
@@ -1443,7 +1694,9 @@ function SellerChat({
             />
             Logout
           </button>
+
         </div>
+
       </aside>
 
       {/* =================================================
@@ -1451,11 +1704,13 @@ function SellerChat({
       ================================================= */}
 
       <div className="flex-1 min-w-0 lg:ml-[230px] flex flex-col h-[100dvh]">
+
         {/* =================================================
             NAVBAR
         ================================================= */}
 
         <header className="h-[70px] sm:h-[86px] bg-green-800 text-white flex items-center px-3 sm:px-6 gap-3 sm:gap-4 shrink-0">
+
           <button
             type="button"
             onClick={() =>
@@ -1467,6 +1722,7 @@ function SellerChat({
           </button>
 
           <div className="relative flex-1 min-w-0 max-w-[500px]">
+
             <FiSearch
               size={17}
               className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
@@ -1483,9 +1739,11 @@ function SellerChat({
               placeholder="Search messages..."
               className="w-full h-10 bg-white text-gray-800 rounded-full pl-11 pr-4 text-sm outline-none"
             />
+
           </div>
 
           <div className="ml-auto flex items-center gap-2 shrink-0">
+
             <button
               type="button"
               onClick={() =>
@@ -1495,6 +1753,7 @@ function SellerChat({
               }
               className="relative w-9 h-9 rounded-full hover:bg-green-700 flex items-center justify-center"
             >
+
               <FiMessageCircle
                 size={19}
               />
@@ -1508,6 +1767,7 @@ function SellerChat({
                     : unreadMessages}
                 </span>
               )}
+
             </button>
 
             <button
@@ -1519,13 +1779,17 @@ function SellerChat({
               }
               className="flex items-center gap-2 rounded-full bg-green-700 hover:bg-green-600 px-1.5 sm:px-2 py-1.5"
             >
+
               {sellerImage ? (
                 <img
                   src={sellerImage}
                   alt={
                     sellerFullName
                   }
-                  className="w-8 h-8 rounded-full object-cover"
+                  onError={
+                    handleProfileImageError
+                  }
+                  className="w-8 h-8 rounded-full object-cover bg-green-50"
                 />
               ) : (
                 <div className="w-8 h-8 rounded-full bg-white text-green-700 flex items-center justify-center font-bold text-xs">
@@ -1536,6 +1800,7 @@ function SellerChat({
               )}
 
               <div className="hidden sm:block text-left pr-2">
+
                 <p className="text-xs font-bold">
                   {sellerFullName}
                 </p>
@@ -1543,9 +1808,13 @@ function SellerChat({
                 <p className="text-[9px] text-green-100 mt-1">
                   Seller
                 </p>
+
               </div>
+
             </button>
+
           </div>
+
         </header>
 
         {/* =================================================
@@ -1553,12 +1822,15 @@ function SellerChat({
         ================================================= */}
 
         <main className="flex-1 min-h-0 overflow-hidden p-0 sm:p-4 lg:p-7">
+
           <div className="h-full min-h-0 w-full bg-white sm:rounded-xl lg:rounded-2xl border border-green-100 overflow-hidden flex flex-col shadow-sm">
+
             {/* =================================================
                 CHAT HEADER
             ================================================= */}
 
-            <div className="flex items-center gap-2 sm:gap-3 px-2.5 sm:px-6 py-2.5 sm:py-4 border-b border-green-100 bg-white shrink-0 z-30 sticky top-0">
+            <div className="flex items-center gap-2 sm:gap-3 px-2.5 sm:px-6 py-2.5 sm:py-4 border-b border-green-100 bg-white shrink-0 z-30">
+
               {selectedMessageIds.length >
               0 ? (
                 <>
@@ -1576,6 +1848,7 @@ function SellerChat({
                   </button>
 
                   <div className="flex-1 min-w-0">
+
                     <p className="font-bold text-gray-800">
                       {
                         selectedMessageIds.length
@@ -1587,6 +1860,7 @@ function SellerChat({
                       Choose delete to
                       continue
                     </p>
+
                   </div>
 
                   <button
@@ -1599,6 +1873,7 @@ function SellerChat({
                     }
                     className="h-10 px-3 sm:px-4 rounded-xl bg-green-600 hover:bg-green-700 text-white flex items-center gap-2 font-semibold text-sm shrink-0"
                   >
+
                     <FiTrash2
                       size={17}
                     />
@@ -1606,6 +1881,7 @@ function SellerChat({
                     <span className="hidden sm:inline">
                       Delete
                     </span>
+
                   </button>
                 </>
               ) : (
@@ -1624,65 +1900,145 @@ function SellerChat({
                     />
                   </button>
 
+                  {/* =================================================
+                      BUYER PROFILE PHOTO
+                  ================================================= */}
+
                   {buyerImage ? (
                     <img
                       src={buyerImage}
                       alt={buyerName}
-                      className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover ring-2 ring-green-100 shrink-0"
+                      onError={
+                        handleProfileImageError
+                      }
+                      className="
+                        w-10 h-10
+                        sm:w-11 sm:h-11
+                        rounded-full
+                        object-cover
+                        ring-2
+                        ring-green-100
+                        shrink-0
+                        bg-green-50
+                      "
                     />
                   ) : (
-                    <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-green-100 text-green-700 flex items-center justify-center font-bold text-lg shrink-0">
+                    <div
+                      className="
+                        w-10 h-10
+                        sm:w-11 sm:h-11
+                        rounded-full
+                        bg-green-100
+                        text-green-700
+                        flex items-center
+                        justify-center
+                        font-bold
+                        text-lg
+                        shrink-0
+                      "
+                    >
                       {getInitial(
                         buyerName
                       )}
                     </div>
                   )}
 
+                  {/* =================================================
+                      BUYER NAME
+                  ================================================= */}
+
                   <div className="flex-1 min-w-0">
-                    <h2 className="font-bold text-gray-800 truncate text-sm sm:text-base">
+
+                    <h2 className="
+                      font-bold
+                      text-gray-800
+                      truncate
+                      text-sm
+                      sm:text-base
+                    ">
                       {buyerName}
                     </h2>
 
-                    <p className="text-xs text-green-600 truncate">
-                      CampusMart
-                      conversation
-                    </p>
+                    <div className="flex items-center gap-1.5">
+
+                      <span className="
+                        w-1.5
+                        h-1.5
+                        rounded-full
+                        bg-green-500
+                        shrink-0
+                      " />
+
+                      <p className="
+                        text-xs
+                        text-green-600
+                        truncate
+                      ">
+                        Buyer
+                      </p>
+
+                    </div>
+
                   </div>
                 </>
               )}
+
             </div>
 
             {/* =================================================
                 MESSAGES BODY
             ================================================= */}
 
-            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-2.5 sm:p-6 space-y-2 sm:space-y-3 bg-gradient-to-b from-green-50/40 to-gray-50 [scrollbar-width:thin]">
+            <div className="
+              flex-1
+              min-h-0
+              overflow-y-auto
+              overscroll-contain
+              p-2.5
+              sm:p-6
+              space-y-2
+              sm:space-y-3
+              bg-gradient-to-b
+              from-green-50/40
+              to-gray-50
+              [scrollbar-width:thin]
+            ">
+
               <div className="text-center mb-3 sm:mb-5">
+
                 <span className="inline-block bg-white text-green-600 text-[10px] sm:text-xs font-medium px-3 py-1.5 rounded-full border border-green-100 shadow-sm">
+
                   Conversation with{" "}
                   {buyerName}
+
                 </span>
+
               </div>
 
-              {visibleMessages.length ===
+              {searchedMessages.length ===
                 0 && (
                 <div className="text-center py-10">
+
                   <div className="w-14 h-14 mx-auto rounded-full bg-green-100 text-green-600 flex items-center justify-center mb-3">
                     <FiSend size={22} />
                   </div>
 
                   <p className="text-sm font-medium text-gray-500">
-                    No messages yet.
+                    {search.trim()
+                      ? "No matching messages."
+                      : "No messages yet."}
                   </p>
 
                   <p className="text-xs text-gray-400 mt-1">
-                    Send a message to
-                    start the conversation.
+                    {search.trim()
+                      ? "Try another search."
+                      : "Send a message to start the conversation."}
                   </p>
+
                 </div>
               )}
 
-              {visibleMessages.map(
+              {searchedMessages.map(
                 (message, index) => {
                   const mine =
                     isMyMessage(
@@ -1712,6 +2068,7 @@ function SellerChat({
                           : "justify-start"
                       }`}
                     >
+
                       <button
                         type="button"
                         onClick={() =>
@@ -1739,13 +2096,16 @@ function SellerChat({
                           }
                         `}
                       >
+
                         {selected && (
                           <div className="flex justify-end mb-1">
+
                             <span className="w-5 h-5 rounded-full bg-white text-green-600 flex items-center justify-center">
                               <FiCheck
                                 size={13}
                               />
                             </span>
+
                           </div>
                         )}
 
@@ -1756,20 +2116,17 @@ function SellerChat({
                         </p>
 
                         <div
-                          className={`
+                          className="
                             flex
                             items-center
                             justify-end
                             gap-0.5
                             text-[10px]
                             mt-1
-                            ${
-                              mine
-                                ? "text-green-100"
-                                : "text-green-100"
-                            }
-                          `}
+                            text-green-100
+                          "
                         >
+
                           <span>
                             {formatMessageTime(
                               message
@@ -1781,14 +2138,18 @@ function SellerChat({
                               message
                             }
                           />
+
                         </div>
+
                       </button>
+
                     </div>
                   );
                 }
               )}
 
               <div className="h-1 shrink-0" />
+
             </div>
 
             {/* =================================================
@@ -1811,7 +2172,9 @@ function SellerChat({
                   z-40
                 "
               >
+
                 <div className="flex items-center gap-2 w-full">
+
                   <input
                     type="text"
                     value={messageText}
@@ -1871,6 +2234,7 @@ function SellerChat({
                       transition
                     "
                   >
+
                     {sending ? (
                       <span className="w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
                     ) : (
@@ -1878,8 +2242,11 @@ function SellerChat({
                         size={18}
                       />
                     )}
+
                   </button>
+
                 </div>
+
               </div>
             )}
 
@@ -1898,14 +2265,18 @@ function SellerChat({
                   }
                 }}
               >
+
                 <div
                   className="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden border border-green-100"
                   onClick={(e) =>
                     e.stopPropagation()
                   }
                 >
+
                   <div className="p-5 border-b border-green-100 bg-green-50">
+
                     <div className="flex items-center gap-3">
+
                       <div className="w-10 h-10 rounded-full bg-green-100 text-green-700 flex items-center justify-center">
                         <FiTrash2
                           size={18}
@@ -1913,6 +2284,7 @@ function SellerChat({
                       </div>
 
                       <div>
+
                         <h3 className="text-lg font-bold text-gray-900">
                           Delete message
                           {selectedMessageIds.length >
@@ -1924,8 +2296,11 @@ function SellerChat({
                         <p className="text-sm text-gray-500">
                           Choose an option
                         </p>
+
                       </div>
+
                     </div>
+
                   </div>
 
                   <button
@@ -1940,12 +2315,15 @@ function SellerChat({
                     }
                     className="w-full text-left px-5 py-4 hover:bg-green-50 border-b border-gray-100"
                   >
+
                     <div className="flex items-center gap-3">
+
                       <FiTrash2
                         size={16}
                       />
 
                       <div>
+
                         <p className="font-semibold text-gray-800">
                           Delete for me
                         </p>
@@ -1954,8 +2332,11 @@ function SellerChat({
                           Remove from your
                           chat only.
                         </p>
+
                       </div>
+
                     </div>
+
                   </button>
 
                   {canDeleteForEveryone && (
@@ -1971,12 +2352,15 @@ function SellerChat({
                       }
                       className="w-full text-left px-5 py-4 hover:bg-green-50 border-b border-gray-100"
                     >
+
                       <div className="flex items-center gap-3">
+
                         <FiTrash2
                           size={16}
                         />
 
                         <div>
+
                           <p className="font-semibold text-green-700">
                             Delete for
                             everyone
@@ -1987,12 +2371,16 @@ function SellerChat({
                             message for
                             everyone.
                           </p>
+
                         </div>
+
                       </div>
+
                     </button>
                   )}
 
                   <div className="p-4 bg-gray-50">
+
                     <button
                       type="button"
                       disabled={
@@ -2007,13 +2395,20 @@ function SellerChat({
                     >
                       Cancel
                     </button>
+
                   </div>
+
                 </div>
+
               </div>
             )}
+
           </div>
+
         </main>
+
       </div>
+
     </div>
   );
 }

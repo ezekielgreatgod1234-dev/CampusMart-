@@ -38,8 +38,7 @@ function Messages({
   cartCount = 0,
   wishlist = [],
 }) {
-  const navigate =
-    useNavigate();
+  const navigate = useNavigate();
 
   const {
     firebaseUser,
@@ -50,37 +49,44 @@ function Messages({
   // STATE
   // =====================================================
 
-  const [
-    search,
-    setSearch,
-  ] = useState("");
+  const [search, setSearch] =
+    useState("");
 
-  const [
-    conversations,
-    setConversations,
-  ] = useState([]);
+  const [conversations, setConversations] =
+    useState([]);
 
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
+  const [loading, setLoading] =
+    useState(true);
 
   // =====================================================
-  // REAL PRESENCE STATE
+  // PUBLIC PROFILE MAP
+  // =====================================================
+  //
+  // {
+  //   uid: {
+  //     fullName: "...",
+  //     profileImage: "...",
+  //     photoURL: "..."
+  //   }
+  // }
+  //
   // =====================================================
 
-  const [
-    presenceMap,
-    setPresenceMap,
-  ] = useState({});
+  const [publicProfiles, setPublicProfiles] =
+    useState({});
+
+  // =====================================================
+  // REAL PRESENCE
+  // =====================================================
+
+  const [presenceMap, setPresenceMap] =
+    useState({});
 
   // =====================================================
   // FORMAT TIME
   // =====================================================
 
-  const formatTime = (
-    timestamp
-  ) => {
+  const formatTime = (timestamp) => {
     if (!timestamp) {
       return "";
     }
@@ -89,9 +95,7 @@ function Messages({
       const date =
         timestamp?.toDate
           ? timestamp.toDate()
-          : new Date(
-              timestamp
-            );
+          : new Date(timestamp);
 
       if (
         Number.isNaN(
@@ -220,9 +224,7 @@ function Messages({
             b?.createdAt
           );
 
-        return (
-          bTime - aTime
-        );
+        return bTime - aTime;
       }
     );
 
@@ -330,10 +332,6 @@ function Messages({
         return false;
       }
 
-      // =================================================
-      // MESSAGE LEVEL ARRAYS
-      // =================================================
-
       const readArrays = [
         lastMessage?.readBy,
         lastMessage?.seenBy,
@@ -361,10 +359,6 @@ function Messages({
           return true;
         }
       }
-
-      // =================================================
-      // MESSAGE LEVEL OBJECTS
-      // =================================================
 
       const readObjects = [
         lastMessage?.readBy,
@@ -394,10 +388,6 @@ function Messages({
         }
       }
 
-      // =================================================
-      // MESSAGE LEVEL FLAGS
-      // =================================================
-
       if (
         lastMessage?.seen ===
           true ||
@@ -408,10 +398,6 @@ function Messages({
       ) {
         return true;
       }
-
-      // =================================================
-      // CONVERSATION LEVEL FLAGS
-      // =================================================
 
       if (
         conversation?.lastMessageSeen ===
@@ -425,10 +411,6 @@ function Messages({
       ) {
         return true;
       }
-
-      // =================================================
-      // UNREAD COUNT FALLBACK
-      // =================================================
 
       if (
         conversation?.unreadCounts &&
@@ -502,7 +484,7 @@ function Messages({
   };
 
   // =====================================================
-  // LOAD FIRESTORE CONVERSATIONS
+  // LOAD CONVERSATIONS
   // =====================================================
 
   useEffect(() => {
@@ -512,7 +494,6 @@ function Messages({
 
     if (!firebaseUser?.uid) {
       setConversations([]);
-
       setLoading(false);
 
       return undefined;
@@ -553,18 +534,21 @@ function Messages({
                     Array.isArray(
                       data.participants
                     )
-                      ? data.participants
+                      ? data.participants.map(
+                          String
+                        )
                       : [];
+
+                  const currentUid =
+                    String(
+                      firebaseUser.uid
+                    );
 
                   const otherParticipantId =
                     participants.find(
                       (uid) =>
-                        String(
-                          uid
-                        ) !==
-                        String(
-                          firebaseUser.uid
-                        )
+                        String(uid) !==
+                        currentUid
                     ) || null;
 
                   const participantNames =
@@ -575,10 +559,6 @@ function Messages({
                     data.participantImages ||
                     {};
 
-                  // =================================================
-                  // UNREAD COUNT
-                  // =================================================
-
                   const unread =
                     Number(
                       data
@@ -587,20 +567,12 @@ function Messages({
                       ] || 0
                     );
 
-                  // =================================================
-                  // RAW MESSAGES
-                  // =================================================
-
                   const rawMessages =
                     Array.isArray(
                       data.messages
                     )
                       ? data.messages
                       : [];
-
-                  // =================================================
-                  // LAST VISIBLE MESSAGE
-                  // =================================================
 
                   const lastVisibleMessage =
                     getLastVisibleMessage(
@@ -610,22 +582,16 @@ function Messages({
                       }
                     );
 
-                  // =================================================
-                  // LAST MESSAGE TEXT
-                  // =================================================
-
                   const lastMessage =
                     lastVisibleMessage
                       ?.text ||
-                    (lastVisibleMessage
-                      ?.imageUrl
+                    (
+                      lastVisibleMessage
+                        ?.imageUrl
+                    )
                       ? "📷 Photo"
                       : data.lastMessage ||
-                        "No messages yet");
-
-                  // =================================================
-                  // LAST MESSAGE TIME
-                  // =================================================
+                        "No messages yet";
 
                   const lastMessageAt =
                     lastVisibleMessage
@@ -660,20 +626,6 @@ function Messages({
                       ] ||
                       null,
 
-                    /*
-                     * IMPORTANT:
-                     *
-                     * We DO NOT use:
-                     *
-                     * data.onlineStatus
-                     *
-                     * anymore.
-                     *
-                     * Real online status comes from:
-                     *
-                     * presence/{otherParticipantId}
-                     */
-
                     unread,
 
                     unreadCounts:
@@ -694,13 +646,13 @@ function Messages({
 
                     messages:
                       rawMessages,
+
+                    participantNames,
+
+                    participantImages,
                   };
                 }
               );
-
-            // =================================================
-            // NEWEST FIRST
-            // =================================================
 
             loaded.sort(
               (a, b) => {
@@ -732,7 +684,6 @@ function Messages({
             );
 
             setConversations([]);
-
             setLoading(false);
           }
         },
@@ -743,7 +694,6 @@ function Messages({
           );
 
           setConversations([]);
-
           setLoading(false);
         }
       );
@@ -757,27 +707,26 @@ function Messages({
   ]);
 
   // =====================================================
-  // REAL-TIME PRESENCE LISTENERS
+  // LOAD OTHER USERS' PUBLIC PROFILES
   // =====================================================
   //
-  // One listener per conversation participant.
+  // IMPORTANT:
   //
-  // When the other user changes:
+  // We read:
   //
-  // online: false
+  // publicProfiles/{uid}
   //
-  // to:
+  // NEVER:
   //
-  // online: true
+  // users/{uid}
   //
-  // this page updates immediately.
+  // because users/{uid} is private.
   //
   // =====================================================
 
   useEffect(() => {
     if (!firebaseUser?.uid) {
-      setPresenceMap({});
-
+      setPublicProfiles({});
       return undefined;
     }
 
@@ -786,10 +735,9 @@ function Messages({
         new Set(
           conversations
             .map(
-              (
+              (conversation) =>
                 conversation
-              ) =>
-                conversation?.otherParticipantId
+                  ?.otherParticipantId
             )
             .filter(
               (uid) =>
@@ -799,6 +747,237 @@ function Messages({
                     firebaseUser.uid
                   )
             )
+            .map(String)
+        )
+      );
+
+    if (
+      participantIds.length ===
+      0
+    ) {
+      setPublicProfiles({});
+      return undefined;
+    }
+
+    const unsubscribers = [];
+
+    participantIds.forEach(
+      (participantId) => {
+        const profileRef =
+          doc(
+            db,
+            "publicProfiles",
+            String(
+              participantId
+            )
+          );
+
+        const unsubscribe =
+          onSnapshot(
+            profileRef,
+            (snapshot) => {
+              if (
+                snapshot.exists()
+              ) {
+                const data =
+                  snapshot.data() ||
+                  {};
+
+                setPublicProfiles(
+                  (previous) => ({
+                    ...previous,
+
+                    [participantId]: {
+                      ...data,
+                      uid:
+                        participantId,
+                    },
+                  })
+                );
+              } else {
+                setPublicProfiles(
+                  (previous) => ({
+                    ...previous,
+
+                    [participantId]: {
+                      uid:
+                        participantId,
+                    },
+                  })
+                );
+              }
+            },
+            (error) => {
+              console.error(
+                "Could not load public participant profile:",
+                participantId,
+                error
+              );
+
+              setPublicProfiles(
+                (previous) => ({
+                  ...previous,
+
+                  [participantId]: {
+                    uid:
+                      participantId,
+                  },
+                })
+              );
+            }
+          );
+
+        unsubscribers.push(
+          unsubscribe
+        );
+      }
+    );
+
+    return () => {
+      unsubscribers.forEach(
+        (unsubscribe) => {
+          unsubscribe();
+        }
+      );
+    };
+  }, [
+    firebaseUser?.uid,
+    conversations,
+  ]);
+
+  // =====================================================
+  // SEARCH
+  // =====================================================
+
+  const filteredMessages =
+    useMemo(() => {
+      const searchText =
+        search
+          .trim()
+          .toLowerCase();
+
+      if (!searchText) {
+        return conversations;
+      }
+
+      return conversations.filter(
+        (conversation) => {
+          const name =
+            String(
+              conversation?.name ||
+                ""
+            ).toLowerCase();
+
+          const lastMessage =
+            String(
+              conversation?.lastMessage ||
+                ""
+            ).toLowerCase();
+
+          const publicProfile =
+            publicProfiles?.[
+              conversation?.otherParticipantId
+            ];
+
+          const publicName =
+            String(
+              publicProfile?.fullName ||
+                publicProfile?.displayName ||
+                ""
+            ).toLowerCase();
+
+          return (
+            name.includes(
+              searchText
+            ) ||
+            publicName.includes(
+              searchText
+            ) ||
+            lastMessage.includes(
+              searchText
+            )
+          );
+        }
+      );
+    }, [
+      conversations,
+      publicProfiles,
+      search,
+    ]);
+
+  // =====================================================
+  // UNREAD COUNT
+  // =====================================================
+
+  const unreadMessages =
+    useMemo(() => {
+      return conversations.reduce(
+        (
+          total,
+          conversation
+        ) =>
+          total +
+          Number(
+            conversation?.unread ||
+              0
+          ),
+        0
+      );
+    }, [
+      conversations,
+    ]);
+
+  // =====================================================
+  // REAL ONLINE USERS
+  // =====================================================
+
+  const onlineUsers =
+    useMemo(() => {
+      return conversations.filter(
+        (conversation) => {
+          const uid =
+            conversation?.otherParticipantId;
+
+          return (
+            uid &&
+            presenceMap?.[uid]
+              ?.online === true
+          );
+        }
+      ).length;
+    }, [
+      conversations,
+      presenceMap,
+    ]);
+
+  // =====================================================
+  // PRESENCE LISTENERS
+  // =====================================================
+
+  useEffect(() => {
+    if (!firebaseUser?.uid) {
+      setPresenceMap({});
+      return undefined;
+    }
+
+    const participantIds =
+      Array.from(
+        new Set(
+          conversations
+            .map(
+              (conversation) =>
+                conversation
+                  ?.otherParticipantId
+            )
+            .filter(
+              (uid) =>
+                uid &&
+                String(uid) !==
+                  String(
+                    firebaseUser.uid
+                  )
+            )
+            .map(String)
         )
       );
 
@@ -807,16 +986,10 @@ function Messages({
       0
     ) {
       setPresenceMap({});
-
       return undefined;
     }
 
     const unsubscribers = [];
-
-    /*
-     * Start with the participants we currently
-     * know about.
-     */
 
     setPresenceMap(
       (previous) => {
@@ -922,95 +1095,6 @@ function Messages({
     firebaseUser?.uid,
     conversations,
   ]);
-
-  // =====================================================
-  // SEARCH
-  // =====================================================
-
-  const filteredMessages =
-    useMemo(() => {
-      const searchText =
-        search
-          .trim()
-          .toLowerCase();
-
-      if (!searchText) {
-        return conversations;
-      }
-
-      return conversations.filter(
-        (conversation) => {
-          const name =
-            String(
-              conversation?.name ||
-                ""
-            ).toLowerCase();
-
-          const lastMessage =
-            String(
-              conversation?.lastMessage ||
-                ""
-            ).toLowerCase();
-
-          return (
-            name.includes(
-              searchText
-            ) ||
-            lastMessage.includes(
-              searchText
-            )
-          );
-        }
-      );
-    }, [
-      conversations,
-      search,
-    ]);
-
-  // =====================================================
-  // UNREAD COUNT
-  // =====================================================
-
-  const unreadMessages =
-    useMemo(() => {
-      return conversations.reduce(
-        (
-          total,
-          conversation
-        ) =>
-          total +
-          Number(
-            conversation?.unread ||
-              0
-          ),
-        0
-      );
-    }, [
-      conversations,
-    ]);
-
-  // =====================================================
-  // REAL ONLINE USERS
-  // =====================================================
-
-  const onlineUsers =
-    useMemo(() => {
-      return conversations.filter(
-        (conversation) => {
-          const uid =
-            conversation?.otherParticipantId;
-
-          return (
-            uid &&
-            presenceMap?.[uid]
-              ?.online === true
-          );
-        }
-      ).length;
-    }, [
-      conversations,
-      presenceMap,
-    ]);
 
   // =====================================================
   // INITIAL
@@ -1226,9 +1310,7 @@ function Messages({
     >
       <div className="space-y-6">
 
-        {/* =================================================
-            HEADER
-        ================================================= */}
+        {/* HEADER */}
 
         <div
           className="
@@ -1282,9 +1364,7 @@ function Messages({
           </button>
         </div>
 
-        {/* =================================================
-            STATS
-        ================================================= */}
+        {/* STATS */}
 
         <div
           className="
@@ -1294,9 +1374,6 @@ function Messages({
             gap-4
           "
         >
-
-          {/* CONVERSATIONS */}
-
           <div
             className="
               bg-white
@@ -1341,8 +1418,6 @@ function Messages({
             </div>
           </div>
 
-          {/* UNREAD */}
-
           <div
             className="
               bg-white
@@ -1386,8 +1461,6 @@ function Messages({
 
             </div>
           </div>
-
-          {/* ONLINE */}
 
           <div
             className="
@@ -1434,12 +1507,9 @@ function Messages({
 
             </div>
           </div>
-
         </div>
 
-        {/* =================================================
-            SEARCH
-        ================================================= */}
+        {/* SEARCH */}
 
         <div className="relative">
 
@@ -1480,12 +1550,9 @@ function Messages({
               transition
             "
           />
-
         </div>
 
-        {/* =================================================
-            MESSAGES CARD
-        ================================================= */}
+        {/* MESSAGES CARD */}
 
         <div
           className="
@@ -1509,7 +1576,6 @@ function Messages({
               justify-between
             "
           >
-
             <div className="flex items-center gap-3">
 
               <div
@@ -1571,9 +1637,7 @@ function Messages({
 
           </div>
 
-          {/* =================================================
-              MESSAGE LIST
-          ================================================= */}
+          {/* MESSAGE LIST */}
 
           {filteredMessages.length >
           0 ? (
@@ -1606,12 +1670,46 @@ function Messages({
                       lastMessage
                     );
 
-                  // =================================================
-                  // REAL ONLINE STATUS
-                  // =================================================
-
                   const otherUid =
                     conversation?.otherParticipantId;
+
+                  const publicProfile =
+                    publicProfiles?.[
+                      String(
+                        otherUid || ""
+                      )
+                    ] || {};
+
+                  // =================================================
+                  // REAL PROFILE NAME
+                  // =================================================
+
+                  const displayName =
+                    publicProfile?.fullName ||
+                    publicProfile?.displayName ||
+                    publicProfile?.name ||
+                    conversation?.participantNames?.[
+                      otherUid
+                    ] ||
+                    conversation?.name ||
+                    "CampusMart User";
+
+                  // =================================================
+                  // REAL PROFILE IMAGE
+                  // =================================================
+
+                  const profileImage =
+                    publicProfile?.profileImage ||
+                    publicProfile?.photoURL ||
+                    publicProfile?.photoUrl ||
+                    publicProfile?.avatar ||
+                    publicProfile?.image ||
+                    conversation?.participantImages?.[
+                      otherUid
+                    ] ||
+                    conversation?.profileImage ||
+                    conversation?.image ||
+                    null;
 
                   const isOnline =
                     otherUid &&
@@ -1652,20 +1750,18 @@ function Messages({
                       "
                     >
 
-                      {/* =================================================
-                          AVATAR
-                      ================================================= */}
+                      {/* AVATAR */}
 
                       <div className="relative shrink-0">
 
-                        {conversation.image ? (
+                        {profileImage ? (
 
                           <img
                             src={
-                              conversation.image
+                              profileImage
                             }
                             alt={
-                              conversation.name
+                              displayName
                             }
                             className="
                               w-12
@@ -1675,38 +1771,54 @@ function Messages({
                               rounded-full
                               object-cover
                             "
+                            onError={(
+                              event
+                            ) => {
+                              event.currentTarget.style.display =
+                                "none";
+
+                              const fallback =
+                                event.currentTarget
+                                  .nextElementSibling;
+
+                              if (
+                                fallback
+                              ) {
+                                fallback.style.display =
+                                  "flex";
+                              }
+                            }}
                           />
 
-                        ) : (
+                        ) : null}
 
-                          <div
-                            className="
-                              w-12
-                              h-12
-                              sm:w-13
-                              sm:h-13
-                              rounded-full
-                              bg-green-100
-                              text-green-700
-                              flex
-                              items-center
-                              justify-center
-                              font-bold
-                              text-lg
-                            "
-                          >
-                            {
-                              getInitial(
-                                conversation.name
-                              )
-                            }
-                          </div>
-
-                        )}
-
-                        {/* =================================================
-                            REAL ONLINE DOT
-                        ================================================= */}
+                        <div
+                          className="
+                            w-12
+                            h-12
+                            sm:w-13
+                            sm:h-13
+                            rounded-full
+                            bg-green-100
+                            text-green-700
+                            items-center
+                            justify-center
+                            font-bold
+                            text-lg
+                          "
+                          style={{
+                            display:
+                              profileImage
+                                ? "none"
+                                : "flex",
+                          }}
+                        >
+                          {
+                            getInitial(
+                              displayName
+                            )
+                          }
+                        </div>
 
                         {isOnline && (
 
@@ -1730,9 +1842,7 @@ function Messages({
 
                       </div>
 
-                      {/* =================================================
-                          DETAILS
-                      ================================================= */}
+                      {/* DETAILS */}
 
                       <div className="flex-1 min-w-0">
 
@@ -1757,7 +1867,7 @@ function Messages({
                             `}
                           >
                             {
-                              conversation.name
+                              displayName
                             }
                           </h3>
 
@@ -1775,21 +1885,16 @@ function Messages({
 
                         </div>
 
-                        {/* =================================================
-                            ONLINE / OFFLINE LABEL
-                        ================================================= */}
+                        {isOnline && (
 
-                        <div
-                          className="
-                            flex
-                            items-center
-                            gap-1.5
-                            mt-0.5
-                          "
-                        >
-
-                          {isOnline ? (
-
+                          <div
+                            className="
+                              flex
+                              items-center
+                              gap-1.5
+                              mt-0.5
+                            "
+                          >
                             <span
                               className="
                                 text-[11px]
@@ -1799,14 +1904,9 @@ function Messages({
                             >
                               Online
                             </span>
+                          </div>
 
-                          ) : null}
-
-                        </div>
-
-                        {/* =================================================
-                            LAST MESSAGE + CHECKS
-                        ================================================= */}
+                        )}
 
                         <div
                           className="
@@ -1849,9 +1949,7 @@ function Messages({
 
                       </div>
 
-                      {/* =================================================
-                          UNREAD
-                      ================================================= */}
+                      {/* UNREAD */}
 
                       {conversation.unread >
                         0 && (
@@ -1879,10 +1977,6 @@ function Messages({
                         </span>
 
                       )}
-
-                      {/* =================================================
-                          ARROW
-                      ================================================= */}
 
                       <FiChevronRight
                         className="
@@ -1979,9 +2073,7 @@ function Messages({
 
         </div>
 
-        {/* =================================================
-            MOBILE NEW MESSAGE
-        ================================================= */}
+        {/* MOBILE NEW MESSAGE */}
 
         <button
           type="button"
