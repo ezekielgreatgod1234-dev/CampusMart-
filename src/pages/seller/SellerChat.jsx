@@ -1559,7 +1559,7 @@ function SellerChat({
       <aside
         className={`
           fixed inset-y-0 left-0 z-50
-          w-[230px] bg-green-700 text-white
+          w-[270px] bg-green-700 text-white
           flex flex-col shadow-2xl
           transition-transform duration-300
           ${
@@ -1703,7 +1703,7 @@ function SellerChat({
           MAIN AREA
       ================================================= */}
 
-      <div className="flex-1 min-w-0 lg:ml-[230px] flex flex-col h-[100dvh]">
+      <div className="flex-1 min-w-0 lg:ml-[270px] flex flex-col h-[100dvh]">
 
         {/* =================================================
             NAVBAR

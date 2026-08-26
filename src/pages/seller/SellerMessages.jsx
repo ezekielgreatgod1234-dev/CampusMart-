@@ -1618,7 +1618,7 @@ function SellerMessages({
           inset-y-0
           left-0
           z-50
-          w-[230px]
+          w-[270px]
           bg-green-700
           text-white
           flex
@@ -1858,7 +1858,7 @@ function SellerMessages({
         className="
           flex-1
           min-w-0
-          lg:ml-[230px]
+          lg:ml-[270px]
           flex
           flex-col
           h-screen
