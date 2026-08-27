@@ -32,7 +32,7 @@ import { useAuth } from "../../context/AuthContext";
 // SELLER PROMOTIONS — Pay to boost products to the top
 // =====================================================
 
-function SellerPromotions({ unreadMessages = 0 }) {
+function SellerPromotions({ unreadMessages = 0, profile = {} }) {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -65,12 +65,24 @@ function SellerPromotions({ unreadMessages = 0 }) {
   // =====================================================
 
   const sellerFullName =
-    firebaseUser?.displayName?.trim() || "GreatGod Ezekiel";
+  profile?.fullName ||
+  profile?.name ||
+  profile?.displayName ||
+  firebaseUser?.displayName?.trim() ||
+  "Seller";
 
-  const sellerFirstName =
-    sellerFullName.split(/\s+/)[0] || "GreatGod";
+const sellerFirstName =
+  String(sellerFullName).trim().split(/\s+/)[0] || "Seller";
 
-  const sellerImage = firebaseUser?.photoURL || null;
+const sellerImage =
+  profile?.profileImage ||
+  profile?.photoURL ||
+  profile?.profilePicture ||
+  profile?.avatar ||
+  profile?.imageUrl ||
+  profile?.image ||
+  firebaseUser?.photoURL ||
+  null;
 
   // =====================================================
   // MENU ITEMS (Reviews & Analytics removed)

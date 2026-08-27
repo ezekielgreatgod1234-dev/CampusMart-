@@ -50,6 +50,7 @@ import OrderDetails from "./pages/customer/OrderDetails";
 import Payment from "./pages/customer/Payment";
 import Profile from "./pages/customer/Profile";
 import Settings from "./pages/customer/Settings";
+import PaymentOTP from "./pages/customer/PaymentOTP";
 
 // =========================================================
 // SELLER PAGES
@@ -63,6 +64,10 @@ import SellerEarnings from "./pages/seller/SellerEarnings";
 import WithdrawEarnings from "./pages/seller/WithdrawEarnings";
 import SellerPromotions from "./pages/seller/SellerPromotions";
 import SellerPayment from "./pages/seller/SellerPayment";
+import SellerProfile from "./pages/seller/SellerProfile";
+import SellerSettings from "./pages/seller/SellerSettings"; // adjust path
+import SellerOrders from "./pages/seller/SellerOrders";
+
 
 // =========================================================
 // OTHER PAGES
@@ -2593,6 +2598,7 @@ function App() {
                   cartCount={cartCount}
                   wishlist={wishlist}
                   unreadMessages={unreadMessages}
+                 
                 />
               </SellerRoute>
             </ProtectedRoute>
@@ -2672,6 +2678,7 @@ function App() {
                 <SellerEarnings
                   profile={profile}
                   unreadMessages={unreadMessages}
+                  
                 />
               </SellerRoute>
             </ProtectedRoute>
@@ -2694,7 +2701,7 @@ function App() {
           element={
             <ProtectedRoute profileResolved={profileResolved}>
               <SellerRoute profile={profile} profileResolved={profileResolved}>
-                <SellerPromotions unreadMessages={unreadMessages} />
+                <SellerPromotions unreadMessages={unreadMessages} profile={profile} />
               </SellerRoute>
             </ProtectedRoute>
           }
@@ -2711,6 +2718,41 @@ function App() {
           }
         />
 
+
+       <Route
+  path="/seller/profile"
+  element={
+    <SellerProfile
+      profile={profile}
+      updateProfile={updateProfile}
+      unreadMessages={unreadMessages}
+    />
+  }
+/>
+
+
+<Route
+  path="/seller/settings"
+  element={<SellerSettings unreadMessages={unreadMessages} profile={profile}/>}
+
+/>
+
+<Route
+  path="/seller/orders"
+  element={
+    <SellerOrders
+      unreadMessages={unreadMessages}
+      profile={profile}
+    />
+  }
+/>
+
+<Route
+  path="/payment/otp"
+  element={
+    <PaymentOTP cartCount={cartCount} placeOrder={placeOrder} />
+  }
+/>
         {/* ================================================= */}
         {/* FALLBACK */}
         {/* ================================================= */}

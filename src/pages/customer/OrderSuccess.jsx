@@ -1,365 +1,126 @@
-import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useMemo } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+
+import CustomerLayout from "../../layouts/CustomerLayout";
+
 import {
   FiCheckCircle,
-  FiShoppingBag,
+  FiPackage,
   FiHome,
-  FiArrowRight,
+  FiList,
 } from "react-icons/fi";
 
-function OrderSuccess() {
+function OrderSuccess({ cartCount = 0 }) {
   const navigate = useNavigate();
+  const location = useLocation();
 
-  // Generate a simple order reference
-  const orderNumber = "CM";
+  const order = useMemo(() => {
+    if (location.state?.order) return location.state.order;
 
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, []);
+    try {
+      const raw = sessionStorage.getItem("lastOrder");
+      if (raw) return JSON.parse(raw);
+    } catch {
+      // ignore
+    }
+    return null;
+  }, [location.state]);
+
+  const orderNumber =
+    order?.orderNumber ||
+    order?.id ||
+    `CM-${Date.now().toString().slice(-6)}`;
+
+  const total = Number(order?.total || 0);
+  const itemCount = Array.isArray(order?.items)
+    ? order.items.reduce((s, i) => s + Number(i.quantity || 0), 0)
+    : 0;
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-10">
-
-      <div className="w-full max-w-2xl">
-
-        {/* SUCCESS CARD */}
-        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-
-          {/* GREEN HEADER */}
-          <div className="bg-green-600 px-6 py-10 sm:px-10 text-center text-white">
-
-            {/* CHECK ICON */}
-            <div className="
-              w-20
-              h-20
-              mx-auto
-              rounded-full
-              bg-white
-              flex
-              items-center
-              justify-center
-              shadow-lg
-            ">
-              <FiCheckCircle
-                size={48}
-                className="text-green-600"
-              />
-            </div>
-
-            <h1 className="
-              text-2xl
-              sm:text-3xl
-              font-bold
-              mt-6
-            ">
-              Order Placed Successfully!
-            </h1>
-
-            <p className="
-              text-green-100
-              text-sm
-              sm:text-base
-              mt-2
-              max-w-md
-              mx-auto
-            ">
-              Thank you for shopping with CampusMart.
-              Your order has been received successfully.
-            </p>
-
+    <CustomerLayout cartCount={cartCount}>
+      <div className="min-h-[70vh] flex items-center justify-center px-2">
+        <div className="w-full max-w-lg bg-white border border-gray-100 rounded-2xl p-6 sm:p-8 shadow-sm text-center">
+          <div className="w-20 h-20 mx-auto rounded-full bg-green-100 text-green-600 flex items-center justify-center">
+            <FiCheckCircle size={40} />
           </div>
 
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mt-5">
+            Payment successful
+          </h1>
+          <p className="text-gray-500 mt-2 leading-6">
+            Your payment was verified and your order has been placed.
+            The seller can now process it.
+          </p>
 
-          {/* CONTENT */}
-          <div className="p-6 sm:p-10">
-
-            {/* ORDER NUMBER */}
-            <div className="
-              bg-gray-50
-              rounded-2xl
-              p-5
-              flex
-              flex-col
-              sm:flex-row
-              sm:items-center
-              sm:justify-between
-              gap-3
-            ">
-
-              <div>
-                <p className="text-xs text-gray-400 uppercase tracking-wide">
-                  
-                </p>
-
-                <p className="
-                  text-lg
-                  font-bold
-                  text-gray-800
-                  mt-1
-                ">
-                  {orderNumber}
-                </p>
-              </div>
-
-              <span className="
-                inline-flex
-                items-center
-                gap-2
-                w-fit
-                bg-green-100
-                text-green-700
-                px-3
-                py-1.5
-                rounded-full
-                text-xs
-                font-semibold
-              ">
-                <FiCheckCircle />
-                Confirmed
+          <div className="mt-6 rounded-2xl bg-green-50 border border-green-100 p-4 text-left space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm text-gray-500">Order number</span>
+              <span className="text-sm font-bold text-[#008236]">
+                #{orderNumber}
               </span>
-
             </div>
-
-
-            {/* MESSAGE */}
-            <div className="text-center mt-8">
-
-              <h2 className="
-                text-xl
-                sm:text-2xl
-                font-bold
-                text-gray-800
-              ">
-                What's next?
-              </h2>
-
-              <p className="
-                text-gray-500
-                text-sm
-                sm:text-base
-                leading-6
-                mt-2
-                max-w-lg
-                mx-auto
-              ">
-                The seller will receive your order and prepare
-                it for delivery or pickup. You can check your
-                orders anytime from your dashboard.
-              </p>
-
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm text-gray-500">Items</span>
+              <span className="text-sm font-semibold text-gray-800">
+                {itemCount || "—"}
+              </span>
             </div>
-
-
-            {/* STEPS */}
-            <div className="
-              grid
-              grid-cols-1
-              sm:grid-cols-3
-              gap-4
-              mt-8
-            ">
-
-              {/* STEP 1 */}
-              <div className="
-                bg-green-50
-                rounded-2xl
-                p-4
-                text-center
-              ">
-
-                <div className="
-                  w-10
-                  h-10
-                  mx-auto
-                  rounded-full
-                  bg-green-100
-                  text-green-600
-                  flex
-                  items-center
-                  justify-center
-                ">
-                  <FiCheckCircle />
-                </div>
-
-                <h3 className="
-                  font-semibold
-                  text-gray-800
-                  text-sm
-                  mt-3
-                ">
-                  Order Confirmed
-                </h3>
-
-                <p className="
-                  text-xs
-                  text-gray-500
-                  mt-1
-                ">
-                  Your order is received
-                </p>
-
-              </div>
-
-
-              {/* STEP 2 */}
-              <div className="
-                bg-gray-50
-                rounded-2xl
-                p-4
-                text-center
-              ">
-
-                <div className="
-                  w-10
-                  h-10
-                  mx-auto
-                  rounded-full
-                  bg-gray-100
-                  text-gray-500
-                  flex
-                  items-center
-                  justify-center
-                ">
-                  <FiShoppingBag />
-                </div>
-
-                <h3 className="
-                  font-semibold
-                  text-gray-800
-                  text-sm
-                  mt-3
-                ">
-                  Preparing
-                </h3>
-
-                <p className="
-                  text-xs
-                  text-gray-500
-                  mt-1
-                ">
-                  Seller prepares your order
-                </p>
-
-              </div>
-
-
-              {/* STEP 3 */}
-              <div className="
-                bg-gray-50
-                rounded-2xl
-                p-4
-                text-center
-              ">
-
-                <div className="
-                  w-10
-                  h-10
-                  mx-auto
-                  rounded-full
-                  bg-gray-100
-                  text-gray-500
-                  flex
-                  items-center
-                  justify-center
-                ">
-                  <FiArrowRight />
-                </div>
-
-                <h3 className="
-                  font-semibold
-                  text-gray-800
-                  text-sm
-                  mt-3
-                ">
-                  Delivery
-                </h3>
-
-                <p className="
-                  text-xs
-                  text-gray-500
-                  mt-1
-                ">
-                  Receive your order
-                </p>
-
-              </div>
-
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm text-gray-500">Amount paid</span>
+              <span className="text-sm font-bold text-gray-900">
+                ₦{total.toLocaleString()}
+              </span>
             </div>
-
-
-            {/* BUTTONS */}
-            <div className="
-              grid
-              grid-cols-1
-              sm:grid-cols-2
-              gap-3
-              mt-10
-            ">
-
-              {/* DASHBOARD */}
-              <button
-                onClick={() => navigate("/dashboard")}
-                className="
-                  flex
-                  items-center
-                  justify-center
-                  gap-2
-                  bg-green-600
-                  hover:bg-green-700
-                  text-white
-                  py-3.5
-                  rounded-xl
-                  font-semibold
-                  transition
-                "
-              >
-                <FiHome />
-                Go to Dashboard
-              </button>
-
-
-              {/* CONTINUE SHOPPING */}
-              <button
-                onClick={() => navigate("/browse-products")}
-                className="
-                  flex
-                  items-center
-                  justify-center
-                  gap-2
-                  border
-                  border-gray-200
-                  text-gray-700
-                  hover:bg-gray-50
-                  py-3.5
-                  rounded-xl
-                  font-semibold
-                  transition
-                "
-              >
-                <FiShoppingBag />
-                Continue Shopping
-              </button>
-
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm text-gray-500">Status</span>
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-green-100 text-[#008236]">
+                Pending
+              </span>
             </div>
-
           </div>
 
+          <div className="mt-6 flex flex-col sm:flex-row gap-3">
+            <button
+              type="button"
+              onClick={() =>
+                navigate(order?.id ? `/orders/${order.id}` : "/orders")
+              }
+              className="
+                flex-1 h-12 rounded-xl
+                bg-green-600 hover:bg-green-700
+                text-white font-semibold
+                flex items-center justify-center gap-2
+              "
+            >
+              <FiList size={18} />
+              View order
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/dashboard")}
+              className="
+                flex-1 h-12 rounded-xl
+                border border-gray-200 text-gray-700 font-semibold
+                hover:bg-gray-50
+                flex items-center justify-center gap-2
+              "
+            >
+              <FiHome size={18} />
+              Dashboard
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => navigate("/browse-products")}
+            className="mt-4 text-sm text-green-600 hover:text-green-700 font-medium flex items-center justify-center gap-2 w-full"
+          >
+            <FiPackage size={16} />
+            Continue shopping
+          </button>
         </div>
-
-
-        {/* FOOTER */}
-        <p className="
-          text-center
-          text-xs
-          text-gray-400
-          mt-5
-        ">
-          Thank you for choosing CampusMart 💚
-        </p>
-
       </div>
-
-    </div>
+    </CustomerLayout>
   );
 }
 

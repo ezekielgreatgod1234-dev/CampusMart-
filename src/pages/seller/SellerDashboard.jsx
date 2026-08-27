@@ -10,7 +10,6 @@ import {
   FiCalendar,
   FiMessageCircle,
   FiDollarSign,
-  FiStar,
   FiBarChart2,
   FiTag,
   FiUser,
@@ -34,7 +33,7 @@ import { useAuth } from "../../context/AuthContext";
 // SELLER DASHBOARD
 // =====================================================
 
-function SellerDashboard({ unreadMessages = 0 }) {
+function SellerDashboard({ unreadMessages = 0, profile = {} }) {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -88,13 +87,24 @@ function SellerDashboard({ unreadMessages = 0 }) {
   // =====================================================
 
   const sellerFullName =
-    firebaseUser?.displayName?.trim() || "GreatGod Ezekiel";
+  profile?.fullName ||
+  profile?.name ||
+  profile?.displayName ||
+  firebaseUser?.displayName?.trim() ||
+  "Seller";
 
-  const sellerFirstName =
-    sellerFullName.split(/\s+/)[0] || "GreatGod";
+const sellerFirstName =
+  String(sellerFullName).trim().split(/\s+/)[0] || "Seller";
 
-  const sellerImage = firebaseUser?.photoURL || null;
-
+const sellerImage =
+  profile?.profileImage ||
+  profile?.photoURL ||
+  profile?.profilePicture ||
+  profile?.avatar ||
+  profile?.imageUrl ||
+  profile?.image ||
+  firebaseUser?.photoURL ||
+  null;
   // =====================================================
   // MONTH NAMES
   // =====================================================
@@ -144,16 +154,6 @@ function SellerDashboard({ unreadMessages = 0 }) {
       label: "Earnings",
       icon: FiDollarSign,
       path: "/seller/earnings",
-    },
-    {
-      label: "Reviews",
-      icon: FiStar,
-      path: "/seller/reviews",
-    },
-    {
-      label: "Analytics",
-      icon: FiBarChart2,
-      path: "/seller/analytics",
     },
     {
       label: "Promotions",
@@ -493,7 +493,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
         { day: "Sun", value: 74, revenue: 55600 },
       ],
       [
-        { day: "Mon", value: 53, revenue: 39900 },
+        { day: "Mon", value: 53, value: 39900 },
         { day: "Tue", value: 64, revenue: 48100 },
         { day: "Wed", value: 69, revenue: 51800 },
         { day: "Thu", value: 74, revenue: 55500 },
@@ -3398,15 +3398,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
                   hover:
                     "group-hover:bg-[#008236] group-hover:text-white",
                 },
-                {
-                  label: "Add Service",
-                  path: "/seller/services",
-                  icon: FiBriefcase,
-                  bg: "bg-blue-50",
-                  color: "text-blue-600",
-                  hover:
-                    "group-hover:bg-blue-600 group-hover:text-white",
-                },
+                
                 {
                   label: "View Orders",
                   path: "/seller/orders",
@@ -3434,15 +3426,7 @@ function SellerDashboard({ unreadMessages = 0 }) {
                   hover:
                     "group-hover:bg-pink-600 group-hover:text-white",
                 },
-                {
-                  label: "Analytics",
-                  path: "/seller/analytics",
-                  icon: FiBarChart2,
-                  bg: "bg-indigo-50",
-                  color: "text-indigo-600",
-                  hover:
-                    "group-hover:bg-indigo-600 group-hover:text-white",
-                },
+                
               ].map(
                 ({
                   label,

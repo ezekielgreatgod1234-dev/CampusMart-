@@ -204,10 +204,8 @@ function GreenDropdown({
 // =====================================================
 // SELLER PRODUCTS
 // =====================================================
+function SellerProducts({ unreadMessages = 0, profile = {} }) {
 
-function SellerProducts({
-  unreadMessages = 0,
-}) {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -411,15 +409,24 @@ function SellerProducts({
   // =====================================================
 
   const sellerFullName =
-    firebaseUser?.displayName?.trim() ||
-    "GreatGod Ezekiel";
+  profile?.fullName ||
+  profile?.name ||
+  profile?.displayName ||
+  firebaseUser?.displayName?.trim() ||
+  "Seller";
 
-  const sellerFirstName =
-    sellerFullName.split(/\s+/)[0] ||
-    "GreatGod";
+const sellerFirstName =
+  String(sellerFullName).trim().split(/\s+/)[0] || "Seller";
 
-  const sellerImage =
-    firebaseUser?.photoURL || null;
+const sellerImage =
+  profile?.profileImage ||
+  profile?.photoURL ||
+  profile?.profilePicture ||
+  profile?.avatar ||
+  profile?.imageUrl ||
+  profile?.image ||
+  firebaseUser?.photoURL ||
+  null;
 
   // =====================================================
   // MENU ITEMS (Reviews & Analytics removed)
