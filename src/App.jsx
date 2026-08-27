@@ -50,7 +50,7 @@ import OrderDetails from "./pages/customer/OrderDetails";
 import Payment from "./pages/customer/Payment";
 import Profile from "./pages/customer/Profile";
 import Settings from "./pages/customer/Settings";
-import PaymentOTP from "./pages/customer/PaymentOTP";
+import PaymentOtp from "./pages/customer/PaymentOtp";
 
 // =========================================================
 // SELLER PAGES
@@ -2750,7 +2750,7 @@ function App() {
 <Route
   path="/payment/otp"
   element={
-    <PaymentOTP cartCount={cartCount} placeOrder={placeOrder} />
+    <PaymentOtp cartCount={cartCount} placeOrder={placeOrder} />
   }
 />
         {/* ================================================= */}
