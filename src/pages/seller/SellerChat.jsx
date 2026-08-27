@@ -24,8 +24,6 @@ import {
   FiShoppingBag,
   FiMessageCircle,
   FiDollarSign,
-  FiStar,
-  FiBarChart2,
   FiTag,
   FiUser,
   FiSettings,
@@ -82,12 +80,6 @@ function SellerChat({
     firebaseUser?.photoURL ||
     null;
 
-  const sellerId =
-    firebaseUser?.uid ||
-    profile?.uid ||
-    profile?.userId ||
-    null;
-
   // =====================================================
   // STATE
   // =====================================================
@@ -126,7 +118,7 @@ function SellerChat({
     useState(false);
 
   // =====================================================
-  // SIDEBAR MENU (matches SellerDashboard exactly)
+  // SIDEBAR MENU (Reviews & Analytics removed)
   // =====================================================
 
   const menuItems = [
@@ -155,16 +147,6 @@ function SellerChat({
       label: "Earnings",
       icon: FiDollarSign,
       path: "/seller/earnings",
-    },
-    {
-      label: "Reviews",
-      icon: FiStar,
-      path: "/seller/reviews",
-    },
-    {
-      label: "Analytics",
-      icon: FiBarChart2,
-      path: "/seller/analytics",
     },
     {
       label: "Promotions",
@@ -225,6 +207,55 @@ function SellerChat({
         .charAt(0)
         .toUpperCase() || "U"
     );
+  };
+
+  // =====================================================
+  // ROBUST MESSAGE TIMESTAMP (fixes order + stable times)
+  // =====================================================
+
+  const getMessageTimestampMs = (message) => {
+    if (!message) return 0;
+
+    const createdAt = message.createdAt;
+
+    if (!createdAt) {
+      const asNum = Number(message.id);
+      return Number.isFinite(asNum) ? asNum : 0;
+    }
+
+    if (typeof createdAt.toMillis === "function") {
+      return createdAt.toMillis();
+    }
+
+    if (
+      typeof createdAt === "object" &&
+      createdAt !== null &&
+      typeof createdAt.seconds === "number"
+    ) {
+      return (
+        createdAt.seconds * 1000 +
+        Math.floor((createdAt.nanoseconds || 0) / 1e6)
+      );
+    }
+
+    if (typeof createdAt === "number" && Number.isFinite(createdAt)) {
+      if (createdAt < 1e12) {
+        return createdAt * 1000;
+      }
+      return createdAt;
+    }
+
+    if (createdAt instanceof Date) {
+      const t = createdAt.getTime();
+      return Number.isFinite(t) ? t : 0;
+    }
+
+    if (typeof createdAt === "string") {
+      const t = Date.parse(createdAt);
+      return Number.isFinite(t) ? t : 0;
+    }
+
+    return 0;
   };
 
   // =====================================================
@@ -336,10 +367,6 @@ function SellerChat({
 
     const loadParticipantProfile = async () => {
       try {
-        // =================================================
-        // MAIN USER DOCUMENT
-        // =================================================
-
         const userRef = doc(
           db,
           "users",
@@ -355,10 +382,6 @@ function SellerChat({
           userData =
             userSnapshot.data() || {};
         }
-
-        // =================================================
-        // CUSTOMER DATA
-        // =================================================
 
         let customerData = {};
 
@@ -401,18 +424,10 @@ function SellerChat({
           return;
         }
 
-        // =================================================
-        // MERGE PROFILE DATA
-        // =================================================
-
         const mergedProfile = {
           ...customerData,
           ...userData,
         };
-
-        // =================================================
-        // PROFILE NAME
-        // =================================================
 
         const fullName =
           mergedProfile?.fullName ||
@@ -432,10 +447,6 @@ function SellerChat({
           fallbackConversation?.participantName ||
           "Buyer";
 
-        // =================================================
-        // PROFILE IMAGE
-        // =================================================
-
         const profileImage =
           mergedProfile?.profileImage ||
           mergedProfile?.photoURL ||
@@ -446,10 +457,6 @@ function SellerChat({
           mergedProfile?.profilePhoto ||
           mergedProfile?.picture ||
           null;
-
-        // =================================================
-        // SAVE PROFILE
-        // =================================================
 
         setParticipantProfile({
           ...mergedProfile,
@@ -556,26 +563,21 @@ function SellerChat({
       : [];
 
   // =====================================================
-  // SORT MESSAGES
+  // SORT MESSAGES (oldest → newest, stable)
   // =====================================================
 
   const sortedMessages = useMemo(() => {
     return [...chatMessages].sort((a, b) => {
-      const aTime =
-        a?.createdAt?.toMillis
-          ? a.createdAt.toMillis()
-          : a?.createdAt?.seconds
-          ? a.createdAt.seconds * 1000
-          : Number(a?.createdAt || 0);
+      const aTime = getMessageTimestampMs(a);
+      const bTime = getMessageTimestampMs(b);
 
-      const bTime =
-        b?.createdAt?.toMillis
-          ? b.createdAt.toMillis()
-          : b?.createdAt?.seconds
-          ? b.createdAt.seconds * 1000
-          : Number(b?.createdAt || 0);
+      if (aTime !== bTime) {
+        return aTime - bTime;
+      }
 
-      return aTime - bTime;
+      return String(a?.id || "").localeCompare(
+        String(b?.id || "")
+      );
     });
   }, [chatMessages]);
 
@@ -829,38 +831,25 @@ function SellerChat({
     );
 
   // =====================================================
-  // FORMAT TIME
+  // FORMAT TIME (stable)
   // =====================================================
 
   const formatMessageTime = (
     message
   ) => {
-    if (message?.time) {
+    if (message?.time && typeof message.time === "string") {
       return message.time;
     }
 
-    if (message?.formattedTime) {
+    if (message?.formattedTime && typeof message.formattedTime === "string") {
       return message.formattedTime;
     }
 
-    if (!message?.createdAt) {
-      return "";
-    }
+    const ms = getMessageTimestampMs(message);
+    if (!ms) return "";
 
     try {
-      const date =
-        message.createdAt?.toDate
-          ? message.createdAt.toDate()
-          : message.createdAt?.seconds
-          ? new Date(
-              message.createdAt.seconds *
-                1000
-            )
-          : new Date(
-              message.createdAt
-            );
-
-      return date.toLocaleTimeString(
+      return new Date(ms).toLocaleTimeString(
         [],
         {
           hour: "2-digit",
@@ -1187,7 +1176,7 @@ function SellerChat({
   };
 
   // =====================================================
-  // SHARED SIDEBAR (matches SellerDashboard exactly)
+  // SHARED SIDEBAR
   // =====================================================
 
   const renderSidebar = () => (
@@ -1205,7 +1194,7 @@ function SellerChat({
         text-white
         flex
         flex-col
-        h-screen
+        h-[100dvh]
         overflow-hidden
         shadow-2xl
         lg:shadow-none
@@ -1219,8 +1208,6 @@ function SellerChat({
         }
       `}
     >
-      {/* SIDEBAR HEADER */}
-
       <div className="relative px-5 pt-19 lg:pt-5 pb-4 flex-shrink-0">
         <button
           type="button"
@@ -1286,8 +1273,6 @@ function SellerChat({
           </div>
         </div>
       </div>
-
-      {/* NAVIGATION */}
 
       <nav
         className="
@@ -1394,8 +1379,6 @@ function SellerChat({
         )}
       </nav>
 
-      {/* LOGOUT */}
-
       <div className="px-4 pb-4 flex-shrink-0">
         <button
           type="button"
@@ -1422,8 +1405,6 @@ function SellerChat({
           </span>
         </button>
       </div>
-
-      {/* PREMIUM CARD */}
 
       <div className="px-4 pb-3 flex-shrink-0">
         <div
@@ -1487,9 +1468,7 @@ function SellerChat({
     !fallbackConversation
   ) {
     return (
-      <div className="h-screen w-full bg-gray-50 text-gray-800 font-sans overflow-hidden">
-        {/* MOBILE SIDEBAR OVERLAY */}
-
+      <div className="h-[100dvh] w-full bg-gray-50 text-gray-800 font-sans overflow-hidden flex flex-col">
         {sidebarOpen && (
           <div
             className="fixed inset-0 bg-black/50 z-40 lg:hidden"
@@ -1499,14 +1478,12 @@ function SellerChat({
 
         {renderSidebar()}
 
-        {/* MAIN AREA */}
-
         <div
           className="
             min-w-0
             flex
             flex-col
-            h-screen
+            h-[100dvh]
             w-full
             lg:ml-[291px]
             lg:w-[calc(100%-291px)]
@@ -1569,8 +1546,8 @@ function SellerChat({
             </div>
           </header>
 
-          <main className="flex-1 min-h-0 overflow-hidden p-3 sm:p-6 lg:p-7">
-            <div className="h-full bg-white rounded-2xl border border-green-100 p-6 sm:p-10 text-center shadow-sm flex flex-col items-center justify-center">
+          <main className="flex-1 min-h-0 overflow-hidden p-3 sm:p-6 lg:p-7 flex flex-col">
+            <div className="flex-1 min-h-0 bg-white rounded-2xl border border-green-100 p-6 sm:p-10 text-center shadow-sm flex flex-col items-center justify-center">
               <div className="w-16 h-16 rounded-full bg-green-50 text-green-600 flex items-center justify-center mb-4">
                 <FiX size={28} />
               </div>
@@ -1628,9 +1605,7 @@ function SellerChat({
   // =====================================================
 
   return (
-    <div className="h-screen w-full bg-gray-50 text-gray-800 font-sans overflow-hidden">
-      {/* MOBILE SIDEBAR OVERLAY */}
-
+    <div className="h-[100dvh] w-full bg-gray-50 text-gray-800 font-sans overflow-hidden flex flex-col">
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
@@ -1642,20 +1617,18 @@ function SellerChat({
 
       {renderSidebar()}
 
-      {/* MAIN AREA */}
-
       <div
         className="
           min-w-0
           flex
           flex-col
-          h-screen
+          h-[100dvh]
           w-full
           lg:ml-[291px]
           lg:w-[calc(100%-291px)]
         "
       >
-        {/* NAVBAR */}
+        {/* TOP NAVBAR */}
 
         <header
           className="
@@ -1838,8 +1811,8 @@ function SellerChat({
 
         {/* CHAT */}
 
-        <main className="flex-1 min-h-0 overflow-hidden p-0 sm:p-4 lg:p-7">
-          <div className="h-full min-h-0 w-full bg-white sm:rounded-xl lg:rounded-2xl border border-green-100 overflow-hidden flex flex-col shadow-sm">
+        <main className="flex-1 min-h-0 overflow-hidden p-0 sm:p-4 lg:p-7 flex flex-col">
+          <div className="flex-1 min-h-0 h-full w-full bg-white sm:rounded-xl lg:rounded-2xl border border-green-100 overflow-hidden flex flex-col shadow-sm">
             {/* CHAT HEADER */}
 
             <div className="flex items-center gap-2 sm:gap-3 px-2.5 sm:px-6 py-2.5 sm:py-4 border-b border-green-100 bg-white shrink-0 z-30">
@@ -1908,8 +1881,6 @@ function SellerChat({
                     />
                   </button>
 
-                  {/* BUYER PROFILE PHOTO */}
-
                   {buyerImage ? (
                     <img
                       src={buyerImage}
@@ -1948,8 +1919,6 @@ function SellerChat({
                       )}
                     </div>
                   )}
-
-                  {/* BUYER NAME */}
 
                   <div className="flex-1 min-w-0">
                     <h2 className="
@@ -2038,7 +2007,7 @@ function SellerChat({
                   const messageId =
                     String(
                       message?.id ||
-                        `${message?.createdAt || ""}-${index}`
+                        `${getMessageTimestampMs(message)}-${index}`
                     );
 
                   const selected =
@@ -2050,7 +2019,7 @@ function SellerChat({
                     <div
                       key={
                         message?.id ||
-                        `${message?.createdAt}-${index}`
+                        `${getMessageTimestampMs(message)}-${index}`
                       }
                       className={`flex w-full ${
                         mine
@@ -2133,7 +2102,7 @@ function SellerChat({
               <div className="h-1 shrink-0" />
             </div>
 
-            {/* INPUT */}
+            {/* INPUT — pinned + safe-area for mobile */}
 
             {selectedMessageIds.length ===
               0 && (
@@ -2149,6 +2118,7 @@ function SellerChat({
                   sm:pb-4
                   relative
                   z-40
+                  [padding-bottom:max(0.5rem,env(safe-area-inset-bottom))]
                 "
               >
                 <div className="flex items-center gap-2 w-full">
