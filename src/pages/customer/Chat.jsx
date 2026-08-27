@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
@@ -78,6 +79,55 @@ function Chat({
     deleting,
     setDeleting,
   ] = useState(false);
+
+  // =====================================================
+  // ROBUST MESSAGE TIMESTAMP (fixes order + stable times)
+  // =====================================================
+
+  const getMessageTimestampMs = (message) => {
+    if (!message) return 0;
+
+    const createdAt = message.createdAt;
+
+    if (!createdAt) {
+      const asNum = Number(message.id);
+      return Number.isFinite(asNum) ? asNum : 0;
+    }
+
+    if (typeof createdAt.toMillis === "function") {
+      return createdAt.toMillis();
+    }
+
+    if (
+      typeof createdAt === "object" &&
+      createdAt !== null &&
+      typeof createdAt.seconds === "number"
+    ) {
+      return (
+        createdAt.seconds * 1000 +
+        Math.floor((createdAt.nanoseconds || 0) / 1e6)
+      );
+    }
+
+    if (typeof createdAt === "number" && Number.isFinite(createdAt)) {
+      if (createdAt < 1e12) {
+        return createdAt * 1000;
+      }
+      return createdAt;
+    }
+
+    if (createdAt instanceof Date) {
+      const t = createdAt.getTime();
+      return Number.isFinite(t) ? t : 0;
+    }
+
+    if (typeof createdAt === "string") {
+      const t = Date.parse(createdAt);
+      return Number.isFinite(t) ? t : 0;
+    }
+
+    return 0;
+  };
 
   // =====================================================
   // FALLBACK PERSON
@@ -250,24 +300,23 @@ function Chat({
         [];
 
   // =====================================================
-  // SORT MESSAGES
+  // SORT MESSAGES (oldest → newest, stable)
   // =====================================================
 
-  const sortedMessages = [
-    ...chatMessages,
-  ].sort((a, b) => {
-    const aTime =
-      a.createdAt?.toMillis
-        ? a.createdAt.toMillis()
-        : Number(a.createdAt || 0);
+  const sortedMessages = useMemo(() => {
+    return [...chatMessages].sort((a, b) => {
+      const aTime = getMessageTimestampMs(a);
+      const bTime = getMessageTimestampMs(b);
 
-    const bTime =
-      b.createdAt?.toMillis
-        ? b.createdAt.toMillis()
-        : Number(b.createdAt || 0);
+      if (aTime !== bTime) {
+        return aTime - bTime;
+      }
 
-    return aTime - bTime;
-  });
+      return String(a?.id || "").localeCompare(
+        String(b?.id || "")
+      );
+    });
+  }, [chatMessages]);
 
   // =====================================================
   // IS MY MESSAGE
@@ -396,6 +445,7 @@ function Chat({
                         ...message,
                         seenAt:
                           Timestamp.now(),
+                        // never touch createdAt
                       };
                     }
 
@@ -435,7 +485,7 @@ function Chat({
   }, [
     id,
     firebaseUser?.uid,
-    liveConversation?.messages,
+    liveConversation?.id,
     markMessageAsRead,
   ]);
 
@@ -498,29 +548,25 @@ function Chat({
   }, [liveConversation]);
 
   // =====================================================
-  // FORMAT TIME
+  // FORMAT TIME (stable — never changes)
   // =====================================================
 
   const formatMessageTime = (
     message
   ) => {
-    if (message?.time) {
+    if (message?.time && typeof message.time === "string") {
       return message.time;
     }
 
-    if (!message?.createdAt) {
-      return "";
+    if (message?.formattedTime && typeof message.formattedTime === "string") {
+      return message.formattedTime;
     }
 
-    try {
-      const date =
-        message.createdAt?.toDate
-          ? message.createdAt.toDate()
-          : new Date(
-              message.createdAt
-            );
+    const ms = getMessageTimestampMs(message);
+    if (!ms) return "";
 
-      return date.toLocaleTimeString(
+    try {
+      return new Date(ms).toLocaleTimeString(
         [],
         {
           hour: "2-digit",
@@ -955,9 +1001,7 @@ function Chat({
           min-h-0
         "
       >
-        {/* =================================================
-            FIXED CHAT HEADER
-        ================================================= */}
+        {/* FIXED CHAT HEADER */}
 
         <div
           className="
@@ -1050,8 +1094,6 @@ function Chat({
             </>
           ) : (
             <>
-              {/* BACK BUTTON */}
-
               <button
                 type="button"
                 onClick={() =>
@@ -1075,10 +1117,6 @@ function Chat({
                   size={19}
                 />
               </button>
-
-              {/* =================================================
-                  PROFILE IMAGE
-              ================================================= */}
 
               {personImage ? (
                 <img
@@ -1120,10 +1158,6 @@ function Chat({
                 </div>
               )}
 
-              {/* =================================================
-                  PROFILE NAME
-              ================================================= */}
-
               <div className="flex-1 min-w-0">
                 <h2 className="font-bold text-gray-800 truncate text-sm sm:text-base">
                   {personName}
@@ -1138,9 +1172,7 @@ function Chat({
           )}
         </div>
 
-        {/* =================================================
-            ONLY THIS SECTION SCROLLS
-        ================================================= */}
+        {/* ONLY THIS SECTION SCROLLS */}
 
         <div
           className="
@@ -1185,7 +1217,7 @@ function Chat({
           )}
 
           {visibleMessages.map(
-            (message) => {
+            (message, index) => {
               const mine =
                 isMyMessage(
                   message
@@ -1193,7 +1225,8 @@ function Chat({
 
               const messageId =
                 String(
-                  message.id
+                  message.id ||
+                    `${getMessageTimestampMs(message)}-${index}`
                 );
 
               const selected =
@@ -1205,7 +1238,7 @@ function Chat({
                 <div
                   key={
                     message.id ||
-                    `${message.createdAt}-${message.text}`
+                    `${getMessageTimestampMs(message)}-${index}`
                   }
                   className={`flex w-full ${
                     mine
@@ -1291,9 +1324,7 @@ function Chat({
           <div className="h-1 shrink-0" />
         </div>
 
-        {/* =================================================
-            FIXED INPUT
-        ================================================= */}
+        {/* FIXED INPUT */}
 
         {selectedMessageIds.length ===
           0 && (
@@ -1383,9 +1414,7 @@ function Chat({
           </div>
         )}
 
-        {/* =================================================
-            DELETE MENU
-        ================================================= */}
+        {/* DELETE MENU */}
 
         {showDeleteMenu && (
           <div
