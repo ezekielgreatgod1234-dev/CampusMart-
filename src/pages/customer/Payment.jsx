@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import CustomerLayout from "../../layouts/CustomerLayout";
@@ -9,11 +9,15 @@ import {
   FiLock,
   FiCheckCircle,
   FiAlertCircle,
+  FiShield,
 } from "react-icons/fi";
 
-function Payment({ cartCount = 0 }) {
+import { useAuth } from "../../context/AuthContext";
+
+function Payment({ cartCount = 0, placeOrder }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { firebaseUser } = useAuth();
 
   const {
     checkoutItems = [],
@@ -22,121 +26,163 @@ function Payment({ cartCount = 0 }) {
     checkoutType = "all",
   } = location.state || {};
 
-  const [cardNumber, setCardNumber] = useState("");
-  const [expiry, setExpiry] = useState("");
-  const [cvv, setCvv] = useState("");
-  const [cardName, setCardName] = useState("");
+  const [paying, setPaying] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [submitting, setSubmitting] = useState(false);
 
-  const formatCardNumber = (value) => {
-    const numbers = value.replace(/\D/g, "").slice(0, 16);
-    return numbers.replace(/(.{4})/g, "$1 ").trim();
-  };
+  const email =
+    formData?.email ||
+    firebaseUser?.email ||
+    "buyer@campusmart.app";
 
-  const handleCardNumberChange = (e) => {
-    setErrorMessage("");
-    setCardNumber(formatCardNumber(e.target.value));
-  };
+  const amountNaira = Number(total) || 0;
 
-  const handleExpiryChange = (e) => {
-    setErrorMessage("");
-    let value = e.target.value.replace(/\D/g, "").slice(0, 4);
-    if (value.length >= 3) {
-      value = value.slice(0, 2) + "/" + value.slice(2);
-    }
-    setExpiry(value);
-  };
+  const hasValidCheckout = useMemo(() => {
+    return (
+      Array.isArray(checkoutItems) &&
+      checkoutItems.length > 0 &&
+      amountNaira > 0
+    );
+  }, [checkoutItems, amountNaira]);
 
-  const handleCvvChange = (e) => {
-    setErrorMessage("");
-    setCvv(e.target.value.replace(/\D/g, "").slice(0, 3));
-  };
+  const formatNaira = (n) =>
+    `₦${Number(n || 0).toLocaleString("en-NG")}`;
 
-  const handleCardNameChange = (e) => {
-    setErrorMessage("");
-    setCardName(e.target.value);
-  };
+  // =====================================================
+  // PAY WITH PAYSTACK
+  // =====================================================
 
-  // Validate card UI → go to OTP page (no real charge)
-  const handlePayment = (e) => {
-    e.preventDefault();
+  const handlePayWithPaystack = () => {
     setErrorMessage("");
 
-    if (!cardName.trim()) {
-      setErrorMessage("Please enter the name on your card.");
+    if (!firebaseUser) {
+      setErrorMessage("Please log in to continue payment.");
       return;
     }
 
-    const cleanCardNumber = cardNumber.replace(/\s/g, "");
-    if (cleanCardNumber.length !== 16) {
-      setErrorMessage("Please enter a valid 16-digit card number.");
+    if (!hasValidCheckout) {
+      setErrorMessage("Checkout data is missing. Return to cart and try again.");
       return;
     }
 
-    if (expiry.length !== 5) {
-      setErrorMessage("Please enter your card expiry date in MM/YY format.");
+    const publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
+
+    if (!publicKey || !String(publicKey).startsWith("pk_")) {
+      setErrorMessage(
+        "Paystack public key is not configured. Add VITE_PAYSTACK_PUBLIC_KEY to your .env file."
+      );
       return;
     }
 
-    if (cvv.length !== 3) {
-      setErrorMessage("Please enter your 3-digit CVV.");
+    if (typeof window.PaystackPop === "undefined") {
+      setErrorMessage(
+        "Paystack failed to load. Check your internet connection and refresh the page."
+      );
       return;
     }
 
-    setSubmitting(true);
+    const reference = `CM-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
 
-    // Demo: pretend bank sent OTP, then open OTP page
-    // Do NOT store or send raw card details.
-    const last4 = cleanCardNumber.slice(-4);
+    setPaying(true);
 
-    navigate("/payment/otp", {
-      state: {
-        checkoutItems,
-        total,
-        formData,
-        checkoutType,
-        paymentMeta: {
-          last4,
-          cardName: cardName.trim(),
-          // Demo OTP for testing (show on OTP page in demo mode)
-          demoOtp: "123456",
-        },
+    const handler = window.PaystackPop.setup({
+      key: publicKey,
+      email,
+      amount: Math.round(amountNaira * 100), // kobo
+      currency: "NGN",
+      ref: reference,
+      metadata: {
+        custom_fields: [
+          {
+            display_name: "Buyer Name",
+            variable_name: "buyer_name",
+            value: formData?.fullName || "CampusMart Buyer",
+          },
+          {
+            display_name: "Campus",
+            variable_name: "campus",
+            value: formData?.campus || "",
+          },
+          {
+            display_name: "Phone",
+            variable_name: "phone",
+            value: formData?.phone || "",
+          },
+        ],
       },
-      replace: false,
-    });
-  };
+      callback: function (response) {
+        // Paystack success — create order + credit seller
+        (async () => {
+          try {
+            if (typeof placeOrder !== "function") {
+              throw new Error("placeOrder is not available");
+            }
 
-  const handleBackToCheckout = () => {
-    navigate("/checkout", {
-      state: {
-        checkoutItems,
-        checkoutType,
-        formData,
+            const order = await placeOrder({
+              items: checkoutItems,
+              total: amountNaira,
+              paymentMethod: "card",
+              type: checkoutType,
+              customer: {
+                fullName: formData?.fullName || "",
+                phone: formData?.phone || "",
+                campus: formData?.campus || "",
+                address: formData?.address || "",
+                note: formData?.note || "",
+                email,
+              },
+              paystackReference: response.reference,
+            });
+
+            navigate("/order-success", {
+              replace: true,
+              state: {
+                order,
+                paystackReference: response.reference,
+              },
+            });
+          } catch (err) {
+            console.error("Order create after Paystack error:", err);
+            setErrorMessage(
+              "Payment succeeded but order could not be saved. Contact support with reference: " +
+                response.reference
+            );
+            setPaying(false);
+          }
+        })();
+      },
+      onClose: function () {
+        setPaying(false);
+        setErrorMessage("Payment window closed. You can try again.");
       },
     });
+
+    handler.openIframe();
   };
 
-  if (checkoutItems.length === 0) {
+  // =====================================================
+  // NO CHECKOUT STATE
+  // =====================================================
+
+  if (!hasValidCheckout) {
     return (
       <CustomerLayout cartCount={cartCount}>
-        <div className="min-h-[60vh] flex items-center justify-center">
-          <div className="text-center">
-            <div className="w-16 h-16 mx-auto rounded-full bg-gray-100 text-gray-400 flex items-center justify-center">
-              <FiCreditCard size={28} />
+        <div className="min-h-[60vh] flex items-center justify-center px-4">
+          <div className="text-center max-w-sm">
+            <div className="w-16 h-16 mx-auto rounded-full bg-red-50 text-red-500 flex items-center justify-center">
+              <FiAlertCircle size={28} />
             </div>
-            <h1 className="text-2xl font-bold text-gray-800 mt-5">
-              No Payment Items
+            <h1 className="text-xl font-bold text-gray-800 mt-4">
+              Nothing to pay for
             </h1>
-            <p className="text-gray-500 mt-2">
-              There are no items available for payment.
+            <p className="text-sm text-gray-500 mt-2">
+              Start again from your cart or checkout.
             </p>
             <button
               type="button"
-              onClick={() => navigate("/browse-products")}
-              className="mt-6 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-medium transition"
+              onClick={() => navigate("/cart")}
+              className="mt-6 h-11 px-6 rounded-xl bg-[#008236] text-white font-semibold text-sm"
             >
-              Browse Products
+              Back to Cart
             </button>
           </div>
         </div>
@@ -146,205 +192,105 @@ function Payment({ cartCount = 0 }) {
 
   return (
     <CustomerLayout cartCount={cartCount}>
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-lg mx-auto space-y-6">
         <button
           type="button"
-          onClick={handleBackToCheckout}
-          className="flex items-center gap-2 text-gray-500 hover:text-green-600 transition mb-6"
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-2 text-gray-500 hover:text-green-600 transition text-sm"
         >
           <FiArrowLeft />
-          Back to Checkout
+          Back
         </button>
 
-        <div className="mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-green-100 text-green-600 flex items-center justify-center">
-              <FiCreditCard size={21} />
-            </div>
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
-                Payment
-              </h1>
-              <p className="text-gray-500 mt-1">
-                Complete your payment securely.
-              </p>
-            </div>
-          </div>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Pay with card</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Secure payment powered by Paystack
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 bg-white border border-gray-100 rounded-2xl p-5 sm:p-6">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-xl bg-green-100 text-green-600 flex items-center justify-center">
-                <FiCreditCard size={21} />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-gray-800">
-                  Card Information
-                </h2>
-                <p className="text-sm text-gray-500">
-                  Enter the information on your card.
-                </p>
-              </div>
-            </div>
-
-            {errorMessage && (
-              <div className="mt-5 bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0">
-                  <FiAlertCircle />
-                </div>
-                <div>
-                  <p className="font-semibold text-red-700">
-                    Payment information required
-                  </p>
-                  <p className="text-sm text-red-600 mt-1">{errorMessage}</p>
-                </div>
-              </div>
-            )}
-
-            <form onSubmit={handlePayment} className="mt-6 space-y-5">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Name on Card
-                </label>
-                <input
-                  type="text"
-                  value={cardName}
-                  onChange={handleCardNameChange}
-                  placeholder="Enter name on card"
-                  autoComplete="cc-name"
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Card Number
-                </label>
-                <div className="relative">
-                  <FiCreditCard className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={cardNumber}
-                    onChange={handleCardNumberChange}
-                    placeholder="0000 0000 0000 0000"
-                    autoComplete="cc-number"
-                    className="w-full border border-gray-200 rounded-xl pl-11 pr-4 py-3 text-sm outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Expiry Date
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={expiry}
-                    onChange={handleExpiryChange}
-                    placeholder="MM/YY"
-                    autoComplete="cc-exp"
-                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    CVV
-                  </label>
-                  <input
-                    type="password"
-                    inputMode="numeric"
-                    maxLength="3"
-                    value={cvv}
-                    onChange={handleCvvChange}
-                    placeholder="•••"
-                    autoComplete="cc-csc"
-                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3 bg-green-50 border border-green-100 rounded-xl p-4">
-                <FiLock className="text-green-600 mt-0.5 shrink-0" size={18} />
-                <div>
-                  <p className="text-sm font-medium text-green-700">
-                    Secure Payment
-                  </p>
-                  <p className="text-xs text-green-700 leading-5 mt-1">
-                    After you click Pay, we will send a one-time code (OTP) to
-                    confirm this payment. CampusMart does not store your card
-                    details.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full bg-green-600 hover:bg-green-700 active:bg-green-800 disabled:bg-green-400 text-white py-3.5 rounded-xl font-semibold transition flex items-center justify-center gap-2"
-              >
-                <FiLock size={17} />
-                {submitting
-                  ? "Continuing..."
-                  : `Pay ₦${Number(total).toLocaleString()}`}
-              </button>
-
-              <p className="text-xs text-gray-400 text-center leading-5">
-                By continuing, you agree to CampusMart&apos;s terms and
-                conditions.
-              </p>
-            </form>
+        {errorMessage && (
+          <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 flex items-start gap-3">
+            <FiAlertCircle className="text-red-500 shrink-0 mt-0.5" size={18} />
+            <p className="text-sm text-red-600">{errorMessage}</p>
           </div>
+        )}
 
-          {/* SUMMARY */}
-          <div className="bg-white border border-gray-100 rounded-2xl p-5 h-fit lg:sticky lg:top-24">
-            <h2 className="text-lg font-bold text-gray-800">Order Summary</h2>
-            <div className="space-y-4 mt-5">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Items</span>
-                <span className="font-medium">
-                  {checkoutItems.reduce(
-                    (sum, item) => sum + item.quantity,
-                    0
-                  )}
-                </span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Delivery</span>
-                <span className="text-green-600 font-medium">Free</span>
-              </div>
-            </div>
-            <div className="border-t border-gray-100 mt-5 pt-5 flex items-center justify-between">
-              <span className="font-semibold text-gray-800">Total</span>
-              <span className="text-xl font-bold text-gray-900">
-                ₦{Number(total).toLocaleString()}
-              </span>
-            </div>
-            <div className="border-t border-gray-100 mt-5 pt-5">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
-                Delivering To
-              </p>
-              <p className="text-sm font-semibold text-gray-800 mt-2">
-                {formData.fullName || "Customer"}
-              </p>
-              {formData.campus && (
-                <p className="text-xs text-gray-500 mt-1">{formData.campus}</p>
-              )}
-              {formData.address && (
-                <p className="text-xs text-gray-500 mt-1">{formData.address}</p>
-              )}
-              {formData.phone && (
-                <p className="text-xs text-gray-500 mt-1">{formData.phone}</p>
-              )}
-            </div>
-            <div className="mt-5 flex items-center gap-2 text-xs text-gray-400">
-              <FiCheckCircle className="text-green-600" />
-              Secure payment
-            </div>
+        {/* AMOUNT */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+          <p className="text-xs text-gray-400 uppercase font-semibold tracking-wide">
+            Amount to pay
+          </p>
+          <p className="text-3xl font-bold text-gray-900 mt-2">
+            {formatNaira(amountNaira)}
+          </p>
+          <p className="text-xs text-gray-500 mt-2">
+            {checkoutItems.length} item
+            {checkoutItems.length === 1 ? "" : "s"} · Free delivery
+          </p>
+        </div>
+
+        {/* DELIVERING TO */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+          <p className="text-xs text-gray-400 uppercase font-semibold tracking-wide">
+            Delivering to
+          </p>
+          <p className="text-sm font-semibold text-gray-800 mt-2">
+            {formData.fullName || "Customer"}
+          </p>
+          {formData.campus && (
+            <p className="text-xs text-gray-500 mt-1">{formData.campus}</p>
+          )}
+          {formData.address && (
+            <p className="text-xs text-gray-500 mt-1">{formData.address}</p>
+          )}
+          {formData.phone && (
+            <p className="text-xs text-gray-500 mt-1">{formData.phone}</p>
+          )}
+        </div>
+
+        {/* PAY BUTTON */}
+        <button
+          type="button"
+          disabled={paying}
+          onClick={handlePayWithPaystack}
+          className="
+            w-full h-12 rounded-xl
+            bg-[#008236] hover:bg-[#006f2e] active:bg-[#005f28]
+            text-white font-semibold text-base
+            flex items-center justify-center gap-2
+            disabled:opacity-60 transition shadow-sm
+          "
+        >
+          {paying ? (
+            "Opening Paystack…"
+          ) : (
+            <>
+              <FiCreditCard size={18} />
+              Pay {formatNaira(amountNaira)}
+            </>
+          )}
+        </button>
+
+        <div className="flex items-center justify-center gap-2 text-xs text-gray-400">
+          <FiLock size={14} className="text-green-600" />
+          <span>Secured by Paystack · SSL encrypted</span>
+        </div>
+
+        <div className="flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50 p-4">
+          <div className="w-8 h-8 rounded-lg bg-white text-[#008236] flex items-center justify-center border border-green-100 shrink-0">
+            <FiShield size={16} />
           </div>
+          <p className="text-xs text-gray-500 leading-5">
+            You will enter your card details on Paystack’s secure page. CampusMart
+            never stores your full card number. After payment, your order is
+            created and the seller is credited (minus 5% platform fee).
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 text-xs text-gray-400 justify-center">
+          <FiCheckCircle className="text-green-600" size={14} />
+          Secure payment
         </div>
       </div>
     </CustomerLayout>

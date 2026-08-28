@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
 import {
@@ -22,8 +22,19 @@ import {
   FiCalendar,
   FiInfo,
   FiPercent,
+  FiRefreshCw,
 } from "react-icons/fi";
 
+import {
+  doc,
+  onSnapshot,
+  collection,
+  query,
+  where,
+  orderBy,
+} from "firebase/firestore";
+
+import { db } from "../../context/firebase";
 import { useAuth } from "../../context/AuthContext";
 
 function SellerEarnings({ unreadMessages = 0, profile = {} }) {
@@ -32,6 +43,22 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
   const { firebaseUser } = useAuth();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // =====================================================
+  // LIVE EARNINGS STATE
+  // =====================================================
+
+  const [totalEarnings, setTotalEarnings] = useState(0);
+  const [availableBalance, setAvailableBalance] = useState(0);
+  const [totalPlatformFees, setTotalPlatformFees] = useState(0);
+  const [recentEarnings, setRecentEarnings] = useState([]);
+  const [loadingBalance, setLoadingBalance] = useState(true);
+  const [loadingLedger, setLoadingLedger] = useState(true);
+  const [ledgerError, setLedgerError] = useState("");
+
+  // =====================================================
+  // SELLER PROFILE
+  // =====================================================
 
   const sellerFullName =
     profile?.fullName ||
@@ -52,6 +79,172 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
     profile?.image ||
     firebaseUser?.photoURL ||
     null;
+
+  // =====================================================
+  // LIVE BALANCE (users/{uid})
+  // =====================================================
+
+  useEffect(() => {
+    if (!firebaseUser?.uid) {
+      setTotalEarnings(0);
+      setAvailableBalance(0);
+      setTotalPlatformFees(0);
+      setLoadingBalance(false);
+      return;
+    }
+
+    setLoadingBalance(true);
+
+    const userRef = doc(db, "users", firebaseUser.uid);
+
+    const unsub = onSnapshot(
+      userRef,
+      (snap) => {
+        const data = snap.data() || {};
+        setTotalEarnings(Number(data.totalEarnings) || 0);
+        setAvailableBalance(Number(data.availableBalance) || 0);
+        setTotalPlatformFees(Number(data.totalPlatformFees) || 0);
+        setLoadingBalance(false);
+      },
+      (error) => {
+        console.error("Seller balance listener error:", error);
+        setLoadingBalance(false);
+      }
+    );
+
+    return () => unsub();
+  }, [firebaseUser?.uid]);
+
+  // =====================================================
+  // LIVE EARNINGS LEDGER
+  // =====================================================
+
+  useEffect(() => {
+    if (!firebaseUser?.uid) {
+      setRecentEarnings([]);
+      setLoadingLedger(false);
+      return;
+    }
+
+    setLoadingLedger(true);
+    setLedgerError("");
+
+    // Primary: orderBy createdAt (needs composite index)
+    const ledgerQuery = query(
+      collection(db, "earnings"),
+      where("sellerId", "==", firebaseUser.uid),
+      orderBy("createdAt", "desc")
+    );
+
+    const unsub = onSnapshot(
+      ledgerQuery,
+      (snapshot) => {
+        const rows = snapshot.docs.map((d) => {
+          const x = d.data();
+          let date = "—";
+          let time = "";
+
+          try {
+            const dt = x.createdAt?.toDate?.()
+              ? x.createdAt.toDate()
+              : x.createdAt
+                ? new Date(x.createdAt)
+                : null;
+
+            if (dt && !Number.isNaN(dt.getTime())) {
+              date = dt.toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              });
+              time = dt.toLocaleTimeString("en-US", {
+                hour: "2-digit",
+                minute: "2-digit",
+              });
+            }
+          } catch {
+            // keep defaults
+          }
+
+          return {
+            id: d.id,
+            type: x.type || "sale",
+            title: x.title || `Order #${String(d.id).slice(0, 6).toUpperCase()}`,
+            description: x.description || "Sale",
+            amount: Number(x.amount) || 0,
+            gross: Number(x.gross) || 0,
+            platformFee: Number(x.platformFee) || 0,
+            status: x.status || "Completed",
+            date,
+            time,
+          };
+        });
+
+        setRecentEarnings(rows);
+        setLoadingLedger(false);
+        setLedgerError("");
+      },
+      (error) => {
+        console.error("Earnings ledger error:", error);
+
+        // Fallback without orderBy if index missing
+        if (
+          String(error?.message || "").includes("index") ||
+          String(error?.code || "").includes("failed-precondition")
+        ) {
+          const simpleQuery = query(
+            collection(db, "earnings"),
+            where("sellerId", "==", firebaseUser.uid)
+          );
+
+          return onSnapshot(
+            simpleQuery,
+            (snapshot) => {
+              const rows = snapshot.docs
+                .map((d) => {
+                  const x = d.data();
+                  const seconds = x.createdAt?.seconds || 0;
+                  return {
+                    id: d.id,
+                    type: x.type || "sale",
+                    title:
+                      x.title ||
+                      `Order #${String(d.id).slice(0, 6).toUpperCase()}`,
+                    description: x.description || "Sale",
+                    amount: Number(x.amount) || 0,
+                    status: x.status || "Completed",
+                    date: "—",
+                    time: "",
+                    _sort: seconds,
+                  };
+                })
+                .sort((a, b) => b._sort - a._sort);
+
+              setRecentEarnings(rows);
+              setLoadingLedger(false);
+              setLedgerError("");
+            },
+            (err2) => {
+              console.error("Earnings fallback error:", err2);
+              setLedgerError("Unable to load earnings history.");
+              setLoadingLedger(false);
+            }
+          );
+        }
+
+        setLedgerError("Unable to load earnings history.");
+        setLoadingLedger(false);
+      }
+    );
+
+    return () => {
+      if (typeof unsub === "function") unsub();
+    };
+  }, [firebaseUser?.uid]);
+
+  // =====================================================
+  // MENU
+  // =====================================================
 
   const menuItems = [
     { label: "Dashboard", icon: FiGrid, path: "/seller-dashboard" },
@@ -98,63 +291,9 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
   const formatNaira = (amount) =>
     `₦${Number(amount || 0).toLocaleString("en-NG")}`;
 
-  const PLATFORM_COMMISSION_RATE = 0.05; // 5%
+  const PLATFORM_COMMISSION_RATE = 0.05;
 
-  const totalEarnings = 1248600;
-  const availableBalance = 284750;
-
-  const recentEarnings = [
-    {
-      id: "TXN-8842",
-      type: "sale",
-      title: "Order #CM-1048",
-      description: "HP EliteBook Laptop",
-      amount: 213750,
-      status: "Completed",
-      date: "Aug 21, 2026",
-      time: "14:32",
-    },
-    {
-      id: "TXN-8841",
-      type: "sale",
-      title: "Order #CM-1046",
-      description: "Graphic Design Service",
-      amount: 18750,
-      status: "Completed",
-      date: "Aug 19, 2026",
-      time: "11:05",
-    },
-    {
-      id: "TXN-8839",
-      type: "sale",
-      title: "Order #CM-1043",
-      description: "Wireless Headphones × 2",
-      amount: 27750,
-      status: "Pending",
-      date: "Aug 17, 2026",
-      time: "16:22",
-    },
-    {
-      id: "TXN-8838",
-      type: "sale",
-      title: "Order #CM-1041",
-      description: "USB-C Fast Charger",
-      amount: 5625,
-      status: "Completed",
-      date: "Aug 15, 2026",
-      time: "10:18",
-    },
-    {
-      id: "TXN-8836",
-      type: "sale",
-      title: "Order #CM-1038",
-      description: "HP EliteBook Laptop",
-      amount: 213750,
-      status: "Completed",
-      date: "Aug 10, 2026",
-      time: "13:47",
-    },
-  ];
+  const isLoading = loadingBalance || loadingLedger;
 
   return (
     <div className="h-screen w-full bg-gray-50 text-gray-800 font-sans overflow-hidden">
@@ -377,8 +516,8 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
                   Your Earnings, {sellerFirstName}
                 </h1>
                 <p className="text-sm sm:text-base text-green-50 mt-1.5 max-w-xl leading-6">
-                  See your total earnings, available balance, and recent income
-                  from sales.
+                  Live totals from your sales. CampusMart keeps 5%; you receive
+                  95% net.
                 </p>
               </div>
             </div>
@@ -402,10 +541,15 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
                   Total Earnings
                 </p>
                 <h2 className="text-lg sm:text-3xl font-bold text-gray-900 tracking-tight mt-1 sm:mt-1.5 truncate">
-                  {formatNaira(totalEarnings)}
+                  {loadingBalance ? "…" : formatNaira(totalEarnings)}
                 </h2>
                 <p className="text-[10px] sm:text-[11px] text-gray-400 mt-1.5 sm:mt-2">
                   Net after platform fees
+                  {totalPlatformFees > 0 && (
+                    <span className="block mt-0.5">
+                      Fees paid: {formatNaira(totalPlatformFees)}
+                    </span>
+                  )}
                 </p>
               </div>
             </div>
@@ -426,7 +570,7 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
                   Available Balance
                 </p>
                 <h2 className="text-lg sm:text-3xl font-bold text-gray-900 tracking-tight mt-1 sm:mt-1.5 truncate">
-                  {formatNaira(availableBalance)}
+                  {loadingBalance ? "…" : formatNaira(availableBalance)}
                 </h2>
                 <p className="text-[10px] sm:text-[11px] text-gray-400 mt-1.5 sm:mt-2">
                   Ready to withdraw
@@ -467,16 +611,12 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
                       <span className="font-semibold text-gray-800">
                         {PLATFORM_COMMISSION_RATE * 100}% service fee
                       </span>{" "}
-                      on every completed sale. This commission supports secure
-                      payments, order management, and ongoing marketplace
-                      improvements for sellers and buyers. The totals shown on
-                      this page are{" "}
+                      on every completed sale. Totals on this page are{" "}
                       <span className="font-semibold text-gray-800">
                         net amounts after the platform fee
                       </span>
-                      . Buyers pay the listed product price; the commission is
-                      deducted from the seller&apos;s proceeds once an order is
-                      successfully completed.
+                      . Buyers pay the listed price; the fee is taken from your
+                      proceeds when the order is paid.
                     </p>
                     <div className="mt-3 flex items-start gap-2 text-[11px] sm:text-xs text-gray-500">
                       <FiInfo
@@ -509,150 +649,172 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
                 <div className="hidden sm:inline-flex items-center gap-2 rounded-xl bg-green-50 border border-green-100 px-3 h-9">
                   <span className="h-2 w-2 rounded-full bg-[#008236]" />
                   <span className="text-xs font-semibold text-[#008236]">
-                    {recentEarnings.length} records
+                    {loadingLedger ? "…" : `${recentEarnings.length} records`}
                   </span>
                 </div>
               </div>
 
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full min-w-[640px]">
-                  <thead>
-                    <tr className="border-b border-gray-100 text-left">
-                      {["Order", "Product", "Date", "Amount", "Status"].map(
-                        (heading) => (
-                          <th
-                            key={heading}
-                            className="px-5 py-3 text-[11px] font-semibold text-gray-400 uppercase"
-                          >
-                            {heading}
-                          </th>
-                        )
-                      )}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentEarnings.map((item) => (
-                      <tr
-                        key={item.id}
-                        className="border-b border-gray-50 last:border-b-0 hover:bg-gray-50 transition"
-                      >
-                        <td className="px-5 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-xl bg-green-50 text-[#008236] flex items-center justify-center flex-shrink-0">
-                              <FiDollarSign size={16} />
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-sm font-semibold text-gray-800">
-                                {item.title}
-                              </p>
-                              <p className="text-[10px] text-gray-400 mt-0.5">
-                                {item.id}
-                              </p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-5 py-4">
-                          <p className="text-sm text-gray-600 max-w-[200px] truncate">
-                            {item.description}
-                          </p>
-                        </td>
-                        <td className="px-5 py-4">
-                          <div className="flex items-center gap-1.5 whitespace-nowrap">
-                            <FiCalendar size={13} className="text-gray-400" />
-                            <span className="text-xs text-gray-500">
-                              {item.date}
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-gray-400 mt-0.5">
-                            {item.time}
-                          </p>
-                        </td>
-                        <td className="px-5 py-4">
-                          <p className="text-sm font-bold text-[#008236] whitespace-nowrap">
-                            +{formatNaira(item.amount)}
-                          </p>
-                        </td>
-                        <td className="px-5 py-4">
-                          <span
-                            className={`
-                              inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold
-                              ${
-                                item.status === "Completed"
-                                  ? "bg-green-50 text-green-700"
-                                  : "bg-yellow-50 text-yellow-700"
-                              }
-                            `}
-                          >
-                            {item.status === "Completed" ? (
-                              <FiCheckCircle size={11} />
-                            ) : (
-                              <FiClock size={11} />
-                            )}
-                            {item.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="md:hidden divide-y divide-gray-100">
-                {recentEarnings.map((item) => (
-                  <div key={item.id} className="p-4">
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-green-50 text-[#008236] flex items-center justify-center flex-shrink-0">
-                        <FiDollarSign size={17} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold text-gray-800 truncate">
-                              {item.title}
-                            </p>
-                            <p className="text-xs text-gray-500 mt-0.5 truncate">
-                              {item.description}
-                            </p>
-                          </div>
-                          <p className="text-sm font-bold text-[#008236] flex-shrink-0">
-                            +{formatNaira(item.amount)}
-                          </p>
-                        </div>
-                        <div className="flex items-center justify-between mt-2">
-                          <span className="text-[10px] text-gray-400">
-                            {item.date} · {item.time}
-                          </span>
-                          <span
-                            className={`
-                              inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold
-                              ${
-                                item.status === "Completed"
-                                  ? "bg-green-50 text-green-700"
-                                  : "bg-yellow-50 text-yellow-700"
-                              }
-                            `}
-                          >
-                            {item.status}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {recentEarnings.length === 0 && (
-                <div className="p-10 text-center">
-                  <div className="w-14 h-14 mx-auto rounded-full bg-green-50 text-[#008236] flex items-center justify-center mb-3">
-                    <FiDollarSign size={22} />
-                  </div>
-                  <p className="text-sm font-medium text-gray-500">
-                    No recent earnings yet.
-                  </p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Earnings from delivered orders will show here.
-                  </p>
+              {ledgerError && (
+                <div className="mx-5 mt-4 rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-600">
+                  {ledgerError}
                 </div>
+              )}
+
+              {isLoading && recentEarnings.length === 0 ? (
+                <div className="p-12 flex flex-col items-center justify-center text-gray-400">
+                  <FiRefreshCw size={22} className="animate-spin text-[#008236]" />
+                  <p className="text-sm mt-3">Loading your earnings…</p>
+                </div>
+              ) : (
+                <>
+                  <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full min-w-[640px]">
+                      <thead>
+                        <tr className="border-b border-gray-100 text-left">
+                          {["Order", "Product", "Date", "Amount", "Status"].map(
+                            (heading) => (
+                              <th
+                                key={heading}
+                                className="px-5 py-3 text-[11px] font-semibold text-gray-400 uppercase"
+                              >
+                                {heading}
+                              </th>
+                            )
+                          )}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {recentEarnings.map((item) => (
+                          <tr
+                            key={item.id}
+                            className="border-b border-gray-50 last:border-b-0 hover:bg-gray-50 transition"
+                          >
+                            <td className="px-5 py-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-xl bg-green-50 text-[#008236] flex items-center justify-center flex-shrink-0">
+                                  <FiDollarSign size={16} />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-semibold text-gray-800">
+                                    {item.title}
+                                  </p>
+                                  <p className="text-[10px] text-gray-400 mt-0.5">
+                                    {item.id}
+                                  </p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-5 py-4">
+                              <p className="text-sm text-gray-600 max-w-[200px] truncate">
+                                {item.description}
+                              </p>
+                            </td>
+                            <td className="px-5 py-4">
+                              <div className="flex items-center gap-1.5 whitespace-nowrap">
+                                <FiCalendar size={13} className="text-gray-400" />
+                                <span className="text-xs text-gray-500">
+                                  {item.date}
+                                </span>
+                              </div>
+                              {item.time && (
+                                <p className="text-[10px] text-gray-400 mt-0.5">
+                                  {item.time}
+                                </p>
+                              )}
+                            </td>
+                            <td className="px-5 py-4">
+                              <p className="text-sm font-bold text-[#008236] whitespace-nowrap">
+                                +{formatNaira(item.amount)}
+                              </p>
+                            </td>
+                            <td className="px-5 py-4">
+                              <span
+                                className={`
+                                  inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold
+                                  ${
+                                    String(item.status).toLowerCase() ===
+                                    "completed"
+                                      ? "bg-green-50 text-green-700"
+                                      : "bg-yellow-50 text-yellow-700"
+                                  }
+                                `}
+                              >
+                                {String(item.status).toLowerCase() ===
+                                "completed" ? (
+                                  <FiCheckCircle size={11} />
+                                ) : (
+                                  <FiClock size={11} />
+                                )}
+                                {item.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="md:hidden divide-y divide-gray-100">
+                    {recentEarnings.map((item) => (
+                      <div key={item.id} className="p-4">
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-green-50 text-[#008236] flex items-center justify-center flex-shrink-0">
+                            <FiDollarSign size={17} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold text-gray-800 truncate">
+                                  {item.title}
+                                </p>
+                                <p className="text-xs text-gray-500 mt-0.5 truncate">
+                                  {item.description}
+                                </p>
+                              </div>
+                              <p className="text-sm font-bold text-[#008236] flex-shrink-0">
+                                +{formatNaira(item.amount)}
+                              </p>
+                            </div>
+                            <div className="flex items-center justify-between mt-2">
+                              <span className="text-[10px] text-gray-400">
+                                {item.date}
+                                {item.time ? ` · ${item.time}` : ""}
+                              </span>
+                              <span
+                                className={`
+                                  inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold
+                                  ${
+                                    String(item.status).toLowerCase() ===
+                                    "completed"
+                                      ? "bg-green-50 text-green-700"
+                                      : "bg-yellow-50 text-yellow-700"
+                                  }
+                                `}
+                              >
+                                {item.status}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {recentEarnings.length === 0 && !loadingLedger && (
+                    <div className="p-10 text-center">
+                      <div className="w-14 h-14 mx-auto rounded-full bg-green-50 text-[#008236] flex items-center justify-center mb-3">
+                        <FiDollarSign size={22} />
+                      </div>
+                      <p className="text-sm font-medium text-gray-500">
+                        No earnings yet.
+                      </p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        When a buyer pays for your product, your net amount
+                        (95%) appears here.
+                      </p>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </section>
@@ -665,11 +827,11 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
               </div>
               <div>
                 <p className="text-sm font-semibold text-gray-800">
-                  Earnings update after order delivery
+                  Balances update when a buyer pays
                 </p>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  Available balance can be withdrawn to your bank account.
-                  Amounts are net of the 5% CampusMart commission.
+                  Available balance can be withdrawn to your bank. Amounts are
+                  net of the 5% CampusMart commission.
                 </p>
               </div>
             </div>

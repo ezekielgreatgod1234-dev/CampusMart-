@@ -2741,7 +2741,11 @@ function App() {
                 profile={profile}
                 profileResolved={profileResolved}
               >
-                <Payment cartCount={cartCount} profile={profile} />
+                <Payment
+  cartCount={cartCount}
+  profile={profile}
+  placeOrder={placeOrder}
+/>
               </CustomerRoute>
             </ProtectedRoute>
           }
