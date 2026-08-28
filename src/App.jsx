@@ -15,12 +15,14 @@ import {
   getDoc,
   getDocs,
   setDoc,
+  addDoc,
   onSnapshot,
   serverTimestamp,
   collection,
   query,
   where,
   updateDoc,
+  increment,
   runTransaction,
 } from "firebase/firestore";
 
@@ -1404,68 +1406,293 @@ function App() {
   };
 
   // =======================================================
-  // PLACE ORDER
+  // COMMISSION (CampusMart 5%)
   // =======================================================
 
-  const placeOrder = (orderData) => {
+  const PLATFORM_COMMISSION_RATE = 0.05;
+
+  const getItemLineTotal = (item) => {
+    const price = Number(String(item?.price ?? 0).replace(/[₦,]/g, ""));
+    const qty = Number(item?.quantity || 1);
+    return (Number.isFinite(price) ? price : 0) * (Number.isFinite(qty) ? qty : 1);
+  };
+
+  const splitAmount = (total) => {
+    const gross = Number(total) || 0;
+    const platformFee = Math.round(gross * PLATFORM_COMMISSION_RATE);
+    const sellerAmount = Math.max(0, gross - platformFee);
+    return { gross, platformFee, sellerAmount };
+  };
+
+  // =======================================================
+  // PLACE ORDER
+  //
+  // After successful payment:
+  // 1. Create order(s) in Firestore "orders" with sellerId
+  // 2. CampusMart keeps 5%, seller gets 95%
+  // 3. Credit seller availableBalance + totalEarnings
+  // 4. Save order to buyer customerData for Order History
+  // =======================================================
+
+  const placeOrder = async (orderData) => {
     if (!orderData || !firebaseUser) {
       return null;
     }
 
+    const items = Array.isArray(orderData.items) ? orderData.items : [];
+    if (items.length === 0) {
+      console.error("placeOrder: no items");
+      return null;
+    }
+
+    const customer = orderData.customer || {};
+    const paymentMethod = orderData.paymentMethod || "card";
+    const checkoutType = orderData.type || "all";
+    const paystackReference = orderData.paystackReference || null;
+
+    // Group items by seller (supports multi-seller cart)
+    const bySeller = {};
+    for (const item of items) {
+      const sellerId =
+        item.sellerId ||
+        item.sellerUid ||
+        item.seller?.uid ||
+        item.seller?.id ||
+        "";
+
+      if (!sellerId) {
+        console.warn("placeOrder: item missing sellerId", item);
+        continue;
+      }
+
+      if (!bySeller[sellerId]) {
+        bySeller[sellerId] = [];
+      }
+      bySeller[sellerId].push(item);
+    }
+
+    const sellerIds = Object.keys(bySeller);
+    if (sellerIds.length === 0) {
+      console.error(
+        "placeOrder: no sellerId on cart items. Products must include sellerId.",
+      );
+      return null;
+    }
+
     const timestamp = Date.now();
+    const createdOrders = [];
 
-    const newOrder = {
-      id: timestamp.toString().slice(-8),
+    try {
+      for (const sellerId of sellerIds) {
+        const sellerItems = bySeller[sellerId];
+        const total = sellerItems.reduce(
+          (sum, item) => sum + getItemLineTotal(item),
+          0,
+        );
+        const { platformFee, sellerAmount } = splitAmount(total);
+        const orderNumber = `CM-${String(timestamp).slice(-6)}${String(
+          createdOrders.length + 1,
+        ).padStart(2, "0")}`;
 
-      orderNumber: `CM-${timestamp.toString().slice(-8)}`,
+        const orderPayload = {
+          buyerId: firebaseUser.uid,
+          sellerId: String(sellerId),
+          items: sellerItems,
+          total,
+          platformFee,
+          sellerAmount,
+          commissionRate: PLATFORM_COMMISSION_RATE,
+          paymentMethod,
+          paymentStatus: "paid",
+          paystackReference,
+          status: "pending",
+          type: checkoutType,
+          orderNumber,
+          customerName: customer.fullName || "",
+          fullName: customer.fullName || "",
+          phone: customer.phone || "",
+          campus: customer.campus || "",
+          address: customer.address || "",
+          note: customer.note || "",
+          customer: {
+            fullName: customer.fullName || "",
+            phone: customer.phone || "",
+            campus: customer.campus || "",
+            address: customer.address || "",
+            note: customer.note || "",
+          },
+          date: new Date().toLocaleDateString(),
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        };
 
-      items: orderData.items || [],
+        const orderRef = await addDoc(collection(db, "orders"), orderPayload);
 
-      total: orderData.total || 0,
+        // Credit seller: 95% net
+        const sellerRef = doc(db, "users", String(sellerId));
+        try {
+          await updateDoc(sellerRef, {
+            availableBalance: increment(sellerAmount),
+            totalEarnings: increment(sellerAmount),
+            totalSalesGross: increment(total),
+            totalPlatformFees: increment(platformFee),
+            updatedAt: serverTimestamp(),
+          });
+        } catch (sellerErr) {
+          // If seller doc missing fields, merge with setDoc
+          console.warn("Seller balance update fallback:", sellerErr);
+          await setDoc(
+            sellerRef,
+            {
+              availableBalance: increment(sellerAmount),
+              totalEarnings: increment(sellerAmount),
+              totalSalesGross: increment(total),
+              totalPlatformFees: increment(platformFee),
+              updatedAt: serverTimestamp(),
+            },
+            { merge: true },
+          );
+        }
 
-      paymentMethod: orderData.paymentMethod || "",
+        // Earnings ledger (for Seller Earnings page)
+        try {
+          await addDoc(collection(db, "earnings"), {
+            sellerId: String(sellerId),
+            orderId: orderRef.id,
+            type: "sale",
+            title: `Order #${orderNumber}`,
+            description: sellerItems
+              .map((i) => i.name || i.productName || "Item")
+              .join(", "),
+            gross: total,
+            platformFee,
+            amount: sellerAmount,
+            status: "Completed",
+            createdAt: serverTimestamp(),
+          });
+        } catch (earnErr) {
+          console.warn("Could not write earnings ledger:", earnErr);
+        }
 
-      type: orderData.type || "",
+        createdOrders.push({
+          id: orderRef.id,
+          orderNumber,
+          items: sellerItems,
+          total,
+          platformFee,
+          sellerAmount,
+          paymentMethod,
+          type: checkoutType,
+          fullName: customer.fullName || "",
+          phone: customer.phone || "",
+          campus: customer.campus || "",
+          address: customer.address || "",
+          note: customer.note || "",
+          customer,
+          date: new Date().toLocaleDateString(),
+          createdAt: new Date().toISOString(),
+          status: "pending",
+          sellerId: String(sellerId),
+          paymentStatus: "paid",
+        });
+      }
 
-      fullName: orderData.customer?.fullName || "",
+      // Buyer order history (all created orders)
+      const nextOrders = [...orders, ...createdOrders];
+      const purchasedIds = items.map((item) => item.id);
+      const nextCart = cart.filter((item) => !purchasedIds.includes(item.id));
 
-      phone: orderData.customer?.phone || "",
+      setOrders(nextOrders);
+      setCart(nextCart);
 
-      campus: orderData.customer?.campus || "",
+      queueCustomerDataSave({
+        nextCart,
+        nextWishlist: wishlist,
+        nextOrders,
+        immediate: true,
+      });
 
-      address: orderData.customer?.address || "",
+      // Return single order object (or first) for success page
+      return createdOrders.length === 1 ? createdOrders[0] : createdOrders[0];
+    } catch (error) {
+      console.error("placeOrder error:", error);
+      throw error;
+    }
+  };
 
-      note: orderData.customer?.note || "",
+  // =======================================================
+  // CANCEL ORDER (buyer)
+  // Hides from seller + reverses seller credit if still pending
+  // =======================================================
 
-      customer: orderData.customer || {},
+  const cancelOrder = async (orderId) => {
+    if (!orderId || !firebaseUser) {
+      throw new Error("Cannot cancel order");
+    }
 
-      date: new Date().toLocaleDateString(),
+    const orderRef = doc(db, "orders", String(orderId));
+    const snap = await getDoc(orderRef);
 
-      createdAt: new Date().toISOString(),
+    if (!snap.exists()) {
+      // Local-only order fallback
+      const nextOrders = orders.map((o) =>
+        String(o.id) === String(orderId)
+          ? { ...o, status: "cancelled" }
+          : o,
+      );
+      setOrders(nextOrders);
+      queueCustomerDataSave({
+        nextCart: cart,
+        nextWishlist: wishlist,
+        nextOrders,
+        immediate: true,
+      });
+      return;
+    }
 
-      status: "Placed",
-    };
+    const data = snap.data();
+    const status = String(data.status || "pending").toLowerCase();
 
-    const nextOrders = [...orders, newOrder];
+    if (status === "delivered" || status === "cancelled") {
+      throw new Error("This order can no longer be cancelled.");
+    }
 
-    const purchasedIds = Array.isArray(orderData.items)
-      ? orderData.items.map((item) => item.id)
-      : [];
+    if (String(data.buyerId) !== String(firebaseUser.uid)) {
+      throw new Error("You can only cancel your own orders.");
+    }
 
-    const nextCart = cart.filter((item) => !purchasedIds.includes(item.id));
+    const sellerAmount = Number(data.sellerAmount) || 0;
+    const sellerId = data.sellerId;
 
+    await updateDoc(orderRef, {
+      status: "cancelled",
+      cancelledAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    // Reverse seller credit
+    if (sellerId && sellerAmount > 0) {
+      try {
+        await updateDoc(doc(db, "users", String(sellerId)), {
+          availableBalance: increment(-sellerAmount),
+          totalEarnings: increment(-sellerAmount),
+          updatedAt: serverTimestamp(),
+        });
+      } catch (e) {
+        console.warn("Could not reverse seller balance:", e);
+      }
+    }
+
+    const nextOrders = orders.map((o) =>
+      String(o.id) === String(orderId) ? { ...o, status: "cancelled" } : o,
+    );
     setOrders(nextOrders);
-
-    setCart(nextCart);
-
     queueCustomerDataSave({
-      nextCart,
+      nextCart: cart,
       nextWishlist: wishlist,
       nextOrders,
       immediate: true,
     });
-
-    return newOrder;
   };
 
   // =======================================================
@@ -2378,6 +2605,7 @@ function App() {
                   orders={orders}
                   cartCount={cartCount}
                   profile={profile}
+                  cancelOrder={cancelOrder}
                 />
               </CustomerRoute>
             </ProtectedRoute>
