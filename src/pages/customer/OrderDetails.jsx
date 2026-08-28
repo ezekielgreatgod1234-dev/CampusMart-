@@ -21,8 +21,7 @@ function OrderDetails({
   const { id } = useParams();
 
   const [cancelling, setCancelling] = useState(false);
-  const [showCancelConfirm, setShowCancelConfirm] =
-    useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [cancelError, setCancelError] = useState("");
 
   const order = orders.find(
@@ -32,7 +31,7 @@ function OrderDetails({
   if (!order) {
     return (
       <CustomerLayout cartCount={cartCount}>
-        <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="min-h-[60vh] flex items-center justify-center px-4">
           <div className="text-center">
             <div className="w-20 h-20 mx-auto rounded-full bg-red-50 text-red-500 flex items-center justify-center">
               <FiPackage size={35} />
@@ -44,8 +43,9 @@ function OrderDetails({
               We couldn&apos;t find this order.
             </p>
             <button
+              type="button"
               onClick={() => navigate("/orders")}
-              className="mt-6 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-semibold"
+              className="mt-6 bg-green-600 hover:bg-green-700 text-white px-6 py-3.5 rounded-xl font-semibold text-sm sm:text-base"
             >
               Back to Orders
             </button>
@@ -78,8 +78,7 @@ function OrderDetails({
     deliveryInfo.phoneNumber ||
     "";
 
-  const campus =
-    order.campus || deliveryInfo.campus || "";
+  const campus = order.campus || deliveryInfo.campus || "";
 
   const address =
     order.address ||
@@ -112,14 +111,10 @@ function OrderDetails({
   const statusStyles = {
     cancelled: "bg-red-50 text-red-600 border border-red-100",
     delivered: "bg-[#008236] text-white",
-    processing:
-      "bg-green-100 text-[#006f2e] border border-green-200",
-    shipped:
-      "bg-emerald-50 text-emerald-700 border border-emerald-200",
-    pending:
-      "bg-green-50 text-[#008236] border border-green-200",
-    placed:
-      "bg-green-50 text-[#008236] border border-green-200",
+    processing: "bg-green-100 text-[#006f2e] border border-green-200",
+    shipped: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+    pending: "bg-green-50 text-[#008236] border border-green-200",
+    placed: "bg-green-50 text-[#008236] border border-green-200",
   };
 
   const statusClass =
@@ -136,7 +131,6 @@ function OrderDetails({
       if (typeof cancelOrder === "function") {
         await cancelOrder(order.id);
       } else {
-        // Fallback: local-only if parent has no cancelOrder
         console.warn(
           "cancelOrder prop not provided — wire it in App.jsx to update Firestore"
         );
@@ -150,9 +144,7 @@ function OrderDetails({
       setShowCancelConfirm(false);
     } catch (error) {
       console.error("Cancel order error:", error);
-      setCancelError(
-        "Could not cancel this order. Please try again."
-      );
+      setCancelError("Could not cancel this order. Please try again.");
     } finally {
       setCancelling(false);
     }
@@ -164,6 +156,7 @@ function OrderDetails({
         {/* HEADER */}
         <div>
           <button
+            type="button"
             onClick={() => navigate("/orders")}
             className="flex items-center gap-2 text-gray-500 hover:text-green-600 transition"
           >
@@ -174,9 +167,7 @@ function OrderDetails({
           <div className="mt-5">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <p className="text-sm text-gray-500">
-                  Order Number
-                </p>
+                <p className="text-sm text-gray-500">Order Number</p>
                 <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mt-1">
                   #{order.orderNumber || order.id}
                 </h1>
@@ -191,9 +182,7 @@ function OrderDetails({
                   ${statusClass}
                 `}
               >
-                {isCancelled
-                  ? "Cancelled"
-                  : order.status || "Placed"}
+                {isCancelled ? "Cancelled" : order.status || "Placed"}
               </span>
             </div>
           </div>
@@ -210,9 +199,7 @@ function OrderDetails({
           <div className="bg-red-50 border border-red-100 rounded-2xl p-5 flex items-center gap-4">
             <FiXCircle className="text-red-500 shrink-0" size={25} />
             <div>
-              <h3 className="font-semibold text-red-800">
-                Order cancelled
-              </h3>
+              <h3 className="font-semibold text-red-800">Order cancelled</h3>
               <p className="text-sm text-red-700 mt-1">
                 This order was cancelled. The seller will not process it.
               </p>
@@ -258,9 +245,7 @@ function OrderDetails({
                     <p className="text-sm text-gray-500 mt-1">
                       Quantity: {item.quantity}
                     </p>
-                    <p className="font-bold text-gray-900 mt-2">
-                      {item.price}
-                    </p>
+                    <p className="font-bold text-gray-900 mt-2">{item.price}</p>
                   </div>
                 </div>
               ))}
@@ -270,9 +255,7 @@ function OrderDetails({
           {/* RIGHT */}
           <div className="space-y-6">
             <section className="bg-white rounded-2xl border border-gray-100 p-5">
-              <h2 className="text-lg font-bold text-gray-800">
-                Order Summary
-              </h2>
+              <h2 className="text-lg font-bold text-gray-800">Order Summary</h2>
               <div className="space-y-4 mt-5">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Items</span>
@@ -280,15 +263,11 @@ function OrderDetails({
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Delivery</span>
-                  <span className="font-medium text-green-600">
-                    Free
-                  </span>
+                  <span className="font-medium text-green-600">Free</span>
                 </div>
               </div>
               <div className="border-t border-gray-100 mt-5 pt-5 flex justify-between">
-                <span className="font-semibold text-gray-800">
-                  Total
-                </span>
+                <span className="font-semibold text-gray-800">Total</span>
                 <span className="text-xl font-bold text-gray-900">
                   ₦{Number(order.total || 0).toLocaleString()}
                 </span>
@@ -342,18 +321,14 @@ function OrderDetails({
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-400">
-                    Delivery Address
-                  </p>
+                  <p className="text-xs text-gray-400">Delivery Address</p>
                   <p className="text-sm font-medium text-gray-800 mt-1">
                     {address || "Not provided"}
                   </p>
                 </div>
                 {note && (
                   <div>
-                    <p className="text-xs text-gray-400">
-                      Delivery Note
-                    </p>
+                    <p className="text-xs text-gray-400">Delivery Note</p>
                     <p className="text-sm text-gray-700 mt-1 bg-gray-50 rounded-xl p-3">
                       {note}
                     </p>
@@ -362,26 +337,24 @@ function OrderDetails({
               </div>
             </section>
 
-            {/* CANCEL ORDER */}
+            {/* CANCEL ORDER — larger touch target */}
             {canCancel && (
-              <section className="bg-white rounded-2xl border border-red-100 p-5">
-                <h2 className="font-bold text-gray-800">
-                  Cancel order
-                </h2>
-                <p className="text-sm text-gray-500 mt-2">
-                  Placed by mistake? You can cancel this order.
-                  The seller will no longer see it.
+              <section className="bg-white rounded-2xl border border-green-100 p-5">
+                <h2 className="font-bold text-gray-800">Cancel order</h2>
+                <p className="text-sm text-gray-500 mt-2 leading-6">
+                  Placed by mistake? You can cancel this order. The seller will
+                  no longer see it.
                 </p>
                 <button
                   type="button"
                   onClick={() => setShowCancelConfirm(true)}
                   disabled={cancelling}
                   className="
-                    mt-4 w-full h-11 rounded-xl
-                    border border-red-200 text-red-600
-                    font-semibold text-sm
-                    hover:bg-red-50 transition
-                    disabled:opacity-50
+                    mt-4 w-full min-h-[48px] h-12 sm:h-12
+                    rounded-xl
+                    bg-[#008236] hover:bg-[#006f2e] active:bg-[#005f28]
+                    text-white font-semibold text-sm sm:text-base
+                    transition disabled:opacity-50
                   "
                 >
                   Cancel this order
@@ -393,10 +366,7 @@ function OrderDetails({
 
         {!isCancelled && (
           <div className="bg-green-50 border border-green-100 rounded-2xl p-5 flex items-center gap-4">
-            <FiCheckCircle
-              className="text-green-600 shrink-0"
-              size={25}
-            />
+            <FiCheckCircle className="text-green-600 shrink-0" size={25} />
             <div>
               <h3 className="font-semibold text-green-800">
                 Order Placed Successfully
@@ -409,56 +379,102 @@ function OrderDetails({
         )}
       </div>
 
-      {/* CANCEL CONFIRM MODAL */}
+      {/* CANCEL CONFIRM MODAL — mobile bottom sheet, large green buttons */}
       {showCancelConfirm && (
         <div
-          className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-4"
+          className="
+            fixed inset-0 z-[100]
+            bg-black/50 backdrop-blur-[2px]
+            flex items-end sm:items-center justify-center
+            p-0 sm:p-4
+          "
           onClick={() => {
             if (!cancelling) setShowCancelConfirm(false);
           }}
         >
           <div
-            className="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-100"
+            className="
+              w-full sm:max-w-md
+              bg-white
+              rounded-t-3xl sm:rounded-2xl
+              shadow-2xl
+              overflow-hidden
+              border border-gray-100
+              max-h-[90dvh]
+              flex flex-col
+            "
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-5 border-b border-gray-100">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-red-50 text-red-600 flex items-center justify-center">
-                  <FiXCircle size={20} />
+            {/* Mobile drag handle */}
+            <div className="sm:hidden flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 rounded-full bg-gray-300" />
+            </div>
+
+            <div className="px-5 pt-3 sm:pt-5 pb-4 border-b border-gray-100">
+              <div className="flex items-start gap-3">
+                <div className="w-12 h-12 rounded-full bg-green-50 text-[#008236] flex items-center justify-center shrink-0 border border-green-100">
+                  <FiXCircle size={22} />
                 </div>
-                <div>
-                  <h3 className="text-lg font-bold text-gray-900">
+                <div className="min-w-0 pt-0.5">
+                  <h3 className="text-lg sm:text-xl font-bold text-gray-900">
                     Cancel order?
                   </h3>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-gray-500 mt-0.5">
                     This cannot be undone.
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="p-5 text-sm text-gray-600 leading-6">
-              If you cancel, the seller will no longer see this
-              order and it will be marked as cancelled in your
-              order history.
+            <div className="px-5 py-5 text-sm sm:text-[15px] text-gray-600 leading-6">
+              If you cancel, the seller will no longer see this order and it
+              will be marked as cancelled in your order history.
             </div>
 
-            <div className="p-4 bg-gray-50 flex flex-col sm:flex-row gap-3">
-              <button
-                type="button"
-                disabled={cancelling}
-                onClick={() => setShowCancelConfirm(false)}
-                className="flex-1 h-11 rounded-xl border border-gray-200 bg-white text-gray-600 font-semibold text-sm"
-              >
-                Keep order
-              </button>
+            {/* Buttons — stacked on mobile, full width, large, green */}
+            <div
+              className="
+                px-5 pt-2 pb-5 sm:pb-5
+                flex flex-col gap-3
+                bg-gray-50 border-t border-gray-100
+              "
+              style={{
+                paddingBottom:
+                  "max(1.25rem, env(safe-area-inset-bottom))",
+              }}
+            >
               <button
                 type="button"
                 disabled={cancelling}
                 onClick={handleCancelOrder}
-                className="flex-1 h-11 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold text-sm disabled:opacity-60"
+                className="
+                  w-full min-h-[52px] h-13
+                  rounded-xl
+                  bg-[#008236] hover:bg-[#006f2e] active:bg-[#005f28]
+                  text-white font-semibold text-base
+                  disabled:opacity-60 transition
+                  flex items-center justify-center
+                "
               >
                 {cancelling ? "Cancelling..." : "Yes, cancel"}
+              </button>
+
+              <button
+                type="button"
+                disabled={cancelling}
+                onClick={() => setShowCancelConfirm(false)}
+                className="
+                  w-full min-h-[52px] h-13
+                  rounded-xl
+                  border-2 border-[#008236]
+                  bg-white text-[#008236]
+                  font-semibold text-base
+                  hover:bg-green-50 active:bg-green-100
+                  disabled:opacity-60 transition
+                  flex items-center justify-center
+                "
+              >
+                Keep order
               </button>
             </div>
           </div>

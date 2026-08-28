@@ -463,7 +463,7 @@ function SellerOrders({
         </header>
 
         <main className="flex-1 overflow-y-auto px-3 sm:px-5 lg:px-8 py-5 sm:py-6">
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-green-700 via-green-600 to-green-500 p-6 sm:p-7 text-white shadow-lg mb-6">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#007233] to-[#008f3f]  p-6 sm:p-7 text-white shadow-lg mb-6">
             <div className="pointer-events-none absolute -right-8 -top-10 h-40 w-40 rounded-full bg-white/10" />
             <div className="pointer-events-none absolute -right-2 top-16 h-28 w-28 rounded-full bg-white/10" />
             <div className="relative inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium text-green-50">
