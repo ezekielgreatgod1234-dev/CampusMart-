@@ -20,6 +20,9 @@ import {
   FiCheckCircle,
   FiAlertCircle,
   FiRefreshCw,
+  FiLock,
+  FiEye,
+  FiEyeOff,
 } from "react-icons/fi";
 
 import {
@@ -34,6 +37,17 @@ import {
 
 import { db } from "../../context/firebase";
 import { useAuth } from "../../context/AuthContext";
+
+// =====================================================
+// HASH PIN (SHA-256 via Web Crypto)
+// =====================================================
+async function hashPin(pin) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(String(pin).trim());
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
 
 function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
   const navigate = useNavigate();
@@ -53,6 +67,24 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
 
   const [availableBalance, setAvailableBalance] = useState(0);
   const [loadingBalance, setLoadingBalance] = useState(true);
+
+  // =====================================================
+  // PAYMENT PIN STATE
+  // =====================================================
+  const [hasPaymentPin, setHasPaymentPin] = useState(false);
+  const [storedPinHash, setStoredPinHash] = useState(null);
+
+  const [pinModalOpen, setPinModalOpen] = useState(false);
+  const [pinMode, setPinMode] = useState("verify"); // "set" | "verify"
+  const [pinValue, setPinValue] = useState("");
+  const [confirmPinValue, setConfirmPinValue] = useState("");
+  const [pinError, setPinError] = useState("");
+  const [pinSubmitting, setPinSubmitting] = useState(false);
+  const [showPin, setShowPin] = useState(false);
+  const [showConfirmPin, setShowConfirmPin] = useState(false);
+
+  // Pending withdrawal data after PIN success
+  const [pendingWithdrawal, setPendingWithdrawal] = useState(null);
 
   // =====================================================
   // SELLER PROFILE
@@ -79,12 +111,14 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
     null;
 
   // =====================================================
-  // LIVE AVAILABLE BALANCE
+  // LIVE AVAILABLE BALANCE + PIN STATUS
   // =====================================================
 
   useEffect(() => {
     if (!firebaseUser?.uid) {
       setAvailableBalance(0);
+      setHasPaymentPin(false);
+      setStoredPinHash(null);
       setLoadingBalance(false);
       return;
     }
@@ -96,6 +130,11 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
       (snap) => {
         const data = snap.data() || {};
         setAvailableBalance(Number(data.availableBalance) || 0);
+
+        const pinHash = data.paymentPinHash || null;
+        setStoredPinHash(pinHash);
+        setHasPaymentPin(Boolean(pinHash));
+
         setLoadingBalance(false);
       },
       (error) => {
@@ -170,14 +209,15 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
   ];
 
   // =====================================================
-  // SUBMIT WITHDRAWAL
+  // OPEN PIN MODAL AFTER FORM VALIDATION
   // =====================================================
 
-  const handleSubmit = async (event) => {
+  const handleSubmit = (event) => {
     event.preventDefault();
 
     setFormError("");
     setSuccess(false);
+    setPinError("");
 
     if (!firebaseUser?.uid) {
       setFormError("You must be logged in to withdraw.");
@@ -216,24 +256,55 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
       return;
     }
 
+    // Store validated data and open PIN modal
+    setPendingWithdrawal({
+      numericAmount,
+      bankName: bankName.trim(),
+      accountNumber: accountNumber.trim(),
+      accountName: accountName.trim(),
+    });
+
+    setPinValue("");
+    setConfirmPinValue("");
+    setPinError("");
+    setShowPin(false);
+    setShowConfirmPin(false);
+
+    if (hasPaymentPin) {
+      setPinMode("verify");
+    } else {
+      setPinMode("set");
+    }
+
+    setPinModalOpen(true);
+  };
+
+  // =====================================================
+  // ACTUAL WITHDRAWAL (called after PIN success)
+  // =====================================================
+
+  const processWithdrawal = async (data) => {
+    if (!firebaseUser?.uid || !data) return;
+
     setSubmitting(true);
+    setPinSubmitting(true);
 
     try {
       // 1) Create withdrawal request
       await addDoc(collection(db, "withdrawals"), {
         sellerId: firebaseUser.uid,
-        amount: numericAmount,
-        bankName: bankName.trim(),
-        accountNumber: accountNumber.trim(),
-        accountName: accountName.trim(),
+        amount: data.numericAmount,
+        bankName: data.bankName,
+        accountNumber: data.accountNumber,
+        accountName: data.accountName,
         status: "Pending",
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
 
-      // 2) Deduct from available balance (seller only updates own doc)
+      // 2) Deduct from available balance
       await updateDoc(doc(db, "users", firebaseUser.uid), {
-        availableBalance: increment(-numericAmount),
+        availableBalance: increment(-data.numericAmount),
         updatedAt: serverTimestamp(),
       });
 
@@ -243,8 +314,8 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
           sellerId: firebaseUser.uid,
           type: "withdrawal",
           title: "Withdrawal request",
-          description: `${bankName.trim()} · ${accountNumber.trim()}`,
-          amount: -numericAmount,
+          description: `${data.bankName} · ${data.accountNumber}`,
+          amount: -data.numericAmount,
           status: "Pending",
           createdAt: serverTimestamp(),
         });
@@ -252,12 +323,14 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
         console.warn("Could not write withdrawal ledger row:", ledgerErr);
       }
 
-      setSuccessAmount(numericAmount);
+      setSuccessAmount(data.numericAmount);
       setSuccess(true);
       setAmount("");
       setBankName("");
       setAccountNumber("");
       setAccountName("");
+      setPendingWithdrawal(null);
+      setPinModalOpen(false);
     } catch (error) {
       console.error("Withdrawal error:", error);
       setFormError(
@@ -265,8 +338,94 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
           ? "Permission denied. Check Firestore rules for withdrawals."
           : "Unable to submit withdrawal. Please try again."
       );
+      setPinModalOpen(false);
     } finally {
       setSubmitting(false);
+      setPinSubmitting(false);
+    }
+  };
+
+  // =====================================================
+  // PIN MODAL HANDLERS
+  // =====================================================
+
+  const closePinModal = () => {
+    if (pinSubmitting) return;
+    setPinModalOpen(false);
+    setPinValue("");
+    setConfirmPinValue("");
+    setPinError("");
+    setPendingWithdrawal(null);
+  };
+
+  const handlePinSubmit = async (event) => {
+    event.preventDefault();
+    setPinError("");
+
+    const pin = String(pinValue).trim();
+
+    if (!/^\d{4}$/.test(pin)) {
+      setPinError("PIN must be exactly 4 digits.");
+      return;
+    }
+
+    if (pinMode === "set") {
+      const confirm = String(confirmPinValue).trim();
+
+      if (pin !== confirm) {
+        setPinError("PINs do not match. Please try again.");
+        return;
+      }
+
+      setPinSubmitting(true);
+
+      try {
+        const pinHash = await hashPin(pin);
+
+        await updateDoc(doc(db, "users", firebaseUser.uid), {
+          paymentPinHash: pinHash,
+          paymentPinSetAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+
+        // Local update (onSnapshot will also update)
+        setStoredPinHash(pinHash);
+        setHasPaymentPin(true);
+
+        // Proceed with withdrawal
+        await processWithdrawal(pendingWithdrawal);
+      } catch (error) {
+        console.error("Set PIN error:", error);
+        setPinError("Unable to save PIN. Please try again.");
+        setPinSubmitting(false);
+      }
+      return;
+    }
+
+    // VERIFY mode
+    if (!storedPinHash) {
+      setPinError("No PIN found. Please set a new one.");
+      setPinMode("set");
+      return;
+    }
+
+    setPinSubmitting(true);
+
+    try {
+      const inputHash = await hashPin(pin);
+
+      if (inputHash !== storedPinHash) {
+        setPinError("Incorrect PIN. Please try again.");
+        setPinSubmitting(false);
+        return;
+      }
+
+      // PIN correct → process withdrawal
+      await processWithdrawal(pendingWithdrawal);
+    } catch (error) {
+      console.error("Verify PIN error:", error);
+      setPinError("Unable to verify PIN. Please try again.");
+      setPinSubmitting(false);
     }
   };
 
@@ -667,7 +826,8 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
                     1–3 business days
                   </span>
                   . Minimum amount is ₦1,000. The amount is reserved from your
-                  available balance when you submit.
+                  available balance when you submit. You will be asked for your
+                  payment PIN.
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3 pt-1">
@@ -682,7 +842,9 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
 
                   <button
                     type="submit"
-                    disabled={submitting || loadingBalance || availableBalance < 1000}
+                    disabled={
+                      submitting || loadingBalance || availableBalance < 1000
+                    }
                     className="h-12 px-5 rounded-xl bg-[#008236] text-white text-sm font-semibold flex items-center justify-center gap-2 hover:bg-[#006f2e] active:bg-[#005f28] transition shadow-sm disabled:opacity-60 disabled:cursor-not-allowed sm:flex-[1.4]"
                   >
                     {submitting ? (
@@ -703,6 +865,166 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
           )}
         </main>
       </div>
+
+      {/* =====================================================
+          PAYMENT PIN MODAL
+          ===================================================== */}
+      {pinModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={closePinModal}
+          />
+
+          <div className="relative w-full max-w-[400px] bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
+            <div className="p-5 sm:p-6 border-b border-gray-100 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-green-50 text-[#008236] flex items-center justify-center flex-shrink-0">
+                  <FiLock size={18} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-800">
+                    {pinMode === "set"
+                      ? "Set Payment PIN"
+                      : "Enter Payment PIN"}
+                  </h3>
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    {pinMode === "set"
+                      ? "Create a 4-digit PIN to secure withdrawals."
+                      : "Enter your 4-digit PIN to continue."}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={closePinModal}
+                disabled={pinSubmitting}
+                className="w-9 h-9 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 flex items-center justify-center transition disabled:opacity-50"
+              >
+                <FiX size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handlePinSubmit} className="p-5 sm:p-6 space-y-4">
+              {pinError && (
+                <div className="rounded-xl bg-red-50 border border-red-100 px-3.5 py-2.5 text-xs text-red-600 flex items-center gap-2">
+                  <FiAlertCircle size={14} className="flex-shrink-0" />
+                  {pinError}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-2">
+                  {pinMode === "set" ? "Create PIN" : "Payment PIN"}
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPin ? "text" : "password"}
+                    inputMode="numeric"
+                    maxLength={4}
+                    value={pinValue}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\D/g, "").slice(0, 4);
+                      setPinValue(value);
+                      if (pinError) setPinError("");
+                    }}
+                    disabled={pinSubmitting}
+                    placeholder="••••"
+                    autoFocus
+                    className="w-full h-12 px-3.5 pr-11 rounded-xl border border-gray-200 bg-gray-50 text-sm font-semibold tracking-[0.4em] text-center text-gray-800 outline-none focus:border-[#008236] focus:ring-4 focus:ring-green-50 transition disabled:opacity-60"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPin((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
+                    tabIndex={-1}
+                  >
+                    {showPin ? <FiEyeOff size={18} /> : <FiEye size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              {pinMode === "set" && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-2">
+                    Confirm PIN
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPin ? "text" : "password"}
+                      inputMode="numeric"
+                      maxLength={4}
+                      value={confirmPinValue}
+                      onChange={(e) => {
+                        const value = e.target.value
+                          .replace(/\D/g, "")
+                          .slice(0, 4);
+                        setConfirmPinValue(value);
+                        if (pinError) setPinError("");
+                      }}
+                      disabled={pinSubmitting}
+                      placeholder="••••"
+                      className="w-full h-12 px-3.5 pr-11 rounded-xl border border-gray-200 bg-gray-50 text-sm font-semibold tracking-[0.4em] text-center text-gray-800 outline-none focus:border-[#008236] focus:ring-4 focus:ring-green-50 transition disabled:opacity-60"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPin((v) => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
+                      tabIndex={-1}
+                    >
+                      {showConfirmPin ? (
+                        <FiEyeOff size={18} />
+                      ) : (
+                        <FiEye size={18} />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="rounded-xl bg-green-50 border border-green-100 px-3.5 py-2.5 text-[11px] text-gray-600 leading-5">
+                {pinMode === "set"
+                  ? "This PIN will be required for all future withdrawals. Keep it safe."
+                  : "Your PIN is securely stored and remembered for this account."}
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 pt-1">
+                <button
+                  type="button"
+                  disabled={pinSubmitting}
+                  onClick={closePinModal}
+                  className="h-11 px-4 rounded-xl border border-gray-200 bg-white text-gray-600 text-sm font-semibold hover:bg-gray-50 transition disabled:opacity-50 sm:flex-1"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={
+                    pinSubmitting ||
+                    pinValue.length !== 4 ||
+                    (pinMode === "set" && confirmPinValue.length !== 4)
+                  }
+                  className="h-11 px-4 rounded-xl bg-[#008236] text-white text-sm font-semibold flex items-center justify-center gap-2 hover:bg-[#006f2e] active:bg-[#005f28] transition shadow-sm disabled:opacity-60 disabled:cursor-not-allowed sm:flex-[1.3]"
+                >
+                  {pinSubmitting ? (
+                    <>
+                      <FiRefreshCw size={16} className="animate-spin" />
+                      {pinMode === "set" ? "Saving..." : "Verifying..."}
+                    </>
+                  ) : (
+                    <>
+                      <FiLock size={16} />
+                      {pinMode === "set" ? "Set PIN & Continue" : "Confirm & Withdraw"}
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
