@@ -1,6 +1,6 @@
+// Chat.jsx
 import {
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
@@ -54,14 +54,14 @@ function Chat({
   const [deleting, setDeleting] = useState(false);
 
   // =====================================================
-  // STABLE TIMESTAMP (never reorders after redeploy)
-  // Prefer createdAtMs (number) → Timestamp → Date → string
+  // TIMESTAMP — used ONLY for the little time label under
+  // each bubble (e.g. "6:04 PM"). NEVER used for ordering
+  // messages anymore — see note below on why.
   // =====================================================
 
   const getMessageTimestampMs = (message) => {
     if (!message) return 0;
 
-    // Explicit ms field (most stable across deploys)
     if (
       typeof message.createdAtMs === "number" &&
       Number.isFinite(message.createdAtMs) &&
@@ -91,7 +91,6 @@ function Chat({
     }
 
     if (typeof createdAt === "number" && Number.isFinite(createdAt)) {
-      // Date.now() is ~1.7e12; unix seconds are ~1.7e9
       return createdAt < 1e12 ? createdAt * 1000 : createdAt;
     }
 
@@ -193,44 +192,28 @@ function Chat({
     fallbackPerson?.photoURL ||
     null;
 
+  // =====================================================
+  // MESSAGES — USE FIRESTORE ARRAY ORDER DIRECTLY.
+  //
+  // Every message is appended to this array inside a
+  // runTransaction (read current array -> push new message
+  // -> write it back). That means the array is ALREADY in
+  // the exact order messages were actually sent — it is the
+  // single source of truth for chronology.
+  //
+  // We deliberately do NOT re-sort by createdAt/createdAtMs
+  // here anymore. Re-sorting by a client-generated timestamp
+  // is what caused messages to appear out of order: if two
+  // devices' clocks are even a little out of sync, a message
+  // sent later can carry an earlier timestamp number than one
+  // sent before it, and re-sorting would then flip them.
+  // Trusting array order avoids that entirely.
+  // =====================================================
+
   const chatMessages =
     liveConversation && Array.isArray(liveConversation.messages)
       ? liveConversation.messages
       : fallbackPerson?.conversation || [];
-
-  // =====================================================
-  // SORT: oldest → newest (stable even after code push)
-  // 1) real timestamp
-  // 2) original array index (Firestore append order)
-  // 3) id string
-  // =====================================================
-
-  const sortedMessages = useMemo(() => {
-    const withIndex = chatMessages.map((message, index) => ({
-      message,
-      index,
-    }));
-
-    withIndex.sort((a, b) => {
-      const aTime = getMessageTimestampMs(a.message);
-      const bTime = getMessageTimestampMs(b.message);
-
-      if (aTime !== bTime) {
-        return aTime - bTime;
-      }
-
-      // Same/missing time → keep Firestore array order
-      if (a.index !== b.index) {
-        return a.index - b.index;
-      }
-
-      return String(a.message?.id || "").localeCompare(
-        String(b.message?.id || "")
-      );
-    });
-
-    return withIndex.map((row) => row.message);
-  }, [chatMessages]);
 
   const isMyMessage = (message) => {
     if (!message || !firebaseUser?.uid) return false;
@@ -309,7 +292,7 @@ function Chat({
     markIncomingMessagesAsSeen();
   }, [id, firebaseUser?.uid, liveConversation?.id, markMessageAsRead]);
 
-  const visibleMessages = sortedMessages.filter((message) => {
+  const visibleMessages = chatMessages.filter((message) => {
     const deletedFor = Array.isArray(message.deletedFor)
       ? message.deletedFor
       : [];

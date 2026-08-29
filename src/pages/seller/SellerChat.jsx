@@ -1,6 +1,6 @@
+// SellerChat.jsx
 import {
   useEffect,
-  useMemo,
   useState,
 } from "react";
 
@@ -118,7 +118,7 @@ function SellerChat({
     useState(false);
 
   // =====================================================
-  // SIDEBAR MENU (Reviews & Analytics removed)
+  // SIDEBAR MENU
   // =====================================================
 
   const menuItems = [
@@ -210,21 +210,33 @@ function SellerChat({
   };
 
   // =====================================================
-  // ROBUST MESSAGE TIMESTAMP (fixes order + stable times)
+  // TIMESTAMP — used ONLY for the little time label under
+  // each bubble. NEVER used for ordering messages — see
+  // the note above `chatMessages` below for why.
   // =====================================================
 
   const getMessageTimestampMs = (message) => {
     if (!message) return 0;
 
+    if (
+      typeof message.createdAtMs === "number" &&
+      Number.isFinite(message.createdAtMs) &&
+      message.createdAtMs > 0
+    ) {
+      return message.createdAtMs < 1e12
+        ? message.createdAtMs * 1000
+        : message.createdAtMs;
+    }
+
     const createdAt = message.createdAt;
 
     if (!createdAt) {
-      const asNum = Number(message.id);
-      return Number.isFinite(asNum) ? asNum : 0;
+      return 0;
     }
 
     if (typeof createdAt.toMillis === "function") {
-      return createdAt.toMillis();
+      const ms = createdAt.toMillis();
+      return Number.isFinite(ms) ? ms : 0;
     }
 
     if (
@@ -262,30 +274,25 @@ function SellerChat({
   // FALLBACK CONVERSATION
   // =====================================================
 
-  const fallbackConversation = useMemo(() => {
-    if (!conversationId) {
-      return null;
-    }
+  const fallbackConversation =
+    (!conversationId
+      ? null
+      : messages.find((message) => {
+          const possibleIds = [
+            message?.conversationId,
+            message?.chatId,
+            message?.conversationID,
+            message?.chatID,
+            message?.conversation_id,
+            message?.chat_id,
+            message?.id,
+          ].filter(Boolean);
 
-    return (
-      messages.find((message) => {
-        const possibleIds = [
-          message?.conversationId,
-          message?.chatId,
-          message?.conversationID,
-          message?.chatID,
-          message?.conversation_id,
-          message?.chat_id,
-          message?.id,
-        ].filter(Boolean);
-
-        return possibleIds.some(
-          (value) =>
-            String(value) === String(conversationId)
-        );
-      }) || null
-    );
-  }, [messages, conversationId]);
+          return possibleIds.some(
+            (value) =>
+              String(value) === String(conversationId)
+          );
+        })) || null;
 
   // =====================================================
   // LOAD CONVERSATION
@@ -545,7 +552,21 @@ function SellerChat({
     null;
 
   // =====================================================
-  // CHAT MESSAGES
+  // MESSAGES — USE FIRESTORE ARRAY ORDER DIRECTLY.
+  //
+  // Every message is appended to this array inside a
+  // runTransaction (read current array -> push new message
+  // -> write it back). That means the array is ALREADY in
+  // the exact order messages were actually sent — it is the
+  // single source of truth for chronology.
+  //
+  // Previously this component re-sorted the array by
+  // createdAt/createdAtMs. That's what caused messages to
+  // scatter: if the sender's device clock is even slightly
+  // off, or an older message is missing a timestamp field,
+  // re-sorting can flip two messages relative to each other
+  // even though Firestore had already stored them correctly.
+  // Trusting the array order avoids that entirely.
   // =====================================================
 
   const chatMessages =
@@ -561,25 +582,6 @@ function SellerChat({
         )
       ? fallbackConversation.messages
       : [];
-
-  // =====================================================
-  // SORT MESSAGES (oldest → newest, stable)
-  // =====================================================
-
-  const sortedMessages = useMemo(() => {
-    return [...chatMessages].sort((a, b) => {
-      const aTime = getMessageTimestampMs(a);
-      const bTime = getMessageTimestampMs(b);
-
-      if (aTime !== bTime) {
-        return aTime - bTime;
-      }
-
-      return String(a?.id || "").localeCompare(
-        String(b?.id || "")
-      );
-    });
-  }, [chatMessages]);
 
   // =====================================================
   // IS MY MESSAGE
@@ -777,7 +779,7 @@ function SellerChat({
   // =====================================================
 
   const visibleMessages =
-    sortedMessages.filter(
+    chatMessages.filter(
       (message) => {
         const deletedFor =
           Array.isArray(
