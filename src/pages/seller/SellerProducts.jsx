@@ -288,6 +288,53 @@ function SellerProducts({ unreadMessages = 0, profile = {} }) {
   const [products, setProducts] =
     useState([]);
 
+  // Sold units from real orders (and product.sales field)
+  const [soldByProductId, setSoldByProductId] = useState({});
+
+  // =====================================================
+  // LIVE SALES FROM ORDERS
+  // =====================================================
+
+  useEffect(() => {
+    if (!firebaseUser?.uid) {
+      setSoldByProductId({});
+      return;
+    }
+
+    const ordersQuery = query(
+      collection(db, "orders"),
+      where("sellerId", "==", firebaseUser.uid)
+    );
+
+    const unsubscribe = onSnapshot(
+      ordersQuery,
+      (snapshot) => {
+        const counts = {};
+
+        snapshot.docs.forEach((orderDoc) => {
+          const data = orderDoc.data();
+          const status = String(data.status || "").toLowerCase();
+          if (status === "cancelled") return;
+
+          const items = Array.isArray(data.items) ? data.items : [];
+          items.forEach((item) => {
+            const pid = String(item.id || item.productId || "");
+            if (!pid) return;
+            const qty = Number(item.quantity) || 1;
+            counts[pid] = (counts[pid] || 0) + qty;
+          });
+        });
+
+        setSoldByProductId(counts);
+      },
+      (error) => {
+        console.error("Error loading product sales from orders:", error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [firebaseUser?.uid]);
+
   // =====================================================
   // FIRESTORE PRODUCT LISTENER
   // =====================================================
@@ -1002,10 +1049,7 @@ const sellerImage =
   const totalSales =
     products.reduce(
       (total, product) =>
-        total +
-        Number(
-          product.sales || 0
-        ),
+        total + getSoldCount(product),
       0
     );
 
@@ -1017,6 +1061,12 @@ const sellerImage =
     `₦${Number(
       amount || 0
     ).toLocaleString("en-NG")}`;
+
+  // Prefer order-derived sales, fall back to product.sales field
+  const getSoldCount = (product) =>
+    Number(soldByProductId[product?.id]) ||
+    Number(product?.sales) ||
+    0;
 
   // =====================================================
   // STATUS CLASSES
@@ -2492,7 +2542,7 @@ const sellerImage =
 
                             <td className="px-4 py-4">
                               <p className="text-sm font-semibold text-gray-700">
-                                {product.sales}
+                                {getSoldCount(product)}
                               </p>
                               <p className="text-[10px] text-gray-400 mt-0.5">
                                 sold
@@ -2852,7 +2902,7 @@ const sellerImage =
                               Sales
                             </p>
                             <p className="text-sm font-bold text-gray-700 mt-1">
-                              {product.sales}
+                              {getSoldCount(product)}
                             </p>
                           </div>
 

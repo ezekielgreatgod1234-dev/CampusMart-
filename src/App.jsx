@@ -24,6 +24,7 @@ import {
   updateDoc,
   increment,
   runTransaction,
+  Timestamp,
 } from "firebase/firestore";
 
 import { db } from "./context/firebase";
@@ -526,17 +527,34 @@ async function formatConversation(conversationDoc, currentUserId) {
   // SORT MESSAGES
   // =======================================================
 
-  const sortedVisibleMessages = [...visibleMessages].sort((a, b) => {
-    const aTime = a.createdAt?.toMillis
-      ? a.createdAt.toMillis()
-      : Number(a.createdAt || 0);
+  const getMsgMs = (m) => {
+    if (!m) return 0;
+    if (typeof m.createdAtMs === "number" && m.createdAtMs > 0) {
+      return m.createdAtMs < 1e12 ? m.createdAtMs * 1000 : m.createdAtMs;
+    }
+    const c = m.createdAt;
+    if (!c) return 0;
+    if (typeof c.toMillis === "function") return c.toMillis();
+    if (typeof c === "object" && typeof c.seconds === "number") {
+      return c.seconds * 1000 + Math.floor((c.nanoseconds || 0) / 1e6);
+    }
+    if (typeof c === "number") return c < 1e12 ? c * 1000 : c;
+    if (typeof c === "string") {
+      const t = Date.parse(c);
+      return Number.isFinite(t) ? t : 0;
+    }
+    return 0;
+  };
 
-    const bTime = b.createdAt?.toMillis
-      ? b.createdAt.toMillis()
-      : Number(b.createdAt || 0);
-
-    return aTime - bTime;
-  });
+  const sortedVisibleMessages = [...visibleMessages]
+    .map((message, index) => ({ message, index }))
+    .sort((a, b) => {
+      const aTime = getMsgMs(a.message);
+      const bTime = getMsgMs(b.message);
+      if (aTime !== bTime) return aTime - bTime;
+      return a.index - b.index;
+    })
+    .map((row) => row.message);
 
   // =======================================================
   // LAST VISIBLE MESSAGE
@@ -1574,6 +1592,22 @@ function App() {
           console.warn("Could not write earnings ledger:", earnErr);
         }
 
+        // Increment product sales counts
+        for (const item of sellerItems) {
+          const productId = item.id || item.productId;
+          if (!productId) continue;
+          const qty = Number(item.quantity) || 1;
+          try {
+            await updateDoc(doc(db, "products", String(productId)), {
+              sales: increment(qty),
+              updatedAt: serverTimestamp(),
+            });
+          } catch (salesErr) {
+            console.warn("Could not update product sales:", productId, salesErr);
+          }
+        }
+
+
         createdOrders.push({
           id: orderRef.id,
           orderNumber,
@@ -1885,8 +1919,10 @@ function App() {
           ? data.messages
           : [];
 
+        const nowMs = Date.now();
+
         const newMessage = {
-          id: `${firebaseUser.uid}_${Date.now()}_${Math.random()
+          id: `${firebaseUser.uid}_${nowMs}_${Math.random()
             .toString(36)
             .slice(2, 8)}`,
 
@@ -1896,7 +1932,13 @@ function App() {
 
           text: cleanText,
 
-          createdAt: Date.now(),
+          // Stable timestamps — survives redeploys and sort correctly
+          createdAt: Timestamp.now(),
+          createdAtMs: nowMs,
+          time: new Date(nowMs).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
 
           deletedFor: [],
         };
@@ -1908,7 +1950,7 @@ function App() {
 
           lastMessage: cleanText,
 
-          lastMessageAt: Date.now(),
+          lastMessageAt: nowMs,
 
           [`unreadCounts.${receiverId}`]: currentUnread + 1,
 
@@ -2741,11 +2783,7 @@ function App() {
                 profile={profile}
                 profileResolved={profileResolved}
               >
-                <Payment
-  cartCount={cartCount}
-  profile={profile}
-  placeOrder={placeOrder}
-/>
+                <Payment cartCount={cartCount} profile={profile} />
               </CustomerRoute>
             </ProtectedRoute>
           }
@@ -2922,7 +2960,7 @@ function App() {
           element={
             <ProtectedRoute profileResolved={profileResolved}>
               <SellerRoute profile={profile} profileResolved={profileResolved}>
-                <WithdrawEarnings unreadMessages={unreadMessages} />
+                <WithdrawEarnings unreadMessages={unreadMessages} profile={profile} />
               </SellerRoute>
             </ProtectedRoute>
           }
