@@ -1046,6 +1046,12 @@ const sellerImage =
         "Out of Stock"
     ).length;
 
+  // Prefer order-derived sales, fall back to product.sales field
+  const getSoldCount = (product) =>
+    Number(soldByProductId[product?.id]) ||
+    Number(product?.sales) ||
+    0;
+
   const totalSales =
     products.reduce(
       (total, product) =>
@@ -1062,11 +1068,6 @@ const sellerImage =
       amount || 0
     ).toLocaleString("en-NG")}`;
 
-  // Prefer order-derived sales, fall back to product.sales field
-  const getSoldCount = (product) =>
-    Number(soldByProductId[product?.id]) ||
-    Number(product?.sales) ||
-    0;
 
   // =====================================================
   // STATUS CLASSES
