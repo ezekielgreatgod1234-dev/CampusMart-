@@ -93,6 +93,7 @@ import AdminOrders from "./pages/admin/AdminOrders";
 import AdminFees from "./pages/admin/AdminFees";
 import AdminWithdrawals from "./pages/admin/AdminWithdrawals";
 import AdminPayments from "./pages/admin/AdminPayments";
+import AccountDisabled from "./context/AccountDisabled";
 
 // =========================================================
 // DEFAULT PROFILE
@@ -4968,6 +4969,7 @@ function App() {
         <Route path="/admin/fees" element={<AdminFees />} />
         <Route path="/admin/withdrawals" element={<AdminWithdrawals />} />
         <Route path="/admin/payments" element={<AdminPayments />} />
+        <Route path="/account-disabled" element={<AccountDisabled />} />
 
 
         {/* ================================================== */}
