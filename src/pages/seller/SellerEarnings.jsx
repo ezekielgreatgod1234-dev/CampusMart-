@@ -33,6 +33,8 @@ import {
   query,
   where,
   orderBy,
+  writeBatch,
+  getDocs,
 } from "firebase/firestore";
 
 import { db } from "../../context/firebase";
@@ -46,19 +48,29 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // =====================================================
-  // LIVE EARNINGS STATE
+  // EARNINGS STATE
   // =====================================================
 
   const [totalEarnings, setTotalEarnings] = useState(0);
   const [availableBalance, setAvailableBalance] = useState(0);
   const [totalPlatformFees, setTotalPlatformFees] = useState(0);
   const [recentEarnings, setRecentEarnings] = useState([]);
+
   const [loadingBalance, setLoadingBalance] = useState(true);
   const [loadingLedger, setLoadingLedger] = useState(true);
   const [ledgerError, setLedgerError] = useState("");
 
   // =====================================================
-  // LIVE WITHDRAWAL STATE
+  // RESET EARNINGS STATE
+  // =====================================================
+
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resettingEarnings, setResettingEarnings] = useState(false);
+  const [resetMessage, setResetMessage] = useState("");
+  const [resetError, setResetError] = useState("");
+
+  // =====================================================
+  // WITHDRAWAL STATE
   // =====================================================
 
   const [withdrawals, setWithdrawals] = useState([]);
@@ -90,7 +102,8 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
     null;
 
   // =====================================================
-  // LIVE BALANCE (users/{uid})
+  // LIVE BALANCE
+  // users/{uid}
   // =====================================================
 
   useEffect(() => {
@@ -201,9 +214,12 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
       (error) => {
         console.error("Earnings ledger error:", error);
 
+        const errorText = String(error?.message || "").toLowerCase();
+        const errorCode = String(error?.code || "").toLowerCase();
+
         if (
-          String(error?.message || "").includes("index") ||
-          String(error?.code || "").includes("failed-precondition")
+          errorText.includes("index") ||
+          errorCode.includes("failed-precondition")
         ) {
           const simpleQuery = query(
             collection(db, "earnings"),
@@ -283,32 +299,127 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
   }, [firebaseUser?.uid]);
 
   // =====================================================
-  // LIVE SELLER WITHDRAWALS
+  // RESET EARNINGS
   // =====================================================
-  //
-  // IMPORTANT:
-  // Admin withdrawal documents must be in:
-  //
-  // withdrawals/{withdrawalId}
-  //
-  // And contain:
-  //
-  // sellerId
-  // amount
-  // status
-  // bankName
-  // accountNumber
-  // accountName
-  // createdAt
-  //
-  // The admin can update:
-  //
-  // pending
-  // processing
-  // successful
-  // failed
-  //
-  // This listener updates the seller page automatically.
+
+  const handleResetEarnings = async () => {
+    if (!firebaseUser?.uid) {
+      setResetError("You must be logged in to reset earnings.");
+      return;
+    }
+
+    setResettingEarnings(true);
+    setResetError("");
+    setResetMessage("");
+
+    try {
+      // ---------------------------------------------------
+      // 1. GET ALL EARNINGS BELONGING TO THIS SELLER
+      // ---------------------------------------------------
+
+      const earningsQuery = query(
+        collection(db, "earnings"),
+        where("sellerId", "==", firebaseUser.uid)
+      );
+
+      const earningsSnapshot = await getDocs(earningsQuery);
+
+      // ---------------------------------------------------
+      // 2. DELETE EARNINGS IN BATCHES
+      //
+      // Firestore batches have a 500 operation limit.
+      // We use 450 to stay safely below that limit.
+      // ---------------------------------------------------
+
+      const docs = earningsSnapshot.docs;
+
+      const batchSize = 450;
+
+      for (let i = 0; i < docs.length; i += batchSize) {
+        const batch = writeBatch(db);
+
+        const chunk = docs.slice(
+          i,
+          i + batchSize
+        );
+
+        chunk.forEach((earningDoc) => {
+          batch.delete(earningDoc.ref);
+        });
+
+        await batch.commit();
+      }
+
+      // ---------------------------------------------------
+      // 3. RESET SELLER TOTALS
+      // ---------------------------------------------------
+
+      const userRef = doc(
+        db,
+        "users",
+        firebaseUser.uid
+      );
+
+      const resetBatch = writeBatch(db);
+
+      resetBatch.update(userRef, {
+        totalEarnings: 0,
+        availableBalance: 0,
+        totalPlatformFees: 0,
+        totalSalesGross: 0,
+        updatedAt: new Date(),
+      });
+
+      await resetBatch.commit();
+
+      // ---------------------------------------------------
+      // 4. UPDATE LOCAL UI IMMEDIATELY
+      // ---------------------------------------------------
+
+      setTotalEarnings(0);
+      setAvailableBalance(0);
+      setTotalPlatformFees(0);
+      setRecentEarnings([]);
+
+      setResetMessage(
+        `${docs.length} old earning ${
+          docs.length === 1
+            ? "record was"
+            : "records were"
+        } deleted successfully.`
+      );
+
+      setShowResetModal(false);
+
+      console.log(
+        `Reset complete. Deleted ${docs.length} earnings records.`
+      );
+    } catch (error) {
+      console.error(
+        "Reset earnings error:",
+        error
+      );
+
+      if (
+        error?.code ===
+        "permission-denied"
+      ) {
+        setResetError(
+          "Permission denied. Update your Firestore rules to allow a seller to delete their own earnings records."
+        );
+      } else {
+        setResetError(
+          error?.message ||
+            "Unable to reset earnings. Please try again."
+        );
+      }
+    } finally {
+      setResettingEarnings(false);
+    }
+  };
+
+  // =====================================================
+  // LIVE SELLER WITHDRAWALS
   // =====================================================
 
   useEffect(() => {
@@ -323,7 +434,11 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
 
     const withdrawalQuery = query(
       collection(db, "withdrawals"),
-      where("sellerId", "==", firebaseUser.uid),
+      where(
+        "sellerId",
+        "==",
+        firebaseUser.uid
+      ),
       orderBy("createdAt", "desc")
     );
 
@@ -344,16 +459,22 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
                 : null;
 
             if (dt && !Number.isNaN(dt.getTime())) {
-              date = dt.toLocaleDateString("en-US", {
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-              });
+              date = dt.toLocaleDateString(
+                "en-US",
+                {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                }
+              );
 
-              time = dt.toLocaleTimeString("en-US", {
-                hour: "2-digit",
-                minute: "2-digit",
-              });
+              time = dt.toLocaleTimeString(
+                "en-US",
+                {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }
+              );
             }
           } catch {
             // Keep defaults
@@ -362,7 +483,8 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
           return {
             id: d.id,
 
-            amount: Number(x.amount) || 0,
+            amount:
+              Number(x.amount) || 0,
 
             status: String(
               x.status || "pending"
@@ -405,94 +527,121 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
           error
         );
 
-        // Fallback if Firestore composite index
-        // has not been created yet.
+        const errorText = String(
+          error?.message || ""
+        ).toLowerCase();
+
+        const errorCode = String(
+          error?.code || ""
+        ).toLowerCase();
+
         if (
-          String(error?.message || "").includes("index") ||
-          String(error?.code || "").includes(
+          errorText.includes("index") ||
+          errorCode.includes(
             "failed-precondition"
           )
         ) {
-          const simpleWithdrawalQuery = query(
-            collection(db, "withdrawals"),
-            where(
-              "sellerId",
-              "==",
-              firebaseUser.uid
-            )
-          );
+          const simpleWithdrawalQuery =
+            query(
+              collection(
+                db,
+                "withdrawals"
+              ),
+              where(
+                "sellerId",
+                "==",
+                firebaseUser.uid
+              )
+            );
 
-          const fallbackUnsub = onSnapshot(
-            simpleWithdrawalQuery,
-            (snapshot) => {
-              const rows = snapshot.docs
-                .map((d) => {
-                  const x = d.data();
+          const fallbackUnsub =
+            onSnapshot(
+              simpleWithdrawalQuery,
+              (snapshot) => {
+                const rows =
+                  snapshot.docs
+                    .map((d) => {
+                      const x =
+                        d.data();
 
-                  const seconds =
-                    x.createdAt?.seconds || 0;
+                      const seconds =
+                        x.createdAt
+                          ?.seconds || 0;
 
-                  return {
-                    id: d.id,
+                      return {
+                        id: d.id,
 
-                    amount:
-                      Number(x.amount) || 0,
+                        amount:
+                          Number(
+                            x.amount
+                          ) || 0,
 
-                    status: String(
-                      x.status || "pending"
-                    ).toLowerCase(),
+                        status:
+                          String(
+                            x.status ||
+                              "pending"
+                          ).toLowerCase(),
 
-                    bankName:
-                      x.bankName ||
-                      x.bank ||
-                      "Bank",
+                        bankName:
+                          x.bankName ||
+                          x.bank ||
+                          "Bank",
 
-                    accountNumber:
-                      x.accountNumber ||
-                      x.accountNo ||
-                      "",
+                        accountNumber:
+                          x.accountNumber ||
+                          x.accountNo ||
+                          "",
 
-                    accountName:
-                      x.accountName ||
-                      "",
+                        accountName:
+                          x.accountName ||
+                          "",
 
-                    reference:
-                      x.reference ||
-                      x.paystackReference ||
-                      x.transactionReference ||
-                      "",
+                        reference:
+                          x.reference ||
+                          x.paystackReference ||
+                          x.transactionReference ||
+                          "",
 
-                    date: "—",
-                    time: "",
+                        date: "—",
+                        time: "",
 
-                    createdAt:
-                      x.createdAt,
+                        createdAt:
+                          x.createdAt,
 
-                    _sort: seconds,
-                  };
-                })
-                .sort(
-                  (a, b) =>
-                    b._sort - a._sort
+                        _sort: seconds,
+                      };
+                    })
+                    .sort(
+                      (a, b) =>
+                        b._sort -
+                        a._sort
+                    );
+
+                setWithdrawals(
+                  rows
+                );
+                setLoadingWithdrawals(
+                  false
+                );
+                setWithdrawalError(
+                  ""
+                );
+              },
+              (fallbackError) => {
+                console.error(
+                  "Withdrawal fallback error:",
+                  fallbackError
                 );
 
-              setWithdrawals(rows);
-              setLoadingWithdrawals(false);
-              setWithdrawalError("");
-            },
-            (fallbackError) => {
-              console.error(
-                "Withdrawal fallback error:",
-                fallbackError
-              );
+                setWithdrawalError(
+                  "Unable to load withdrawal history."
+                );
 
-              setWithdrawalError(
-                "Unable to load withdrawal history."
-              );
-
-              setLoadingWithdrawals(false);
-            }
-          );
+                setLoadingWithdrawals(
+                  false
+                );
+              }
+            );
 
           return fallbackUnsub;
         }
@@ -563,10 +712,15 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
 
   const isActive = (path) => {
     if (path === "/seller-dashboard") {
-      return location.pathname === "/seller-dashboard";
+      return (
+        location.pathname ===
+        "/seller-dashboard"
+      );
     }
 
-    return location.pathname.startsWith(path);
+    return location.pathname.startsWith(
+      path
+    );
   };
 
   const handleNavigation = (path) => {
@@ -580,7 +734,9 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
   };
 
   const handleNotifications = () => {
-    console.log("Open seller notifications");
+    console.log(
+      "Open seller notifications"
+    );
   };
 
   // =====================================================
@@ -588,18 +744,23 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
   // =====================================================
 
   const formatNaira = (amount) =>
-    `₦${Number(amount || 0).toLocaleString("en-NG")}`;
+    `₦${Number(
+      amount || 0
+    ).toLocaleString("en-NG")}`;
 
   const PLATFORM_COMMISSION_RATE = 0.05;
 
   const isLoading =
-    loadingBalance || loadingLedger;
+    loadingBalance ||
+    loadingLedger;
 
   // =====================================================
-  // WITHDRAWAL STATUS HELPERS
+  // WITHDRAWAL HELPERS
   // =====================================================
 
-  const normalizeWithdrawalStatus = (status) => {
+  const normalizeWithdrawalStatus = (
+    status
+  ) => {
     const value = String(
       status || "pending"
     )
@@ -634,9 +795,13 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
     return "pending";
   };
 
-  const getWithdrawalStatusLabel = (status) => {
+  const getWithdrawalStatusLabel = (
+    status
+  ) => {
     const normalized =
-      normalizeWithdrawalStatus(status);
+      normalizeWithdrawalStatus(
+        status
+      );
 
     if (normalized === "successful") {
       return "Successful";
@@ -653,9 +818,13 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
     return "Pending";
   };
 
-  const getWithdrawalStatusClass = (status) => {
+  const getWithdrawalStatusClass = (
+    status
+  ) => {
     const normalized =
-      normalizeWithdrawalStatus(status);
+      normalizeWithdrawalStatus(
+        status
+      );
 
     if (normalized === "successful") {
       return "bg-green-50 text-green-700 border-green-100";
@@ -672,12 +841,18 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
     return "bg-yellow-50 text-yellow-700 border-yellow-100";
   };
 
-  const getWithdrawalStatusIcon = (status) => {
+  const getWithdrawalStatusIcon = (
+    status
+  ) => {
     const normalized =
-      normalizeWithdrawalStatus(status);
+      normalizeWithdrawalStatus(
+        status
+      );
 
     if (normalized === "successful") {
-      return <FiCheckCircle size={12} />;
+      return (
+        <FiCheckCircle size={12} />
+      );
     }
 
     if (normalized === "processing") {
@@ -690,20 +865,31 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
     }
 
     if (normalized === "failed") {
-      return <FiAlertCircle size={12} />;
+      return (
+        <FiAlertCircle size={12} />
+      );
     }
 
     return <FiClock size={12} />;
   };
 
+  // =====================================================
+  // RENDER
+  // =====================================================
+
   return (
     <div className="h-screen w-full bg-gray-50 text-gray-800 font-sans overflow-hidden">
 
-      {/* MOBILE OVERLAY */}
+      {/* =====================================================
+          MOBILE OVERLAY
+      ===================================================== */}
+
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
+          onClick={() =>
+            setSidebarOpen(false)
+          }
         />
       )}
 
@@ -716,7 +902,8 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
           fixed inset-y-0 left-0 z-50
           w-[291px] min-w-[285px] lg:w-[291px] lg:min-w-[250px]
           bg-green-700 text-white flex flex-col h-screen overflow-hidden
-          shadow-2xl lg:shadow-none transition-transform duration-300 ease-in-out
+          shadow-2xl lg:shadow-none
+          transition-transform duration-300 ease-in-out
           ${
             sidebarOpen
               ? "translate-x-0"
@@ -729,12 +916,17 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
 
           <button
             type="button"
-            onClick={() => setSidebarOpen(false)}
+            onClick={() =>
+              setSidebarOpen(false)
+            }
             aria-label="Close sidebar"
             className="
-              lg:hidden absolute top-3 right-3 w-9 h-9 rounded-lg
-              text-white hover:bg-white/10 active:bg-white/20
-              flex items-center justify-center transition z-20
+              lg:hidden absolute top-3 right-3
+              w-9 h-9 rounded-lg
+              text-white hover:bg-white/10
+              active:bg-white/20
+              flex items-center justify-center
+              transition z-20
             "
           >
             <FiX
@@ -746,14 +938,17 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
           <div className="flex items-center gap-3 pr-10">
 
             <div className="w-10 h-10 min-w-[40px] rounded-xl bg-[#008236] flex items-center justify-center shadow-lg shadow-black/30 border border-white/10 flex-shrink-0">
+
               <span className="text-white text-[16px] font-black tracking-tight">
                 CM
               </span>
+
             </div>
 
             <div className="min-w-0">
 
               <h1 className="text-[30px] font-extrabold tracking-tight leading-none whitespace-nowrap">
+
                 <span className="text-white">
                   Campus
                 </span>
@@ -761,6 +956,7 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
                 <span className="text-green-300">
                   Mart
                 </span>
+
               </h1>
 
               <p className="text-[10px] text-green-100 mt-1 whitespace-nowrap">
@@ -770,6 +966,7 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
             </div>
 
           </div>
+
         </div>
 
         <nav className="flex-1 px-4 py-3 overflow-y-auto overflow-x-hidden overscroll-contain flex flex-col justify-start gap-1">
@@ -783,18 +980,23 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
               new: isNew,
             }) => {
 
-              const active = isActive(path);
+              const active =
+                isActive(path);
 
               return (
                 <button
                   key={label}
                   type="button"
                   onClick={() =>
-                    handleNavigation(path)
+                    handleNavigation(
+                      path
+                    )
                   }
                   className={`
-                    w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-left
-                    transition-all flex-shrink-0
+                    w-full flex items-center gap-3
+                    px-3.5 py-3 rounded-xl
+                    text-left transition-all
+                    flex-shrink-0
                     ${
                       active
                         ? "bg-white text-[#008236] shadow-sm font-semibold"
@@ -824,7 +1026,8 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
                   {isNew && (
                     <span
                       className={`
-                        px-1.5 py-0.5 rounded-full text-[9px] font-bold flex-shrink-0
+                        px-1.5 py-0.5 rounded-full
+                        text-[9px] font-bold flex-shrink-0
                         ${
                           active
                             ? "bg-green-100 text-green-700"
@@ -850,11 +1053,13 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-white hover:bg-white/10 active:bg-white/20 transition text-left"
           >
+
             <FiLogOut size={19} />
 
             <span className="text-[14px]">
               Logout
             </span>
+
           </button>
 
         </div>
@@ -931,7 +1136,9 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
 
             <button
               type="button"
-              onClick={handleNotifications}
+              onClick={
+                handleNotifications
+              }
               aria-label="Notifications"
               className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-full hover:bg-white/10 active:bg-white/20 flex items-center justify-center transition flex-shrink-0"
             >
@@ -1035,29 +1242,138 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
 
               <div className="relative z-20">
 
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/10 text-[11px] font-medium mb-3">
+                <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5">
 
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-300" />
+                  <div>
 
-                  Earnings
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/10 text-[11px] font-medium mb-3">
+
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-300" />
+
+                      Earnings
+
+                    </div>
+
+                    <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+                      Your Earnings,{" "}
+                      {sellerFirstName}
+                    </h1>
+
+                    <p className="text-sm sm:text-base text-green-50 mt-1.5 max-w-xl leading-6">
+                      Live totals from your sales. CampusMart keeps 5%; you receive
+                      95% net.
+                    </p>
+
+                  </div>
+
+                  {/* RESET BUTTON */}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setResetError("");
+                      setResetMessage("");
+                      setShowResetModal(true);
+                    }}
+                    className="
+                      inline-flex items-center justify-center gap-2
+                      h-11 px-4 sm:px-5
+                      rounded-xl
+                      bg-white
+                      text-[#008236]
+                      border border-white
+                      text-xs sm:text-sm font-bold
+                      shadow-lg shadow-black/10
+                      hover:bg-green-50
+                      active:bg-green-100
+                      transition-all duration-200
+                      flex-shrink-0
+                    "
+                  >
+
+                    <FiRefreshCw
+                      size={16}
+                    />
+
+                    Reset Earnings
+
+                  </button>
 
                 </div>
-
-                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-                  Your Earnings,{" "}
-                  {sellerFirstName}
-                </h1>
-
-                <p className="text-sm sm:text-base text-green-50 mt-1.5 max-w-xl leading-6">
-                  Live totals from your sales. CampusMart keeps 5%; you receive
-                  95% net.
-                </p>
 
               </div>
 
             </div>
 
           </section>
+
+          {/* =====================================================
+              RESET SUCCESS MESSAGE
+          ===================================================== */}
+
+          {resetMessage && (
+            <div className="mb-5 rounded-xl bg-green-50 border border-green-100 px-4 py-3 flex items-start gap-3">
+
+              <div className="w-8 h-8 rounded-lg bg-white text-[#008236] flex items-center justify-center flex-shrink-0 shadow-sm">
+                <FiCheckCircle size={17} />
+              </div>
+
+              <div>
+                <p className="text-sm font-semibold text-green-800">
+                  Earnings reset successfully
+                </p>
+
+                <p className="text-xs text-green-700 mt-0.5">
+                  {resetMessage}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setResetMessage("")
+                }
+                className="ml-auto text-green-700 hover:text-green-900"
+              >
+                <FiX size={17} />
+              </button>
+
+            </div>
+          )}
+
+          {/* =====================================================
+              RESET ERROR MESSAGE
+          ===================================================== */}
+
+          {resetError && (
+            <div className="mb-5 rounded-xl bg-red-50 border border-red-100 px-4 py-3 flex items-start gap-3">
+
+              <div className="w-8 h-8 rounded-lg bg-white text-red-600 flex items-center justify-center flex-shrink-0 shadow-sm">
+                <FiAlertCircle size={17} />
+              </div>
+
+              <div>
+                <p className="text-sm font-semibold text-red-800">
+                  Reset failed
+                </p>
+
+                <p className="text-xs text-red-700 mt-0.5">
+                  {resetError}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setResetError("")
+                }
+                className="ml-auto text-red-700 hover:text-red-900"
+              >
+                <FiX size={17} />
+              </button>
+
+            </div>
+          )}
 
           {/* =====================================================
               STATS
@@ -1110,7 +1426,6 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
                 </h2>
 
                 <p className="text-[10px] sm:text-[11px] text-gray-400 mt-1.5 sm:mt-2">
-
                   Net after platform fees
 
                   {totalPlatformFees > 0 && (
@@ -1121,7 +1436,6 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
                       )}
                     </span>
                   )}
-
                 </p>
 
               </div>
@@ -1207,7 +1521,7 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
           </section>
 
           {/* =====================================================
-              WITHDRAWAL STATUS
+              WITHDRAWAL HISTORY
           ===================================================== */}
 
           <section className="mb-5 sm:mb-6">
@@ -1287,9 +1601,7 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
 
                 </div>
               ) : (
-
                 <>
-
                   {/* DESKTOP */}
 
                   <div className="hidden md:block overflow-x-auto">
@@ -1339,8 +1651,6 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
                                 className="border-b border-gray-50 last:border-b-0 hover:bg-gray-50 transition"
                               >
 
-                                {/* WITHDRAWAL */}
-
                                 <td className="px-5 py-4">
 
                                   <div className="flex items-center gap-3">
@@ -1358,7 +1668,9 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
                                       </p>
 
                                       <p className="text-[10px] text-gray-400 mt-0.5">
-                                        {withdrawal.id}
+                                        {
+                                          withdrawal.id
+                                        }
                                       </p>
 
                                       {withdrawal.reference && (
@@ -1375,8 +1687,6 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
                                   </div>
 
                                 </td>
-
-                                {/* BANK */}
 
                                 <td className="px-5 py-4">
 
@@ -1403,8 +1713,6 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
                                   </p>
 
                                 </td>
-
-                                {/* DATE */}
 
                                 <td className="px-5 py-4">
 
@@ -1433,8 +1741,6 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
 
                                 </td>
 
-                                {/* AMOUNT */}
-
                                 <td className="px-5 py-4">
 
                                   <p className="text-sm font-bold text-gray-900 whitespace-nowrap">
@@ -1444,8 +1750,6 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
                                   </p>
 
                                 </td>
-
-                                {/* STATUS */}
 
                                 <td className="px-5 py-4">
 
@@ -1601,9 +1905,7 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
                     )}
 
                   </div>
-
                 </>
-
               )}
 
             </div>
@@ -1611,7 +1913,7 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
           </section>
 
           {/* =====================================================
-              PLATFORM COMMISSION NOTICE
+              PLATFORM COMMISSION
           ===================================================== */}
 
           <section className="mb-5 sm:mb-6">
@@ -1746,8 +2048,7 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
                 </div>
               ) : (
                 <>
-
-                  {/* DESKTOP TABLE */}
+                  {/* DESKTOP */}
 
                   <div className="hidden md:block overflow-x-auto">
 
@@ -1882,7 +2183,9 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
 
                                   <span
                                     className={`
-                                      inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold
+                                      inline-flex items-center gap-1.5
+                                      px-2.5 py-1 rounded-full
+                                      text-[10px] font-semibold
                                       ${
                                         isCompleted
                                           ? "bg-green-50 text-green-700"
@@ -1993,7 +2296,9 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
 
                                   <span
                                     className={`
-                                      inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold
+                                      inline-flex items-center gap-1
+                                      px-2 py-0.5 rounded-full
+                                      text-[9px] font-semibold
                                       ${
                                         isCompleted
                                           ? "bg-green-50 text-green-700"
@@ -2001,7 +2306,9 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
                                       }
                                     `}
                                   >
+
                                     {item.status}
+
                                   </span>
 
                                 </div>
@@ -2077,13 +2384,262 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
 
             </div>
 
-           
-
           </div>
 
         </main>
 
       </div>
+
+      {/* =====================================================
+          RESET EARNINGS MODAL
+      ===================================================== */}
+
+      {showResetModal && (
+        <div
+          className="
+            fixed inset-0 z-[100]
+            flex items-center justify-center
+            bg-black/50
+            backdrop-blur-sm
+            px-4
+          "
+          onClick={() => {
+            if (!resettingEarnings) {
+              setShowResetModal(false);
+            }
+          }}
+        >
+
+          <div
+            className="
+              w-full max-w-md
+              bg-white
+              rounded-2xl
+              shadow-2xl
+              overflow-hidden
+              border border-gray-100
+            "
+            onClick={(e) =>
+              e.stopPropagation()
+            }
+          >
+
+            {/* GREEN MODAL HEADER */}
+
+            <div className="bg-[#008236] px-6 py-5 text-white">
+
+              <div className="flex items-center gap-3">
+
+                <div className="
+                  w-11 h-11
+                  rounded-xl
+                  bg-white/15
+                  border border-white/20
+                  flex items-center justify-center
+                ">
+
+                  <FiRefreshCw
+                    size={21}
+                  />
+
+                </div>
+
+                <div>
+
+                  <h2 className="text-lg font-bold">
+                    Reset Earnings
+                  </h2>
+
+                  <p className="text-xs text-green-100 mt-0.5">
+                    Clear old earnings records
+                  </p>
+
+                </div>
+
+              </div>
+
+            </div>
+
+            {/* MODAL BODY */}
+
+            <div className="p-6">
+
+              <div className="
+                rounded-xl
+                bg-green-50
+                border border-green-100
+                p-4
+                mb-5
+              ">
+
+                <div className="flex items-start gap-3">
+
+                  <div className="
+                    w-9 h-9
+                    rounded-lg
+                    bg-white
+                    text-[#008236]
+                    flex items-center justify-center
+                    flex-shrink-0
+                    shadow-sm
+                  ">
+
+                    <FiAlertCircle
+                      size={18}
+                    />
+
+                  </div>
+
+                  <div>
+
+                    <p className="text-sm font-semibold text-gray-800">
+                      Are you sure?
+                    </p>
+
+                    <p className="text-xs text-gray-600 leading-5 mt-1">
+                      This will permanently delete your old earnings records
+                      from Firestore and reset your earnings totals.
+                    </p>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+              <div className="rounded-xl bg-gray-50 border border-gray-100 p-3 mb-5">
+
+                <div className="flex items-center justify-between">
+
+                  <span className="text-xs text-gray-500">
+                    Current earnings
+                  </span>
+
+                  <span className="text-sm font-bold text-gray-900">
+                    {formatNaira(
+                      totalEarnings
+                    )}
+                  </span>
+
+                </div>
+
+                <div className="flex items-center justify-between mt-2">
+
+                  <span className="text-xs text-gray-500">
+                    Available balance
+                  </span>
+
+                  <span className="text-sm font-bold text-gray-900">
+                    {formatNaira(
+                      availableBalance
+                    )}
+                  </span>
+
+                </div>
+
+                <div className="flex items-center justify-between mt-2">
+
+                  <span className="text-xs text-gray-500">
+                    Earnings records
+                  </span>
+
+                  <span className="text-sm font-bold text-[#008236]">
+                    {recentEarnings.length}
+                  </span>
+
+                </div>
+
+              </div>
+
+              <p className="text-xs text-gray-500 leading-5 mb-6">
+                Your withdrawal history will not be deleted. Only your
+                earnings ledger and earnings totals will be reset.
+              </p>
+
+              {/* ACTION BUTTONS */}
+
+              <div className="flex flex-col-reverse sm:flex-row gap-3">
+
+                <button
+                  type="button"
+                  disabled={
+                    resettingEarnings
+                  }
+                  onClick={() =>
+                    setShowResetModal(
+                      false
+                    )
+                  }
+                  className="
+                    flex-1
+                    h-11
+                    rounded-xl
+                    bg-gray-100
+                    text-gray-700
+                    text-sm font-semibold
+                    hover:bg-gray-200
+                    active:bg-gray-300
+                    disabled:opacity-50
+                    transition
+                  "
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  disabled={
+                    resettingEarnings
+                  }
+                  onClick={
+                    handleResetEarnings
+                  }
+                  className="
+                    flex-1
+                    h-11
+                    rounded-xl
+                    bg-[#008236]
+                    text-white
+                    text-sm font-semibold
+                    flex items-center justify-center gap-2
+                    shadow-sm
+                    hover:bg-[#006f2e]
+                    active:bg-[#005f28]
+                    disabled:opacity-60
+                    disabled:cursor-not-allowed
+                    transition-all
+                  "
+                >
+
+                  {resettingEarnings ? (
+                    <>
+                      <FiRefreshCw
+                        size={16}
+                        className="animate-spin"
+                      />
+
+                      Resetting...
+                    </>
+                  ) : (
+                    <>
+                      <FiRefreshCw
+                        size={16}
+                      />
+
+                      Reset Earnings
+                    </>
+                  )}
+
+                </button>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+      )}
 
     </div>
   );

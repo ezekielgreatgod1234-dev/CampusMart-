@@ -1,3 +1,4 @@
+
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
@@ -6,6 +7,7 @@ import {
   onSnapshot,
   doc,
   getDoc,
+  writeBatch,
 } from "firebase/firestore";
 
 import {
@@ -24,6 +26,8 @@ import {
   FiRefreshCw,
   FiAlertCircle,
   FiCheckCircle,
+  FiTrash2,
+  FiAlertTriangle,
 } from "react-icons/fi";
 
 import { db } from "../../context/firebase";
@@ -79,7 +83,16 @@ function AdminFees() {
   const [success, setSuccess] = useState(false);
   const [successAmount, setSuccessAmount] = useState(0);
 
-  // Access control
+  // Clear data states
+  const [showClearModal, setShowClearModal] = useState(false);
+  const [clearingData, setClearingData] = useState(false);
+  const [clearError, setClearError] = useState("");
+  const [clearSuccess, setClearSuccess] = useState(false);
+
+  // --------------------------------------------------
+  // ACCESS CONTROL
+  // --------------------------------------------------
+
   useEffect(() => {
     if (!firebaseUser) {
       setAllowed(false);
@@ -116,7 +129,10 @@ function AdminFees() {
     check();
   }, [firebaseUser]);
 
-  // Load fees
+  // --------------------------------------------------
+  // LOAD PLATFORM DATA
+  // --------------------------------------------------
+
   useEffect(() => {
     if (!allowed) return;
 
@@ -178,6 +194,10 @@ function AdminFees() {
     };
   }, [allowed]);
 
+  // --------------------------------------------------
+  // TOTALS
+  // --------------------------------------------------
+
   const totalFees = useMemo(() => {
     return fees.reduce(
       (sum, f) => sum + (Number(f.platformFee) || 0),
@@ -220,6 +240,10 @@ function AdminFees() {
     totalFees - alreadyWithdrawn
   );
 
+  // --------------------------------------------------
+  // SEARCH
+  // --------------------------------------------------
+
   const filteredFees = useMemo(() => {
     const q = search.trim().toLowerCase();
 
@@ -240,6 +264,10 @@ function AdminFees() {
       return haystack.includes(q);
     });
   }, [fees, search]);
+
+  // --------------------------------------------------
+  // FORMATTERS
+  // --------------------------------------------------
 
   const formatNaira = (n) =>
     `₦${Number(n || 0).toLocaleString("en-NG")}`;
@@ -264,6 +292,10 @@ function AdminFees() {
     }
   };
 
+  // --------------------------------------------------
+  // BANK
+  // --------------------------------------------------
+
   const handleBankChange = (e) => {
     const code = e.target.value;
 
@@ -279,11 +311,13 @@ function AdminFees() {
     }
   };
 
+  // --------------------------------------------------
+  // AMOUNT
+  // --------------------------------------------------
+
   const handleAmountChange = (e) => {
-    // Allow only numbers and decimal point
     let value = e.target.value.replace(/[^\d.]/g, "");
 
-    // Prevent multiple decimal points
     const parts = value.split(".");
 
     if (parts.length > 2) {
@@ -296,6 +330,10 @@ function AdminFees() {
       setFormError("");
     }
   };
+
+  // --------------------------------------------------
+  // WITHDRAW
+  // --------------------------------------------------
 
   const handleWithdraw = async (e) => {
     e.preventDefault();
@@ -397,6 +435,96 @@ function AdminFees() {
     }
   };
 
+  // --------------------------------------------------
+  // CLEAR ALL PLATFORM DATA
+  // --------------------------------------------------
+
+  const handleClearAllData = async () => {
+    if (!firebaseUser || !allowed) {
+      return;
+    }
+
+    setClearingData(true);
+    setClearError("");
+    setClearSuccess(false);
+
+    try {
+      // Get both collections
+      const feesSnapshot = await import(
+        "firebase/firestore"
+      ).then(({ getDocs }) =>
+        getDocs(collection(db, "platformFees"))
+      );
+
+      const withdrawalsSnapshot = await import(
+        "firebase/firestore"
+      ).then(({ getDocs }) =>
+        getDocs(collection(db, "platformWithdrawals"))
+      );
+
+      const allDocs = [
+        ...feesSnapshot.docs,
+        ...withdrawalsSnapshot.docs,
+      ];
+
+      if (allDocs.length === 0) {
+        setClearSuccess(true);
+        setShowClearModal(false);
+        return;
+      }
+
+      // Firestore batch supports a maximum of 500 writes.
+      // Split into batches so this works even with many records.
+      const chunkSize = 450;
+
+      for (let i = 0; i < allDocs.length; i += chunkSize) {
+        const chunk = allDocs.slice(
+          i,
+          i + chunkSize
+        );
+
+        const batch = writeBatch(db);
+
+        chunk.forEach((document) => {
+          batch.delete(document.ref);
+        });
+
+        await batch.commit();
+      }
+
+      // Clear local state immediately
+      setFees([]);
+      setPlatformWithdrawals([]);
+      setSearch("");
+
+      // Clear withdrawal form
+      setAmount("");
+      setBankCode("");
+      setBankName("");
+      setAccountNumber("");
+      setAccountName("");
+
+      setClearSuccess(true);
+      setShowClearModal(false);
+    } catch (error) {
+      console.error(
+        "Error clearing platform data:",
+        error
+      );
+
+      setClearError(
+        error.message ||
+          "Could not clear platform data."
+      );
+    } finally {
+      setClearingData(false);
+    }
+  };
+
+  // --------------------------------------------------
+  // MENU
+  // --------------------------------------------------
+
   const menuItems = [
     {
       label: "Overview",
@@ -448,6 +576,10 @@ function AdminFees() {
     navigate(path);
   };
 
+  // --------------------------------------------------
+  // LOADING
+  // --------------------------------------------------
+
   if (loading) {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-gray-50">
@@ -455,6 +587,10 @@ function AdminFees() {
       </div>
     );
   }
+
+  // --------------------------------------------------
+  // ACCESS DENIED
+  // --------------------------------------------------
 
   if (!firebaseUser || !allowed) {
     return (
@@ -480,8 +616,14 @@ function AdminFees() {
     );
   }
 
+  // --------------------------------------------------
+  // PAGE
+  // --------------------------------------------------
+
   return (
     <div className="h-screen w-full bg-gray-50 text-gray-800 font-sans overflow-hidden">
+
+      {/* MOBILE OVERLAY */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
@@ -503,6 +645,7 @@ function AdminFees() {
         `}
       >
         <div className="relative px-5 pt-6 pb-4">
+
           <button
             type="button"
             onClick={() => setSidebarOpen(false)}
@@ -512,6 +655,7 @@ function AdminFees() {
           </button>
 
           <div className="flex items-center gap-3">
+
             <div className="w-10 h-10 rounded-xl bg-[#006f2e] flex items-center justify-center border border-white/10">
               <span className="text-white text-[16px] font-black">
                 CM
@@ -530,10 +674,12 @@ function AdminFees() {
                 Admin Panel
               </p>
             </div>
+
           </div>
         </div>
 
         <nav className="flex-1 px-4 py-3 overflow-y-auto flex flex-col gap-1">
+
           {menuItems.map(
             ({ label, icon: Icon, path }) => {
               const active = isActive(path);
@@ -557,6 +703,7 @@ function AdminFees() {
                   `}
                 >
                   <Icon size={18} />
+
                   <span className="text-[14px]">
                     {label}
                   </span>
@@ -564,9 +711,11 @@ function AdminFees() {
               );
             }
           )}
+
         </nav>
 
         <div className="px-4 pb-5">
+
           <button
             type="button"
             onClick={() => navigate("/logout")}
@@ -578,12 +727,16 @@ function AdminFees() {
               Logout
             </span>
           </button>
+
         </div>
       </aside>
 
       {/* MAIN */}
       <div className="min-w-0 flex flex-col h-screen lg:ml-[291px]">
+
+        {/* HEADER */}
         <header className="min-h-[70px] bg-[#007233] text-white flex items-center px-4 sm:px-6 lg:px-8 gap-3 flex-shrink-0">
+
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
@@ -592,7 +745,8 @@ function AdminFees() {
             <FiMenu size={22} />
           </button>
 
-          <div>
+          <div className="flex-1">
+
             <p className="text-sm font-semibold">
               Platform Fees
             </p>
@@ -600,15 +754,64 @@ function AdminFees() {
             <p className="text-[11px] text-green-100">
               CampusMart 5% · Withdraw to bank
             </p>
+
           </div>
+
+          {/* CLEAR DATA BUTTON */}
+          <button
+            type="button"
+            onClick={() => {
+              setClearError("");
+              setClearSuccess(false);
+              setShowClearModal(true);
+            }}
+            className="h-10 px-3 sm:px-4 rounded-xl bg-red-500/20 hover:bg-red-500/30 border border-red-300/20 text-white text-xs font-semibold flex items-center gap-2 transition"
+          >
+            <FiTrash2 size={15} />
+
+            <span className="hidden sm:inline">
+              Clear Platform Data
+            </span>
+
+            <span className="sm:hidden">
+              Clear
+            </span>
+          </button>
+
         </header>
 
+        {/* CONTENT */}
         <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5">
+
+          {/* CLEAR SUCCESS */}
+          {clearSuccess && (
+            <div className="rounded-2xl bg-green-50 border border-green-100 p-4 flex items-start gap-3">
+
+              <FiCheckCircle
+                className="text-[#008236] mt-0.5"
+                size={20}
+              />
+
+              <div>
+                <p className="text-sm font-semibold text-gray-800">
+                  Platform data cleared
+                </p>
+
+                <p className="text-xs text-gray-500 mt-1">
+                  All platform fees and withdrawal records
+                  have been permanently deleted.
+                </p>
+              </div>
+
+            </div>
+          )}
 
           {/* SUMMARY */}
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
 
+            {/* TOTAL FEES */}
             <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+
               <p className="text-xs text-gray-500 font-medium">
                 Total fees collected
               </p>
@@ -616,9 +819,12 @@ function AdminFees() {
               <p className="text-2xl font-bold text-[#008236] mt-2">
                 {formatNaira(totalFees)}
               </p>
+
             </div>
 
+            {/* AVAILABLE */}
             <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+
               <p className="text-xs text-gray-500 font-medium">
                 Available to withdraw
               </p>
@@ -626,9 +832,12 @@ function AdminFees() {
               <p className="text-2xl font-bold text-emerald-600 mt-2">
                 {formatNaira(availableBalance)}
               </p>
+
             </div>
 
+            {/* SALES */}
             <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+
               <p className="text-xs text-gray-500 font-medium">
                 Total sales volume
               </p>
@@ -636,9 +845,12 @@ function AdminFees() {
               <p className="text-2xl font-bold text-gray-900 mt-2">
                 {formatNaira(totalSales)}
               </p>
+
             </div>
 
+            {/* SELLERS */}
             <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+
               <p className="text-xs text-gray-500 font-medium">
                 Paid to sellers (95%)
               </p>
@@ -646,18 +858,22 @@ function AdminFees() {
               <p className="text-2xl font-bold text-gray-900 mt-2">
                 {formatNaira(totalSellerAmount)}
               </p>
+
             </div>
+
           </div>
 
           {/* SUCCESS */}
           {success && (
             <div className="rounded-2xl bg-green-50 border border-green-100 p-4 flex items-start gap-3">
+
               <FiCheckCircle
                 className="text-[#008236] mt-0.5"
                 size={20}
               />
 
               <div>
+
                 <p className="text-sm font-semibold text-gray-800">
                   Withdrawal initiated
                 </p>
@@ -666,7 +882,9 @@ function AdminFees() {
                   {formatNaira(successAmount)} is being sent
                   to your bank.
                 </p>
+
               </div>
+
             </div>
           )}
 
@@ -674,6 +892,7 @@ function AdminFees() {
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
 
             <div className="p-5 border-b border-gray-100">
+
               <h2 className="text-base font-bold text-gray-800">
                 Withdraw platform fees
               </h2>
@@ -681,6 +900,7 @@ function AdminFees() {
               <p className="text-xs text-gray-500 mt-1">
                 Send available 5% fees to your bank account.
               </p>
+
             </div>
 
             <form
@@ -691,13 +911,17 @@ function AdminFees() {
               {/* ERROR */}
               {formError && (
                 <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-600 flex items-center gap-2">
+
                   <FiAlertCircle size={16} />
+
                   {formError}
+
                 </div>
               )}
 
               {/* AMOUNT */}
               <div>
+
                 <label className="block text-xs font-semibold text-gray-700 mb-2">
                   Amount
                 </label>
@@ -718,9 +942,11 @@ function AdminFees() {
                     autoComplete="off"
                     className="w-full h-12 pl-8 pr-3.5 rounded-xl border border-gray-200 bg-gray-50 text-sm font-semibold outline-none focus:border-[#008236] focus:ring-4 focus:ring-green-50 disabled:opacity-60"
                   />
+
                 </div>
 
                 <div className="flex items-center justify-between mt-2">
+
                   <p className="text-[11px] text-gray-400">
                     Minimum: ₦1,000
                   </p>
@@ -743,11 +969,14 @@ function AdminFees() {
                     Withdraw max (
                     {formatNaira(availableBalance)})
                   </button>
+
                 </div>
+
               </div>
 
               {/* BANK */}
               <div>
+
                 <label className="block text-xs font-semibold text-gray-700 mb-2">
                   Bank
                 </label>
@@ -758,6 +987,7 @@ function AdminFees() {
                   disabled={submitting}
                   className="w-full h-12 px-3.5 rounded-xl border border-gray-200 bg-gray-50 text-sm outline-none focus:border-[#008236] focus:ring-4 focus:ring-green-50 disabled:opacity-60"
                 >
+
                   <option value="">
                     Select bank
                   </option>
@@ -770,11 +1000,14 @@ function AdminFees() {
                       {b.name}
                     </option>
                   ))}
+
                 </select>
+
               </div>
 
               {/* ACCOUNT NUMBER */}
               <div>
+
                 <label className="block text-xs font-semibold text-gray-700 mb-2">
                   Account number
                 </label>
@@ -797,10 +1030,12 @@ function AdminFees() {
                   placeholder="10-digit NUBAN"
                   className="w-full h-12 px-3.5 rounded-xl border border-gray-200 bg-gray-50 text-sm outline-none focus:border-[#008236] focus:ring-4 focus:ring-green-50 disabled:opacity-60"
                 />
+
               </div>
 
               {/* ACCOUNT NAME */}
               <div>
+
                 <label className="block text-xs font-semibold text-gray-700 mb-2">
                   Account name
                 </label>
@@ -819,6 +1054,7 @@ function AdminFees() {
                   placeholder="Name on the account"
                   className="w-full h-12 px-3.5 rounded-xl border border-gray-200 bg-gray-50 text-sm outline-none focus:border-[#008236] focus:ring-4 focus:ring-green-50 disabled:opacity-60"
                 />
+
               </div>
 
               {/* SUBMIT */}
@@ -827,41 +1063,50 @@ function AdminFees() {
                 disabled={submitting}
                 className="w-full h-12 rounded-xl bg-[#008236] text-white text-sm font-semibold flex items-center justify-center gap-2 hover:bg-[#006f2e] disabled:opacity-60"
               >
+
                 {submitting ? (
                   <>
                     <FiRefreshCw
                       className="animate-spin"
                       size={17}
                     />
+
                     Processing...
                   </>
                 ) : (
                   <>
                     <FiCreditCard size={17} />
+
                     Withdraw fees
                   </>
                 )}
+
               </button>
 
             </form>
+
           </div>
 
-          {/* PLATFORM WITHDRAWAL HISTORY */}
+          {/* WITHDRAWAL HISTORY */}
           {platformWithdrawals.length > 0 && (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
 
               <div className="p-5 border-b border-gray-100">
+
                 <h2 className="text-base font-bold text-gray-800">
                   Withdrawal history
                 </h2>
+
               </div>
 
               <div className="divide-y divide-gray-100">
+
                 {platformWithdrawals.map((w) => (
                   <div
                     key={w.id}
                     className="p-4 sm:p-5"
                   >
+
                     <p className="text-sm font-bold text-gray-900">
                       {formatNaira(w.amount)}
                     </p>
@@ -875,17 +1120,23 @@ function AdminFees() {
                       {w.status} ·{" "}
                       {formatDate(w.createdAt)}
                     </p>
+
                   </div>
                 ))}
+
               </div>
+
             </div>
           )}
 
           {/* SEARCH */}
           <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-sm">
+
             <div className="relative">
 
-              <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <FiSearch
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+              />
 
               <input
                 type="text"
@@ -896,7 +1147,9 @@ function AdminFees() {
                 placeholder="Search fee records..."
                 className="w-full h-11 pl-10 pr-4 rounded-xl border border-gray-200 bg-gray-50 text-sm outline-none focus:border-[#008236] focus:bg-white focus:ring-2 focus:ring-green-50"
               />
+
             </div>
+
           </div>
 
           {/* FEE RECORDS */}
@@ -936,6 +1189,7 @@ function AdminFees() {
                       </p>
 
                       <p className="text-xs text-gray-400 mt-1">
+
                         {fee.sellerId
                           ? `Seller: ${String(
                               fee.sellerId
@@ -945,9 +1199,11 @@ function AdminFees() {
                         {fee.orderId
                           ? ` · Order: ${fee.orderId}`
                           : ""}
+
                       </p>
 
                       <p className="text-xs text-gray-400 mt-0.5">
+
                         {formatDate(
                           fee.createdAt
                         )}
@@ -955,6 +1211,7 @@ function AdminFees() {
                         {fee.paystackReference
                           ? ` · ${fee.paystackReference}`
                           : ""}
+
                       </p>
 
                     </div>
@@ -973,6 +1230,141 @@ function AdminFees() {
 
         </main>
       </div>
+
+      {/* CLEAR CONFIRMATION MODAL */}
+      {showClearModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
+
+          {/* BACKDROP */}
+          <div
+            className="absolute inset-0 bg-black/60"
+            onClick={() => {
+              if (!clearingData) {
+                setShowClearModal(false);
+              }
+            }}
+          />
+
+          {/* MODAL */}
+          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
+
+            <div className="p-6">
+
+              {/* ICON */}
+              <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mb-4">
+
+                <FiAlertTriangle
+                  className="text-red-500"
+                  size={24}
+                />
+
+              </div>
+
+              <h2 className="text-lg font-bold text-gray-900">
+                Clear all platform data?
+              </h2>
+
+              <p className="text-sm text-gray-500 mt-2 leading-6">
+                This will permanently delete:
+              </p>
+
+              <ul className="mt-3 space-y-2 text-sm text-gray-600">
+
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                  All platform fee records
+                </li>
+
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                  All platform withdrawal records
+                </li>
+
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                  Total fees and sales calculations
+                </li>
+
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                  Withdrawal history
+                </li>
+
+              </ul>
+
+              <div className="mt-4 p-3 rounded-xl bg-red-50 border border-red-100">
+
+                <p className="text-xs text-red-600 font-medium">
+                  This action cannot be undone.
+                </p>
+
+              </div>
+
+              {/* ERROR */}
+              {clearError && (
+                <div className="mt-4 rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-600 flex items-start gap-2">
+
+                  <FiAlertCircle
+                    size={16}
+                    className="mt-0.5 flex-shrink-0"
+                  />
+
+                  <span>
+                    {clearError}
+                  </span>
+
+                </div>
+              )}
+
+              {/* BUTTONS */}
+              <div className="flex gap-3 mt-6">
+
+                <button
+                  type="button"
+                  disabled={clearingData}
+                  onClick={() =>
+                    setShowClearModal(false)
+                  }
+                  className="flex-1 h-11 rounded-xl border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  disabled={clearingData}
+                  onClick={handleClearAllData}
+                  className="flex-1 h-11 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+
+                  {clearingData ? (
+                    <>
+                      <FiRefreshCw
+                        className="animate-spin"
+                        size={16}
+                      />
+
+                      Clearing...
+                    </>
+                  ) : (
+                    <>
+                      <FiTrash2 size={16} />
+
+                      Yes, Clear All
+                    </>
+                  )}
+
+                </button>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+      )}
+
     </div>
   );
 }
