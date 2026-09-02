@@ -91,7 +91,7 @@ import AdminFees from "./pages/admin/AdminFees";
 import AdminWithdrawals from "./pages/admin/AdminWithdrawals";
 import AdminPayments from "./pages/admin/AdminPayments";
 import AccountDisabled from "./context/AccountDisabled";
-import ResetOrders from "./pages/admin/ResetOrders";
+
 
 // =========================================================
 // DEFAULT PROFILE
@@ -3244,7 +3244,7 @@ function App() {
         <Route path="/admin/withdrawals" element={<AdminWithdrawals />} />
         <Route path="/admin/payments" element={<AdminPayments />} />
         <Route path="/account-disabled" element={<AccountDisabled />} />
-        <Route path="/admin/reset-orders" element={<ResetOrders />} />
+     
 
         {/* ================================================== */}
         {/* FALLBACK */}

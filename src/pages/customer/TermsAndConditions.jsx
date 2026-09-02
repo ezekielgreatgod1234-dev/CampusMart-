@@ -732,7 +732,7 @@ function TermsAndConditions() {
                         hover:text-green-800
                       "
                     >
-                      support@campusmart.com
+                      campusmart1234@gmail.com
                     </a>
                   </div>
                 </div>
