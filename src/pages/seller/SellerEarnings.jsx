@@ -2077,17 +2077,7 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
 
             </div>
 
-            <button
-              type="button"
-              onClick={() =>
-                handleNavigation(
-                  "/seller/settings"
-                )
-              }
-              className="h-9 px-4 rounded-lg bg-[#008236] text-white text-xs font-semibold hover:bg-[#006f2e] transition whitespace-nowrap"
-            >
-              Bank Settings
-            </button>
+           
 
           </div>
 
