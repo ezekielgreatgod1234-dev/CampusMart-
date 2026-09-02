@@ -28,10 +28,7 @@ import {
 import {
   doc,
   onSnapshot,
-  addDoc,
   updateDoc,
-  increment,
-  collection,
   serverTimestamp,
 } from "firebase/firestore";
 
@@ -39,7 +36,7 @@ import { db } from "../../context/firebase";
 import { useAuth } from "../../context/AuthContext";
 
 // =====================================================
-// HASH PIN (SHA-256 via Web Crypto)
+// HASH PIN
 // =====================================================
 async function hashPin(pin) {
   const encoder = new TextEncoder();
@@ -48,6 +45,31 @@ async function hashPin(pin) {
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
+
+// Common Nigerian banks + codes (Paystack)
+const BANKS = [
+  { name: "Access Bank", code: "044" },
+  { name: "Citibank Nigeria", code: "023" },
+  { name: "Ecobank Nigeria", code: "050" },
+  { name: "Fidelity Bank", code: "070" },
+  { name: "First Bank of Nigeria", code: "011" },
+  { name: "First City Monument Bank", code: "214" },
+  { name: "Guaranty Trust Bank", code: "058" },
+  { name: "Heritage Bank", code: "030" },
+  { name: "Keystone Bank", code: "082" },
+  { name: "Polaris Bank", code: "076" },
+  { name: "Stanbic IBTC Bank", code: "221" },
+  { name: "Standard Chartered Bank", code: "068" },
+  { name: "Sterling Bank", code: "232" },
+  { name: "Union Bank of Nigeria", code: "032" },
+  { name: "United Bank for Africa", code: "033" },
+  { name: "Unity Bank", code: "215" },
+  { name: "Wema Bank", code: "035" },
+  { name: "Zenith Bank", code: "057" },
+  { name: "Kuda Bank", code: "50211" },
+  { name: "Opay", code: "100004" },
+  { name: "PalmPay", code: "100033" },
+];
 
 function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
   const navigate = useNavigate();
@@ -58,6 +80,7 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
 
   const [amount, setAmount] = useState("");
   const [bankName, setBankName] = useState("");
+  const [bankCode, setBankCode] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [accountName, setAccountName] = useState("");
   const [formError, setFormError] = useState("");
@@ -68,27 +91,18 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
   const [availableBalance, setAvailableBalance] = useState(0);
   const [loadingBalance, setLoadingBalance] = useState(true);
 
-  // =====================================================
-  // PAYMENT PIN STATE
-  // =====================================================
+  // PIN
   const [hasPaymentPin, setHasPaymentPin] = useState(false);
   const [storedPinHash, setStoredPinHash] = useState(null);
-
   const [pinModalOpen, setPinModalOpen] = useState(false);
-  const [pinMode, setPinMode] = useState("verify"); // "set" | "verify"
+  const [pinMode, setPinMode] = useState("verify");
   const [pinValue, setPinValue] = useState("");
   const [confirmPinValue, setConfirmPinValue] = useState("");
   const [pinError, setPinError] = useState("");
   const [pinSubmitting, setPinSubmitting] = useState(false);
   const [showPin, setShowPin] = useState(false);
   const [showConfirmPin, setShowConfirmPin] = useState(false);
-
-  // Pending withdrawal data after PIN success
   const [pendingWithdrawal, setPendingWithdrawal] = useState(null);
-
-  // =====================================================
-  // SELLER PROFILE
-  // =====================================================
 
   const sellerFullName =
     profile?.fullName ||
@@ -110,10 +124,6 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
     firebaseUser?.photoURL ||
     null;
 
-  // =====================================================
-  // LIVE AVAILABLE BALANCE + PIN STATUS
-  // =====================================================
-
   useEffect(() => {
     if (!firebaseUser?.uid) {
       setAvailableBalance(0);
@@ -130,11 +140,9 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
       (snap) => {
         const data = snap.data() || {};
         setAvailableBalance(Number(data.availableBalance) || 0);
-
         const pinHash = data.paymentPinHash || null;
         setStoredPinHash(pinHash);
         setHasPaymentPin(Boolean(pinHash));
-
         setLoadingBalance(false);
       },
       (error) => {
@@ -145,10 +153,6 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
 
     return () => unsub();
   }, [firebaseUser?.uid]);
-
-  // =====================================================
-  // MENU (Reviews & Analytics removed)
-  // =====================================================
 
   const menuItems = [
     { label: "Dashboard", icon: FiGrid, path: "/seller-dashboard" },
@@ -208,13 +212,19 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
     availableBalance,
   ];
 
-  // =====================================================
-  // OPEN PIN MODAL AFTER FORM VALIDATION
-  // =====================================================
+  const handleBankChange = (e) => {
+    const code = e.target.value;
+    const bank = BANKS.find((b) => b.code === code);
+    setBankCode(code);
+    setBankName(bank ? bank.name : "");
+    if (formError) setFormError("");
+  };
 
+  // =====================================================
+  // FORM → OPEN PIN MODAL
+  // =====================================================
   const handleSubmit = (event) => {
     event.preventDefault();
-
     setFormError("");
     setSuccess(false);
     setPinError("");
@@ -230,36 +240,31 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
       setFormError("Please enter a valid withdrawal amount.");
       return;
     }
-
     if (numericAmount < 1000) {
       setFormError("Minimum withdrawal amount is ₦1,000.");
       return;
     }
-
     if (numericAmount > availableBalance) {
       setFormError("Amount exceeds your available balance.");
       return;
     }
-
-    if (!bankName.trim()) {
-      setFormError("Please enter your bank name.");
+    if (!bankCode || !bankName) {
+      setFormError("Please select your bank.");
       return;
     }
-
     if (!accountNumber.trim() || accountNumber.trim().length < 10) {
       setFormError("Please enter a valid 10-digit account number.");
       return;
     }
-
     if (!accountName.trim()) {
       setFormError("Please enter the account name.");
       return;
     }
 
-    // Store validated data and open PIN modal
     setPendingWithdrawal({
       numericAmount,
-      bankName: bankName.trim(),
+      bankName,
+      bankCode,
       accountNumber: accountNumber.trim(),
       accountName: accountName.trim(),
     });
@@ -269,20 +274,13 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
     setPinError("");
     setShowPin(false);
     setShowConfirmPin(false);
-
-    if (hasPaymentPin) {
-      setPinMode("verify");
-    } else {
-      setPinMode("set");
-    }
-
+    setPinMode(hasPaymentPin ? "verify" : "set");
     setPinModalOpen(true);
   };
 
   // =====================================================
-  // ACTUAL WITHDRAWAL (called after PIN success)
+  // REAL WITHDRAWAL VIA BACKEND
   // =====================================================
-
   const processWithdrawal = async (data) => {
     if (!firebaseUser?.uid || !data) return;
 
@@ -290,43 +288,35 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
     setPinSubmitting(true);
 
     try {
-      // 1) Create withdrawal request
-      await addDoc(collection(db, "withdrawals"), {
-        sellerId: firebaseUser.uid,
-        amount: data.numericAmount,
-        bankName: data.bankName,
-        accountNumber: data.accountNumber,
-        accountName: data.accountName,
-        status: "Pending",
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
+      const response = await fetch(
+        "https://campusbackend-1.onrender.com/process-withdrawal",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            sellerId: firebaseUser.uid,
+            amount: data.numericAmount,
+            bankName: data.bankName,
+            bankCode: data.bankCode,
+            accountNumber: data.accountNumber,
+            accountName: data.accountName,
+          }),
+        }
+      );
 
-      // 2) Deduct from available balance
-      await updateDoc(doc(db, "users", firebaseUser.uid), {
-        availableBalance: increment(-data.numericAmount),
-        updatedAt: serverTimestamp(),
-      });
+      const result = await response.json();
 
-      // 3) Optional ledger entry
-      try {
-        await addDoc(collection(db, "earnings"), {
-          sellerId: firebaseUser.uid,
-          type: "withdrawal",
-          title: "Withdrawal request",
-          description: `${data.bankName} · ${data.accountNumber}`,
-          amount: -data.numericAmount,
-          status: "Pending",
-          createdAt: serverTimestamp(),
-        });
-      } catch (ledgerErr) {
-        console.warn("Could not write withdrawal ledger row:", ledgerErr);
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "Withdrawal failed");
       }
 
       setSuccessAmount(data.numericAmount);
       setSuccess(true);
       setAmount("");
       setBankName("");
+      setBankCode("");
       setAccountNumber("");
       setAccountName("");
       setPendingWithdrawal(null);
@@ -334,9 +324,7 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
     } catch (error) {
       console.error("Withdrawal error:", error);
       setFormError(
-        error?.message?.includes("permission")
-          ? "Permission denied. Check Firestore rules for withdrawals."
-          : "Unable to submit withdrawal. Please try again."
+        error.message || "Unable to process withdrawal. Please try again."
       );
       setPinModalOpen(false);
     } finally {
@@ -346,9 +334,8 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
   };
 
   // =====================================================
-  // PIN MODAL HANDLERS
+  // PIN HANDLERS
   // =====================================================
-
   const closePinModal = () => {
     if (pinSubmitting) return;
     setPinModalOpen(false);
@@ -371,28 +358,21 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
 
     if (pinMode === "set") {
       const confirm = String(confirmPinValue).trim();
-
       if (pin !== confirm) {
         setPinError("PINs do not match. Please try again.");
         return;
       }
 
       setPinSubmitting(true);
-
       try {
         const pinHash = await hashPin(pin);
-
         await updateDoc(doc(db, "users", firebaseUser.uid), {
           paymentPinHash: pinHash,
           paymentPinSetAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
-
-        // Local update (onSnapshot will also update)
         setStoredPinHash(pinHash);
         setHasPaymentPin(true);
-
-        // Proceed with withdrawal
         await processWithdrawal(pendingWithdrawal);
       } catch (error) {
         console.error("Set PIN error:", error);
@@ -402,7 +382,6 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
       return;
     }
 
-    // VERIFY mode
     if (!storedPinHash) {
       setPinError("No PIN found. Please set a new one.");
       setPinMode("set");
@@ -410,17 +389,13 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
     }
 
     setPinSubmitting(true);
-
     try {
       const inputHash = await hashPin(pin);
-
       if (inputHash !== storedPinHash) {
         setPinError("Incorrect PIN. Please try again.");
         setPinSubmitting(false);
         return;
       }
-
-      // PIN correct → process withdrawal
       await processWithdrawal(pendingWithdrawal);
     } catch (error) {
       console.error("Verify PIN error:", error);
@@ -645,7 +620,7 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
                 Withdraw Funds
               </h1>
               <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
-                Send money from your available balance to your bank.
+                Send real money from your balance to your bank account.
               </p>
             </div>
           </div>
@@ -675,12 +650,12 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
               </div>
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-gray-800">
-                  Withdrawal request submitted
+                  Withdrawal initiated
                 </p>
                 <p className="text-xs text-gray-500 mt-1 leading-5">
-                  {formatNaira(successAmount)} was reserved from your balance.
-                  Funds usually arrive in 1–3 business days after admin
-                  approval.
+                  {formatNaira(successAmount)} is being sent to your bank
+                  account. Funds usually arrive within a few minutes to a few
+                  hours.
                 </p>
                 <button
                   type="button"
@@ -768,19 +743,21 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
 
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-2">
-                    Bank name
+                    Bank
                   </label>
-                  <input
-                    type="text"
-                    value={bankName}
-                    onChange={(e) => {
-                      setBankName(e.target.value);
-                      if (formError) setFormError("");
-                    }}
+                  <select
+                    value={bankCode}
+                    onChange={handleBankChange}
                     disabled={submitting}
-                    placeholder="e.g. GTBank, Access Bank, UBA"
                     className="w-full h-12 px-3.5 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-800 outline-none focus:border-[#008236] focus:ring-4 focus:ring-green-50 transition disabled:opacity-60"
-                  />
+                  >
+                    <option value="">Select your bank</option>
+                    {BANKS.map((bank) => (
+                      <option key={bank.code} value={bank.code}>
+                        {bank.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
@@ -821,13 +798,9 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
                 </div>
 
                 <div className="rounded-xl bg-green-50 border border-green-100 px-4 py-3 text-xs text-gray-600 leading-5">
-                  Withdrawals are processed within{" "}
-                  <span className="font-semibold text-[#008236]">
-                    1–3 business days
-                  </span>
-                  . Minimum amount is ₦1,000. The amount is reserved from your
-                  available balance when you submit. You will be asked for your
-                  payment PIN.
+                  Real money will be sent to your bank account via Paystack.
+                  Minimum amount is ₦1,000. You will be asked for your payment
+                  PIN before the transfer is made.
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3 pt-1">
@@ -850,7 +823,7 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
                     {submitting ? (
                       <>
                         <FiRefreshCw size={17} className="animate-spin" />
-                        Submitting...
+                        Processing...
                       </>
                     ) : (
                       <>
@@ -866,9 +839,7 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
         </main>
       </div>
 
-      {/* =====================================================
-          PAYMENT PIN MODAL
-          ===================================================== */}
+      {/* PIN MODAL */}
       {pinModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div
@@ -925,7 +896,9 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
                     maxLength={4}
                     value={pinValue}
                     onChange={(e) => {
-                      const value = e.target.value.replace(/\D/g, "").slice(0, 4);
+                      const value = e.target.value
+                        .replace(/\D/g, "")
+                        .slice(0, 4);
                       setPinValue(value);
                       if (pinError) setPinError("");
                     }}
@@ -1016,7 +989,9 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
                   ) : (
                     <>
                       <FiLock size={16} />
-                      {pinMode === "set" ? "Set PIN & Continue" : "Confirm & Withdraw"}
+                      {pinMode === "set"
+                        ? "Set PIN & Continue"
+                        : "Confirm & Withdraw"}
                     </>
                   )}
                 </button>

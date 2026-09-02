@@ -49,9 +49,12 @@ function Payment({ cartCount = 0, placeOrder }) {
 
   // =====================================================
   // PAY WITH PAYSTACK
+  // 1. Create order (Pending)
+  // 2. Initialize payment on backend
+  // 3. Redirect to Paystack
   // =====================================================
 
-  const handlePayWithPaystack = () => {
+  const handlePayWithPaystack = async () => {
     setErrorMessage("");
 
     if (!firebaseUser) {
@@ -64,99 +67,91 @@ function Payment({ cartCount = 0, placeOrder }) {
       return;
     }
 
-    const publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
+    // Get sellerId
+    const sellerId =
+      checkoutItems[0]?.sellerId ||
+      checkoutItems[0]?.seller?.id ||
+      checkoutItems[0]?.ownerId ||
+      checkoutItems[0]?.userId ||
+      null;
 
-    if (!publicKey || !String(publicKey).startsWith("pk_")) {
-      setErrorMessage(
-        "Paystack public key is not configured. Add VITE_PAYSTACK_PUBLIC_KEY to your .env file."
-      );
+    if (!sellerId) {
+      setErrorMessage("Seller information is missing. Cannot process payment.");
       return;
     }
 
-    if (typeof window.PaystackPop === "undefined") {
-      setErrorMessage(
-        "Paystack failed to load. Check your internet connection and refresh the page."
-      );
+    if (typeof placeOrder !== "function") {
+      setErrorMessage("Order system is not available. Please try again later.");
       return;
     }
-
-    const reference = `CM-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
 
     setPaying(true);
 
-    const handler = window.PaystackPop.setup({
-      key: publicKey,
-      email,
-      amount: Math.round(amountNaira * 100), // kobo
-      currency: "NGN",
-      ref: reference,
-      metadata: {
-        custom_fields: [
-          {
-            display_name: "Buyer Name",
-            variable_name: "buyer_name",
-            value: formData?.fullName || "CampusMart Buyer",
-          },
-          {
-            display_name: "Campus",
-            variable_name: "campus",
-            value: formData?.campus || "",
-          },
-          {
-            display_name: "Phone",
-            variable_name: "phone",
-            value: formData?.phone || "",
-          },
-        ],
-      },
-      callback: function (response) {
-        // Paystack success — create order + credit seller
-        (async () => {
-          try {
-            if (typeof placeOrder !== "function") {
-              throw new Error("placeOrder is not available");
-            }
+    try {
+      // =========================================
+      // 1. CREATE ORDER FIRST (status = Pending)
+      // =========================================
+      const order = await placeOrder({
+        items: checkoutItems,
+        total: amountNaira,
+        paymentMethod: "card",
+        type: checkoutType,
+        status: "Pending",
+        paymentStatus: "pending",
+        customer: {
+          fullName: formData?.fullName || "",
+          phone: formData?.phone || "",
+          campus: formData?.campus || "",
+          address: formData?.address || "",
+          note: formData?.note || "",
+          email,
+        },
+      });
 
-            const order = await placeOrder({
-              items: checkoutItems,
-              total: amountNaira,
-              paymentMethod: "card",
-              type: checkoutType,
-              customer: {
-                fullName: formData?.fullName || "",
-                phone: formData?.phone || "",
-                campus: formData?.campus || "",
-                address: formData?.address || "",
-                note: formData?.note || "",
-                email,
-              },
-              paystackReference: response.reference,
-            });
+      const orderId = order?.id || order?.orderId || null;
 
-            navigate("/order-success", {
-              replace: true,
-              state: {
-                order,
-                paystackReference: response.reference,
-              },
-            });
-          } catch (err) {
-            console.error("Order create after Paystack error:", err);
-            setErrorMessage(
-              "Payment succeeded but order could not be saved. Contact support with reference: " +
-                response.reference
-            );
-            setPaying(false);
-          }
-        })();
-      },
-      onClose: function () {
+      if (!orderId) {
+        throw new Error("Order was created but no ID was returned");
+      }
+
+      // =========================================
+      // 2. CALL BACKEND TO INITIALIZE PAYMENT
+      // =========================================
+      const response = await fetch(
+        "https://campusbackend-1.onrender.com/initialize-payment",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email,
+            amount: amountNaira,
+            sellerId,
+            orderId,
+            productName: checkoutItems[0]?.name || "CampusMart Order",
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (data.authorization_url) {
+        // =========================================
+        // 3. REDIRECT TO PAYSTACK
+        // =========================================
+        window.location.href = data.authorization_url;
+      } else {
+        setErrorMessage(data.error || "Payment could not be started");
         setPaying(false);
-        setErrorMessage("Payment window closed. You can try again.");
-      },
-    });
-
-    handler.openIframe();
+      }
+    } catch (error) {
+      console.error("Payment error:", error);
+      setErrorMessage(
+        error.message || "Something went wrong. Please try again."
+      );
+      setPaying(false);
+    }
   };
 
   // =====================================================
@@ -263,7 +258,7 @@ function Payment({ cartCount = 0, placeOrder }) {
           "
         >
           {paying ? (
-            "Opening Paystack…"
+            "Creating order & redirecting…"
           ) : (
             <>
               <FiCreditCard size={18} />
@@ -282,9 +277,9 @@ function Payment({ cartCount = 0, placeOrder }) {
             <FiShield size={16} />
           </div>
           <p className="text-xs text-gray-500 leading-5">
-            You will enter your card details on Paystack’s secure page. CampusMart
-            never stores your full card number. After payment, your order is
-            created and the seller is credited (minus 5% platform fee).
+            Your order will be created first. After you complete payment on
+            Paystack, the seller will be credited with 95% and CampusMart will
+            keep 5%.
           </p>
         </div>
 

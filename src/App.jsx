@@ -83,6 +83,17 @@ import ForgotPassword from "./pages/customer/ForgotPassword";
 import PrivacyPolicy from "./pages/customer/PrivacyPolicy";
 import TermsAndConditions from "./pages/customer/TermsAndConditions";
 
+
+
+
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminUsers from "./pages/admin/AdminUsers";
+import AdminProducts from "./pages/admin/AdminProducts";
+import AdminOrders from "./pages/admin/AdminOrders";
+import AdminFees from "./pages/admin/AdminFees";
+import AdminWithdrawals from "./pages/admin/AdminWithdrawals";
+import AdminPayments from "./pages/admin/AdminPayments";
+
 // =========================================================
 // DEFAULT PROFILE
 // =========================================================
@@ -4948,7 +4959,18 @@ function App() {
           }
         />
 
-        {/* ================================================= */}
+
+        <Route path="/admin-dashboard" element={<AdminDashboard />} />
+
+        <Route path="/admin/users" element={<AdminUsers />} />
+        <Route path="/admin/products" element={<AdminProducts />} />
+        <Route path="/admin/orders" element={<AdminOrders />} />
+        <Route path="/admin/fees" element={<AdminFees />} />
+        <Route path="/admin/withdrawals" element={<AdminWithdrawals />} />
+        <Route path="/admin/payments" element={<AdminPayments />} />
+
+
+        {/* ================================================== */}
         {/* FALLBACK */}
         {/* ================================================= */}
 
