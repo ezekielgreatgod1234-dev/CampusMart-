@@ -561,6 +561,10 @@ function AdminFees() {
       icon: FiTrendingUp,
       path: "/admin/payments",
     },
+
+
+
+    
   ];
 
   const isActive = (path) => {

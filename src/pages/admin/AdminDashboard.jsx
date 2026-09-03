@@ -1,11 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
 import {
   collection,
   onSnapshot,
-  query,
-  where,
 } from "firebase/firestore";
 
 import {
@@ -21,6 +19,7 @@ import {
   FiTrendingUp,
   FiClock,
   FiShield,
+  FiMessageCircle,
 } from "react-icons/fi";
 
 import { db } from "../../context/firebase";
@@ -31,23 +30,40 @@ const ADMIN_EMAIL = "campusmart1234@gmail.com";
 function AdminDashboard() {
   const navigate = useNavigate();
   const location = useLocation();
+
   const { firebaseUser } = useAuth();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
   const [loading, setLoading] = useState(true);
   const [allowed, setAllowed] = useState(false);
 
-  // Stats
-  const [totalUsers, setTotalUsers] = useState(0);
-  const [totalProducts, setTotalProducts] = useState(0);
-  const [totalOrders, setTotalOrders] = useState(0);
-  const [totalRevenue, setTotalRevenue] = useState(0);
-  const [platformFees, setPlatformFees] = useState(0);
-  const [pendingWithdrawals, setPendingWithdrawals] = useState(0);
+  // =========================================================
+  // STATS
+  // =========================================================
 
-  // =====================================================
+  const [totalUsers, setTotalUsers] = useState(0);
+
+  const [totalProducts, setTotalProducts] =
+    useState(0);
+
+  const [totalOrders, setTotalOrders] =
+    useState(0);
+
+  const [totalRevenue, setTotalRevenue] =
+    useState(0);
+
+  const [platformFees, setPlatformFees] =
+    useState(0);
+
+  const [pendingWithdrawals, setPendingWithdrawals] =
+    useState(0);
+
+
+  // =========================================================
   // ACCESS CONTROL
-  // =====================================================
+  // =========================================================
+
   useEffect(() => {
     if (!firebaseUser) {
       setAllowed(false);
@@ -55,351 +71,1037 @@ function AdminDashboard() {
       return;
     }
 
-    const email = (firebaseUser.email || "").toLowerCase();
-    const isMainAdmin = email === ADMIN_EMAIL.toLowerCase();
+    const email = (
+      firebaseUser.email || ""
+    ).toLowerCase();
 
-    // Also allow users with role === "admin"
-    // We check from Auth first; role can also be stored in Firestore
+    const isMainAdmin =
+      email === ADMIN_EMAIL.toLowerCase();
+
+
+    // =======================================================
+    // MAIN ADMIN
+    // =======================================================
+
+    if (isMainAdmin) {
+      setAllowed(true);
+      setLoading(false);
+      return;
+    }
+
+
+    // =======================================================
+    // CHECK FIRESTORE ROLE
+    // =======================================================
+
     const checkAccess = async () => {
-      if (isMainAdmin) {
-        setAllowed(true);
-        setLoading(false);
-        return;
-      }
-
-      // Optional: read role from Firestore user doc
       try {
-        const { doc, getDoc } = await import("firebase/firestore");
-        const snap = await getDoc(doc(db, "users", firebaseUser.uid));
-        const role = snap.exists() ? snap.data()?.role : null;
-        setAllowed(role === "admin");
-      } catch (err) {
-        console.error(err);
+        const {
+          doc,
+          getDoc,
+        } = await import(
+          "firebase/firestore"
+        );
+
+        const userRef = doc(
+          db,
+          "users",
+          firebaseUser.uid
+        );
+
+        const snap =
+          await getDoc(userRef);
+
+        const role = snap.exists()
+          ? snap.data()?.role
+          : null;
+
+        setAllowed(
+          role === "admin"
+        );
+
+      } catch (error) {
+        console.error(
+          "Could not check admin role:",
+          error
+        );
+
         setAllowed(false);
+
       } finally {
         setLoading(false);
       }
     };
 
     checkAccess();
+
   }, [firebaseUser]);
 
-  // =====================================================
-  // LIVE STATS
-  // =====================================================
+
+  // =========================================================
+  // LIVE ADMIN STATS
+  // =========================================================
+
   useEffect(() => {
-    if (!allowed) return;
+    if (!allowed) {
+      return;
+    }
 
-    // Users
-    const unsubUsers = onSnapshot(collection(db, "users"), (snap) => {
-      setTotalUsers(snap.size);
-    });
 
-    // Products
-    const unsubProducts = onSnapshot(collection(db, "products"), (snap) => {
-      setTotalProducts(snap.size);
-    });
+    // =======================================================
+    // USERS
+    // =======================================================
 
-    // Orders + revenue
-    const unsubOrders = onSnapshot(collection(db, "orders"), (snap) => {
-      setTotalOrders(snap.size);
-      let revenue = 0;
-      snap.forEach((d) => {
-        const data = d.data();
-        const amount =
-          Number(data.total) ||
-          Number(data.amount) ||
-          Number(data.amountPaid) ||
-          0;
-        if (
-          data.paymentStatus === "paid" ||
-          data.status === "paid" ||
-          data.status === "delivered" ||
-          data.status === "Pending" ||
-          data.status === "pending"
-        ) {
-          revenue += amount;
+    const unsubUsers =
+      onSnapshot(
+        collection(db, "users"),
+        (snap) => {
+          setTotalUsers(
+            snap.size
+          );
+        },
+        (error) => {
+          console.error(
+            "Could not load users:",
+            error
+          );
         }
-      });
-      setTotalRevenue(revenue);
-    });
+      );
 
-    // Platform fees (5%)
-    const unsubFees = onSnapshot(collection(db, "platformFees"), (snap) => {
-      let fees = 0;
-      snap.forEach((d) => {
-        fees += Number(d.data().platformFee) || 0;
-      });
-      setPlatformFees(fees);
-    });
 
-    // Pending withdrawals
-    const unsubWithdrawals = onSnapshot(
-      collection(db, "withdrawals"),
-      (snap) => {
-        let pending = 0;
-        snap.forEach((d) => {
-          const status = String(d.data().status || "").toLowerCase();
-          if (status === "pending" || status === "processing") {
-            pending += 1;
-          }
-        });
-        setPendingWithdrawals(pending);
-      }
-    );
+    // =======================================================
+    // PRODUCTS
+    // =======================================================
+
+    const unsubProducts =
+      onSnapshot(
+        collection(db, "products"),
+        (snap) => {
+          setTotalProducts(
+            snap.size
+          );
+        },
+        (error) => {
+          console.error(
+            "Could not load products:",
+            error
+          );
+        }
+      );
+
+
+    // =======================================================
+    // ORDERS + REVENUE
+    // =======================================================
+
+    const unsubOrders =
+      onSnapshot(
+        collection(db, "orders"),
+        (snap) => {
+
+          setTotalOrders(
+            snap.size
+          );
+
+          let revenue = 0;
+
+
+          snap.forEach((d) => {
+
+            const data =
+              d.data();
+
+            const amount =
+              Number(
+                data.total
+              ) ||
+              Number(
+                data.amount
+              ) ||
+              Number(
+                data.amountPaid
+              ) ||
+              0;
+
+
+            const paymentStatus =
+              String(
+                data.paymentStatus ||
+                ""
+              ).toLowerCase();
+
+
+            const status =
+              String(
+                data.status ||
+                ""
+              ).toLowerCase();
+
+
+            if (
+              paymentStatus ===
+                "paid" ||
+
+              status ===
+                "paid" ||
+
+              status ===
+                "delivered" ||
+
+              status ===
+                "pending"
+            ) {
+              revenue += amount;
+            }
+
+          });
+
+
+          setTotalRevenue(
+            revenue
+          );
+
+        },
+        (error) => {
+          console.error(
+            "Could not load orders:",
+            error
+          );
+        }
+      );
+
+
+    // =======================================================
+    // PLATFORM FEES
+    // =======================================================
+
+    const unsubFees =
+      onSnapshot(
+        collection(
+          db,
+          "platformFees"
+        ),
+        (snap) => {
+
+          let fees = 0;
+
+
+          snap.forEach((d) => {
+
+            fees +=
+              Number(
+                d.data()
+                  .platformFee
+              ) || 0;
+
+          });
+
+
+          setPlatformFees(
+            fees
+          );
+
+        },
+        (error) => {
+          console.error(
+            "Could not load platform fees:",
+            error
+          );
+        }
+      );
+
+
+    // =======================================================
+    // PENDING WITHDRAWALS
+    // =======================================================
+
+    const unsubWithdrawals =
+      onSnapshot(
+        collection(
+          db,
+          "withdrawals"
+        ),
+        (snap) => {
+
+          let pending = 0;
+
+
+          snap.forEach((d) => {
+
+            const status =
+              String(
+                d.data().status ||
+                ""
+              ).toLowerCase();
+
+
+            if (
+              status ===
+                "pending" ||
+              status ===
+                "processing"
+            ) {
+              pending += 1;
+            }
+
+          });
+
+
+          setPendingWithdrawals(
+            pending
+          );
+
+        },
+        (error) => {
+          console.error(
+            "Could not load withdrawals:",
+            error
+          );
+        }
+      );
+
+
+    // =======================================================
+    // CLEANUP
+    // =======================================================
 
     return () => {
+
       unsubUsers();
+
       unsubProducts();
+
       unsubOrders();
+
       unsubFees();
+
       unsubWithdrawals();
+
     };
+
   }, [allowed]);
 
-  const formatNaira = (n) =>
-    `₦${Number(n || 0).toLocaleString("en-NG")}`;
+
+  // =========================================================
+  // FORMAT NAIRA
+  // =========================================================
+
+  const formatNaira = (n) => {
+    return `₦${Number(
+      n || 0
+    ).toLocaleString(
+      "en-NG"
+    )}`;
+  };
+
+
+  // =========================================================
+  // ADMIN MENU
+  // =========================================================
 
   const menuItems = [
-    { label: "Overview", icon: FiGrid, path: "/admin-dashboard" },
-    { label: "Users", icon: FiUsers, path: "/admin/users" },
-    { label: "Products", icon: FiPackage, path: "/admin/products" },
-    { label: "Orders", icon: FiShoppingBag, path: "/admin/orders" },
-    { label: "Platform Fees", icon: FiDollarSign, path: "/admin/fees" },
-    { label: "Withdrawals", icon: FiCreditCard, path: "/admin/withdrawals" },
-    { label: "Payments", icon: FiTrendingUp, path: "/admin/payments" },
+
+    {
+      label: "Overview",
+      icon: FiGrid,
+      path: "/admin-dashboard",
+    },
+
+    {
+      label: "Users",
+      icon: FiUsers,
+      path: "/admin/users",
+    },
+
+    {
+      label: "Products",
+      icon: FiPackage,
+      path: "/admin/products",
+    },
+
+    {
+      label: "Orders",
+      icon: FiShoppingBag,
+      path: "/admin/orders",
+    },
+
+    {
+      label: "Platform Fees",
+      icon: FiDollarSign,
+      path: "/admin/fees",
+    },
+
+    {
+      label: "Withdrawals",
+      icon: FiCreditCard,
+      path: "/admin/withdrawals",
+    },
+
+    {
+      label: "Payments",
+      icon: FiTrendingUp,
+      path: "/admin/payments",
+    },
+
+    // =======================================================
+    // NEW SUPPORT MESSAGE MENU
+    // =======================================================
+
+    {
+      label: "Support Messages",
+      icon: FiMessageCircle,
+      path: "/admin/support-messages",
+    },
+
   ];
 
+
+  // =========================================================
+  // ACTIVE MENU
+  // =========================================================
+
   const isActive = (path) => {
-    if (path === "/admin-dashboard") {
-      return location.pathname === "/admin-dashboard";
+
+    if (
+      path ===
+      "/admin-dashboard"
+    ) {
+      return (
+        location.pathname ===
+        "/admin-dashboard"
+      );
     }
-    return location.pathname.startsWith(path);
+
+
+    return location.pathname.startsWith(
+      path
+    );
+
   };
 
-  const handleNavigation = (path) => {
+
+  // =========================================================
+  // NAVIGATION
+  // =========================================================
+
+  const handleNavigation = (
+    path
+  ) => {
+
     setSidebarOpen(false);
+
     navigate(path);
+
   };
+
+
+  // =========================================================
+  // LOGOUT
+  // =========================================================
 
   const handleLogout = () => {
+
+    setSidebarOpen(false);
+
     navigate("/logout");
+
   };
 
-  // =====================================================
-  // LOADING / ACCESS DENIED
-  // =====================================================
+
+  // =========================================================
+  // LOADING
+  // =========================================================
+
   if (loading) {
+
     return (
+
       <div className="h-screen w-full flex items-center justify-center bg-gray-50">
+
         <div className="text-center">
+
           <div className="w-10 h-10 mx-auto rounded-full border-4 border-green-100 border-t-green-600 animate-spin" />
-          <p className="mt-4 text-sm text-gray-500">Checking access...</p>
+
+          <p className="mt-4 text-sm text-gray-500">
+            Checking access...
+          </p>
+
         </div>
+
       </div>
+
     );
+
   }
 
-  if (!firebaseUser || !allowed) {
+
+  // =========================================================
+  // ACCESS DENIED
+  // =========================================================
+
+  if (
+    !firebaseUser ||
+    !allowed
+  ) {
+
     return (
+
       <div className="h-screen w-full flex items-center justify-center bg-gray-50 px-4">
+
         <div className="max-w-sm text-center bg-white rounded-2xl border border-gray-100 p-8 shadow-sm">
+
           <div className="w-14 h-14 mx-auto rounded-full bg-red-50 text-red-500 flex items-center justify-center mb-4">
-            <FiShield size={24} />
+
+            <FiShield
+              size={24}
+            />
+
           </div>
-          <h1 className="text-xl font-bold text-gray-800">Access Denied</h1>
+
+
+          <h1 className="text-xl font-bold text-gray-800">
+            Access Denied
+          </h1>
+
+
           <p className="text-sm text-gray-500 mt-2">
-            You do not have permission to view the Admin Dashboard.
+
+            You do not have
+            permission to view
+            the Admin Dashboard.
+
           </p>
+
+
           <button
             type="button"
-            onClick={() => navigate("/")}
-            className="mt-6 h-11 px-6 rounded-xl bg-[#008236] text-white text-sm font-semibold"
+            onClick={() =>
+              navigate("/")
+            }
+            className="mt-6 h-11 px-6 rounded-xl bg-[#008236] text-white text-sm font-semibold hover:bg-[#006f2e] transition"
           >
             Go Home
           </button>
+
         </div>
+
       </div>
+
     );
+
   }
 
-  // =====================================================
+
+  // =========================================================
   // RENDER
-  // =====================================================
+  // =========================================================
+
   return (
+
     <div className="h-screen w-full bg-gray-50 text-gray-800 font-sans overflow-hidden">
+
+
+      {/* =====================================================
+          MOBILE SIDEBAR OVERLAY
+      ====================================================== */}
+
       {sidebarOpen && (
+
         <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
+          onClick={() =>
+            setSidebarOpen(false)
+          }
         />
+
       )}
 
-      {/* SIDEBAR */}
+
+      {/* =====================================================
+          SIDEBAR
+      ====================================================== */}
+
       <aside
         className={`
           fixed inset-y-0 left-0 z-50
-          w-[291px] bg-[#008236] text-white flex flex-col h-screen
-          transition-transform duration-300 ease-in-out
-          ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
+          w-[291px]
+          bg-[#008236]
+          text-white
+          flex flex-col
+          h-screen
+          transition-transform
+          duration-300
+          ease-in-out
+          ${
+            sidebarOpen
+              ? "translate-x-0"
+              : "-translate-x-full lg:translate-x-0"
+          }
         `}
       >
+
+
+        {/* ===================================================
+            LOGO
+        ==================================================== */}
+
         <div className="relative px-5 pt-6 pb-4">
+
+          {/* MOBILE CLOSE */}
+
           <button
             type="button"
-            onClick={() => setSidebarOpen(false)}
+            onClick={() =>
+              setSidebarOpen(false)
+            }
             className="lg:hidden absolute top-3 right-3 w-9 h-9 rounded-lg hover:bg-white/10 flex items-center justify-center"
           >
-            <FiX size={21} />
+
+            <FiX
+              size={21}
+            />
+
           </button>
+
+
+          {/* LOGO */}
 
           <div className="flex items-center gap-3">
+
             <div className="w-10 h-10 rounded-xl bg-[#006f2e] flex items-center justify-center border border-white/10">
-              <span className="text-white text-[16px] font-black">CM</span>
+
+              <span className="text-white text-[16px] font-black">
+                CM
+              </span>
+
             </div>
+
+
             <div>
+
               <h1 className="text-[22px] font-extrabold leading-none">
-                Campus<span className="text-green-300">Mart</span>
+
+                Campus
+                <span className="text-green-300">
+                  Mart
+                </span>
+
               </h1>
-              <p className="text-[10px] text-green-100 mt-1">Admin Panel</p>
+
+
+              <p className="text-[10px] text-green-100 mt-1">
+                Admin Panel
+              </p>
+
             </div>
+
           </div>
+
         </div>
+
+
+        {/* ===================================================
+            MENU
+        ==================================================== */}
 
         <nav className="flex-1 px-4 py-3 overflow-y-auto flex flex-col gap-1">
-          {menuItems.map(({ label, icon: Icon, path }) => {
-            const active = isActive(path);
-            return (
-              <button
-                key={label}
-                type="button"
-                onClick={() => handleNavigation(path)}
-                className={`
-                  w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-left transition
-                  ${
-                    active
-                      ? "bg-white text-[#008236] font-semibold"
-                      : "text-white hover:bg-white/10"
+
+          {menuItems.map(
+            ({
+              label,
+              icon: Icon,
+              path,
+            }) => {
+
+              const active =
+                isActive(path);
+
+
+              return (
+
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() =>
+                    handleNavigation(
+                      path
+                    )
                   }
-                `}
-              >
-                <Icon size={18} />
-                <span className="text-[14px]">{label}</span>
-              </button>
-            );
-          })}
+                  className={`
+                    w-full
+                    flex
+                    items-center
+                    gap-3
+                    px-3.5
+                    py-3
+                    rounded-xl
+                    text-left
+                    transition
+                    ${
+                      active
+                        ? "bg-white text-[#008236] font-semibold"
+                        : "text-white hover:bg-white/10"
+                    }
+                  `}
+                >
+
+                  <Icon
+                    size={18}
+                  />
+
+
+                  <span className="text-[14px]">
+                    {label}
+                  </span>
+
+                </button>
+
+              );
+
+            }
+          )}
+
         </nav>
 
+
+        {/* ===================================================
+            LOGOUT
+        ==================================================== */}
+
         <div className="px-4 pb-5">
+
           <button
             type="button"
-            onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-white hover:bg-white/10"
+            onClick={
+              handleLogout
+            }
+            className="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-white hover:bg-white/10 transition"
           >
-            <FiLogOut size={18} />
-            <span className="text-[14px]">Logout</span>
+
+            <FiLogOut
+              size={18}
+            />
+
+
+            <span className="text-[14px]">
+              Logout
+            </span>
+
           </button>
+
         </div>
+
       </aside>
 
-      {/* MAIN */}
+
+      {/* =====================================================
+          MAIN
+      ====================================================== */}
+
       <div className="min-w-0 flex flex-col h-screen lg:ml-[291px]">
+
+
+        {/* ===================================================
+            HEADER
+        ==================================================== */}
+
         <header className="min-h-[70px] bg-[#007233] text-white flex items-center px-4 sm:px-6 lg:px-8 gap-3 flex-shrink-0">
+
+
+          {/* MOBILE MENU */}
+
           <button
             type="button"
-            onClick={() => setSidebarOpen(true)}
+            onClick={() =>
+              setSidebarOpen(true)
+            }
             className="lg:hidden w-10 h-10 rounded-lg hover:bg-white/10 flex items-center justify-center"
           >
-            <FiMenu size={22} />
+
+            <FiMenu
+              size={22}
+            />
+
           </button>
 
+
+          {/* HEADER TEXT */}
+
           <div>
-            <p className="text-sm font-semibold">Admin Dashboard</p>
-            <p className="text-[11px] text-green-100">
-              Platform overview & control
+
+            <p className="text-sm font-semibold">
+              Admin Dashboard
             </p>
+
+
+            <p className="text-[11px] text-green-100">
+              Platform overview &
+              control
+            </p>
+
           </div>
+
         </header>
 
+
+        {/* ===================================================
+            PAGE CONTENT
+        ==================================================== */}
+
         <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6">
-          {/* Welcome */}
+
+
+          {/* =================================================
+              WELCOME
+          ================================================== */}
+
           <div className="mb-6 rounded-2xl bg-gradient-to-r from-[#007233] to-[#008f3f] p-6 text-white shadow-lg">
-            <p className="text-xs text-green-100 font-medium">Overview</p>
+
+            <p className="text-xs text-green-100 font-medium">
+              Overview
+            </p>
+
+
             <h1 className="text-2xl sm:text-3xl font-bold mt-1">
               CampusMart Admin
             </h1>
+
+
             <p className="text-sm text-green-100 mt-2 max-w-xl">
-              Track users, orders, revenue and platform fees in real time.
+              Track users, orders,
+              revenue and platform
+              fees in real time.
             </p>
+
           </div>
 
-          {/* Stats grid */}
+
+          {/* =================================================
+              STATS GRID
+          ================================================== */}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+
+
+            {/* TOTAL USERS */}
+
             <StatCard
               label="Total Users"
-              value={totalUsers}
+              value={
+                totalUsers
+              }
               icon={FiUsers}
               color="text-blue-600"
               bg="bg-blue-50"
             />
+
+
+            {/* TOTAL PRODUCTS */}
+
             <StatCard
               label="Total Products"
-              value={totalProducts}
+              value={
+                totalProducts
+              }
               icon={FiPackage}
               color="text-purple-600"
               bg="bg-purple-50"
             />
+
+
+            {/* TOTAL ORDERS */}
+
             <StatCard
               label="Total Orders"
-              value={totalOrders}
+              value={
+                totalOrders
+              }
               icon={FiShoppingBag}
               color="text-orange-600"
               bg="bg-orange-50"
             />
+
+
+            {/* TOTAL REVENUE */}
+
             <StatCard
               label="Total Revenue"
-              value={formatNaira(totalRevenue)}
+              value={
+                formatNaira(
+                  totalRevenue
+                )
+              }
               icon={FiTrendingUp}
               color="text-emerald-600"
               bg="bg-emerald-50"
             />
+
+
+            {/* PLATFORM FEES */}
+
             <StatCard
               label="CampusMart Fees (5%)"
-              value={formatNaira(platformFees)}
+              value={
+                formatNaira(
+                  platformFees
+                )
+              }
               icon={FiDollarSign}
               color="text-[#008236]"
               bg="bg-green-50"
             />
+
+
+            {/* PENDING WITHDRAWALS */}
+
             <StatCard
               label="Pending Withdrawals"
-              value={pendingWithdrawals}
+              value={
+                pendingWithdrawals
+              }
               icon={FiClock}
               color="text-amber-600"
               bg="bg-amber-50"
             />
+
           </div>
+
+
+          {/* =================================================
+              SUPPORT MESSAGE QUICK ACCESS
+          ================================================== */}
+
+          <div className="mt-6 bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+
+            <div className="flex items-center justify-between gap-4">
+
+              <div className="flex items-center gap-3">
+
+                <div className="w-11 h-11 rounded-xl bg-green-50 text-[#008236] flex items-center justify-center">
+
+                  <FiMessageCircle
+                    size={21}
+                  />
+
+                </div>
+
+
+                <div>
+
+                  <h2 className="text-sm font-bold text-gray-900">
+                    Support Messages
+                  </h2>
+
+
+                  <p className="text-xs text-gray-500 mt-1">
+                    View and manage
+                    messages sent by
+                    CampusMart users.
+                  </p>
+
+                </div>
+
+              </div>
+
+
+              <button
+                type="button"
+                onClick={() =>
+                  navigate(
+                    "/admin/support-message"
+                  )
+                }
+                className="h-10 px-4 rounded-xl bg-[#008236] text-white text-sm font-semibold hover:bg-[#006f2e] transition flex items-center gap-2"
+              >
+
+                <FiMessageCircle
+                  size={16}
+                />
+
+                Open
+
+              </button>
+
+            </div>
+
+          </div>
+
+
         </main>
+
       </div>
+
     </div>
+
   );
+
 }
 
-function StatCard({ label, value, icon: Icon, color, bg }) {
+
+// =========================================================
+// STAT CARD
+// =========================================================
+
+function StatCard({
+  label,
+  value,
+  icon: Icon,
+  color,
+  bg,
+}) {
+
   return (
+
     <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+
       <div className="flex items-start justify-between gap-3">
+
+
+        {/* TEXT */}
+
         <div>
-          <p className="text-xs text-gray-500 font-medium">{label}</p>
-          <p className="text-2xl font-bold text-gray-900 mt-2">{value}</p>
+
+          <p className="text-xs text-gray-500 font-medium">
+            {label}
+          </p>
+
+
+          <p className="text-2xl font-bold text-gray-900 mt-2">
+            {value}
+          </p>
+
         </div>
+
+
+        {/* ICON */}
+
         <div
-          className={`w-11 h-11 rounded-xl ${bg} ${color} flex items-center justify-center flex-shrink-0`}
+          className={`
+            w-11
+            h-11
+            rounded-xl
+            ${bg}
+            ${color}
+            flex
+            items-center
+            justify-center
+            flex-shrink-0
+          `}
         >
-          <Icon size={20} />
+
+          <Icon
+            size={20}
+          />
+
         </div>
+
       </div>
+
     </div>
+
   );
+
 }
+
 
 export default AdminDashboard;
