@@ -50,27 +50,45 @@ function AdminPayments() {
       setLoading(false);
       return;
     }
-
+  
     const email = (firebaseUser.email || "").toLowerCase();
-    if (email === ADMIN_EMAIL.toLowerCase()) {
+    const isMainAdmin = email === ADMIN_EMAIL.toLowerCase();
+  
+    if (isMainAdmin) {
       setAllowed(true);
       setLoading(false);
       return;
     }
-
-    const check = async () => {
+  
+    const checkAccess = async () => {
       try {
+        const { doc, getDoc } = await import("firebase/firestore");
         const snap = await getDoc(doc(db, "users", firebaseUser.uid));
-        const role = snap.exists() ? snap.data()?.role : null;
-        setAllowed(role === "admin");
-      } catch {
+  
+        if (!snap.exists()) {
+          setAllowed(false);
+          return;
+        }
+  
+        const data = snap.data() || {};
+  
+        const isAdmin =
+          data.role === "admin" ||
+          data.isAdmin === true ||
+          (Array.isArray(data.roles) && data.roles.includes("admin"));
+  
+        setAllowed(isAdmin);
+      } catch (error) {
+        console.error("Could not check admin role:", error);
         setAllowed(false);
       } finally {
         setLoading(false);
       }
     };
-    check();
+  
+    checkAccess();
   }, [firebaseUser]);
+  
 
   // Build payments list + support badge
   useEffect(() => {
@@ -274,10 +292,10 @@ function AdminPayments() {
           <FiShield className="mx-auto text-red-500" size={28} />
           <h1 className="text-xl font-bold mt-3">Access Denied</h1>
           <button
-            onClick={() => navigate("/")}
+            onClick={() => navigate("/admin-dashboard")}
             className="mt-5 h-11 px-6 rounded-xl bg-[#008236] text-white text-sm font-semibold"
           >
-            Go Home
+            Return to Dashboard
           </button>
         </div>
       </div>

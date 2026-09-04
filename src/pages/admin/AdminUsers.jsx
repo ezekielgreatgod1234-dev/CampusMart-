@@ -48,7 +48,9 @@ function AdminUsers() {
   const [updatingId, setUpdatingId] = useState(null);
   const [unreadSupportCount, setUnreadSupportCount] = useState(0);
 
-  // Access control
+  // =========================================================
+  // ACCESS CONTROL (supports dual-role)
+  // =========================================================
   useEffect(() => {
     if (!firebaseUser) {
       setAllowed(false);
@@ -67,8 +69,20 @@ function AdminUsers() {
     const checkAdminRole = async () => {
       try {
         const snap = await getDoc(doc(db, "users", firebaseUser.uid));
-        const role = snap.exists() ? snap.data()?.role : null;
-        setAllowed(role === "admin");
+
+        if (!snap.exists()) {
+          setAllowed(false);
+          return;
+        }
+
+        const data = snap.data() || {};
+
+        const isAdmin =
+          data.role === "admin" ||
+          data.isAdmin === true ||
+          (Array.isArray(data.roles) && data.roles.includes("admin"));
+
+        setAllowed(isAdmin);
       } catch (error) {
         console.error("Could not verify admin role:", error);
         setAllowed(false);
@@ -80,7 +94,9 @@ function AdminUsers() {
     checkAdminRole();
   }, [firebaseUser]);
 
-  // Load users + support badge
+  // =========================================================
+  // LOAD USERS + SUPPORT BADGE
+  // =========================================================
   useEffect(() => {
     if (!allowed) return;
 
@@ -133,6 +149,9 @@ function AdminUsers() {
     };
   }, [allowed]);
 
+  // =========================================================
+  // HELPERS
+  // =========================================================
   const isSeller = (user) => {
     return (
       user?.isSeller === true ||
@@ -147,6 +166,15 @@ function AdminUsers() {
     return (
       String(user?.accountStatus || "active").trim().toLowerCase() ===
       "disabled"
+    );
+  };
+
+  const isAdminUser = (user) => {
+    return (
+      user?.role === "admin" ||
+      user?.isAdmin === true ||
+      (Array.isArray(user?.roles) && user.roles.includes("admin")) ||
+      (user?.email || "").toLowerCase() === ADMIN_EMAIL.toLowerCase()
     );
   };
 
@@ -220,11 +248,7 @@ function AdminUsers() {
   const handleSuspendToggle = async (user) => {
     if (!user?.id) return;
 
-    const isAdminUser =
-      user.role === "admin" ||
-      (user.email || "").toLowerCase() === ADMIN_EMAIL.toLowerCase();
-
-    if (isAdminUser) {
+    if (isAdminUser(user)) {
       alert("Admin accounts cannot be suspended from this page.");
       return;
     }
@@ -240,6 +264,34 @@ function AdminUsers() {
     }
   };
 
+  const handleToggleAdmin = async (user) => {
+    if (!user?.id) return;
+
+    // Never allow changing the main admin
+    if ((user.email || "").toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+      return;
+    }
+
+    const currentlyAdmin = isAdminUser(user);
+
+    if (currentlyAdmin) {
+      // Remove admin rights but keep original marketplace role
+      await updateUser(user.id, {
+        isAdmin: false,
+        // If role was pure "admin", fall back to buyer
+        role: user.role === "admin" ? "buyer" : user.role,
+      });
+    } else {
+      // Make admin WITHOUT destroying buyer/seller role
+      await updateUser(user.id, {
+        isAdmin: true,
+      });
+    }
+  };
+
+  // =========================================================
+  // MENU
+  // =========================================================
   const menuItems = [
     { label: "Overview", icon: FiGrid, path: "/admin-dashboard" },
     { label: "Users", icon: FiUsers, path: "/admin/users" },
@@ -268,6 +320,9 @@ function AdminUsers() {
     navigate(path);
   };
 
+  // =========================================================
+  // LOADING / ACCESS DENIED
+  // =========================================================
   if (loading) {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-gray-50">
@@ -297,6 +352,9 @@ function AdminUsers() {
     );
   }
 
+  // =========================================================
+  // RENDER
+  // =========================================================
   return (
     <div className="h-screen w-full bg-gray-50 text-gray-800 font-sans overflow-hidden">
       {sidebarOpen && (
@@ -461,11 +519,7 @@ function AdminUsers() {
 
                   const seller = isSeller(user);
                   const suspended = isSuspended(user);
-
-                  const isAdminUser =
-                    user.role === "admin" ||
-                    (user.email || "").toLowerCase() ===
-                      ADMIN_EMAIL.toLowerCase();
+                  const admin = isAdminUser(user);
 
                   return (
                     <div
@@ -504,7 +558,7 @@ function AdminUsers() {
                               {seller ? "Seller" : "Buyer"}
                             </span>
 
-                            {isAdminUser && (
+                            {admin && (
                               <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-50 text-purple-600">
                                 Admin
                               </span>
@@ -529,7 +583,8 @@ function AdminUsers() {
                       </div>
 
                       <div className="flex flex-wrap gap-2 lg:justify-end">
-                        {!isAdminUser && (
+                        {/* Suspend / Activate */}
+                        {!admin && (
                           <button
                             type="button"
                             disabled={updatingId === user.id}
@@ -564,22 +619,19 @@ function AdminUsers() {
                           </button>
                         )}
 
+                        {/* Make Admin / Remove Admin */}
                         {(user.email || "").toLowerCase() !==
                           ADMIN_EMAIL.toLowerCase() && (
                           <button
                             type="button"
                             disabled={updatingId === user.id}
-                            onClick={() =>
-                              updateUser(user.id, {
-                                role: isAdminUser ? "user" : "admin",
-                              })
-                            }
+                            onClick={() => handleToggleAdmin(user)}
                             className={`
                               h-9 px-3 rounded-lg text-xs font-semibold
                               flex items-center gap-1.5
                               disabled:opacity-50 disabled:cursor-not-allowed
                               ${
-                                isAdminUser
+                                admin
                                   ? "bg-gray-100 text-gray-600"
                                   : "bg-purple-50 text-purple-600 border border-purple-100 hover:bg-purple-100"
                               }
@@ -593,7 +645,7 @@ function AdminUsers() {
                             ) : (
                               <>
                                 <FiShield size={14} />
-                                {isAdminUser ? "Remove Admin" : "Make Admin"}
+                                {admin ? "Remove Admin" : "Make Admin"}
                               </>
                             )}
                           </button>

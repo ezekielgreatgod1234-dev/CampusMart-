@@ -300,10 +300,10 @@ function AdminWithdrawals() {
           <FiShield className="mx-auto text-red-500" size={28} />
           <h1 className="text-xl font-bold mt-3">Access Denied</h1>
           <button
-            onClick={() => navigate("/")}
+            onClick={() => navigate("/admin-dashboard")}
             className="mt-5 h-11 px-6 rounded-xl bg-[#008236] text-white text-sm font-semibold"
           >
-            Go Home
+            Return to Dashboard
           </button>
         </div>
       </div>

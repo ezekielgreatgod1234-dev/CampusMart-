@@ -140,14 +140,22 @@ function Login() {
       // Start 1-hour session
       startSession();
 
-      // Admin check
-      if (userEmail === ADMIN_EMAIL.toLowerCase()) {
-        navigate("/admin-dashboard", { replace: true });
-        return;
-      }
+      // ===== ADMIN CHECK (supports dual roles) =====
+      const isHardcodedAdmin = userEmail === ADMIN_EMAIL.toLowerCase();
 
-      if (userData?.role === "admin") {
-        navigate("/admin-dashboard", { replace: true });
+      const isAdmin =
+        isHardcodedAdmin ||
+        userData?.role === "admin" ||
+        userData?.isAdmin === true ||
+        (Array.isArray(userData?.roles) &&
+          userData.roles.includes("admin"));
+
+      if (isAdmin) {
+        // Send admin users to role selection page
+        navigate("/choose-dashboard", {
+          replace: true,
+          state: { userData },
+        });
         return;
       }
 

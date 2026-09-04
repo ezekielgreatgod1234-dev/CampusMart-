@@ -79,38 +79,53 @@ function AdminSupportMessage() {
     }, 4000);
   };
 
-  // Access control
-  useEffect(() => {
-    if (!firebaseUser) {
-      setAllowed(false);
-      setLoading(false);
-      return;
-    }
+ // =========================================================
+// ACCESS CONTROL (supports dual-role: buyer/seller + admin)
+// =========================================================
+useEffect(() => {
+  if (!firebaseUser) {
+    setAllowed(false);
+    setLoading(false);
+    return;
+  }
 
-    const email = (firebaseUser.email || "").toLowerCase();
+  const email = (firebaseUser.email || "").toLowerCase();
+  const isMainAdmin = email === ADMIN_EMAIL.toLowerCase();
 
-    if (email === ADMIN_EMAIL.toLowerCase()) {
-      setAllowed(true);
-      setLoading(false);
-      return;
-    }
+  if (isMainAdmin) {
+    setAllowed(true);
+    setLoading(false);
+    return;
+  }
 
-    const checkAccess = async () => {
-      try {
-        const snap = await getDoc(doc(db, "users", firebaseUser.uid));
-        const role = snap.exists() ? snap.data()?.role : null;
-        setAllowed(role === "admin");
-      } catch (error) {
-        console.error("Could not check admin role:", error);
+  const checkAccess = async () => {
+    try {
+      const { doc, getDoc } = await import("firebase/firestore");
+      const snap = await getDoc(doc(db, "users", firebaseUser.uid));
+
+      if (!snap.exists()) {
         setAllowed(false);
-      } finally {
-        setLoading(false);
+        return;
       }
-    };
 
-    checkAccess();
-  }, [firebaseUser]);
+      const data = snap.data() || {};
 
+      const isAdmin =
+        data.role === "admin" ||
+        data.isAdmin === true ||
+        (Array.isArray(data.roles) && data.roles.includes("admin"));
+
+      setAllowed(isAdmin);
+    } catch (error) {
+      console.error("Could not check admin role:", error);
+      setAllowed(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  checkAccess();
+}, [firebaseUser]);
   // Load support messages
   useEffect(() => {
     if (!allowed || !firebaseUser) return;

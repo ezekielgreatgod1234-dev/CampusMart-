@@ -43,11 +43,11 @@ function AdminDashboard() {
   const [platformFees, setPlatformFees] = useState(0);
   const [pendingWithdrawals, setPendingWithdrawals] = useState(0);
 
-  // New support messages badge count
+  // Support messages badge
   const [unreadSupportCount, setUnreadSupportCount] = useState(0);
 
   // =========================================================
-  // ACCESS CONTROL
+  // ACCESS CONTROL (supports dual-role: buyer/seller + admin)
   // =========================================================
   useEffect(() => {
     if (!firebaseUser) {
@@ -69,8 +69,20 @@ function AdminDashboard() {
       try {
         const { doc, getDoc } = await import("firebase/firestore");
         const snap = await getDoc(doc(db, "users", firebaseUser.uid));
-        const role = snap.exists() ? snap.data()?.role : null;
-        setAllowed(role === "admin");
+
+        if (!snap.exists()) {
+          setAllowed(false);
+          return;
+        }
+
+        const data = snap.data() || {};
+
+        const isAdmin =
+          data.role === "admin" ||
+          data.isAdmin === true ||
+          (Array.isArray(data.roles) && data.roles.includes("admin"));
+
+        setAllowed(isAdmin);
       } catch (error) {
         console.error("Could not check admin role:", error);
         setAllowed(false);
@@ -159,10 +171,6 @@ function AdminDashboard() {
       (error) => console.error("Could not load withdrawals:", error)
     );
 
-    // =======================================================
-    // SUPPORT MESSAGES BADGE
-    // Counts messages that are not marked as read
-    // =======================================================
     const unsubSupport = onSnapshot(
       collection(db, "supportMessages"),
       (snap) => {

@@ -97,6 +97,7 @@ import AdminFees from "./pages/admin/AdminFees";
 import AdminWithdrawals from "./pages/admin/AdminWithdrawals";
 import AdminPayments from "./pages/admin/AdminPayments";
 import AdminSupportMessages from "./pages/admin/AdminSupportMessages";
+import ChooseDashboard from "./pages/admin/ChooseDashboard";
 
 // =========================================================
 // DEFAULT PROFILE
@@ -157,6 +158,22 @@ function getUserRole(profile) {
   return String(profile?.role || "")
     .trim()
     .toLowerCase();
+}
+
+// =========================================================
+// CHECK IF USER IS ADMIN (supports dual-role)
+// =========================================================
+
+function isAdminUser(profile) {
+  if (!profile) return false;
+
+  const role = String(profile.role || "").trim().toLowerCase();
+
+  return (
+    role === "admin" ||
+    profile.isAdmin === true ||
+    (Array.isArray(profile.roles) && profile.roles.includes("admin"))
+  );
 }
 
 // =========================================================
@@ -312,6 +329,16 @@ function GuestRoute({
   }
 
   if (firebaseUser) {
+    // Dual-role or pure admin → let them choose
+    if (isAdminUser(profile)) {
+      return (
+        <Navigate
+          to="/choose-dashboard"
+          replace
+        />
+      );
+    }
+
     const role = getUserRole(profile);
 
     if (role === "seller") {
@@ -327,15 +354,6 @@ function GuestRoute({
       return (
         <Navigate
           to="/dashboard"
-          replace
-        />
-      );
-    }
-
-    if (role === "admin") {
-      return (
-        <Navigate
-          to="/admin-dashboard"
           replace
         />
       );
@@ -385,21 +403,7 @@ function ProtectedRoute({
 }
 
 // =========================================================
-// ADMIN ROUTE
-//
-// IMPORTANT FIX:
-//
-// AdminSupportMessages is now handled exactly like the
-// other protected admin pages.
-//
-// If an authenticated admin clicks:
-//
-// /admin/support-messages
-//
-// the user stays authenticated and the page opens.
-//
-// We DO NOT send an authenticated admin to /login.
-//
+// ADMIN ROUTE (supports dual-role)
 // =========================================================
 
 function AdminRoute({
@@ -433,11 +437,12 @@ function AdminRoute({
     );
   }
 
-  const role = getUserRole(profile);
-
-  if (role === "admin") {
+  // Allow pure admin OR dual-role (isAdmin: true)
+  if (isAdminUser(profile)) {
     return children;
   }
+
+  const role = getUserRole(profile);
 
   if (role === "seller") {
     return (
@@ -466,7 +471,7 @@ function AdminRoute({
 }
 
 // =========================================================
-// CUSTOMER ROUTE
+// CUSTOMER ROUTE (supports dual-role)
 // =========================================================
 
 function CustomerRoute({
@@ -481,6 +486,11 @@ function CustomerRoute({
   }
 
   const role = getUserRole(profile);
+
+  // Dual-role admin is allowed on buyer side
+  if (isAdminUser(profile) && (role === "buyer" || role === "admin" || !role)) {
+    return children;
+  }
 
   if (role === "seller") {
     return (
@@ -510,7 +520,7 @@ function CustomerRoute({
 }
 
 // =========================================================
-// SELLER ROUTE
+// SELLER ROUTE (supports dual-role)
 // =========================================================
 
 function SellerRoute({
@@ -525,6 +535,11 @@ function SellerRoute({
   }
 
   const role = getUserRole(profile);
+
+  // Dual-role admin is allowed on seller side
+  if (isAdminUser(profile) && (role === "seller" || role === "admin")) {
+    return children;
+  }
 
   if (role !== "seller") {
     if (role === "buyer") {
@@ -4867,6 +4882,23 @@ function App() {
           path="/account-disabled"
           element={
             <AccountDisabled />
+          }
+        />
+
+        {/* ================================================= */}
+        {/* CHOOSE DASHBOARD (dual-role) */}
+        {/* ================================================= */}
+
+        <Route
+          path="/choose-dashboard"
+          element={
+            <ProtectedRoute
+              profileResolved={
+                profileResolved
+              }
+            >
+              <ChooseDashboard />
+            </ProtectedRoute>
           }
         />
 
