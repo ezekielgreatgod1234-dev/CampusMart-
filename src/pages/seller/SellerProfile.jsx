@@ -20,7 +20,7 @@ import {
   FiSettings,
   FiLogOut,
   FiMenu,
-  FiBell,
+  
   FiChevronDown,
   FiX,
   FiMail,
@@ -207,9 +207,7 @@ function SellerProfile({
     navigate("/logout");
   };
 
-  const handleNotifications = () => {
-    console.log("Open seller notifications");
-  };
+ 
 
   // =======================================================
   // FORM
@@ -570,28 +568,7 @@ function SellerProfile({
           </div>
 
           <div className="ml-auto flex items-center gap-0.5 sm:gap-2">
-            <button
-              type="button"
-              onClick={handleNotifications}
-              aria-label="Notifications"
-              className="
-                relative w-9 h-9 sm:w-10 sm:h-10 rounded-full
-                hover:bg-white/10 active:bg-white/20
-                flex items-center justify-center transition flex-shrink-0
-              "
-            >
-              <FiBell size={20} />
-              <span
-                className="
-                  absolute -top-0.5 -right-0.5 min-w-[17px] h-[17px] px-1
-                  rounded-full bg-red-500 text-white text-[9px] font-bold
-                  flex items-center justify-center
-                "
-              >
-                5
-              </span>
-            </button>
-
+           
             <button
               type="button"
               onClick={() => handleNavigation("/seller/messages")}
