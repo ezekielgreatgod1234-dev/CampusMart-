@@ -83,6 +83,21 @@ import ForgotPassword from "./pages/customer/ForgotPassword";
 import PrivacyPolicy from "./pages/customer/PrivacyPolicy";
 import TermsAndConditions from "./pages/customer/TermsAndConditions";
 
+import AccountDisabled from "./context/AccountDisabled";
+
+// =========================================================
+// ADMIN PAGES
+// =========================================================
+
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminUsers from "./pages/admin/AdminUsers";
+import AdminProducts from "./pages/admin/AdminProducts";
+import AdminOrders from "./pages/admin/AdminOrders";
+import AdminFees from "./pages/admin/AdminFees";
+import AdminWithdrawals from "./pages/admin/AdminWithdrawals";
+import AdminPayments from "./pages/admin/AdminPayments";
+import AdminSupportMessages from "./pages/admin/AdminSupportMessages";
+
 // =========================================================
 // DEFAULT PROFILE
 // =========================================================
@@ -186,7 +201,7 @@ async function getPublicProfile(userId) {
     const publicProfileRef = doc(
       db,
       "publicProfiles",
-      String(userId),
+      String(userId)
     );
 
     const snapshot = await getDoc(publicProfileRef);
@@ -200,7 +215,10 @@ async function getPublicProfile(userId) {
       ...snapshot.data(),
     };
   } catch (error) {
-    console.error("Error loading public profile:", error);
+    console.error(
+      "Error loading public profile:",
+      error
+    );
 
     return null;
   }
@@ -220,7 +238,7 @@ async function syncOwnPublicProfile(firebaseUser, profile) {
   const publicProfileRef = doc(
     db,
     "publicProfiles",
-    userId,
+    userId
   );
 
   const fullName =
@@ -239,7 +257,7 @@ async function syncOwnPublicProfile(firebaseUser, profile) {
 
   const profileImage = getProfileImage(
     profile,
-    firebaseUser,
+    firebaseUser
   );
 
   try {
@@ -260,12 +278,12 @@ async function syncOwnPublicProfile(firebaseUser, profile) {
       },
       {
         merge: true,
-      },
+      }
     );
   } catch (error) {
     console.error(
       "Error syncing public profile:",
-      error,
+      error
     );
   }
 }
@@ -314,11 +332,16 @@ function GuestRoute({
       );
     }
 
-    return (
-      <LoadingScreen
-        text="Preparing your account..."
-      />
-    );
+    if (role === "admin") {
+      return (
+        <Navigate
+          to="/admin-dashboard"
+          replace
+        />
+      );
+    }
+
+    return children;
   }
 
   return children;
@@ -362,6 +385,87 @@ function ProtectedRoute({
 }
 
 // =========================================================
+// ADMIN ROUTE
+//
+// IMPORTANT FIX:
+//
+// AdminSupportMessages is now handled exactly like the
+// other protected admin pages.
+//
+// If an authenticated admin clicks:
+//
+// /admin/support-messages
+//
+// the user stays authenticated and the page opens.
+//
+// We DO NOT send an authenticated admin to /login.
+//
+// =========================================================
+
+function AdminRoute({
+  children,
+  profile,
+  profileResolved,
+}) {
+  const {
+    firebaseUser,
+    profileLoading,
+  } = useAuth();
+
+  if (profileLoading) {
+    return (
+      <LoadingScreen text="Checking your account..." />
+    );
+  }
+
+  if (!firebaseUser) {
+    return (
+      <Navigate
+        to="/login"
+        replace
+      />
+    );
+  }
+
+  if (!profileResolved) {
+    return (
+      <LoadingScreen text="Loading your admin account..." />
+    );
+  }
+
+  const role = getUserRole(profile);
+
+  if (role === "admin") {
+    return children;
+  }
+
+  if (role === "seller") {
+    return (
+      <Navigate
+        to="/seller-dashboard"
+        replace
+      />
+    );
+  }
+
+  if (role === "buyer") {
+    return (
+      <Navigate
+        to="/dashboard"
+        replace
+      />
+    );
+  }
+
+  return (
+    <Navigate
+      to="/login"
+      replace
+    />
+  );
+}
+
+// =========================================================
 // CUSTOMER ROUTE
 // =========================================================
 
@@ -387,11 +491,18 @@ function CustomerRoute({
     );
   }
 
+  if (role === "admin") {
+    return (
+      <Navigate
+        to="/admin-dashboard"
+        replace
+      />
+    );
+  }
+
   if (role !== "buyer") {
     return (
-      <LoadingScreen
-        text="Preparing your account..."
-      />
+      <LoadingScreen text="Preparing your account..." />
     );
   }
 
@@ -409,9 +520,7 @@ function SellerRoute({
 }) {
   if (!profileResolved) {
     return (
-      <LoadingScreen
-        text="Loading your seller account..."
-      />
+      <LoadingScreen text="Loading your seller account..." />
     );
   }
 
@@ -427,10 +536,17 @@ function SellerRoute({
       );
     }
 
+    if (role === "admin") {
+      return (
+        <Navigate
+          to="/admin-dashboard"
+          replace
+        />
+      );
+    }
+
     return (
-      <LoadingScreen
-        text="Preparing your account..."
-      />
+      <LoadingScreen text="Preparing your account..." />
     );
   }
 
@@ -439,33 +555,12 @@ function SellerRoute({
 
 // =========================================================
 // MESSAGE TIMESTAMP
-//
-// THIS IS THE IMPORTANT FIX.
-//
-// New messages:
-//   createdAtMs
-//   createdAt
-//
-// Older messages:
-//   createdAt
-//   time
-//
-// Everything is converted into milliseconds.
-//
-// The actual message timestamp is NEVER regenerated
-// from the deployment/app version.
 // =========================================================
 
 function getMessageTimestamp(message) {
   if (!message) {
     return 0;
   }
-
-  // =======================================================
-  // 1. createdAtMs
-  //
-  // This is the most reliable field.
-  // =======================================================
 
   if (
     typeof message.createdAtMs === "number" &&
@@ -477,28 +572,17 @@ function getMessageTimestamp(message) {
       : message.createdAtMs;
   }
 
-  // =======================================================
-  // 2. createdAt
-  // =======================================================
-
   const createdAt = message.createdAt;
 
   if (createdAt != null) {
-    // Firestore Timestamp
-    if (
-      typeof createdAt.toMillis === "function"
-    ) {
+    if (typeof createdAt.toMillis === "function") {
       const ms = createdAt.toMillis();
 
-      if (
-        Number.isFinite(ms) &&
-        ms > 0
-      ) {
+      if (Number.isFinite(ms) && ms > 0) {
         return ms;
       }
     }
 
-    // Firestore Timestamp-like object
     if (
       typeof createdAt === "object" &&
       typeof createdAt.seconds === "number"
@@ -507,18 +591,14 @@ function getMessageTimestamp(message) {
         createdAt.seconds * 1000 +
         Math.floor(
           Number(createdAt.nanoseconds || 0) /
-            1000000,
+            1000000
         );
 
-      if (
-        Number.isFinite(ms) &&
-        ms > 0
-      ) {
+      if (Number.isFinite(ms) && ms > 0) {
         return ms;
       }
     }
 
-    // Number
     if (
       typeof createdAt === "number" &&
       Number.isFinite(createdAt)
@@ -528,26 +608,19 @@ function getMessageTimestamp(message) {
         : createdAt;
     }
 
-    // Date object
     if (createdAt instanceof Date) {
       const ms = createdAt.getTime();
 
-      if (
-        Number.isFinite(ms) &&
-        ms > 0
-      ) {
+      if (Number.isFinite(ms) && ms > 0) {
         return ms;
       }
     }
 
-    // String
     if (
       typeof createdAt === "string" &&
       createdAt.trim()
     ) {
-      const parsed = Date.parse(
-        createdAt,
-      );
+      const parsed = Date.parse(createdAt);
 
       if (
         Number.isFinite(parsed) &&
@@ -558,20 +631,6 @@ function getMessageTimestamp(message) {
     }
   }
 
-  // =======================================================
-  // 3. OLD MESSAGE FALLBACK
-  //
-  // Some old messages have only:
-  //
-  // time: "07:05 PM"
-  //
-  // We convert the time to today's date.
-  //
-  // This prevents those messages from being randomly
-  // placed simply because they were created before the
-  // newer timestamp system.
-  // =======================================================
-
   if (
     typeof message.time === "string" &&
     message.time.trim()
@@ -579,7 +638,7 @@ function getMessageTimestamp(message) {
     const timeText = message.time.trim();
 
     const parsedTime = Date.parse(
-      `1970-01-01 ${timeText}`,
+      `1970-01-01 ${timeText}`
     );
 
     if (Number.isFinite(parsedTime)) {
@@ -594,15 +653,12 @@ function getMessageTimestamp(message) {
         timeDate.getHours(),
         timeDate.getMinutes(),
         timeDate.getSeconds(),
-        timeDate.getMilliseconds(),
+        timeDate.getMilliseconds()
       );
 
       const ms = result.getTime();
 
-      if (
-        Number.isFinite(ms) &&
-        ms > 0
-      ) {
+      if (Number.isFinite(ms) && ms > 0) {
         return ms;
       }
     }
@@ -612,16 +668,7 @@ function getMessageTimestamp(message) {
 }
 
 // =========================================================
-// SORT MESSAGES CHRONOLOGICALLY
-//
-// ALWAYS:
-//
-// oldest
-// ↓
-// newest
-//
-// If two messages have exactly the same timestamp,
-// their original array order is preserved.
+// SORT MESSAGES
 // =========================================================
 
 function sortMessagesChronologically(messages) {
@@ -633,12 +680,10 @@ function sortMessagesChronologically(messages) {
     .map((message, index) => ({
       message,
       index,
-      timestamp: getMessageTimestamp(
-        message,
-      ),
+      timestamp:
+        getMessageTimestamp(message),
     }))
     .sort((a, b) => {
-      // Both have valid timestamps
       if (
         a.timestamp > 0 &&
         b.timestamp > 0
@@ -655,7 +700,6 @@ function sortMessagesChronologically(messages) {
         return a.index - b.index;
       }
 
-      // A has timestamp, B does not
       if (
         a.timestamp > 0 &&
         b.timestamp === 0
@@ -663,7 +707,6 @@ function sortMessagesChronologically(messages) {
         return -1;
       }
 
-      // B has timestamp, A does not
       if (
         a.timestamp === 0 &&
         b.timestamp > 0
@@ -671,12 +714,9 @@ function sortMessagesChronologically(messages) {
         return 1;
       }
 
-      // Neither has timestamp
       return a.index - b.index;
     })
-    .map(
-      (item) => item.message,
-    );
+    .map((item) => item.message);
 }
 
 // =========================================================
@@ -685,9 +725,10 @@ function sortMessagesChronologically(messages) {
 
 async function formatConversation(
   conversationDoc,
-  currentUserId,
+  currentUserId
 ) {
-  const data = conversationDoc.data();
+  const data =
+    conversationDoc.data();
 
   const participantNames =
     data.participantNames || {};
@@ -695,39 +736,26 @@ async function formatConversation(
   const participantImages =
     data.participantImages || {};
 
-  const participants = Array.isArray(
-    data.participants,
-  )
-    ? data.participants
-    : [];
-
-  // =======================================================
-  // FIND OTHER PARTICIPANT
-  // =======================================================
+  const participants =
+    Array.isArray(data.participants)
+      ? data.participants
+      : [];
 
   const otherParticipantId =
     participants.find(
       (uid) =>
         String(uid) !==
-        String(currentUserId),
+        String(currentUserId)
     ) || null;
-
-  // =======================================================
-  // GET PUBLIC PROFILE
-  // =======================================================
 
   let publicProfile = null;
 
   if (otherParticipantId) {
     publicProfile =
       await getPublicProfile(
-        otherParticipantId,
+        otherParticipantId
       );
   }
-
-  // =======================================================
-  // NAME
-  // =======================================================
 
   const publicProfileName =
     publicProfile?.fullName ||
@@ -743,10 +771,6 @@ async function formatConversation(
     publicProfileName ||
     storedParticipantName ||
     "CampusMart User";
-
-  // =======================================================
-  // IMAGE
-  // =======================================================
 
   const publicProfileImage =
     publicProfile?.profileImage ||
@@ -772,10 +796,6 @@ async function formatConversation(
     storedParticipantImage ||
     null;
 
-  // =======================================================
-  // REPAIR OLD CONVERSATION PROFILE
-  // =======================================================
-
   if (
     otherParticipantId &&
     publicProfile &&
@@ -783,16 +803,17 @@ async function formatConversation(
       String(
         participantImages[
           otherParticipantId
-        ] || "",
+        ] || ""
       ) !==
         String(
-          otherParticipantImage || "",
+          otherParticipantImage || ""
         ) ||
       String(
         participantNames[
           otherParticipantId
-        ] || "",
-      ) !== String(otherName)
+        ] || ""
+      ) !==
+        String(otherName)
     )
   ) {
     try {
@@ -801,14 +822,12 @@ async function formatConversation(
         {
           participantNames: {
             ...participantNames,
-
             [otherParticipantId]:
               otherName,
           },
 
           participantImages: {
             ...participantImages,
-
             [otherParticipantId]:
               otherParticipantImage,
           },
@@ -818,52 +837,40 @@ async function formatConversation(
         },
         {
           merge: true,
-        },
+        }
       );
     } catch (error) {
       console.error(
         "Could not repair conversation profile:",
-        error,
+        error
       );
     }
   }
 
-  // =======================================================
-  // UNREAD COUNT
-  // =======================================================
-
   const unreadCount = Number(
     data.unreadCounts?.[
       currentUserId
-    ] || 0,
+    ] || 0
   );
-
-  // =======================================================
-  // ALL MESSAGES
-  // =======================================================
 
   const conversationMessages =
     Array.isArray(data.messages)
       ? data.messages
       : [];
 
-  // =======================================================
-  // REMOVE DELETED MESSAGES
-  // =======================================================
-
   const visibleMessages =
     conversationMessages.filter(
       (message) => {
         const deletedFor =
           Array.isArray(
-            message.deletedFor,
+            message.deletedFor
           )
             ? message.deletedFor
             : [];
 
         if (
           deletedFor.includes(
-            currentUserId,
+            currentUserId
           )
         ) {
           return false;
@@ -877,26 +884,13 @@ async function formatConversation(
         }
 
         return true;
-      },
+      }
     );
-
-  // =======================================================
-  // CRITICAL:
-  //
-  // SORT THE ACTUAL MESSAGES.
-  //
-  // This is what makes buyer chat and seller chat
-  // display the same chronological conversation.
-  // =======================================================
 
   const sortedVisibleMessages =
     sortMessagesChronologically(
-      visibleMessages,
+      visibleMessages
     );
-
-  // =======================================================
-  // LAST VISIBLE MESSAGE
-  // =======================================================
 
   const lastVisibleMessage =
     sortedVisibleMessages.length > 0
@@ -907,30 +901,22 @@ async function formatConversation(
 
   const lastMessage =
     lastVisibleMessage?.text ||
-    (
-      lastVisibleMessage?.imageUrl
-        ? "📷 Photo"
-        : ""
-    ) ||
+    (lastVisibleMessage?.imageUrl
+      ? "📷 Photo"
+      : "") ||
     "";
-
-  // =======================================================
-  // LAST MESSAGE TIME
-  // =======================================================
 
   const lastMessageTimestamp =
     getMessageTimestamp(
-      lastVisibleMessage,
+      lastVisibleMessage
     );
 
   let displayTime = "";
 
-  if (
-    lastMessageTimestamp > 0
-  ) {
+  if (lastMessageTimestamp > 0) {
     try {
       displayTime = new Date(
-        lastMessageTimestamp,
+        lastMessageTimestamp
       ).toLocaleTimeString([], {
         hour: "2-digit",
         minute: "2-digit",
@@ -939,10 +925,6 @@ async function formatConversation(
       displayTime = "";
     }
   }
-
-  // =======================================================
-  // RETURN
-  // =======================================================
 
   return {
     id: conversationDoc.id,
@@ -968,11 +950,9 @@ async function formatConversation(
         otherParticipantId
       ] === true,
 
-    // ALWAYS SORTED
     conversation:
       sortedVisibleMessages,
 
-    // ALSO SORTED
     allMessages:
       sortedVisibleMessages,
 
@@ -995,7 +975,7 @@ async function formatConversation(
 // =========================================================
 
 function sortConversations(
-  conversationList,
+  conversationList
 ) {
   return [...conversationList].sort(
     (a, b) => {
@@ -1030,7 +1010,7 @@ function sortConversations(
         getMessageTimestamp(bLast);
 
       return bTime - aTime;
-    },
+    }
   );
 }
 
@@ -1063,32 +1043,36 @@ function App() {
 
     window.addEventListener(
       "online",
-      handleOnline,
+      handleOnline
     );
 
     window.addEventListener(
       "offline",
-      handleOffline,
+      handleOffline
     );
 
-    startupTimer =
-      window.setTimeout(() => {
-        setIsOnline(navigator.onLine);
-      }, 1000);
+    startupTimer = window.setTimeout(
+      () => {
+        setIsOnline(
+          navigator.onLine
+        );
+      },
+      1000
+    );
 
     return () => {
       window.clearTimeout(
-        startupTimer,
+        startupTimer
       );
 
       window.removeEventListener(
         "online",
-        handleOnline,
+        handleOnline
       );
 
       window.removeEventListener(
         "offline",
-        handleOffline,
+        handleOffline
       );
     };
   }, []);
@@ -1130,9 +1114,13 @@ function App() {
       async () => {
         if (!firebaseUser) {
           if (!cancelled) {
-            setProfile(emptyProfile);
+            setProfile(
+              emptyProfile
+            );
 
-            setProfileResolved(true);
+            setProfileResolved(
+              true
+            );
           }
 
           return;
@@ -1146,7 +1134,7 @@ function App() {
           const userRef = doc(
             db,
             "users",
-            firebaseUser.uid,
+            firebaseUser.uid
           );
 
           const snapshot =
@@ -1168,6 +1156,7 @@ function App() {
 
             resolvedProfile = {
               ...emptyProfile,
+
               ...firestoreProfile,
 
               uid: firebaseUser.uid,
@@ -1191,14 +1180,18 @@ function App() {
             };
           } else {
             const authRole =
-              getUserRole(authProfile);
+              getUserRole(
+                authProfile
+              );
 
             if (
               authRole === "seller" ||
-              authRole === "buyer"
+              authRole === "buyer" ||
+              authRole === "admin"
             ) {
               resolvedProfile = {
                 ...emptyProfile,
+
                 ...authProfile,
 
                 uid: firebaseUser.uid,
@@ -1248,12 +1241,12 @@ function App() {
           }
 
           setProfile(
-            resolvedProfile,
+            resolvedProfile
           );
 
           await syncOwnPublicProfile(
             firebaseUser,
-            resolvedProfile,
+            resolvedProfile
           );
 
           if (
@@ -1264,11 +1257,13 @@ function App() {
             return;
           }
 
-          setProfileResolved(true);
+          setProfileResolved(
+            true
+          );
         } catch (error) {
           console.error(
             "Error loading current user profile:",
-            error,
+            error
           );
 
           if (
@@ -1297,10 +1292,12 @@ function App() {
             };
 
             setProfile(
-              fallbackProfile,
+              fallbackProfile
             );
 
-            setProfileResolved(true);
+            setProfileResolved(
+              true
+            );
           }
         }
       };
@@ -1346,7 +1343,7 @@ function App() {
     useRef(null);
 
   // =======================================================
-  // GET CURRENT USER CHAT IMAGE
+  // CURRENT USER CHAT IMAGE
   // =======================================================
 
   const getCurrentUserChatImage =
@@ -1357,7 +1354,7 @@ function App() {
 
       return getProfileImage(
         profile,
-        firebaseUser,
+        firebaseUser
       );
     };
 
@@ -1365,19 +1362,20 @@ function App() {
   // CUSTOMER DATA DOCUMENT
   // =======================================================
 
-  const getCustomerDataRef = () => {
-    if (!firebaseUser) {
-      return null;
-    }
+  const getCustomerDataRef =
+    () => {
+      if (!firebaseUser) {
+        return null;
+      }
 
-    return doc(
-      db,
-      "users",
-      firebaseUser.uid,
-      "customerData",
-      "main",
-    );
-  };
+      return doc(
+        db,
+        "users",
+        firebaseUser.uid,
+        "customerData",
+        "main"
+      );
+    };
 
   // =======================================================
   // SAVE CUSTOMER DATA
@@ -1405,19 +1403,20 @@ function App() {
           customerDataRef,
           {
             cart: Array.isArray(
-              nextCart,
+              nextCart
             )
               ? nextCart
               : [],
 
-            wishlist: Array.isArray(
-              nextWishlist,
-            )
-              ? nextWishlist
-              : [],
+            wishlist:
+              Array.isArray(
+                nextWishlist
+              )
+                ? nextWishlist
+                : [],
 
             orders: Array.isArray(
-              nextOrders,
+              nextOrders
             )
               ? nextOrders
               : [],
@@ -1427,14 +1426,14 @@ function App() {
           },
           {
             merge: true,
-          },
+          }
         );
 
         return true;
       } catch (error) {
         console.error(
           "Error saving customer data:",
-          error,
+          error
         );
 
         return false;
@@ -1467,7 +1466,7 @@ function App() {
         customerDataSaveTimer.current
       ) {
         window.clearTimeout(
-          customerDataSaveTimer.current,
+          customerDataSaveTimer.current
         );
 
         customerDataSaveTimer.current =
@@ -1482,7 +1481,7 @@ function App() {
           null;
 
         writeCustomerData(
-          dataToSave,
+          dataToSave
         );
 
         return;
@@ -1501,7 +1500,7 @@ function App() {
 
           if (dataToSave) {
             writeCustomerData(
-              dataToSave,
+              dataToSave
             );
           }
         }, CUSTOMER_DATA_SAVE_DELAY);
@@ -1534,7 +1533,7 @@ function App() {
         try {
           const snapshot =
             await getDoc(
-              customerDataRef,
+              customerDataRef
             );
 
           if (cancelled) {
@@ -1559,7 +1558,7 @@ function App() {
               },
               {
                 merge: true,
-              },
+              }
             );
 
             return;
@@ -1569,30 +1568,32 @@ function App() {
             snapshot.data();
 
           setCart(
-            Array.isArray(data.cart)
+            Array.isArray(
+              data.cart
+            )
               ? data.cart
-              : [],
+              : []
           );
 
           setWishlist(
             Array.isArray(
-              data.wishlist,
+              data.wishlist
             )
               ? data.wishlist
-              : [],
+              : []
           );
 
           setOrders(
             Array.isArray(
-              data.orders,
+              data.orders
             )
               ? data.orders
-              : [],
+              : []
           );
         } catch (error) {
           console.error(
             "Error loading customer data:",
-            error,
+            error
           );
 
           if (!cancelled) {
@@ -1620,7 +1621,7 @@ function App() {
         customerDataSaveTimer.current
       ) {
         window.clearTimeout(
-          customerDataSaveTimer.current,
+          customerDataSaveTimer.current
         );
 
         customerDataSaveTimer.current =
@@ -1653,7 +1654,7 @@ function App() {
         const userRef = doc(
           db,
           "users",
-          firebaseUser.uid,
+          firebaseUser.uid
         );
 
         await setDoc(
@@ -1673,27 +1674,23 @@ function App() {
           },
           {
             merge: true,
-          },
+          }
         );
 
         await syncOwnPublicProfile(
           firebaseUser,
-          newProfile,
-        );
-
-        console.log(
-          "Private and public profiles updated.",
+          newProfile
         );
       } catch (error) {
         console.error(
           "Error updating profile:",
-          error,
+          error
         );
       }
     };
 
   // =======================================================
-  // SYNC CURRENT USER PROFILE IMAGE TO CONVERSATIONS
+  // SYNC PROFILE TO CONVERSATIONS
   // =======================================================
 
   useEffect(() => {
@@ -1713,7 +1710,7 @@ function App() {
     const currentUserName =
       getProfileName(
         profile,
-        firebaseUser,
+        firebaseUser
       );
 
     let cancelled = false;
@@ -1724,7 +1721,7 @@ function App() {
           const conversationsRef =
             collection(
               db,
-              "conversations",
+              "conversations"
             );
 
           const conversationsQuery =
@@ -1733,13 +1730,13 @@ function App() {
               where(
                 "participants",
                 "array-contains",
-                currentUserId,
-              ),
+                currentUserId
+              )
             );
 
           const snapshot =
             await getDocs(
-              conversationsQuery,
+              conversationsQuery
             );
 
           if (cancelled) {
@@ -1777,64 +1774,62 @@ function App() {
 
               if (
                 String(
-                  existingImage || "",
+                  existingImage || ""
                 ) !==
                   String(
                     currentUserImage ||
-                      "",
+                      ""
                   ) ||
+                String(
+                  existingName || ""
+                ) !==
                   String(
-                    existingName || "",
-                  ) !==
-                    String(
-                      currentUserName ||
-                        "",
-                    )
+                    currentUserName ||
+                      ""
+                  )
               ) {
                 updates.push(
                   setDoc(
                     conversationDoc.ref,
                     {
-                      participantImages: {
-                        ...existingImages,
+                      participantImages:
+                        {
+                          ...existingImages,
 
-                        [currentUserId]:
-                          currentUserImage,
-                      },
+                          [currentUserId]:
+                            currentUserImage,
+                        },
 
-                      participantNames: {
-                        ...existingNames,
+                      participantNames:
+                        {
+                          ...existingNames,
 
-                        [currentUserId]:
-                          currentUserName,
-                      },
+                          [currentUserId]:
+                            currentUserName,
+                        },
 
                       updatedAt:
                         serverTimestamp(),
                     },
                     {
                       merge: true,
-                    },
-                  ),
+                    }
+                  )
                 );
               }
-            },
+            }
           );
 
           if (updates.length > 0) {
             await Promise.all(
-              updates,
-            );
-
-            console.log(
-              "Current user's chat profile synchronized.",
+              updates
             );
           }
         } catch (error) {
           if (!cancelled) {
             console.error(
               "Error synchronizing chat profile:",
-              error,
+              error
             );
           }
         }
@@ -1857,24 +1852,21 @@ function App() {
   ]);
 
   // =======================================================
-  // ADD TO CART
+  // CART
   // =======================================================
 
   const addToCart = (
     product,
-    quantity = 1,
+    quantity = 1
   ) => {
-    if (
-      !product ||
-      !firebaseUser
-    ) {
+    if (!product || !firebaseUser) {
       return;
     }
 
     const existingProduct =
       cart.find(
         (item) =>
-          item.id === product.id,
+          item.id === product.id
       );
 
     let nextCart;
@@ -1888,13 +1880,13 @@ function App() {
 
                 quantity:
                   Number(
-                    item.quantity || 0,
+                    item.quantity || 0
                   ) +
                   Number(
-                    quantity || 0,
+                    quantity || 0
                   ),
               }
-            : item,
+            : item
       );
     } else {
       nextCart = [
@@ -1918,10 +1910,6 @@ function App() {
     });
   };
 
-  // =======================================================
-  // INCREASE QUANTITY
-  // =======================================================
-
   const increaseQuantity =
     (productId) => {
       const nextCart = cart.map(
@@ -1932,10 +1920,10 @@ function App() {
 
                 quantity:
                   Number(
-                    item.quantity || 0,
+                    item.quantity || 0
                   ) + 1,
               }
-            : item,
+            : item
       );
 
       setCart(nextCart);
@@ -1946,10 +1934,6 @@ function App() {
         nextOrders: orders,
       });
     };
-
-  // =======================================================
-  // DECREASE QUANTITY
-  // =======================================================
 
   const decreaseQuantity =
     (productId) => {
@@ -1962,11 +1946,11 @@ function App() {
                 quantity: Math.max(
                   1,
                   Number(
-                    item.quantity || 1,
-                  ) - 1,
+                    item.quantity || 1
+                  ) - 1
                 ),
               }
-            : item,
+            : item
       );
 
       setCart(nextCart);
@@ -1978,17 +1962,12 @@ function App() {
       });
     };
 
-  // =======================================================
-  // REMOVE FROM CART
-  // =======================================================
-
   const removeFromCart =
     (productId) => {
-      const nextCart =
-        cart.filter(
-          (item) =>
-            item.id !== productId,
-        );
+      const nextCart = cart.filter(
+        (item) =>
+          item.id !== productId
+      );
 
       setCart(nextCart);
 
@@ -1999,22 +1978,15 @@ function App() {
       });
     };
 
-  // =======================================================
-  // CART COUNT
-  // =======================================================
-
-  const cartCount =
-    cart.reduce(
-      (total, item) =>
-        total +
-        Number(
-          item.quantity || 0,
-        ),
-      0,
-    );
+  const cartCount = cart.reduce(
+    (total, item) =>
+      total +
+      Number(item.quantity || 0),
+    0
+  );
 
   // =======================================================
-  // TOGGLE WISHLIST
+  // WISHLIST
   // =======================================================
 
   const toggleWishlist =
@@ -2031,7 +2003,7 @@ function App() {
         nextWishlist =
           wishlist.filter(
             (id) =>
-              id !== productId,
+              id !== productId
           );
       } else {
         nextWishlist = [
@@ -2040,9 +2012,7 @@ function App() {
         ];
       }
 
-      setWishlist(
-        nextWishlist,
-      );
+      setWishlist(nextWishlist);
 
       queueCustomerDataSave({
         nextCart: cart,
@@ -2051,21 +2021,15 @@ function App() {
       });
     };
 
-  // =======================================================
-  // REMOVE FROM WISHLIST
-  // =======================================================
-
   const removeFromWishlist =
     (productId) => {
       const nextWishlist =
         wishlist.filter(
           (id) =>
-            id !== productId,
+            id !== productId
         );
 
-      setWishlist(
-        nextWishlist,
-      );
+      setWishlist(nextWishlist);
 
       queueCustomerDataSave({
         nextCart: cart,
@@ -2085,15 +2049,12 @@ function App() {
     (item) => {
       const price = Number(
         String(
-          item?.price ?? 0,
-        ).replace(
-          /[₦,]/g,
-          "",
-        ),
+          item?.price ?? 0
+        ).replace(/[₦,]/g, "")
       );
 
       const qty = Number(
-        item?.quantity || 1,
+        item?.quantity || 1
       );
 
       return (
@@ -2107,20 +2068,21 @@ function App() {
     };
 
   const splitAmount = (
-    total,
+    total
   ) => {
     const gross =
       Number(total) || 0;
 
-    const platformFee = Math.round(
-      gross *
-        PLATFORM_COMMISSION_RATE,
-    );
+    const platformFee =
+      Math.round(
+        gross *
+          PLATFORM_COMMISSION_RATE
+      );
 
     const sellerAmount =
       Math.max(
         0,
-        gross - platformFee,
+        gross - platformFee
       );
 
     return {
@@ -2143,15 +2105,16 @@ function App() {
         return null;
       }
 
-      const items = Array.isArray(
-        orderData.items,
-      )
-        ? orderData.items
-        : [];
+      const items =
+        Array.isArray(
+          orderData.items
+        )
+          ? orderData.items
+          : [];
 
       if (items.length === 0) {
         console.error(
-          "placeOrder: no items",
+          "placeOrder: no items"
         );
 
         return null;
@@ -2171,7 +2134,6 @@ function App() {
         orderData.paystackReference ||
         null;
 
-      // Group items by seller
       const bySeller = {};
 
       for (const item of items) {
@@ -2185,7 +2147,7 @@ function App() {
         if (!sellerId) {
           console.warn(
             "placeOrder: item missing sellerId",
-            item,
+            item
           );
 
           continue;
@@ -2196,18 +2158,16 @@ function App() {
         }
 
         bySeller[sellerId].push(
-          item,
+          item
         );
       }
 
       const sellerIds =
         Object.keys(bySeller);
 
-      if (
-        sellerIds.length === 0
-      ) {
+      if (sellerIds.length === 0) {
         console.error(
-          "placeOrder: no sellerId on cart items.",
+          "placeOrder: no sellerId on cart items."
         );
 
         return null;
@@ -2219,9 +2179,7 @@ function App() {
       const createdOrders = [];
 
       try {
-        for (
-          const sellerId of sellerIds
-        ) {
+        for (const sellerId of sellerIds) {
           const sellerItems =
             bySeller[sellerId];
 
@@ -2230,29 +2188,23 @@ function App() {
               (sum, item) =>
                 sum +
                 getItemLineTotal(
-                  item,
+                  item
                 ),
-              0,
+              0
             );
 
           const {
             platformFee,
             sellerAmount,
-          } =
-            splitAmount(total);
+          } = splitAmount(total);
 
           const orderNumber =
             `CM-${String(
-              timestamp,
-            ).slice(
-              -6,
-            )}${String(
+              timestamp
+            ).slice(-6)}${String(
               createdOrders.length +
-                1,
-            ).padStart(
-              2,
-              "0",
-            )}`;
+                1
+            ).padStart(2, "0")}`;
 
           const orderPayload = {
             buyerId:
@@ -2279,11 +2231,9 @@ function App() {
 
             paystackReference,
 
-            status:
-              "pending",
+            status: "pending",
 
-            type:
-              checkoutType,
+            type: checkoutType,
 
             orderNumber,
 
@@ -2296,20 +2246,17 @@ function App() {
               "",
 
             phone:
-              customer.phone ||
-              "",
+              customer.phone || "",
 
             campus:
-              customer.campus ||
-              "",
+              customer.campus || "",
 
             address:
               customer.address ||
               "",
 
             note:
-              customer.note ||
-              "",
+              customer.note || "",
 
             customer: {
               fullName:
@@ -2317,8 +2264,7 @@ function App() {
                 "",
 
               phone:
-                customer.phone ||
-                "",
+                customer.phone || "",
 
               campus:
                 customer.campus ||
@@ -2329,8 +2275,7 @@ function App() {
                 "",
 
               note:
-                customer.note ||
-                "",
+                customer.note || "",
             },
 
             date:
@@ -2347,17 +2292,16 @@ function App() {
             await addDoc(
               collection(
                 db,
-                "orders",
+                "orders"
               ),
-              orderPayload,
+              orderPayload
             );
 
-          // Credit seller
           const sellerRef =
             doc(
               db,
               "users",
-              String(sellerId),
+              String(sellerId)
             );
 
           try {
@@ -2366,34 +2310,34 @@ function App() {
               {
                 availableBalance:
                   increment(
-                    sellerAmount,
+                    sellerAmount
                   ),
 
                 totalEarnings:
                   increment(
-                    sellerAmount,
+                    sellerAmount
                   ),
 
                 totalSalesGross:
                   increment(
-                    total,
+                    total
                   ),
 
                 totalPlatformFees:
                   increment(
-                    platformFee,
+                    platformFee
                   ),
 
                 updatedAt:
                   serverTimestamp(),
-              },
+              }
             );
           } catch (
             sellerErr
           ) {
             console.warn(
               "Seller balance update fallback:",
-              sellerErr,
+              sellerErr
             );
 
             await setDoc(
@@ -2401,22 +2345,22 @@ function App() {
               {
                 availableBalance:
                   increment(
-                    sellerAmount,
+                    sellerAmount
                   ),
 
                 totalEarnings:
                   increment(
-                    sellerAmount,
+                    sellerAmount
                   ),
 
                 totalSalesGross:
                   increment(
-                    total,
+                    total
                   ),
 
                 totalPlatformFees:
                   increment(
-                    platformFee,
+                    platformFee
                   ),
 
                 updatedAt:
@@ -2424,28 +2368,26 @@ function App() {
               },
               {
                 merge: true,
-              },
+              }
             );
           }
 
-          // Earnings ledger
           try {
             await addDoc(
               collection(
                 db,
-                "earnings",
+                "earnings"
               ),
               {
                 sellerId:
                   String(
-                    sellerId,
+                    sellerId
                   ),
 
                 orderId:
                   orderRef.id,
 
-                type:
-                  "sale",
+                type: "sale",
 
                 title:
                   `Order #${orderNumber}`,
@@ -2456,12 +2398,11 @@ function App() {
                       (i) =>
                         i.name ||
                         i.productName ||
-                        "Item",
+                        "Item"
                     )
                     .join(", "),
 
-                gross:
-                  total,
+                gross: total,
 
                 platformFee,
 
@@ -2473,21 +2414,18 @@ function App() {
 
                 createdAt:
                   serverTimestamp(),
-              },
+              }
             );
           } catch (
             earnErr
           ) {
             console.warn(
               "Could not write earnings ledger:",
-              earnErr,
+              earnErr
             );
           }
 
-          // Increment product sales
-          for (
-            const item of sellerItems
-          ) {
+          for (const item of sellerItems) {
             const productId =
               item.id ||
               item.productId;
@@ -2498,7 +2436,7 @@ function App() {
 
             const qty =
               Number(
-                item.quantity,
+                item.quantity
               ) || 1;
 
             try {
@@ -2507,16 +2445,18 @@ function App() {
                   db,
                   "products",
                   String(
-                    productId,
-                  ),
+                    productId
+                  )
                 ),
                 {
                   sales:
-                    increment(qty),
+                    increment(
+                      qty
+                    ),
 
                   updatedAt:
                     serverTimestamp(),
-                },
+                }
               );
             } catch (
               salesErr
@@ -2524,7 +2464,7 @@ function App() {
               console.warn(
                 "Could not update product sales:",
                 productId,
-                salesErr,
+                salesErr
               );
             }
           }
@@ -2544,8 +2484,7 @@ function App() {
 
             paymentMethod,
 
-            type:
-              checkoutType,
+            type: checkoutType,
 
             fullName:
               customer.fullName ||
@@ -2564,8 +2503,7 @@ function App() {
               "",
 
             note:
-              customer.note ||
-              "",
+              customer.note || "",
 
             customer,
 
@@ -2575,8 +2513,7 @@ function App() {
             createdAt:
               new Date().toISOString(),
 
-            status:
-              "pending",
+            status: "pending",
 
             sellerId:
               String(sellerId),
@@ -2593,24 +2530,20 @@ function App() {
 
         const purchasedIds =
           items.map(
-            (item) => item.id,
+            (item) => item.id
           );
 
         const nextCart =
           cart.filter(
             (item) =>
               !purchasedIds.includes(
-                item.id,
-              ),
+                item.id
+              )
           );
 
-        setOrders(
-          nextOrders,
-        );
+        setOrders(nextOrders);
 
-        setCart(
-          nextCart,
-        );
+        setCart(nextCart);
 
         queueCustomerDataSave({
           nextCart,
@@ -2627,7 +2560,7 @@ function App() {
       } catch (error) {
         console.error(
           "placeOrder error:",
-          error,
+          error
         );
 
         throw error;
@@ -2645,14 +2578,14 @@ function App() {
         !firebaseUser
       ) {
         throw new Error(
-          "Cannot cancel order",
+          "Cannot cancel order"
         );
       }
 
       const orderRef = doc(
         db,
         "orders",
-        String(orderId),
+        String(orderId)
       );
 
       const snap =
@@ -2660,21 +2593,18 @@ function App() {
 
       if (!snap.exists()) {
         const nextOrders =
-          orders.map(
-            (o) =>
-              String(o.id) ===
-              String(orderId)
-                ? {
-                    ...o,
-                    status:
-                      "cancelled",
-                  }
-                : o,
+          orders.map((o) =>
+            String(o.id) ===
+            String(orderId)
+              ? {
+                  ...o,
+                  status:
+                    "cancelled",
+                }
+              : o
           );
 
-        setOrders(
-          nextOrders,
-        );
+        setOrders(nextOrders);
 
         queueCustomerDataSave({
           nextCart: cart,
@@ -2693,36 +2623,30 @@ function App() {
       const status =
         String(
           data.status ||
-            "pending",
+            "pending"
         ).toLowerCase();
 
       if (
-        status ===
-          "delivered" ||
-        status ===
-          "cancelled"
+        status === "delivered" ||
+        status === "cancelled"
       ) {
         throw new Error(
-          "This order can no longer be cancelled.",
+          "This order can no longer be cancelled."
         );
       }
 
       if (
-        String(
-          data.buyerId,
-        ) !==
-        String(
-          firebaseUser.uid,
-        )
+        String(data.buyerId) !==
+        String(firebaseUser.uid)
       ) {
         throw new Error(
-          "You can only cancel your own orders.",
+          "You can only cancel your own orders."
         );
       }
 
       const sellerAmount =
         Number(
-          data.sellerAmount,
+          data.sellerAmount
         ) || 0;
 
       const sellerId =
@@ -2731,15 +2655,14 @@ function App() {
       await updateDoc(
         orderRef,
         {
-          status:
-            "cancelled",
+          status: "cancelled",
 
           cancelledAt:
             serverTimestamp(),
 
           updatedAt:
             serverTimestamp(),
-        },
+        }
       );
 
       if (
@@ -2751,49 +2674,44 @@ function App() {
             doc(
               db,
               "users",
-              String(
-                sellerId,
-              ),
+              String(sellerId)
             ),
             {
               availableBalance:
                 increment(
-                  -sellerAmount,
+                  -sellerAmount
                 ),
 
               totalEarnings:
                 increment(
-                  -sellerAmount,
+                  -sellerAmount
                 ),
 
               updatedAt:
                 serverTimestamp(),
-            },
+            }
           );
         } catch (e) {
           console.warn(
             "Could not reverse seller balance:",
-            e,
+            e
           );
         }
       }
 
       const nextOrders =
-        orders.map(
-          (o) =>
-            String(o.id) ===
-            String(orderId)
-              ? {
-                  ...o,
-                  status:
-                    "cancelled",
-                }
-              : o,
+        orders.map((o) =>
+          String(o.id) ===
+          String(orderId)
+            ? {
+                ...o,
+                status:
+                  "cancelled",
+              }
+            : o
         );
 
-      setOrders(
-        nextOrders,
-      );
+      setOrders(nextOrders);
 
       queueCustomerDataSave({
         nextCart: cart,
@@ -2812,12 +2730,12 @@ function App() {
     location.pathname ===
       "/messages" ||
     location.pathname.startsWith(
-      "/messages/",
+      "/messages/"
     ) ||
     location.pathname ===
       "/seller/messages" ||
     location.pathname.startsWith(
-      "/seller/messages/",
+      "/seller/messages/"
     );
 
   useEffect(() => {
@@ -2830,7 +2748,7 @@ function App() {
     const conversationsRef =
       collection(
         db,
-        "conversations",
+        "conversations"
       );
 
     const conversationsQuery =
@@ -2839,13 +2757,9 @@ function App() {
         where(
           "participants",
           "array-contains",
-          firebaseUser.uid,
-        ),
+          firebaseUser.uid
+        )
       );
-
-    // =====================================================
-    // PROCESS CONVERSATIONS
-    // =====================================================
 
     const processSnapshot =
       async (snapshot) => {
@@ -2854,63 +2768,53 @@ function App() {
             await Promise.all(
               snapshot.docs.map(
                 (
-                  conversationDoc,
+                  conversationDoc
                 ) =>
                   formatConversation(
                     conversationDoc,
-                    firebaseUser.uid,
-                  ),
-              ),
+                    firebaseUser.uid
+                  )
+              )
             );
 
           setMessages(
             sortConversations(
-              conversationList,
-            ),
+              conversationList
+            )
           );
         } catch (error) {
           console.error(
             "Error processing conversations:",
-            error,
+            error
           );
 
           setMessages([]);
         }
       };
 
-    // =====================================================
-    // MESSAGE PAGES
-    // =====================================================
-
     if (isMessagesPage) {
       const unsubscribe =
         onSnapshot(
           conversationsQuery,
-
           (snapshot) => {
             processSnapshot(
-              snapshot,
+              snapshot
             );
           },
-
           (error) => {
             console.error(
               "Conversation listener error:",
-              error,
+              error
             );
 
             setMessages([]);
-          },
+          }
         );
 
       return () => {
         unsubscribe();
       };
     }
-
-    // =====================================================
-    // OTHER PAGES
-    // =====================================================
 
     let cancelled = false;
 
@@ -2919,7 +2823,7 @@ function App() {
         try {
           const snapshot =
             await getDocs(
-              conversationsQuery,
+              conversationsQuery
             );
 
           if (cancelled) {
@@ -2930,13 +2834,13 @@ function App() {
             await Promise.all(
               snapshot.docs.map(
                 (
-                  conversationDoc,
+                  conversationDoc
                 ) =>
                   formatConversation(
                     conversationDoc,
-                    firebaseUser.uid,
-                  ),
-              ),
+                    firebaseUser.uid
+                  )
+              )
             );
 
           if (cancelled) {
@@ -2945,13 +2849,13 @@ function App() {
 
           setMessages(
             sortConversations(
-              conversationList,
-            ),
+              conversationList
+            )
           );
         } catch (error) {
           console.error(
             "Error loading conversations:",
-            error,
+            error
           );
 
           if (!cancelled) {
@@ -2979,9 +2883,9 @@ function App() {
       (total, message) =>
         total +
         Number(
-          message.unread || 0,
+          message.unread || 0
         ),
-      0,
+      0
     );
 
   // =======================================================
@@ -3002,9 +2906,7 @@ function App() {
           doc(
             db,
             "conversations",
-            String(
-              messageId,
-            ),
+            String(messageId)
           );
 
         await updateDoc(
@@ -3012,14 +2914,14 @@ function App() {
           {
             [`unreadCounts.${firebaseUser.uid}`]:
               0,
-          },
+          }
         );
 
         return true;
       } catch (error) {
         console.error(
           "Error marking conversation as read:",
-          error,
+          error
         );
 
         return false;
@@ -3028,25 +2930,16 @@ function App() {
 
   // =======================================================
   // SEND MESSAGE
-  //
-  // IMPORTANT:
-  //
-  // createdAtMs and createdAt are created from the SAME
-  // exact millisecond.
-  //
-  // This means redeploying the app cannot change the
-  // message's position.
   // =======================================================
 
   const sendMessage =
     async (
       messageId,
-      text,
+      text
     ) => {
       const cleanText =
-        String(
-          text || "",
-        ).trim();
+        String(text || "")
+          .trim();
 
       if (
         !cleanText ||
@@ -3061,9 +2954,7 @@ function App() {
           doc(
             db,
             "conversations",
-            String(
-              messageId,
-            ),
+            String(messageId)
           );
 
         let success = false;
@@ -3073,14 +2964,14 @@ function App() {
           async (transaction) => {
             const conversationSnapshot =
               await transaction.get(
-                conversationRef,
+                conversationRef
               );
 
             if (
               !conversationSnapshot.exists()
             ) {
               throw new Error(
-                "Conversation not found.",
+                "Conversation not found."
               );
             }
 
@@ -3089,18 +2980,18 @@ function App() {
 
             const participants =
               Array.isArray(
-                data.participants,
+                data.participants
               )
                 ? data.participants
                 : [];
 
             if (
               !participants.includes(
-                firebaseUser.uid,
+                firebaseUser.uid
               )
             ) {
               throw new Error(
-                "You are not a participant in this conversation.",
+                "You are not a participant in this conversation."
               );
             }
 
@@ -3109,26 +3000,22 @@ function App() {
                 (uid) =>
                   String(uid) !==
                   String(
-                    firebaseUser.uid,
-                  ),
+                    firebaseUser.uid
+                  )
               );
 
             if (!receiverId) {
               throw new Error(
-                "Receiver ID is missing.",
+                "Receiver ID is missing."
               );
             }
 
             const existingMessages =
               Array.isArray(
-                data.messages,
+                data.messages
               )
                 ? data.messages
                 : [];
-
-            // =================================================
-            // ONE STABLE TIMESTAMP
-            // =================================================
 
             const nowMs =
               Date.now();
@@ -3145,25 +3032,21 @@ function App() {
 
               text: cleanText,
 
-              // Same exact timestamp
-              // as createdAtMs.
               createdAt:
                 Timestamp.fromMillis(
-                  nowMs,
+                  nowMs
                 ),
 
-              createdAtMs:
-                nowMs,
+              createdAtMs: nowMs,
 
               time: new Date(
-                nowMs,
+                nowMs
               ).toLocaleTimeString(
                 [],
                 {
                   hour: "2-digit",
-                  minute:
-                    "2-digit",
-                },
+                  minute: "2-digit",
+                }
               ),
 
               deletedFor: [],
@@ -3173,7 +3056,7 @@ function App() {
               Number(
                 data.unreadCounts?.[
                   receiverId
-                ] || 0,
+                ] || 0
               );
 
             transaction.update(
@@ -3198,18 +3081,18 @@ function App() {
 
                 updatedAt:
                   serverTimestamp(),
-              },
+              }
             );
 
             success = true;
-          },
+          }
         );
 
         return success;
       } catch (error) {
         console.error(
           "Error sending message:",
-          error,
+          error
         );
 
         return false;
@@ -3224,13 +3107,13 @@ function App() {
     async (
       conversationId,
       messageIds,
-      deleteType,
+      deleteType
     ) => {
       if (
         !firebaseUser ||
         !conversationId ||
         !Array.isArray(
-          messageIds,
+          messageIds
         ) ||
         messageIds.length === 0
       ) {
@@ -3250,26 +3133,22 @@ function App() {
             db,
             "conversations",
             String(
-              conversationId,
-            ),
+              conversationId
+            )
           );
 
         const result =
           await runTransaction(
             db,
-            async (
-              transaction,
-            ) => {
+            async (transaction) => {
               const snapshot =
                 await transaction.get(
-                  conversationRef,
+                  conversationRef
                 );
 
-              if (
-                !snapshot.exists()
-              ) {
+              if (!snapshot.exists()) {
                 throw new Error(
-                  "Conversation not found.",
+                  "Conversation not found."
                 );
               }
 
@@ -3278,24 +3157,24 @@ function App() {
 
               const participants =
                 Array.isArray(
-                  data.participants,
+                  data.participants
                 )
                   ? data.participants
                   : [];
 
               if (
                 !participants.includes(
-                  firebaseUser.uid,
+                  firebaseUser.uid
                 )
               ) {
                 throw new Error(
-                  "You are not a participant in this conversation.",
+                  "You are not a participant in this conversation."
                 );
               }
 
               const existingMessages =
                 Array.isArray(
-                  data.messages,
+                  data.messages
                 )
                   ? data.messages
                   : [];
@@ -3305,14 +3184,10 @@ function App() {
                   messageIds.map(
                     (messageId) =>
                       String(
-                        messageId,
-                      ),
-                  ),
+                        messageId
+                      )
+                  )
                 );
-
-              // =============================================
-              // DELETE FOR EVERYONE
-              // =============================================
 
               if (
                 deleteType ===
@@ -3323,12 +3198,12 @@ function App() {
                     (message) => {
                       const messageId =
                         String(
-                          message.id,
+                          message.id
                         );
 
                       if (
                         !selectedIds.has(
-                          messageId,
+                          messageId
                         )
                       ) {
                         return true;
@@ -3336,10 +3211,10 @@ function App() {
 
                       const isMine =
                         String(
-                          message.senderId,
+                          message.senderId
                         ) ===
                         String(
-                          firebaseUser.uid,
+                          firebaseUser.uid
                         );
 
                       if (!isMine) {
@@ -3347,7 +3222,7 @@ function App() {
                       }
 
                       return false;
-                    },
+                    }
                   );
 
                 const visibleMessages =
@@ -3355,26 +3230,24 @@ function App() {
                     (message) => {
                       const deletedFor =
                         Array.isArray(
-                          message.deletedFor,
+                          message.deletedFor
                         )
                           ? message.deletedFor
                           : [];
 
                       return (
                         !deletedFor.includes(
-                          firebaseUser.uid,
+                          firebaseUser.uid
                         ) &&
                         message.deletedForEveryone !==
                           true
                       );
-                    },
+                    }
                   );
 
-                // IMPORTANT:
-                // Sort again after deletion.
                 const sortedMessages =
                   sortMessagesChronologically(
-                    visibleMessages,
+                    visibleMessages
                   );
 
                 const lastMessage =
@@ -3394,40 +3267,34 @@ function App() {
 
                     lastMessage:
                       lastMessage?.text ||
-                      (
-                        lastMessage?.imageUrl
-                          ? "📷 Photo"
-                          : ""
-                      ),
+                      (lastMessage?.imageUrl
+                        ? "📷 Photo"
+                        : ""),
 
                     lastMessageAt:
                       getMessageTimestamp(
-                        lastMessage,
+                        lastMessage
                       ),
 
                     updatedAt:
                       serverTimestamp(),
-                  },
+                  }
                 );
 
                 return true;
               }
-
-              // =============================================
-              // DELETE FOR ME
-              // =============================================
 
               const updatedMessages =
                 existingMessages.map(
                   (message) => {
                     const messageId =
                       String(
-                        message.id,
+                        message.id
                       );
 
                     if (
                       !selectedIds.has(
-                        messageId,
+                        messageId
                       )
                     ) {
                       return message;
@@ -3435,14 +3302,14 @@ function App() {
 
                     const deletedFor =
                       Array.isArray(
-                        message.deletedFor,
+                        message.deletedFor
                       )
                         ? message.deletedFor
                         : [];
 
                     if (
                       deletedFor.includes(
-                        firebaseUser.uid,
+                        firebaseUser.uid
                       )
                     ) {
                       return message;
@@ -3456,7 +3323,7 @@ function App() {
                         firebaseUser.uid,
                       ],
                     };
-                  },
+                  }
                 );
 
               const visibleForCurrentUser =
@@ -3464,14 +3331,14 @@ function App() {
                   (message) => {
                     const deletedFor =
                       Array.isArray(
-                        message.deletedFor,
+                        message.deletedFor
                       )
                         ? message.deletedFor
                         : [];
 
                     if (
                       deletedFor.includes(
-                        firebaseUser.uid,
+                        firebaseUser.uid
                       )
                     ) {
                       return false;
@@ -3485,14 +3352,12 @@ function App() {
                     }
 
                     return true;
-                  },
+                  }
                 );
 
-              // IMPORTANT:
-              // Sort again after deletion.
               const sortedVisible =
                 sortMessagesChronologically(
-                  visibleForCurrentUser,
+                  visibleForCurrentUser
                 );
 
               const lastMessage =
@@ -3512,31 +3377,29 @@ function App() {
 
                   lastMessage:
                     lastMessage?.text ||
-                    (
-                      lastMessage?.imageUrl
-                        ? "📷 Photo"
-                        : ""
-                    ),
+                    (lastMessage?.imageUrl
+                      ? "📷 Photo"
+                      : ""),
 
                   lastMessageAt:
                     getMessageTimestamp(
-                      lastMessage,
+                      lastMessage
                     ),
 
                   updatedAt:
                     serverTimestamp(),
-                },
+                }
               );
 
               return true;
-            },
+            }
           );
 
         return result === true;
       } catch (error) {
         console.error(
           "Error deleting messages:",
-          error,
+          error
         );
 
         return false;
@@ -3551,7 +3414,7 @@ function App() {
     async (product) => {
       if (!firebaseUser) {
         console.error(
-          "Cannot open seller chat: user is not logged in.",
+          "Cannot open seller chat: user is not logged in."
         );
 
         return false;
@@ -3559,7 +3422,7 @@ function App() {
 
       if (!product) {
         console.error(
-          "Cannot open seller chat: product is missing.",
+          "Cannot open seller chat: product is missing."
         );
 
         return false;
@@ -3574,7 +3437,7 @@ function App() {
       if (!sellerId) {
         console.error(
           "Cannot open seller chat: this product has no seller ID.",
-          product,
+          product
         );
 
         return false;
@@ -3585,15 +3448,11 @@ function App() {
         String(firebaseUser.uid)
       ) {
         console.error(
-          "Cannot open seller chat: buyer and seller are the same user.",
+          "Cannot open seller chat: buyer and seller are the same user."
         );
 
         return false;
       }
-
-      // ===================================================
-      // STABLE CONVERSATION ID
-      // ===================================================
 
       const participantIds = [
         String(firebaseUser.uid),
@@ -3607,38 +3466,30 @@ function App() {
         doc(
           db,
           "conversations",
-          conversationId,
+          conversationId
         );
 
       try {
         const existingSnapshot =
           await getDoc(
-            conversationRef,
+            conversationRef
           );
-
-        // =================================================
-        // BUYER
-        // =================================================
 
         const buyerName =
           getProfileName(
             profile,
-            firebaseUser,
+            firebaseUser
           );
 
         const buyerImage =
           getProfileImage(
             profile,
-            firebaseUser,
+            firebaseUser
           );
-
-        // =================================================
-        // SELLER PUBLIC PROFILE
-        // =================================================
 
         const sellerPublicProfile =
           await getPublicProfile(
-            sellerId,
+            sellerId
           );
 
         const sellerName =
@@ -3661,10 +3512,6 @@ function App() {
           product.seller?.avatar ||
           null;
 
-        // =================================================
-        // EXISTING CONVERSATION
-        // =================================================
-
         if (
           existingSnapshot.exists()
         ) {
@@ -3683,9 +3530,8 @@ function App() {
             ...existingParticipantImages,
 
             [String(
-              firebaseUser.uid,
-            )]:
-              buyerImage,
+              firebaseUser.uid
+            )]: buyerImage,
 
             [String(sellerId)]:
               sellerImage,
@@ -3695,9 +3541,8 @@ function App() {
             ...existingParticipantNames,
 
             [String(
-              firebaseUser.uid,
-            )]:
-              buyerName,
+              firebaseUser.uid
+            )]: buyerName,
 
             [String(sellerId)]:
               sellerName,
@@ -3709,15 +3554,12 @@ function App() {
               participants:
                 participantIds,
 
-              buyerId:
-                String(
-                  firebaseUser.uid,
-                ),
+              buyerId: String(
+                firebaseUser.uid
+              ),
 
               sellerId:
-                String(
-                  sellerId,
-                ),
+                String(sellerId),
 
               participantNames:
                 updatedNames,
@@ -3730,19 +3572,15 @@ function App() {
             },
             {
               merge: true,
-            },
+            }
           );
 
           navigate(
-            `/messages/${conversationId}`,
+            `/messages/${conversationId}`
           );
 
           return true;
         }
-
-        // =================================================
-        // CREATE NEW CONVERSATION
-        // =================================================
 
         await setDoc(
           conversationRef,
@@ -3750,33 +3588,26 @@ function App() {
             participants:
               participantIds,
 
-            buyerId:
-              String(
-                firebaseUser.uid,
-              ),
+            buyerId: String(
+              firebaseUser.uid
+            ),
 
             sellerId:
-              String(
-                sellerId,
-              ),
+              String(sellerId),
 
             participantNames: {
               [String(
-                firebaseUser.uid,
-              )]:
-                buyerName,
+                firebaseUser.uid
+              )]: buyerName,
 
-              [String(
-                sellerId,
-              )]:
+              [String(sellerId)]:
                 sellerName,
             },
 
             participantImages: {
               [String(
-                firebaseUser.uid,
-              )]:
-                buyerImage,
+                firebaseUser.uid
+              )]: buyerImage,
 
               [String(sellerId)]:
                 sellerImage,
@@ -3784,22 +3615,20 @@ function App() {
 
             unreadCounts: {
               [String(
-                firebaseUser.uid,
+                firebaseUser.uid
               )]: 0,
 
-              [String(
-                sellerId,
-              )]: 0,
+              [String(sellerId)]:
+                0,
             },
 
             onlineStatus: {
               [String(
-                firebaseUser.uid,
+                firebaseUser.uid
               )]: true,
 
-              [String(
-                sellerId,
-              )]: false,
+              [String(sellerId)]:
+                false,
             },
 
             lastMessage: "",
@@ -3809,12 +3638,10 @@ function App() {
             messages: [],
 
             productId:
-              product.id ||
-              null,
+              product.id || null,
 
             productName:
-              product.name ||
-              "",
+              product.name || "",
 
             createdAt:
               serverTimestamp(),
@@ -3824,23 +3651,18 @@ function App() {
           },
           {
             merge: true,
-          },
-        );
-
-        console.log(
-          "Seller conversation created successfully:",
-          conversationId,
+          }
         );
 
         navigate(
-          `/messages/${conversationId}`,
+          `/messages/${conversationId}`
         );
 
         return true;
       } catch (error) {
         console.error(
           "Error opening seller chat:",
-          error,
+          error
         );
 
         return false;
@@ -3853,10 +3675,8 @@ function App() {
 
   if (
     profileLoading ||
-    (
-      firebaseUser &&
-      !profileResolved
-    )
+    (firebaseUser &&
+      !profileResolved)
   ) {
     return (
       <>
@@ -3886,7 +3706,6 @@ function App() {
       )}
 
       <Routes>
-
         {/* ================================================= */}
         {/* LANDING */}
         {/* ================================================= */}
@@ -3951,7 +3770,7 @@ function App() {
         />
 
         {/* ================================================= */}
-        {/* PRIVACY POLICY */}
+        {/* PRIVACY */}
         {/* ================================================= */}
 
         <Route
@@ -3991,28 +3810,20 @@ function App() {
                 }
               >
                 <Dashboard
-                  addToCart={
-                    addToCart
-                  }
+                  addToCart={addToCart}
                   cartCount={
                     cartCount
                   }
                   orders={orders}
-                  wishlist={
-                    wishlist
-                  }
+                  wishlist={wishlist}
                   toggleWishlist={
                     toggleWishlist
                   }
                   unreadMessages={
                     unreadMessages
                   }
-                  messages={
-                    messages
-                  }
-                  profile={
-                    profile
-                  }
+                  messages={messages}
+                  profile={profile}
                 />
               </CustomerRoute>
             </ProtectedRoute>
@@ -4050,9 +3861,7 @@ function App() {
                   toggleWishlist={
                     toggleWishlist
                   }
-                  profile={
-                    profile
-                  }
+                  profile={profile}
                 />
               </CustomerRoute>
             </ProtectedRoute>
@@ -4093,9 +3902,7 @@ function App() {
                   openSellerChat={
                     openSellerChat
                   }
-                  profile={
-                    profile
-                  }
+                  profile={profile}
                 />
               </CustomerRoute>
             </ProtectedRoute>
@@ -4137,9 +3944,7 @@ function App() {
                   openSellerChat={
                     openSellerChat
                   }
-                  profile={
-                    profile
-                  }
+                  profile={profile}
                 />
               </CustomerRoute>
             </ProtectedRoute>
@@ -4169,9 +3974,7 @@ function App() {
                   cartCount={
                     cartCount
                   }
-                  profile={
-                    profile
-                  }
+                  profile={profile}
                 />
               </CustomerRoute>
             </ProtectedRoute>
@@ -4201,9 +4004,7 @@ function App() {
                   cartCount={
                     cartCount
                   }
-                  profile={
-                    profile
-                  }
+                  profile={profile}
                   cancelOrder={
                     cancelOrder
                   }
@@ -4247,9 +4048,7 @@ function App() {
                   markMessageAsRead={
                     markMessageAsRead
                   }
-                  profile={
-                    profile
-                  }
+                  profile={profile}
                 />
               </CustomerRoute>
             </ProtectedRoute>
@@ -4296,9 +4095,7 @@ function App() {
                   deleteMessages={
                     deleteMessages
                   }
-                  profile={
-                    profile
-                  }
+                  profile={profile}
                 />
               </CustomerRoute>
             </ProtectedRoute>
@@ -4331,9 +4128,7 @@ function App() {
                   placeOrder={
                     placeOrder
                   }
-                  profile={
-                    profile
-                  }
+                  profile={profile}
                 />
               </CustomerRoute>
             </ProtectedRoute>
@@ -4359,9 +4154,7 @@ function App() {
                 }
               >
                 <OrderSuccess
-                  profile={
-                    profile
-                  }
+                  profile={profile}
                 />
               </CustomerRoute>
             </ProtectedRoute>
@@ -4399,9 +4192,7 @@ function App() {
                   cartCount={
                     cartCount
                   }
-                  profile={
-                    profile
-                  }
+                  profile={profile}
                 />
               </CustomerRoute>
             </ProtectedRoute>
@@ -4430,9 +4221,7 @@ function App() {
                   cartCount={
                     cartCount
                   }
-                  profile={
-                    profile
-                  }
+                  profile={profile}
                   placeOrder={
                     placeOrder
                   }
@@ -4461,9 +4250,7 @@ function App() {
                 }
               >
                 <Profile
-                  profile={
-                    profile
-                  }
+                  profile={profile}
                   updateProfile={
                     updateProfile
                   }
@@ -4501,9 +4288,7 @@ function App() {
                 }
               >
                 <Settings
-                  profile={
-                    profile
-                  }
+                  profile={profile}
                   updateProfile={
                     updateProfile
                   }
@@ -4568,9 +4353,7 @@ function App() {
                 }
               >
                 <SellerDashboard
-                  profile={
-                    profile
-                  }
+                  profile={profile}
                   cartCount={
                     cartCount
                   }
@@ -4605,9 +4388,7 @@ function App() {
                 }
               >
                 <SellerProducts
-                  profile={
-                    profile
-                  }
+                  profile={profile}
                   cartCount={
                     cartCount
                   }
@@ -4648,9 +4429,7 @@ function App() {
                   markMessageAsRead={
                     markMessageAsRead
                   }
-                  profile={
-                    profile
-                  }
+                  profile={profile}
                 />
               </SellerRoute>
             </ProtectedRoute>
@@ -4691,9 +4470,7 @@ function App() {
                   deleteMessages={
                     deleteMessages
                   }
-                  profile={
-                    profile
-                  }
+                  profile={profile}
                 />
               </SellerRoute>
             </ProtectedRoute>
@@ -4719,9 +4496,7 @@ function App() {
                 }
               >
                 <SellerEarnings
-                  profile={
-                    profile
-                  }
+                  profile={profile}
                   unreadMessages={
                     unreadMessages
                   }
@@ -4753,9 +4528,7 @@ function App() {
                   unreadMessages={
                     unreadMessages
                   }
-                  profile={
-                    profile
-                  }
+                  profile={profile}
                 />
               </SellerRoute>
             </ProtectedRoute>
@@ -4784,9 +4557,7 @@ function App() {
                   unreadMessages={
                     unreadMessages
                   }
-                  profile={
-                    profile
-                  }
+                  profile={profile}
                 />
               </SellerRoute>
             </ProtectedRoute>
@@ -4840,9 +4611,7 @@ function App() {
                 }
               >
                 <SellerProfile
-                  profile={
-                    profile
-                  }
+                  profile={profile}
                   updateProfile={
                     updateProfile
                   }
@@ -4877,9 +4646,7 @@ function App() {
                   unreadMessages={
                     unreadMessages
                   }
-                  profile={
-                    profile
-                  }
+                  profile={profile}
                 />
               </SellerRoute>
             </ProtectedRoute>
@@ -4908,9 +4675,7 @@ function App() {
                   unreadMessages={
                     unreadMessages
                   }
-                  profile={
-                    profile
-                  }
+                  profile={profile}
                 />
               </SellerRoute>
             </ProtectedRoute>
@@ -4949,6 +4714,163 @@ function App() {
         />
 
         {/* ================================================= */}
+        {/* ADMIN DASHBOARD */}
+        {/* ================================================= */}
+
+        <Route
+          path="/admin-dashboard"
+          element={
+            <AdminRoute
+              profile={profile}
+              profileResolved={
+                profileResolved
+              }
+            >
+              <AdminDashboard />
+            </AdminRoute>
+          }
+        />
+
+        {/* ================================================= */}
+        {/* ADMIN USERS */}
+        {/* ================================================= */}
+
+        <Route
+          path="/admin/users"
+          element={
+            <AdminRoute
+              profile={profile}
+              profileResolved={
+                profileResolved
+              }
+            >
+              <AdminUsers />
+            </AdminRoute>
+          }
+        />
+
+        {/* ================================================= */}
+        {/* ADMIN PRODUCTS */}
+        {/* ================================================= */}
+
+        <Route
+          path="/admin/products"
+          element={
+            <AdminRoute
+              profile={profile}
+              profileResolved={
+                profileResolved
+              }
+            >
+              <AdminProducts />
+            </AdminRoute>
+          }
+        />
+
+        {/* ================================================= */}
+        {/* ADMIN ORDERS */}
+        {/* ================================================= */}
+
+        <Route
+          path="/admin/orders"
+          element={
+            <AdminRoute
+              profile={profile}
+              profileResolved={
+                profileResolved
+              }
+            >
+              <AdminOrders />
+            </AdminRoute>
+          }
+        />
+
+        {/* ================================================= */}
+        {/* ADMIN FEES */}
+        {/* ================================================= */}
+
+        <Route
+          path="/admin/fees"
+          element={
+            <AdminRoute
+              profile={profile}
+              profileResolved={
+                profileResolved
+              }
+            >
+              <AdminFees />
+            </AdminRoute>
+          }
+        />
+
+        {/* ================================================= */}
+        {/* ADMIN WITHDRAWALS */}
+        {/* ================================================= */}
+
+        <Route
+          path="/admin/withdrawals"
+          element={
+            <AdminRoute
+              profile={profile}
+              profileResolved={
+                profileResolved
+              }
+            >
+              <AdminWithdrawals />
+            </AdminRoute>
+          }
+        />
+
+        {/* ================================================= */}
+        {/* ADMIN PAYMENTS */}
+        {/* ================================================= */}
+
+        <Route
+          path="/admin/payments"
+          element={
+            <AdminRoute
+              profile={profile}
+              profileResolved={
+                profileResolved
+              }
+            >
+              <AdminPayments />
+            </AdminRoute>
+          }
+        />
+
+        {/* ================================================= */}
+        {/* ADMIN SUPPORT MESSAGES */}
+        {/* ================================================= */}
+
+        <Route
+          path="/admin/support-messages"
+          element={
+            <AdminRoute
+              profile={profile}
+              profileResolved={
+                profileResolved
+              }
+            >
+              <AdminSupportMessages
+                profile={profile}
+              />
+            </AdminRoute>
+          }
+        />
+
+        {/* ================================================= */}
+        {/* ACCOUNT DISABLED */}
+        {/* ================================================= */}
+
+        <Route
+          path="/account-disabled"
+          element={
+            <AccountDisabled />
+          }
+        />
+
+        {/* ================================================= */}
         {/* FALLBACK */}
         {/* ================================================= */}
 
@@ -4961,7 +4883,6 @@ function App() {
             />
           }
         />
-
       </Routes>
     </>
   );

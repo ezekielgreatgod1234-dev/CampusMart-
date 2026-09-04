@@ -27,6 +27,7 @@ import {
   FiCheckCircle,
   FiXCircle,
   FiRefreshCw,
+  FiMessageCircle,
 } from "react-icons/fi";
 
 import { db } from "../../context/firebase";
@@ -47,6 +48,7 @@ function AdminWithdrawals() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [updatingId, setUpdatingId] = useState(null);
+  const [unreadSupportCount, setUnreadSupportCount] = useState(0);
 
   // Access control
   useEffect(() => {
@@ -77,32 +79,54 @@ function AdminWithdrawals() {
     check();
   }, [firebaseUser]);
 
-  // Load withdrawals
+  // Load withdrawals + support badge
   useEffect(() => {
     if (!allowed) return;
 
-    const unsub = onSnapshot(collection(db, "withdrawals"), (snap) => {
-      const list = snap.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
-      }));
+    const unsubWithdrawals = onSnapshot(
+      collection(db, "withdrawals"),
+      (snap) => {
+        const list = snap.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+        }));
 
-      list.sort((a, b) => {
-        const aT =
-          a.createdAt?.toMillis?.() ||
-          a.createdAt?.seconds * 1000 ||
-          0;
-        const bT =
-          b.createdAt?.toMillis?.() ||
-          b.createdAt?.seconds * 1000 ||
-          0;
-        return bT - aT;
-      });
+        list.sort((a, b) => {
+          const aT =
+            a.createdAt?.toMillis?.() || a.createdAt?.seconds * 1000 || 0;
+          const bT =
+            b.createdAt?.toMillis?.() || b.createdAt?.seconds * 1000 || 0;
+          return bT - aT;
+        });
 
-      setWithdrawals(list);
-    });
+        setWithdrawals(list);
+      }
+    );
 
-    return () => unsub();
+    const unsubSupport = onSnapshot(
+      collection(db, "supportMessages"),
+      (snap) => {
+        let unread = 0;
+
+        snap.forEach((d) => {
+          const data = d.data() || {};
+          const isRead =
+            data.read === true ||
+            data.isRead === true ||
+            String(data.status || "").toLowerCase() === "read" ||
+            String(data.status || "").toLowerCase() === "resolved";
+
+          if (!isRead) unread += 1;
+        });
+
+        setUnreadSupportCount(unread);
+      }
+    );
+
+    return () => {
+      unsubWithdrawals();
+      unsubSupport();
+    };
   }, [allowed]);
 
   const normalizeStatus = (status) => {
@@ -122,7 +146,6 @@ function AdminWithdrawals() {
       const status = normalizeStatus(w.status);
 
       if (statusFilter !== "all" && status !== statusFilter) return false;
-
       if (!q) return true;
 
       const haystack = [
@@ -153,12 +176,17 @@ function AdminWithdrawals() {
     withdrawals.forEach((w) => {
       const status = normalizeStatus(w.status);
       const amount = Number(w.amount) || 0;
+
       if (status === "pending") {
         pending += 1;
         pendingAmount += amount;
-      } else if (status === "processing") processing += 1;
-      else if (status === "successful") successful += 1;
-      else if (status === "failed") failed += 1;
+      } else if (status === "processing") {
+        processing += 1;
+      } else if (status === "successful") {
+        successful += 1;
+      } else if (status === "failed") {
+        failed += 1;
+      }
     });
 
     return { pending, processing, successful, failed, pendingAmount };
@@ -237,6 +265,12 @@ function AdminWithdrawals() {
     { label: "Platform Fees", icon: FiDollarSign, path: "/admin/fees" },
     { label: "Withdrawals", icon: FiCreditCard, path: "/admin/withdrawals" },
     { label: "Payments", icon: FiTrendingUp, path: "/admin/payments" },
+    {
+      label: "Support Messages",
+      icon: FiMessageCircle,
+      path: "/admin/support-messages",
+      badge: unreadSupportCount,
+    },
   ];
 
   const isActive = (path) => {
@@ -315,7 +349,7 @@ function AdminWithdrawals() {
         </div>
 
         <nav className="flex-1 px-4 py-3 overflow-y-auto flex flex-col gap-1">
-          {menuItems.map(({ label, icon: Icon, path }) => {
+          {menuItems.map(({ label, icon: Icon, path, badge }) => {
             const active = isActive(path);
             return (
               <button
@@ -324,11 +358,21 @@ function AdminWithdrawals() {
                 onClick={() => handleNavigation(path)}
                 className={`
                   w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-left transition
-                  ${active ? "bg-white text-[#008236] font-semibold" : "text-white hover:bg-white/10"}
+                  ${
+                    active
+                      ? "bg-white text-[#008236] font-semibold"
+                      : "text-white hover:bg-white/10"
+                  }
                 `}
               >
-                <Icon size={18} />
-                <span className="text-[14px]">{label}</span>
+                <Icon size={18} className="flex-shrink-0" />
+                <span className="flex-1 text-[14px]">{label}</span>
+
+                {badge > 0 && (
+                  <span className="min-w-[20px] h-[20px] px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                    {badge > 99 ? "99+" : badge}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -358,14 +402,11 @@ function AdminWithdrawals() {
           </button>
           <div>
             <p className="text-sm font-semibold">Withdrawals</p>
-            <p className="text-[11px] text-green-100">
-              Seller payout requests
-            </p>
+            <p className="text-[11px] text-green-100">Seller payout requests</p>
           </div>
         </header>
 
         <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5">
-          {/* Stats */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
               <p className="text-xs text-gray-500">Pending</p>
@@ -396,7 +437,6 @@ function AdminWithdrawals() {
             </div>
           </div>
 
-          {/* Filters */}
           <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-sm space-y-4">
             <div className="relative">
               <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -436,7 +476,6 @@ function AdminWithdrawals() {
             </div>
           </div>
 
-          {/* List */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             {filteredWithdrawals.length === 0 ? (
               <div className="p-10 text-center text-sm text-gray-500">
@@ -480,9 +519,8 @@ function AdminWithdrawals() {
                             Seller:{" "}
                             {w.sellerId
                               ? String(w.sellerId).slice(0, 12)
-                              : "—"}
-                            {" · "}
-                            {formatDate(w.createdAt)}
+                              : "—"}{" "}
+                            · {formatDate(w.createdAt)}
                           </p>
                           {(w.paystackReference || w.paystackTransferCode) && (
                             <p className="text-xs text-gray-400 mt-0.5">
@@ -492,21 +530,26 @@ function AdminWithdrawals() {
                         </div>
 
                         <div className="flex flex-wrap gap-2 lg:justify-end">
-                          {status !== "processing" && status !== "successful" && (
-                            <button
-                              type="button"
-                              disabled={updatingId === w.id}
-                              onClick={() => updateStatus(w.id, "Processing")}
-                              className="h-9 px-3 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100 disabled:opacity-50"
-                            >
-                              Mark processing
-                            </button>
-                          )}
+                          {status !== "processing" &&
+                            status !== "successful" && (
+                              <button
+                                type="button"
+                                disabled={updatingId === w.id}
+                                onClick={() =>
+                                  updateStatus(w.id, "Processing")
+                                }
+                                className="h-9 px-3 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100 disabled:opacity-50"
+                              >
+                                Mark processing
+                              </button>
+                            )}
                           {status !== "successful" && (
                             <button
                               type="button"
                               disabled={updatingId === w.id}
-                              onClick={() => updateStatus(w.id, "Successful")}
+                              onClick={() =>
+                                updateStatus(w.id, "Successful")
+                              }
                               className="h-9 px-3 rounded-lg text-xs font-semibold bg-[#008236] text-white hover:bg-[#006f2e] disabled:opacity-50"
                             >
                               Mark successful

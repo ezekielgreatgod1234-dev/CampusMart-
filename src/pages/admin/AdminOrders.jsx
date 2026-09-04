@@ -25,6 +25,7 @@ import {
   FiClock,
   FiCheckCircle,
   FiXCircle,
+  FiMessageCircle,
 } from "react-icons/fi";
 
 import { db } from "../../context/firebase";
@@ -45,6 +46,7 @@ function AdminOrders() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [unreadSupportCount, setUnreadSupportCount] = useState(0);
 
   // Access control
   useEffect(() => {
@@ -75,11 +77,11 @@ function AdminOrders() {
     check();
   }, [firebaseUser]);
 
-  // Load orders
+  // Load orders + support badge
   useEffect(() => {
     if (!allowed) return;
 
-    const unsub = onSnapshot(collection(db, "orders"), (snap) => {
+    const unsubOrders = onSnapshot(collection(db, "orders"), (snap) => {
       const list = snap.docs.map((d) => ({
         id: d.id,
         ...d.data(),
@@ -87,20 +89,39 @@ function AdminOrders() {
 
       list.sort((a, b) => {
         const aT =
-          a.createdAt?.toMillis?.() ||
-          a.createdAt?.seconds * 1000 ||
-          0;
+          a.createdAt?.toMillis?.() || a.createdAt?.seconds * 1000 || 0;
         const bT =
-          b.createdAt?.toMillis?.() ||
-          b.createdAt?.seconds * 1000 ||
-          0;
+          b.createdAt?.toMillis?.() || b.createdAt?.seconds * 1000 || 0;
         return bT - aT;
       });
 
       setOrders(list);
     });
 
-    return () => unsub();
+    const unsubSupport = onSnapshot(
+      collection(db, "supportMessages"),
+      (snap) => {
+        let unread = 0;
+
+        snap.forEach((d) => {
+          const data = d.data() || {};
+          const isRead =
+            data.read === true ||
+            data.isRead === true ||
+            String(data.status || "").toLowerCase() === "read" ||
+            String(data.status || "").toLowerCase() === "resolved";
+
+          if (!isRead) unread += 1;
+        });
+
+        setUnreadSupportCount(unread);
+      }
+    );
+
+    return () => {
+      unsubOrders();
+      unsubSupport();
+    };
   }, [allowed]);
 
   const normalizeStatus = (order) => {
@@ -121,7 +142,6 @@ function AdminOrders() {
       const status = normalizeStatus(order);
 
       if (statusFilter !== "all" && status !== statusFilter) return false;
-
       if (!q) return true;
 
       const itemNames = Array.isArray(order.items)
@@ -211,6 +231,12 @@ function AdminOrders() {
     { label: "Platform Fees", icon: FiDollarSign, path: "/admin/fees" },
     { label: "Withdrawals", icon: FiCreditCard, path: "/admin/withdrawals" },
     { label: "Payments", icon: FiTrendingUp, path: "/admin/payments" },
+    {
+      label: "Support Messages",
+      icon: FiMessageCircle,
+      path: "/admin/support-messages",
+      badge: unreadSupportCount,
+    },
   ];
 
   const isActive = (path) => {
@@ -289,7 +315,7 @@ function AdminOrders() {
         </div>
 
         <nav className="flex-1 px-4 py-3 overflow-y-auto flex flex-col gap-1">
-          {menuItems.map(({ label, icon: Icon, path }) => {
+          {menuItems.map(({ label, icon: Icon, path, badge }) => {
             const active = isActive(path);
             return (
               <button
@@ -298,11 +324,21 @@ function AdminOrders() {
                 onClick={() => handleNavigation(path)}
                 className={`
                   w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-left transition
-                  ${active ? "bg-white text-[#008236] font-semibold" : "text-white hover:bg-white/10"}
+                  ${
+                    active
+                      ? "bg-white text-[#008236] font-semibold"
+                      : "text-white hover:bg-white/10"
+                  }
                 `}
               >
-                <Icon size={18} />
-                <span className="text-[14px]">{label}</span>
+                <Icon size={18} className="flex-shrink-0" />
+                <span className="flex-1 text-[14px]">{label}</span>
+
+                {badge > 0 && (
+                  <span className="min-w-[20px] h-[20px] px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                    {badge > 99 ? "99+" : badge}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -332,14 +368,11 @@ function AdminOrders() {
           </button>
           <div>
             <p className="text-sm font-semibold">Orders</p>
-            <p className="text-[11px] text-green-100">
-              All platform orders
-            </p>
+            <p className="text-[11px] text-green-100">All platform orders</p>
           </div>
         </header>
 
         <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5">
-          {/* Filters */}
           <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-sm space-y-4">
             <div className="relative">
               <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -379,7 +412,6 @@ function AdminOrders() {
             </div>
           </div>
 
-          {/* Orders list */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             {filteredOrders.length === 0 ? (
               <div className="p-10 text-center text-sm text-gray-500">
@@ -406,10 +438,7 @@ function AdminOrders() {
                       : "Seller");
 
                   const total =
-                    order.total ||
-                    order.amount ||
-                    order.amountPaid ||
-                    0;
+                    order.total || order.amount || order.amountPaid || 0;
 
                   return (
                     <div key={order.id} className="p-4 sm:p-5">
@@ -418,7 +447,9 @@ function AdminOrders() {
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="text-sm font-bold text-[#008236]">
                               {order.orderNumber ||
-                                `#${String(order.id).slice(0, 8).toUpperCase()}`}
+                                `#${String(order.id)
+                                  .slice(0, 8)
+                                  .toUpperCase()}`}
                             </p>
                             <span
                               className={`
@@ -469,7 +500,6 @@ function AdminOrders() {
         </main>
       </div>
 
-      {/* Order details modal */}
       {selectedOrder && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div

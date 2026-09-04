@@ -1309,7 +1309,7 @@ function Landing() {
 
                 <span className="flex items-center gap-2">
                   <FiMail className="text-green-400" />
-                  support@campusmart.com
+                  campusmart1234@gmail.com
                 </span>
 
                 <span className="flex items-center gap-2">

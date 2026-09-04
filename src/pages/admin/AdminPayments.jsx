@@ -22,6 +22,7 @@ import {
   FiSearch,
   FiShield,
   FiExternalLink,
+  FiMessageCircle,
 } from "react-icons/fi";
 
 import { db } from "../../context/firebase";
@@ -40,6 +41,7 @@ function AdminPayments() {
 
   const [payments, setPayments] = useState([]);
   const [search, setSearch] = useState("");
+  const [unreadSupportCount, setUnreadSupportCount] = useState(0);
 
   // Access control
   useEffect(() => {
@@ -70,7 +72,7 @@ function AdminPayments() {
     check();
   }, [firebaseUser]);
 
-  // Build payments list from platformFees + paid orders
+  // Build payments list + support badge
   useEffect(() => {
     if (!allowed) return;
 
@@ -91,18 +93,13 @@ function AdminPayments() {
       });
 
       setPayments((prev) => {
-        // Merge with any existing order-based entries carefully
         const orderOnes = prev.filter((p) => p.source === "orders");
         const merged = [...fromFees, ...orderOnes];
         merged.sort((a, b) => {
           const aT =
-            a.createdAt?.toMillis?.() ||
-            a.createdAt?.seconds * 1000 ||
-            0;
+            a.createdAt?.toMillis?.() || a.createdAt?.seconds * 1000 || 0;
           const bT =
-            b.createdAt?.toMillis?.() ||
-            b.createdAt?.seconds * 1000 ||
-            0;
+            b.createdAt?.toMillis?.() || b.createdAt?.seconds * 1000 || 0;
           return bT - aT;
         });
         return merged;
@@ -146,34 +143,48 @@ function AdminPayments() {
 
       setPayments((prev) => {
         const feeOnes = prev.filter((p) => p.source === "platformFees");
-        // Prefer platformFees when same order/reference exists
         const feeRefs = new Set(
           feeOnes.map((f) => f.reference || f.orderId).filter(Boolean)
         );
         const uniqueOrders = fromOrders.filter(
-          (o) =>
-            !feeRefs.has(o.reference) &&
-            !feeRefs.has(o.orderId)
+          (o) => !feeRefs.has(o.reference) && !feeRefs.has(o.orderId)
         );
         const merged = [...feeOnes, ...uniqueOrders];
         merged.sort((a, b) => {
           const aT =
-            a.createdAt?.toMillis?.() ||
-            a.createdAt?.seconds * 1000 ||
-            0;
+            a.createdAt?.toMillis?.() || a.createdAt?.seconds * 1000 || 0;
           const bT =
-            b.createdAt?.toMillis?.() ||
-            b.createdAt?.seconds * 1000 ||
-            0;
+            b.createdAt?.toMillis?.() || b.createdAt?.seconds * 1000 || 0;
           return bT - aT;
         });
         return merged;
       });
     });
 
+    const unsubSupport = onSnapshot(
+      collection(db, "supportMessages"),
+      (snap) => {
+        let unread = 0;
+
+        snap.forEach((d) => {
+          const data = d.data() || {};
+          const isRead =
+            data.read === true ||
+            data.isRead === true ||
+            String(data.status || "").toLowerCase() === "read" ||
+            String(data.status || "").toLowerCase() === "resolved";
+
+          if (!isRead) unread += 1;
+        });
+
+        setUnreadSupportCount(unread);
+      }
+    );
+
     return () => {
       unsubFees();
       unsubOrders();
+      unsubSupport();
     };
   }, [allowed]);
 
@@ -228,6 +239,12 @@ function AdminPayments() {
     { label: "Platform Fees", icon: FiDollarSign, path: "/admin/fees" },
     { label: "Withdrawals", icon: FiCreditCard, path: "/admin/withdrawals" },
     { label: "Payments", icon: FiTrendingUp, path: "/admin/payments" },
+    {
+      label: "Support Messages",
+      icon: FiMessageCircle,
+      path: "/admin/support-messages",
+      badge: unreadSupportCount,
+    },
   ];
 
   const isActive = (path) => {
@@ -306,7 +323,7 @@ function AdminPayments() {
         </div>
 
         <nav className="flex-1 px-4 py-3 overflow-y-auto flex flex-col gap-1">
-          {menuItems.map(({ label, icon: Icon, path }) => {
+          {menuItems.map(({ label, icon: Icon, path, badge }) => {
             const active = isActive(path);
             return (
               <button
@@ -315,11 +332,21 @@ function AdminPayments() {
                 onClick={() => handleNavigation(path)}
                 className={`
                   w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-left transition
-                  ${active ? "bg-white text-[#008236] font-semibold" : "text-white hover:bg-white/10"}
+                  ${
+                    active
+                      ? "bg-white text-[#008236] font-semibold"
+                      : "text-white hover:bg-white/10"
+                  }
                 `}
               >
-                <Icon size={18} />
-                <span className="text-[14px]">{label}</span>
+                <Icon size={18} className="flex-shrink-0" />
+                <span className="flex-1 text-[14px]">{label}</span>
+
+                {badge > 0 && (
+                  <span className="min-w-[20px] h-[20px] px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                    {badge > 99 ? "99+" : badge}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -356,7 +383,6 @@ function AdminPayments() {
         </header>
 
         <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5">
-          {/* Summary */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
               <p className="text-xs text-gray-500 font-medium">
@@ -376,7 +402,6 @@ function AdminPayments() {
             </div>
           </div>
 
-          {/* Search */}
           <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-sm">
             <div className="relative">
               <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -390,7 +415,6 @@ function AdminPayments() {
             </div>
           </div>
 
-          {/* List */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             {filteredPayments.length === 0 ? (
               <div className="p-10 text-center text-sm text-gray-500">
