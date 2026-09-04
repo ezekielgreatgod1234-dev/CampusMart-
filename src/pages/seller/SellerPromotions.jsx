@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { useNavigate, useLocation } from "react-router-dom";
 
@@ -15,7 +15,6 @@ import {
   FiMenu,
   FiChevronDown,
   FiX,
- 
   FiCheckCircle,
   FiClock,
   FiTrendingUp,
@@ -26,6 +25,14 @@ import {
   FiCreditCard,
 } from "react-icons/fi";
 
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+} from "firebase/firestore";
+
+import { db } from "../../context/firebase";
 import { useAuth } from "../../context/AuthContext";
 
 // =====================================================
@@ -44,15 +51,16 @@ function SellerPromotions({ unreadMessages = 0, profile = {} }) {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // Pending orders badge
+  const [newOrdersCount, setNewOrdersCount] = useState(0);
+
   // =====================================================
   // PROMOTE FORM STATE
   // =====================================================
 
-  const [selectedProductId, setSelectedProductId] =
-    useState("");
+  const [selectedProductId, setSelectedProductId] = useState("");
 
-  const [selectedPlanId, setSelectedPlanId] =
-    useState("7days");
+  const [selectedPlanId, setSelectedPlanId] = useState("7days");
 
   const [submitting, setSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
@@ -65,73 +73,124 @@ function SellerPromotions({ unreadMessages = 0, profile = {} }) {
   // =====================================================
 
   const sellerFullName =
-  profile?.fullName ||
-  profile?.name ||
-  profile?.displayName ||
-  firebaseUser?.displayName?.trim() ||
-  "Seller";
+    profile?.fullName ||
+    profile?.name ||
+    profile?.displayName ||
+    firebaseUser?.displayName?.trim() ||
+    "Seller";
 
-const sellerFirstName =
-  String(sellerFullName).trim().split(/\s+/)[0] || "Seller";
+  const sellerFirstName =
+    String(sellerFullName).trim().split(/\s+/)[0] || "Seller";
 
-const sellerImage =
-  profile?.profileImage ||
-  profile?.photoURL ||
-  profile?.profilePicture ||
-  profile?.avatar ||
-  profile?.imageUrl ||
-  profile?.image ||
-  firebaseUser?.photoURL ||
-  null;
+  const sellerImage =
+    profile?.profileImage ||
+    profile?.photoURL ||
+    profile?.profilePicture ||
+    profile?.avatar ||
+    profile?.imageUrl ||
+    profile?.image ||
+    firebaseUser?.photoURL ||
+    null;
+
+  // =====================================================
+  // PENDING ORDERS BADGE
+  // =====================================================
+
+  useEffect(() => {
+    if (!firebaseUser?.uid) {
+      setNewOrdersCount(0);
+      return;
+    }
+
+    const ordersQuery = query(
+      collection(db, "orders"),
+      where("sellerId", "==", firebaseUser.uid)
+    );
+
+    const unsubscribe = onSnapshot(
+      ordersQuery,
+      (snapshot) => {
+        let pending = 0;
+
+        snapshot.docs.forEach((orderDoc) => {
+          const data = orderDoc.data() || {};
+          const status = String(data.status || "pending").toLowerCase();
+
+          if (status === "cancelled" || status === "canceled") {
+            return;
+          }
+
+          if (
+            status === "pending" ||
+            status === "placed" ||
+            status === "processing"
+          ) {
+            pending += 1;
+          }
+        });
+
+        setNewOrdersCount(pending);
+      },
+      (error) => {
+        console.error("Seller promotions orders badge error:", error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [firebaseUser?.uid]);
 
   // =====================================================
   // MENU ITEMS (Reviews & Analytics removed)
   // =====================================================
 
-  const menuItems = [
-    {
-      label: "Dashboard",
-      icon: FiGrid,
-      path: "/seller-dashboard",
-    },
-    {
-      label: "Products",
-      icon: FiPackage,
-      path: "/seller/products",
-    },
-    {
-      label: "Orders",
-      icon: FiShoppingBag,
-      path: "/seller/orders",
-    },
-    {
-      label: "Messages",
-      icon: FiMessageCircle,
-      path: "/seller/messages",
-      badge: unreadMessages,
-    },
-    {
-      label: "Earnings",
-      icon: FiDollarSign,
-      path: "/seller/earnings",
-    },
-    {
-      label: "Promotions",
-      icon: FiTag,
-      path: "/seller/promotions",
-      new: true,
-    },
-    {
-      label: "Profile",
-      icon: FiUser,
-      path: "/seller/profile",
-    },
-    {
-      label: "Settings",
-      icon: FiSettings,
-      path: "/seller/settings",
-    },
-  ];
+  const menuItems = useMemo(
+    () => [
+      {
+        label: "Dashboard",
+        icon: FiGrid,
+        path: "/seller-dashboard",
+      },
+      {
+        label: "Products",
+        icon: FiPackage,
+        path: "/seller/products",
+      },
+      {
+        label: "Orders",
+        icon: FiShoppingBag,
+        path: "/seller/orders",
+        badge: newOrdersCount,
+      },
+      {
+        label: "Messages",
+        icon: FiMessageCircle,
+        path: "/seller/messages",
+        badge: unreadMessages,
+      },
+      {
+        label: "Earnings",
+        icon: FiDollarSign,
+        path: "/seller/earnings",
+      },
+      {
+        label: "Promotions",
+        icon: FiTag,
+        path: "/seller/promotions",
+        new: true,
+      },
+      {
+        label: "Profile",
+        icon: FiUser,
+        path: "/seller/profile",
+      },
+      {
+        label: "Settings",
+        icon: FiSettings,
+        path: "/seller/settings",
+      },
+    ],
+    [newOrdersCount, unreadMessages]
+  );
 
   // =====================================================
   // ACTIVE MENU
@@ -163,7 +222,6 @@ const sellerImage =
     navigate("/logout");
   };
 
-  
   // =====================================================
   // FORMATTING
   // =====================================================
@@ -244,12 +302,10 @@ const sellerImage =
   ];
 
   const selectedPlan =
-    boostPlans.find((p) => p.id === selectedPlanId) ||
-    boostPlans[1];
+    boostPlans.find((p) => p.id === selectedPlanId) || boostPlans[1];
 
   const selectedProduct =
-    sellerProducts.find((p) => p.id === selectedProductId) ||
-    null;
+    sellerProducts.find((p) => p.id === selectedProductId) || null;
 
   // =====================================================
   // ACTIVE BOOSTS (mock)
@@ -300,9 +356,7 @@ const sellerImage =
       return;
     }
 
-    const product = sellerProducts.find(
-      (p) => p.id === selectedProductId
-    );
+    const product = sellerProducts.find((p) => p.id === selectedProductId);
 
     // Card → go to SellerPayment form page
     if (paymentMethod === "card") {
@@ -338,10 +392,7 @@ const sellerImage =
       // TODO: Deduct from seller earnings in Firestore
       // and save productBoosts record
       // =================================================
-      console.log(
-        "Deduct from available balance:",
-        selectedPlan.price
-      );
+      console.log("Deduct from available balance:", selectedPlan.price);
 
       await new Promise((resolve) => setTimeout(resolve, 1200));
 
@@ -506,13 +557,7 @@ const sellerImage =
           "
         >
           {menuItems.map(
-            ({
-              label,
-              icon: Icon,
-              path,
-              badge,
-              new: isNew,
-            }) => {
+            ({ label, icon: Icon, path, badge, new: isNew }) => {
               const active = isActive(path);
 
               return (
@@ -565,7 +610,7 @@ const sellerImage =
                         flex-shrink-0
                       "
                     >
-                      {badge}
+                      {badge > 99 ? "99+" : badge}
                     </span>
                   )}
 
@@ -636,9 +681,7 @@ const sellerImage =
             </p>
             <button
               type="button"
-              onClick={() =>
-                handleNavigation("/seller/promotions")
-              }
+              onClick={() => handleNavigation("/seller/promotions")}
               className="
                 w-full
                 mt-2
@@ -717,7 +760,6 @@ const sellerImage =
           </div>
 
           <div className="ml-auto flex items-center gap-0.5 sm:gap-2">
-            
             <button
               type="button"
               onClick={() => handleNavigation("/seller/messages")}
@@ -789,9 +831,7 @@ const sellerImage =
                 >
                   {sellerFullName}
                 </p>
-                <p className="text-[10px] text-green-100 mt-0.5">
-                  Seller
-                </p>
+                <p className="text-[10px] text-green-100 mt-0.5">Seller</p>
               </div>
 
               <FiChevronDown size={16} className="hidden sm:block" />
@@ -841,8 +881,8 @@ const sellerImage =
                 </h1>
 
                 <p className="text-sm sm:text-base text-green-50 mt-1.5 max-w-xl leading-6">
-                  Pay to push a product to the top of browse
-                  results so more students see it first.
+                  Pay to push a product to the top of browse results so more
+                  students see it first.
                 </p>
               </div>
             </div>
@@ -951,8 +991,8 @@ const sellerImage =
                     Boost a product
                   </h2>
                   <p className="text-xs sm:text-sm text-gray-500 mt-1">
-                    Selected products appear at the top of search
-                    and browse for other students.
+                    Selected products appear at the top of search and browse
+                    for other students.
                   </p>
                 </div>
 
@@ -972,8 +1012,7 @@ const sellerImage =
 
                     <div className="space-y-2">
                       {sellerProducts.map((product) => {
-                        const active =
-                          selectedProductId === product.id;
+                        const active = selectedProductId === product.id;
 
                         return (
                           <button
@@ -1038,8 +1077,7 @@ const sellerImage =
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       {boostPlans.map((plan) => {
-                        const active =
-                          selectedPlanId === plan.id;
+                        const active = selectedPlanId === plan.id;
 
                         return (
                           <button
@@ -1233,11 +1271,9 @@ const sellerImage =
                       p-3.5 text-[11px] text-gray-500 leading-5
                     "
                   >
-                    <span className="font-semibold text-[#008236]">
-                      Tip:
-                    </span>{" "}
-                    Boosted products show a “Promoted” badge and
-                    stay above regular listings until the plan ends.
+                    <span className="font-semibold text-[#008236]">Tip:</span>{" "}
+                    Boosted products show a “Promoted” badge and stay above
+                    regular listings until the plan ends.
                   </div>
                 </div>
               </div>
@@ -1245,69 +1281,67 @@ const sellerImage =
           </div>
         </main>
 
-      {/* ================================================= */}
-      {/* PAYMENT METHOD MODAL */}
-      {/* ================================================= */}
+        {/* ================================================= */}
+        {/* PAYMENT METHOD MODAL */}
+        {/* ================================================= */}
 
-      {showPaymentModal && (
-        <div
-          className="
+        {showPaymentModal && (
+          <div
+            className="
             fixed inset-0 z-[100]
             bg-black/50 backdrop-blur-[2px]
             flex items-end sm:items-center justify-center
             p-4
           "
-          onClick={() => {
-            if (!submitting) {
-              setShowPaymentModal(false);
-              setPaymentMethod("");
-            }
-          }}
-        >
-          <div
-            className="
+            onClick={() => {
+              if (!submitting) {
+                setShowPaymentModal(false);
+                setPaymentMethod("");
+              }
+            }}
+          >
+            <div
+              className="
               w-full max-w-md
               bg-white rounded-2xl shadow-2xl
               overflow-hidden border border-green-100
             "
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-5 border-b border-green-100 bg-green-50">
-              <div className="flex items-start gap-3">
-                <div
-                  className="
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-5 border-b border-green-100 bg-green-50">
+                <div className="flex items-start gap-3">
+                  <div
+                    className="
                     w-11 h-11 rounded-xl
                     bg-white text-[#008236]
                     flex items-center justify-center
                     flex-shrink-0 shadow-sm
                   "
-                >
-                  <FiDollarSign size={20} />
-                </div>
+                  >
+                    <FiDollarSign size={20} />
+                  </div>
 
-                <div className="min-w-0">
-                  <h3 className="text-lg font-bold text-gray-900">
-                    How do you want to pay?
-                  </h3>
-                  <p className="text-sm text-gray-500 mt-0.5">
-                    {formatNaira(selectedPlan.price)} for{" "}
-                    {selectedPlan.label.toLowerCase()} boost
-                    {selectedProduct
-                      ? ` · ${selectedProduct.name}`
-                      : ""}
-                  </p>
+                  <div className="min-w-0">
+                    <h3 className="text-lg font-bold text-gray-900">
+                      How do you want to pay?
+                    </h3>
+                    <p className="text-sm text-gray-500 mt-0.5">
+                      {formatNaira(selectedPlan.price)} for{" "}
+                      {selectedPlan.label.toLowerCase()} boost
+                      {selectedProduct ? ` · ${selectedProduct.name}` : ""}
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="p-4 sm:p-5 space-y-3">
-              {/* AVAILABLE BALANCE */}
+              <div className="p-4 sm:p-5 space-y-3">
+                {/* AVAILABLE BALANCE */}
 
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={() => setPaymentMethod("balance")}
-                className={`
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => setPaymentMethod("balance")}
+                  className={`
                   w-full text-left
                   flex items-start gap-3
                   p-4 rounded-xl border transition
@@ -1317,50 +1351,50 @@ const sellerImage =
                       : "border-gray-100 bg-white hover:border-green-200 hover:bg-green-50/40"
                   }
                 `}
-              >
-                <div
-                  className="
+                >
+                  <div
+                    className="
                     w-10 h-10 rounded-xl
                     bg-green-50 text-[#008236]
                     flex items-center justify-center
                     flex-shrink-0
                   "
-                >
-                  <FiDollarSign size={18} />
-                </div>
+                  >
+                    <FiDollarSign size={18} />
+                  </div>
 
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-800">
-                    Available balance
-                  </p>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    Deduct from your earnings balance
-                  </p>
-                  <p className="text-sm font-bold text-[#008236] mt-1.5">
-                    {formatNaira(availableBalance)} available
-                  </p>
-                  {selectedPlan.price > availableBalance && (
-                    <p className="text-[10px] text-red-500 mt-1">
-                      Not enough balance for this plan
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-800">
+                      Available balance
                     </p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Deduct from your earnings balance
+                    </p>
+                    <p className="text-sm font-bold text-[#008236] mt-1.5">
+                      {formatNaira(availableBalance)} available
+                    </p>
+                    {selectedPlan.price > availableBalance && (
+                      <p className="text-[10px] text-red-500 mt-1">
+                        Not enough balance for this plan
+                      </p>
+                    )}
+                  </div>
+
+                  {paymentMethod === "balance" && (
+                    <FiCheckCircle
+                      size={18}
+                      className="text-[#008236] flex-shrink-0 mt-1"
+                    />
                   )}
-                </div>
+                </button>
 
-                {paymentMethod === "balance" && (
-                  <FiCheckCircle
-                    size={18}
-                    className="text-[#008236] flex-shrink-0 mt-1"
-                  />
-                )}
-              </button>
+                {/* PAY WITH CARD */}
 
-              {/* PAY WITH CARD */}
-
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={() => setPaymentMethod("card")}
-                className={`
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => setPaymentMethod("card")}
+                  className={`
                   w-full text-left
                   flex items-start gap-3
                   p-4 rounded-xl border transition
@@ -1370,45 +1404,45 @@ const sellerImage =
                       : "border-gray-100 bg-white hover:border-green-200 hover:bg-green-50/40"
                   }
                 `}
-              >
-                <div
-                  className="
+                >
+                  <div
+                    className="
                     w-10 h-10 rounded-xl
                     bg-green-50 text-[#008236]
                     flex items-center justify-center
                     flex-shrink-0
                   "
-                >
-                  <FiCreditCard size={18} />
-                </div>
+                  >
+                    <FiCreditCard size={18} />
+                  </div>
 
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-800">
-                    Pay with card
-                  </p>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    Debit or credit card via secure checkout
-                  </p>
-                </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-800">
+                      Pay with card
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Debit or credit card via secure checkout
+                    </p>
+                  </div>
 
-                {paymentMethod === "card" && (
-                  <FiCheckCircle
-                    size={18}
-                    className="text-[#008236] flex-shrink-0 mt-1"
-                  />
-                )}
-              </button>
-            </div>
+                  {paymentMethod === "card" && (
+                    <FiCheckCircle
+                      size={18}
+                      className="text-[#008236] flex-shrink-0 mt-1"
+                    />
+                  )}
+                </button>
+              </div>
 
-            <div className="p-4 sm:p-5 pt-0 flex flex-col sm:flex-row gap-3">
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={() => {
-                  setShowPaymentModal(false);
-                  setPaymentMethod("");
-                }}
-                className="
+              <div className="p-4 sm:p-5 pt-0 flex flex-col sm:flex-row gap-3">
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => {
+                    setShowPaymentModal(false);
+                    setPaymentMethod("");
+                  }}
+                  className="
                   h-11 px-4 rounded-xl
                   border border-gray-200 bg-white
                   text-gray-600 text-sm font-semibold
@@ -1416,15 +1450,15 @@ const sellerImage =
                   disabled:opacity-50
                   sm:flex-1
                 "
-              >
-                Cancel
-              </button>
+                >
+                  Cancel
+                </button>
 
-              <button
-                type="button"
-                disabled={!paymentMethod || submitting}
-                onClick={handleConfirmPayment}
-                className="
+                <button
+                  type="button"
+                  disabled={!paymentMethod || submitting}
+                  onClick={handleConfirmPayment}
+                  className="
                   h-11 px-4 rounded-xl
                   bg-[#008236] text-white
                   text-sm font-semibold
@@ -1434,28 +1468,27 @@ const sellerImage =
                   disabled:opacity-50 disabled:cursor-not-allowed
                   sm:flex-[1.4]
                 "
-              >
-                {submitting ? (
-                  "Processing..."
-                ) : paymentMethod === "balance" ? (
-                  <>
-                    <FiDollarSign size={16} />
-                    Pay from balance
-                  </>
-                ) : paymentMethod === "card" ? (
-                  <>
-                    <FiZap size={16} />
-                    Pay with card
-                  </>
-                ) : (
-                  "Select a method"
-                )}
-              </button>
+                >
+                  {submitting ? (
+                    "Processing..."
+                  ) : paymentMethod === "balance" ? (
+                    <>
+                      <FiDollarSign size={16} />
+                      Pay from balance
+                    </>
+                  ) : paymentMethod === "card" ? (
+                    <>
+                      <FiZap size={16} />
+                      Pay with card
+                    </>
+                  ) : (
+                    "Select a method"
+                  )}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-
+        )}
       </div>
     </div>
   );

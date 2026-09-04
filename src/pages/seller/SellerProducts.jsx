@@ -290,13 +290,17 @@ function SellerProducts({ unreadMessages = 0, profile = {} }) {
   // Sold units from real orders (and product.sales field)
   const [soldByProductId, setSoldByProductId] = useState({});
 
+  // Pending orders count for sidebar Orders badge
+  const [newOrdersCount, setNewOrdersCount] = useState(0);
+
   // =====================================================
-  // LIVE SALES FROM ORDERS
+  // LIVE SALES FROM ORDERS + PENDING ORDERS BADGE
   // =====================================================
 
   useEffect(() => {
     if (!firebaseUser?.uid) {
       setSoldByProductId({});
+      setNewOrdersCount(0);
       return;
     }
 
@@ -309,11 +313,23 @@ function SellerProducts({ unreadMessages = 0, profile = {} }) {
       ordersQuery,
       (snapshot) => {
         const counts = {};
+        let pending = 0;
 
         snapshot.docs.forEach((orderDoc) => {
           const data = orderDoc.data();
-          const status = String(data.status || "").toLowerCase();
-          if (status === "cancelled") return;
+          const status = String(data.status || "pending").toLowerCase();
+
+          if (status === "cancelled" || status === "canceled") {
+            return;
+          }
+
+          if (
+            status === "pending" ||
+            status === "placed" ||
+            status === "processing"
+          ) {
+            pending += 1;
+          }
 
           const items = Array.isArray(data.items) ? data.items : [];
           items.forEach((item) => {
@@ -325,6 +341,7 @@ function SellerProducts({ unreadMessages = 0, profile = {} }) {
         });
 
         setSoldByProductId(counts);
+        setNewOrdersCount(pending);
       },
       (error) => {
         console.error("Error loading product sales from orders:", error);
@@ -478,50 +495,54 @@ const sellerImage =
   // MENU ITEMS (Reviews & Analytics removed)
   // =====================================================
 
-  const menuItems = [
-    {
-      label: "Dashboard",
-      icon: FiGrid,
-      path: "/seller-dashboard",
-    },
-    {
-      label: "Products",
-      icon: FiPackage,
-      path: "/seller/products",
-    },
-    {
-      label: "Orders",
-      icon: FiShoppingBag,
-      path: "/seller/orders",
-    },
-    {
-      label: "Messages",
-      icon: FiMessageCircle,
-      path: "/seller/messages",
-      badge: unreadMessages,
-    },
-    {
-      label: "Earnings",
-      icon: FiDollarSign,
-      path: "/seller/earnings",
-    },
-    {
-      label: "Promotions",
-      icon: FiTag,
-      path: "/seller/promotions",
-      new: true,
-    },
-    {
-      label: "Profile",
-      icon: FiUser,
-      path: "/seller/profile",
-    },
-    {
-      label: "Settings",
-      icon: FiSettings,
-      path: "/seller/settings",
-    },
-  ];
+  const menuItems = useMemo(
+    () => [
+      {
+        label: "Dashboard",
+        icon: FiGrid,
+        path: "/seller-dashboard",
+      },
+      {
+        label: "Products",
+        icon: FiPackage,
+        path: "/seller/products",
+      },
+      {
+        label: "Orders",
+        icon: FiShoppingBag,
+        path: "/seller/orders",
+        badge: newOrdersCount,
+      },
+      {
+        label: "Messages",
+        icon: FiMessageCircle,
+        path: "/seller/messages",
+        badge: unreadMessages,
+      },
+      {
+        label: "Earnings",
+        icon: FiDollarSign,
+        path: "/seller/earnings",
+      },
+      {
+        label: "Promotions",
+        icon: FiTag,
+        path: "/seller/promotions",
+        new: true,
+      },
+      {
+        label: "Profile",
+        icon: FiUser,
+        path: "/seller/profile",
+      },
+      {
+        label: "Settings",
+        icon: FiSettings,
+        path: "/seller/settings",
+      },
+    ],
+    [newOrdersCount, unreadMessages]
+  );
 
   // =====================================================
   // ACTIVE MENU

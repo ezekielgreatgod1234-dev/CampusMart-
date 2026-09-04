@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -20,7 +21,6 @@ import {
   FiSettings,
   FiLogOut,
   FiMenu,
-  
   FiChevronDown,
   FiX,
   FiMail,
@@ -31,6 +31,14 @@ import {
   FiCamera,
 } from "react-icons/fi";
 
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+} from "firebase/firestore";
+
+import { db } from "../../context/firebase";
 import { useAuth } from "../../context/AuthContext";
 
 // =========================================================
@@ -91,21 +99,20 @@ function SellerProfile({
   // SIDEBAR
   // =======================================================
 
-  const [sidebarOpen, setSidebarOpen] =
-    useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Pending orders badge
+  const [newOrdersCount, setNewOrdersCount] = useState(0);
 
   // =======================================================
   // EDIT MODE
   // =======================================================
 
-  const [editing, setEditing] =
-    useState(false);
+  const [editing, setEditing] = useState(false);
 
-  const [formData, setFormData] =
-    useState(profile);
+  const [formData, setFormData] = useState(profile);
 
-  const [saving, setSaving] =
-    useState(false);
+  const [saving, setSaving] = useState(false);
 
   const fileInputRef = useRef(null);
 
@@ -127,6 +134,53 @@ function SellerProfile({
   ]);
 
   // =======================================================
+  // PENDING ORDERS BADGE
+  // =======================================================
+
+  useEffect(() => {
+    if (!firebaseUser?.uid) {
+      setNewOrdersCount(0);
+      return;
+    }
+
+    const ordersQuery = query(
+      collection(db, "orders"),
+      where("sellerId", "==", firebaseUser.uid)
+    );
+
+    const unsubscribe = onSnapshot(
+      ordersQuery,
+      (snapshot) => {
+        let pending = 0;
+
+        snapshot.docs.forEach((orderDoc) => {
+          const data = orderDoc.data() || {};
+          const status = String(data.status || "pending").toLowerCase();
+
+          if (status === "cancelled" || status === "canceled") {
+            return;
+          }
+
+          if (
+            status === "pending" ||
+            status === "placed" ||
+            status === "processing"
+          ) {
+            pending += 1;
+          }
+        });
+
+        setNewOrdersCount(pending);
+      },
+      (error) => {
+        console.error("Seller profile orders badge error:", error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [firebaseUser?.uid]);
+
+  // =======================================================
   // SELLER DISPLAY
   // =======================================================
 
@@ -138,57 +192,60 @@ function SellerProfile({
   const sellerFirstName =
     sellerFullName.split(/\s+/)[0] || "Seller";
 
-  const sellerImage =
-    profile.profileImage || null;
+  const sellerImage = profile.profileImage || null;
 
   // =======================================================
   // MENU (Reviews & Analytics removed)
   // =======================================================
 
-  const menuItems = [
-    {
-      label: "Dashboard",
-      icon: FiGrid,
-      path: "/seller-dashboard",
-    },
-    {
-      label: "Products",
-      icon: FiPackage,
-      path: "/seller/products",
-    },
-    {
-      label: "Orders",
-      icon: FiShoppingBag,
-      path: "/seller/orders",
-    },
-    {
-      label: "Messages",
-      icon: FiMessageCircle,
-      path: "/seller/messages",
-      badge: unreadMessages,
-    },
-    {
-      label: "Earnings",
-      icon: FiDollarSign,
-      path: "/seller/earnings",
-    },
-    {
-      label: "Promotions",
-      icon: FiTag,
-      path: "/seller/promotions",
-      new: true,
-    },
-    {
-      label: "Profile",
-      icon: FiUser,
-      path: "/seller/profile",
-    },
-    {
-      label: "Settings",
-      icon: FiSettings,
-      path: "/seller/settings",
-    },
-  ];
+  const menuItems = useMemo(
+    () => [
+      {
+        label: "Dashboard",
+        icon: FiGrid,
+        path: "/seller-dashboard",
+      },
+      {
+        label: "Products",
+        icon: FiPackage,
+        path: "/seller/products",
+      },
+      {
+        label: "Orders",
+        icon: FiShoppingBag,
+        path: "/seller/orders",
+        badge: newOrdersCount,
+      },
+      {
+        label: "Messages",
+        icon: FiMessageCircle,
+        path: "/seller/messages",
+        badge: unreadMessages,
+      },
+      {
+        label: "Earnings",
+        icon: FiDollarSign,
+        path: "/seller/earnings",
+      },
+      {
+        label: "Promotions",
+        icon: FiTag,
+        path: "/seller/promotions",
+        new: true,
+      },
+      {
+        label: "Profile",
+        icon: FiUser,
+        path: "/seller/profile",
+      },
+      {
+        label: "Settings",
+        icon: FiSettings,
+        path: "/seller/settings",
+      },
+    ],
+    [newOrdersCount, unreadMessages]
+  );
 
   const isActive = (path) => {
     if (path === "/seller-dashboard") {
@@ -206,8 +263,6 @@ function SellerProfile({
     setSidebarOpen(false);
     navigate("/logout");
   };
-
- 
 
   // =======================================================
   // FORM
@@ -241,9 +296,7 @@ function SellerProfile({
     }
 
     if (file.size > 700 * 1024) {
-      alert(
-        "Please choose a profile image smaller than 700 KB."
-      );
+      alert("Please choose a profile image smaller than 700 KB.");
       e.target.value = "";
       return;
     }
@@ -259,9 +312,7 @@ function SellerProfile({
           console.error(
             "updateProfile was not provided to SellerProfile.jsx"
           );
-          alert(
-            "Profile update function is not available."
-          );
+          alert("Profile update function is not available.");
           return;
         }
 
@@ -271,17 +322,10 @@ function SellerProfile({
           profileImage: imageUrl,
         });
 
-        window.dispatchEvent(
-          new Event("profileUpdated")
-        );
+        window.dispatchEvent(new Event("profileUpdated"));
       } catch (error) {
-        console.error(
-          "Error updating profile picture:",
-          error
-        );
-        alert(
-          "Could not update your profile picture. Please try again."
-        );
+        console.error("Error updating profile picture:", error);
+        alert("Could not update your profile picture. Please try again.");
       } finally {
         setSaving(false);
       }
@@ -309,9 +353,7 @@ function SellerProfile({
       console.error(
         "updateProfile was not provided to SellerProfile.jsx"
       );
-      alert(
-        "Profile update function is not available."
-      );
+      alert("Profile update function is not available.");
       return;
     }
 
@@ -326,15 +368,11 @@ function SellerProfile({
     try {
       setSaving(true);
       await updateProfile(updatedProfile);
-      window.dispatchEvent(
-        new Event("profileUpdated")
-      );
+      window.dispatchEvent(new Event("profileUpdated"));
       setEditing(false);
     } catch (error) {
       console.error("Error saving profile:", error);
-      alert(
-        "Could not save your profile. Please try again."
-      );
+      alert("Could not save your profile. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -466,7 +504,7 @@ function SellerProfile({
                         flex items-center justify-center flex-shrink-0
                       "
                     >
-                      {badge}
+                      {badge > 99 ? "99+" : badge}
                     </span>
                   )}
                   {isNew && (
@@ -557,10 +595,7 @@ function SellerProfile({
           </button>
 
           <div className="flex items-center gap-2 text-white flex-shrink-0">
-             <FiShoppingBag
-              size={19}
-              className="text-green-200"
-            />
+            <FiShoppingBag size={19} className="text-green-200" />
 
             <span className="text-sm sm:text-base font-semibold whitespace-nowrap">
               Your Store
@@ -568,7 +603,6 @@ function SellerProfile({
           </div>
 
           <div className="ml-auto flex items-center gap-0.5 sm:gap-2">
-           
             <button
               type="button"
               onClick={() => handleNavigation("/seller/messages")}
@@ -630,9 +664,7 @@ function SellerProfile({
                 >
                   {sellerFullName}
                 </p>
-                <p className="text-[10px] text-green-100 mt-0.5">
-                  Seller
-                </p>
+                <p className="text-[10px] text-green-100 mt-0.5">Seller</p>
               </div>
 
               <FiChevronDown size={16} className="hidden sm:block" />
@@ -679,7 +711,8 @@ function SellerProfile({
             </h1>
 
             <p className="relative mt-2 max-w-xl text-sm sm:text-[15px] text-green-100 leading-relaxed">
-              Manage your personal information and keep your seller account up to date.
+              Manage your personal information and keep your seller account up
+              to date.
             </p>
           </div>
 
@@ -704,9 +737,7 @@ function SellerProfile({
                       />
                     ) : (
                       <span>
-                        {profile.fullName
-                          ?.charAt(0)
-                          ?.toUpperCase() || "S"}
+                        {profile.fullName?.charAt(0)?.toUpperCase() || "S"}
                       </span>
                     )}
                   </div>
@@ -744,9 +775,7 @@ function SellerProfile({
                   {profile.email || "No email"}
                 </p>
 
-                <p className="text-sm text-gray-500 mt-1">
-                  {roleText}
-                </p>
+                <p className="text-sm text-gray-500 mt-1">{roleText}</p>
 
                 <div
                   className="
@@ -798,9 +827,7 @@ function SellerProfile({
                     "
                   >
                     <FiEdit3 size={16} />
-                    <span className="hidden sm:inline">
-                      Edit Profile
-                    </span>
+                    <span className="hidden sm:inline">Edit Profile</span>
                   </button>
                 )}
               </div>

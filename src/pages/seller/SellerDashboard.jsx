@@ -15,7 +15,6 @@ import {
   FiMenu,
   FiChevronDown,
   FiX,
-  FiBell,
   FiPlus,
   FiTrendingUp,
   FiClock,
@@ -30,15 +29,10 @@ import {
   where,
   onSnapshot,
   doc,
-  orderBy,
 } from "firebase/firestore";
 
 import { db } from "../../context/firebase";
 import { useAuth } from "../../context/AuthContext";
-
-// =====================================================
-// SELLER DASHBOARD (live data)
-// =====================================================
 
 function SellerDashboard({ unreadMessages = 0, profile = {} }) {
   const navigate = useNavigate();
@@ -46,18 +40,13 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
   const { firebaseUser } = useAuth();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [salesPeriod, setSalesPeriod] = useState("week"); // week | month
+  const [salesPeriod, setSalesPeriod] = useState("week");
 
-  // Live data
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
   const [totalEarnings, setTotalEarnings] = useState(0);
   const [availableBalance, setAvailableBalance] = useState(0);
   const [loading, setLoading] = useState(true);
-
-  // =====================================================
-  // SELLER PROFILE
-  // =====================================================
 
   const sellerFullName =
     profile?.fullName ||
@@ -79,10 +68,6 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
     firebaseUser?.photoURL ||
     null;
 
-  // =====================================================
-  // LIVE BALANCE
-  // =====================================================
-
   useEffect(() => {
     if (!firebaseUser?.uid) return;
 
@@ -98,10 +83,6 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
 
     return () => unsub();
   }, [firebaseUser?.uid]);
-
-  // =====================================================
-  // LIVE ORDERS
-  // =====================================================
 
   useEffect(() => {
     if (!firebaseUser?.uid) {
@@ -168,10 +149,6 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
     return () => unsub();
   }, [firebaseUser?.uid]);
 
-  // =====================================================
-  // LIVE PRODUCTS
-  // =====================================================
-
   useEffect(() => {
     if (!firebaseUser?.uid) {
       setProducts([]);
@@ -199,12 +176,11 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
     return () => unsub();
   }, [firebaseUser?.uid]);
 
-  // =====================================================
-  // DERIVED STATS
-  // =====================================================
-
   const visibleOrders = useMemo(
-    () => orders.filter((o) => o.status !== "cancelled"),
+    () =>
+      orders.filter(
+        (o) => o.status !== "cancelled" && o.status !== "canceled"
+      ),
     [orders]
   );
 
@@ -234,15 +210,13 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
     [products]
   );
 
-  // =====================================================
-  // SALES CHART DATA (from real orders)
-  // =====================================================
+  // Red badge count for sidebar Orders
+  const newOrdersCount = pendingOrders.length;
 
   const salesData = useMemo(() => {
     const now = new Date();
 
     if (salesPeriod === "month") {
-      // Last 6 months
       const months = [];
       for (let i = 5; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -275,7 +249,6 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
       }));
     }
 
-    // Last 7 days
     const days = [];
     for (let i = 6; i >= 0; i--) {
       const d = new Date(now);
@@ -320,10 +293,6 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
     [salesData]
   );
 
-  // =====================================================
-  // RECENT ORDERS (display)
-  // =====================================================
-
   const recentOrders = useMemo(() => {
     return visibleOrders.slice(0, 6).map((order) => {
       const firstItem = order.items[0];
@@ -357,10 +326,6 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
       };
     });
   }, [visibleOrders]);
-
-  // =====================================================
-  // TOP PRODUCTS (from order line items)
-  // =====================================================
 
   const topProducts = useMemo(() => {
     const map = {};
@@ -397,30 +362,34 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
     }));
   }, [visibleOrders]);
 
-  // =====================================================
-  // MENU
-  // =====================================================
-
-  const menuItems = [
-    { label: "Dashboard", icon: FiGrid, path: "/seller-dashboard" },
-    { label: "Products", icon: FiPackage, path: "/seller/products" },
-    { label: "Orders", icon: FiShoppingBag, path: "/seller/orders" },
-    {
-      label: "Messages",
-      icon: FiMessageCircle,
-      path: "/seller/messages",
-      badge: unreadMessages,
-    },
-    { label: "Earnings", icon: FiDollarSign, path: "/seller/earnings" },
-    {
-      label: "Promotions",
-      icon: FiTag,
-      path: "/seller/promotions",
-      new: true,
-    },
-    { label: "Profile", icon: FiUser, path: "/seller/profile" },
-    { label: "Settings", icon: FiSettings, path: "/seller/settings" },
-  ];
+  const menuItems = useMemo(
+    () => [
+      { label: "Dashboard", icon: FiGrid, path: "/seller-dashboard" },
+      { label: "Products", icon: FiPackage, path: "/seller/products" },
+      {
+        label: "Orders",
+        icon: FiShoppingBag,
+        path: "/seller/orders",
+        badge: newOrdersCount,
+      },
+      {
+        label: "Messages",
+        icon: FiMessageCircle,
+        path: "/seller/messages",
+        badge: unreadMessages,
+      },
+      { label: "Earnings", icon: FiDollarSign, path: "/seller/earnings" },
+      {
+        label: "Promotions",
+        icon: FiTag,
+        path: "/seller/promotions",
+        new: true,
+      },
+      { label: "Profile", icon: FiUser, path: "/seller/profile" },
+      { label: "Settings", icon: FiSettings, path: "/seller/settings" },
+    ],
+    [newOrdersCount, unreadMessages]
+  );
 
   const isActive = (path) => {
     if (path === "/seller-dashboard") {
@@ -442,7 +411,6 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
   const formatNaira = (amount) =>
     `₦${Number(amount || 0).toLocaleString("en-NG")}`;
 
-  // Graph helpers
   const graphWidth = 1000;
   const graphHeight = 280;
   const graphPaddingLeft = 30;
@@ -475,10 +443,6 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
           graphPaddingTop + usableHeight
         } L ${points[0].x} ${graphPaddingTop + usableHeight} Z`
       : "";
-
-  // =====================================================
-  // STAT CARDS
-  // =====================================================
 
   const statCards = [
     {
@@ -515,10 +479,6 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
     },
   ];
 
-  // =====================================================
-  // RENDER
-  // =====================================================
-
   return (
     <div className="h-screen w-full bg-gray-50 text-gray-800 font-sans overflow-hidden">
       {sidebarOpen && (
@@ -528,7 +488,6 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
         />
       )}
 
-      {/* SIDEBAR */}
       <aside
         className={`
           fixed inset-y-0 left-0 z-50
@@ -557,7 +516,9 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
                 <span className="text-white">Campus</span>
                 <span className="text-green-300">Mart</span>
               </h1>
-              <p className="text-[10px] text-green-100 mt-1">Sell. Connect. Grow.</p>
+              <p className="text-[10px] text-green-100 mt-1">
+                Sell. Connect. Grow.
+              </p>
             </div>
           </div>
         </div>
@@ -579,17 +540,23 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
                   }
                 `}
               >
-                <Icon size={19} strokeWidth={active ? 2.5 : 2} className="flex-shrink-0" />
+                <Icon
+                  size={19}
+                  strokeWidth={active ? 2.5 : 2}
+                  className="flex-shrink-0"
+                />
                 <span className="flex-1 text-[14px]">{label}</span>
                 {badge > 0 && (
                   <span className="min-w-[21px] h-[21px] px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
-                    {badge}
+                    {badge > 99 ? "99+" : badge}
                   </span>
                 )}
                 {isNew && (
                   <span
                     className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${
-                      active ? "bg-green-100 text-green-700" : "bg-green-500 text-white"
+                      active
+                        ? "bg-green-100 text-green-700"
+                        : "bg-green-500 text-white"
                     }`}
                   >
                     New
@@ -629,7 +596,6 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
         </div>
       </aside>
 
-      {/* MAIN */}
       <div className="min-w-0 flex flex-col h-screen w-full lg:ml-[291px] lg:w-[calc(100%-291px)]">
         <header className="min-h-[70px] bg-[#007233] text-white flex items-center px-3 sm:px-5 lg:px-8 py-3 gap-2 sm:gap-4 flex-shrink-0">
           <button
@@ -642,7 +608,9 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
 
           <div className="flex items-center gap-2">
             <FiShoppingBag size={19} className="text-green-200" />
-            <span className="text-sm sm:text-base font-semibold">Your Store</span>
+            <span className="text-sm sm:text-base font-semibold">
+              Your Store
+            </span>
           </div>
 
           <div className="ml-auto flex items-center gap-1 sm:gap-2">
@@ -676,7 +644,9 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
                 </div>
               )}
               <div className="hidden sm:block text-left">
-                <p className="text-xs font-bold max-w-[160px] truncate">{sellerFullName}</p>
+                <p className="text-xs font-bold max-w-[160px] truncate">
+                  {sellerFullName}
+                </p>
                 <p className="text-[10px] text-green-100">Seller</p>
               </div>
               <FiChevronDown size={16} className="hidden sm:block" />
@@ -685,7 +655,6 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
         </header>
 
         <main className="flex-1 overflow-y-auto bg-gray-50 px-3 sm:px-5 md:px-6 lg:px-8 py-5 sm:py-6 lg:py-8">
-          {/* BANNER */}
           <section className="mb-6">
             <div className="bg-gradient-to-r from-[#007233] to-[#008f3f] rounded-2xl p-5 sm:p-6 lg:p-7 text-white relative overflow-hidden">
               <div className="absolute -right-10 -top-16 w-48 h-48 rounded-full bg-white/10" />
@@ -706,7 +675,6 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
             </div>
           </section>
 
-          {/* STAT CARDS */}
           <section className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 mb-5 sm:mb-6">
             {statCards.map((card) => {
               const Icon = card.icon;
@@ -728,13 +696,14 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
                   <p className="text-lg sm:text-2xl font-bold text-gray-900 mt-1 truncate">
                     {card.value}
                   </p>
-                  <p className="text-[10px] sm:text-xs text-gray-400 mt-1">{card.sub}</p>
+                  <p className="text-[10px] sm:text-xs text-gray-400 mt-1">
+                    {card.sub}
+                  </p>
                 </div>
               );
             })}
           </section>
 
-          {/* SALES CHART */}
           <section className="mb-5 sm:mb-6">
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="p-5 sm:p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -804,9 +773,23 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
                       preserveAspectRatio="none"
                     >
                       <defs>
-                        <linearGradient id="salesFill" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#008236" stopOpacity="0.25" />
-                          <stop offset="100%" stopColor="#008236" stopOpacity="0.02" />
+                        <linearGradient
+                          id="salesFill"
+                          x1="0"
+                          y1="0"
+                          x2="0"
+                          y2="1"
+                        >
+                          <stop
+                            offset="0%"
+                            stopColor="#008236"
+                            stopOpacity="0.25"
+                          />
+                          <stop
+                            offset="100%"
+                            stopColor="#008236"
+                            stopOpacity="0.02"
+                          />
                         </linearGradient>
                       </defs>
                       {[0, 25, 50, 75, 100].map((v) => {
@@ -868,9 +851,7 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
             </div>
           </section>
 
-          {/* RECENT ORDERS + TOP PRODUCTS */}
           <section className="grid grid-cols-1 xl:grid-cols-3 gap-5 sm:gap-6">
-            {/* RECENT ORDERS */}
             <div className="xl:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="p-5 sm:p-6 border-b border-gray-100 flex items-center justify-between gap-3">
                 <div>
@@ -900,7 +881,9 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
                   <div className="w-12 h-12 mx-auto rounded-full bg-green-50 text-[#008236] flex items-center justify-center mb-3">
                     <FiShoppingBag size={20} />
                   </div>
-                  <p className="text-sm font-medium text-gray-500">No orders yet</p>
+                  <p className="text-sm font-medium text-gray-500">
+                    No orders yet
+                  </p>
                   <p className="text-xs text-gray-400 mt-1">
                     When buyers pay for your products, orders show here.
                   </p>
@@ -911,16 +894,22 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
                     <table className="w-full min-w-[700px]">
                       <thead>
                         <tr className="border-b border-gray-100 text-left">
-                          {["Order", "Customer", "Product", "Date", "Qty", "Amount", "Status"].map(
-                            (h) => (
-                              <th
-                                key={h}
-                                className="px-4 py-3 text-[11px] font-semibold text-gray-400 uppercase"
-                              >
-                                {h}
-                              </th>
-                            )
-                          )}
+                          {[
+                            "Order",
+                            "Customer",
+                            "Product",
+                            "Date",
+                            "Qty",
+                            "Amount",
+                            "Status",
+                          ].map((h) => (
+                            <th
+                              key={h}
+                              className="px-4 py-3 text-[11px] font-semibold text-gray-400 uppercase"
+                            >
+                              {h}
+                            </th>
+                          ))}
                         </tr>
                       </thead>
                       <tbody>
@@ -951,7 +940,10 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
                             </td>
                             <td className="px-4 py-4">
                               <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                                <FiCalendar size={13} className="text-gray-400" />
+                                <FiCalendar
+                                  size={13}
+                                  className="text-gray-400"
+                                />
                                 {order.date}
                               </div>
                             </td>
@@ -990,7 +982,9 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
                     {recentOrders.map((order) => (
                       <div key={order.id} className="p-4">
                         <div className="flex items-center justify-between gap-2">
-                          <p className="text-xs font-bold text-[#008236]">{order.id}</p>
+                          <p className="text-xs font-bold text-[#008236]">
+                            {order.id}
+                          </p>
                           <span
                             className={`
                               inline-flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-semibold
@@ -1007,9 +1001,13 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
                         <p className="text-sm font-semibold text-gray-800 mt-1.5">
                           {order.product}
                         </p>
-                        <p className="text-xs text-gray-500 mt-1">{order.customer}</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {order.customer}
+                        </p>
                         <div className="flex items-center justify-between mt-2">
-                          <span className="text-[10px] text-gray-400">{order.date}</span>
+                          <span className="text-[10px] text-gray-400">
+                            {order.date}
+                          </span>
                           <span className="text-xs font-bold text-gray-800">
                             {order.amount}
                           </span>
@@ -1021,14 +1019,15 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
               )}
             </div>
 
-            {/* TOP PRODUCTS */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="p-5 sm:p-6 border-b border-gray-100 flex items-center justify-between">
                 <div>
                   <h2 className="text-base sm:text-lg font-bold text-gray-800">
                     Top Products
                   </h2>
-                  <p className="text-xs text-gray-500 mt-1">Based on paid orders</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Based on paid orders
+                  </p>
                 </div>
                 <FiTrendingUp size={20} className="text-[#008236]" />
               </div>
@@ -1078,7 +1077,6 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
             </div>
           </section>
 
-          {/* QUICK ACTIONS */}
           <section className="mt-5 sm:mt-6">
             <h2 className="text-base sm:text-lg font-bold text-gray-800 mb-1">
               Quick Actions
@@ -1139,6 +1137,11 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
                         {unreadMessages}
                       </span>
                     )}
+                    {label === "View Orders" && newOrdersCount > 0 && (
+                      <span className="absolute -top-1 -right-1 min-w-[17px] h-[17px] rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center">
+                        {newOrdersCount > 99 ? "99+" : newOrdersCount}
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs sm:text-sm font-semibold text-gray-800 mt-3">
                     {label}
@@ -1148,7 +1151,6 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
             </div>
           </section>
 
-          {/* FOOTER */}
           <div className="mt-6 rounded-2xl bg-green-50 border border-green-100 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl bg-white text-[#008236] flex items-center justify-center shadow-sm flex-shrink-0">

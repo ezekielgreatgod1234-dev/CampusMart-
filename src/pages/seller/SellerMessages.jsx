@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -30,6 +31,15 @@ import {
 
 import { useAuth } from "../../context/AuthContext";
 
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+} from "firebase/firestore";
+
+import { db } from "../../context/firebase";
+
 function SellerMessages({
   messages = [],
   unreadMessages = 0,
@@ -46,6 +56,9 @@ function SellerMessages({
 
   const [search, setSearch] =
     useState("");
+
+  // Pending orders badge
+  const [newOrdersCount, setNewOrdersCount] = useState(0);
 
   // =====================================================
   // SELLER INFORMATION
@@ -91,50 +104,98 @@ function SellerMessages({
   // Reviews and Analytics removed as requested.
   // =====================================================
 
-  const menuItems = [
-    {
-      label: "Dashboard",
-      icon: FiGrid,
-      path: "/seller-dashboard",
-    },
-    {
-      label: "Products",
-      icon: FiPackage,
-      path: "/seller/products",
-    },
-    {
-      label: "Orders",
-      icon: FiShoppingBag,
-      path: "/seller/orders",
-    },
-    {
-      label: "Messages",
-      icon: FiMessageCircle,
-      path: "/seller/messages",
-      badge: unreadMessages,
-    },
-    {
-      label: "Earnings",
-      icon: FiDollarSign,
-      path: "/seller/earnings",
-    },
-    {
-      label: "Promotions",
-      icon: FiTag,
-      path: "/seller/promotions",
-      new: true,
-    },
-    {
-      label: "Profile",
-      icon: FiUser,
-      path: "/seller/profile",
-    },
-    {
-      label: "Settings",
-      icon: FiSettings,
-      path: "/seller/settings",
-    },
-  ];
+  // Pending orders listener for sidebar badge
+  useEffect(() => {
+    if (!firebaseUser?.uid) {
+      setNewOrdersCount(0);
+      return;
+    }
+
+    const ordersQuery = query(
+      collection(db, "orders"),
+      where("sellerId", "==", firebaseUser.uid)
+    );
+
+    const unsubscribe = onSnapshot(
+      ordersQuery,
+      (snapshot) => {
+        let pending = 0;
+
+        snapshot.docs.forEach((orderDoc) => {
+          const data = orderDoc.data() || {};
+          const status = String(data.status || "pending").toLowerCase();
+
+          if (status === "cancelled" || status === "canceled") {
+            return;
+          }
+
+          if (
+            status === "pending" ||
+            status === "placed" ||
+            status === "processing"
+          ) {
+            pending += 1;
+          }
+        });
+
+        setNewOrdersCount(pending);
+      },
+      (error) => {
+        console.error("Seller messages orders badge error:", error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [firebaseUser?.uid]);
+
+  const menuItems = useMemo(
+    () => [
+      {
+        label: "Dashboard",
+        icon: FiGrid,
+        path: "/seller-dashboard",
+      },
+      {
+        label: "Products",
+        icon: FiPackage,
+        path: "/seller/products",
+      },
+      {
+        label: "Orders",
+        icon: FiShoppingBag,
+        path: "/seller/orders",
+        badge: newOrdersCount,
+      },
+      {
+        label: "Messages",
+        icon: FiMessageCircle,
+        path: "/seller/messages",
+        badge: unreadMessages,
+      },
+      {
+        label: "Earnings",
+        icon: FiDollarSign,
+        path: "/seller/earnings",
+      },
+      {
+        label: "Promotions",
+        icon: FiTag,
+        path: "/seller/promotions",
+        new: true,
+      },
+      {
+        label: "Profile",
+        icon: FiUser,
+        path: "/seller/profile",
+      },
+      {
+        label: "Settings",
+        icon: FiSettings,
+        path: "/seller/settings",
+      },
+    ],
+    [newOrdersCount, unreadMessages]
+  );
 
   // =====================================================
   // ACTIVE MENU

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../../context/AuthContext";
@@ -44,6 +44,9 @@ import {
   setDoc,
   addDoc,
   collection,
+  query,
+  where,
+  onSnapshot,
   serverTimestamp,
 } from "firebase/firestore";
 
@@ -59,6 +62,9 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
   const { firebaseUser } = useAuth();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Pending orders badge
+  const [newOrdersCount, setNewOrdersCount] = useState(0);
 
   const [activeSection, setActiveSection] = useState("personal");
 
@@ -149,50 +155,98 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
      MAIN SELLER MENU
   ======================================================= */
 
-  const menuItems = [
-    {
-      label: "Dashboard",
-      icon: FiGrid,
-      path: "/seller-dashboard",
-    },
-    {
-      label: "Products",
-      icon: FiPackage,
-      path: "/seller/products",
-    },
-    {
-      label: "Orders",
-      icon: FiShoppingBag,
-      path: "/seller/orders",
-    },
-    {
-      label: "Messages",
-      icon: FiMessageCircle,
-      path: "/seller/messages",
-      badge: unreadMessages,
-    },
-    {
-      label: "Earnings",
-      icon: FiDollarSign,
-      path: "/seller/earnings",
-    },
-    {
-      label: "Promotions",
-      icon: FiTag,
-      path: "/seller/promotions",
-      new: true,
-    },
-    {
-      label: "Profile",
-      icon: FiUser,
-      path: "/seller/profile",
-    },
-    {
-      label: "Settings",
-      icon: FiSettings,
-      path: "/seller/settings",
-    },
-  ];
+  // Pending orders listener for sidebar badge
+  useEffect(() => {
+    if (!firebaseUser?.uid) {
+      setNewOrdersCount(0);
+      return;
+    }
+
+    const ordersQuery = query(
+      collection(db, "orders"),
+      where("sellerId", "==", firebaseUser.uid)
+    );
+
+    const unsubscribe = onSnapshot(
+      ordersQuery,
+      (snapshot) => {
+        let pending = 0;
+
+        snapshot.docs.forEach((orderDoc) => {
+          const data = orderDoc.data() || {};
+          const status = String(data.status || "pending").toLowerCase();
+
+          if (status === "cancelled" || status === "canceled") {
+            return;
+          }
+
+          if (
+            status === "pending" ||
+            status === "placed" ||
+            status === "processing"
+          ) {
+            pending += 1;
+          }
+        });
+
+        setNewOrdersCount(pending);
+      },
+      (error) => {
+        console.error("Seller settings orders badge error:", error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [firebaseUser?.uid]);
+
+  const menuItems = useMemo(
+    () => [
+      {
+        label: "Dashboard",
+        icon: FiGrid,
+        path: "/seller-dashboard",
+      },
+      {
+        label: "Products",
+        icon: FiPackage,
+        path: "/seller/products",
+      },
+      {
+        label: "Orders",
+        icon: FiShoppingBag,
+        path: "/seller/orders",
+        badge: newOrdersCount,
+      },
+      {
+        label: "Messages",
+        icon: FiMessageCircle,
+        path: "/seller/messages",
+        badge: unreadMessages,
+      },
+      {
+        label: "Earnings",
+        icon: FiDollarSign,
+        path: "/seller/earnings",
+      },
+      {
+        label: "Promotions",
+        icon: FiTag,
+        path: "/seller/promotions",
+        new: true,
+      },
+      {
+        label: "Profile",
+        icon: FiUser,
+        path: "/seller/profile",
+      },
+      {
+        label: "Settings",
+        icon: FiSettings,
+        path: "/seller/settings",
+      },
+    ],
+    [newOrdersCount, unreadMessages]
+  );
 
   const isActive = (path) => {
     if (path === "/seller-dashboard") {
@@ -971,7 +1025,7 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
                         flex items-center justify-center flex-shrink-0
                       "
                     >
-                      {badge}
+                      {badge > 99 ? "99+" : badge}
                     </span>
                   )}
 

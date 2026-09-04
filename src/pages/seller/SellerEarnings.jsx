@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
 import {
@@ -75,6 +75,9 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
   const [withdrawals, setWithdrawals] = useState([]);
   const [loadingWithdrawals, setLoadingWithdrawals] = useState(true);
   const [withdrawalError, setWithdrawalError] = useState("");
+
+  // Pending orders badge
+  const [newOrdersCount, setNewOrdersCount] = useState(0);
 
   // =====================================================
   // SELLER PROFILE
@@ -661,53 +664,104 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
   }, [firebaseUser?.uid]);
 
   // =====================================================
+  // PENDING ORDERS BADGE
+  // =====================================================
+
+  useEffect(() => {
+    if (!firebaseUser?.uid) {
+      setNewOrdersCount(0);
+      return;
+    }
+
+    const ordersQuery = query(
+      collection(db, "orders"),
+      where("sellerId", "==", firebaseUser.uid)
+    );
+
+    const unsub = onSnapshot(
+      ordersQuery,
+      (snapshot) => {
+        let pending = 0;
+
+        snapshot.docs.forEach((orderDoc) => {
+          const data = orderDoc.data() || {};
+          const status = String(data.status || "pending").toLowerCase();
+
+          if (status === "cancelled" || status === "canceled") {
+            return;
+          }
+
+          if (
+            status === "pending" ||
+            status === "placed" ||
+            status === "processing"
+          ) {
+            pending += 1;
+          }
+        });
+
+        setNewOrdersCount(pending);
+      },
+      (error) => {
+        console.error("Seller earnings orders badge error:", error);
+      }
+    );
+
+    return () => unsub();
+  }, [firebaseUser?.uid]);
+
+  // =====================================================
   // MENU
   // =====================================================
 
-  const menuItems = [
-    {
-      label: "Dashboard",
-      icon: FiGrid,
-      path: "/seller-dashboard",
-    },
-    {
-      label: "Products",
-      icon: FiPackage,
-      path: "/seller/products",
-    },
-    {
-      label: "Orders",
-      icon: FiShoppingBag,
-      path: "/seller/orders",
-    },
-    {
-      label: "Messages",
-      icon: FiMessageCircle,
-      path: "/seller/messages",
-      badge: unreadMessages,
-    },
-    {
-      label: "Earnings",
-      icon: FiDollarSign,
-      path: "/seller/earnings",
-    },
-    {
-      label: "Promotions",
-      icon: FiTag,
-      path: "/seller/promotions",
-      new: true,
-    },
-    {
-      label: "Profile",
-      icon: FiUser,
-      path: "/seller/profile",
-    },
-    {
-      label: "Settings",
-      icon: FiSettings,
-      path: "/seller/settings",
-    },
-  ];
+  const menuItems = useMemo(
+    () => [
+      {
+        label: "Dashboard",
+        icon: FiGrid,
+        path: "/seller-dashboard",
+      },
+      {
+        label: "Products",
+        icon: FiPackage,
+        path: "/seller/products",
+      },
+      {
+        label: "Orders",
+        icon: FiShoppingBag,
+        path: "/seller/orders",
+        badge: newOrdersCount,
+      },
+      {
+        label: "Messages",
+        icon: FiMessageCircle,
+        path: "/seller/messages",
+        badge: unreadMessages,
+      },
+      {
+        label: "Earnings",
+        icon: FiDollarSign,
+        path: "/seller/earnings",
+      },
+      {
+        label: "Promotions",
+        icon: FiTag,
+        path: "/seller/promotions",
+        new: true,
+      },
+      {
+        label: "Profile",
+        icon: FiUser,
+        path: "/seller/profile",
+      },
+      {
+        label: "Settings",
+        icon: FiSettings,
+        path: "/seller/settings",
+      },
+    ],
+    [newOrdersCount, unreadMessages]
+  );
 
   const isActive = (path) => {
     if (path === "/seller-dashboard") {
@@ -1012,7 +1066,7 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
 
                   {badge > 0 && (
                     <span className="min-w-[21px] h-[21px] px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
-                      {badge}
+                      {badge > 99 ? "99+" : badge}
                     </span>
                   )}
 

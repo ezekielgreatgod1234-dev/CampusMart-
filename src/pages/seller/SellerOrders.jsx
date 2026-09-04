@@ -65,26 +65,48 @@ function SellerOrders({
     firebaseUser?.photoURL ||
     null;
 
-  const menuItems = [
-    { label: "Dashboard", icon: FiGrid, path: "/seller-dashboard" },
-    { label: "Products", icon: FiPackage, path: "/seller/products" },
-    { label: "Orders", icon: FiShoppingBag, path: "/seller/orders" },
-    {
-      label: "Messages",
-      icon: FiMessageCircle,
-      path: "/seller/messages",
-      badge: unreadMessages,
-    },
-    { label: "Earnings", icon: FiDollarSign, path: "/seller/earnings" },
-    {
-      label: "Promotions",
-      icon: FiTag,
-      path: "/seller/promotions",
-      new: true,
-    },
-    { label: "Profile", icon: FiUser, path: "/seller/profile" },
-    { label: "Settings", icon: FiSettings, path: "/seller/settings" },
-  ];
+  const normalizeStatus = (status) => {
+    const s = String(status || "pending").toLowerCase();
+    if (s === "delivered") return "delivered";
+    if (s === "cancelled" || s === "canceled") return "cancelled";
+    return "pending";
+  };
+
+  // Red badge = pending (new) orders
+  const newOrdersCount = useMemo(() => {
+    return orders.filter(
+      (order) => normalizeStatus(order.status) === "pending"
+    ).length;
+  }, [orders]);
+
+  const menuItems = useMemo(
+    () => [
+      { label: "Dashboard", icon: FiGrid, path: "/seller-dashboard" },
+      { label: "Products", icon: FiPackage, path: "/seller/products" },
+      {
+        label: "Orders",
+        icon: FiShoppingBag,
+        path: "/seller/orders",
+        badge: newOrdersCount,
+      },
+      {
+        label: "Messages",
+        icon: FiMessageCircle,
+        path: "/seller/messages",
+        badge: unreadMessages,
+      },
+      { label: "Earnings", icon: FiDollarSign, path: "/seller/earnings" },
+      {
+        label: "Promotions",
+        icon: FiTag,
+        path: "/seller/promotions",
+        new: true,
+      },
+      { label: "Profile", icon: FiUser, path: "/seller/profile" },
+      { label: "Settings", icon: FiSettings, path: "/seller/settings" },
+    ],
+    [newOrdersCount, unreadMessages]
+  );
 
   const isActive = (path) => {
     if (path === "/seller-dashboard") {
@@ -101,13 +123,6 @@ function SellerOrders({
   const handleLogout = () => {
     setSidebarOpen(false);
     navigate("/logout");
-  };
-
-  const normalizeStatus = (status) => {
-    const s = String(status || "pending").toLowerCase();
-    if (s === "delivered") return "delivered";
-    if (s === "cancelled") return "cancelled";
-    return "pending";
   };
 
   useEffect(() => {
@@ -286,7 +301,6 @@ function SellerOrders({
     };
   };
 
-  // Writes lowercase so buyer OrderSummary can match case-insensitively
   const updateOrderStatus = async (orderId, nextStatus) => {
     if (!orderId || updatingId) return;
     if (nextStatus !== "pending" && nextStatus !== "delivered") return;
@@ -294,7 +308,7 @@ function SellerOrders({
     setUpdatingId(orderId);
     try {
       await updateDoc(doc(db, "orders", orderId), {
-        status: nextStatus, // "pending" | "delivered"
+        status: nextStatus,
         updatedAt: serverTimestamp(),
       });
     } catch (error) {
@@ -366,14 +380,18 @@ function SellerOrders({
                 onClick={() => handleNavigation(path)}
                 className={`
                   w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-left
-                  ${active ? "bg-white text-[#008236] font-semibold" : "text-white hover:bg-white/10"}
+                  ${
+                    active
+                      ? "bg-white text-[#008236] font-semibold"
+                      : "text-white hover:bg-white/10"
+                  }
                 `}
               >
-                <Icon size={19} />
+                <Icon size={19} className="flex-shrink-0" />
                 <span className="flex-1 text-[14px]">{label}</span>
                 {badge > 0 && (
                   <span className="min-w-[21px] h-[21px] px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
-                    {badge}
+                    {badge > 99 ? "99+" : badge}
                   </span>
                 )}
                 {isNew && (
@@ -463,7 +481,7 @@ function SellerOrders({
         </header>
 
         <main className="flex-1 overflow-y-auto px-3 sm:px-5 lg:px-8 py-5 sm:py-6">
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#007233] to-[#008f3f]  p-6 sm:p-7 text-white shadow-lg mb-6">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#007233] to-[#008f3f] p-6 sm:p-7 text-white shadow-lg mb-6">
             <div className="pointer-events-none absolute -right-8 -top-10 h-40 w-40 rounded-full bg-white/10" />
             <div className="pointer-events-none absolute -right-2 top-16 h-28 w-28 rounded-full bg-white/10" />
             <div className="relative inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium text-green-50">
