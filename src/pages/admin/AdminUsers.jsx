@@ -32,6 +32,7 @@ import { db } from "../../context/firebase";
 import { useAuth } from "../../context/AuthContext";
 
 const ADMIN_EMAIL = "campusmart1234@gmail.com";
+const SUPER_ADMIN_UID = "oIW3Jj1EOISi7jv1p2aRk1C3mMW2";
 
 function AdminUsers() {
   const navigate = useNavigate();
@@ -169,14 +170,29 @@ function AdminUsers() {
     );
   };
 
+  const isSuperAdmin = (user) => {
+    // Identify by UID (most reliable)
+    if (user?.id === SUPER_ADMIN_UID || user?.uid === SUPER_ADMIN_UID) {
+      return true;
+    }
+
+    // Fallback by email
+    const email = (user?.email || "").toLowerCase().trim();
+    return email === ADMIN_EMAIL.toLowerCase();
+  };
+
   const isAdminUser = (user) => {
     return (
+      isSuperAdmin(user) ||
       user?.role === "admin" ||
       user?.isAdmin === true ||
-      (Array.isArray(user?.roles) && user.roles.includes("admin")) ||
-      (user?.email || "").toLowerCase() === ADMIN_EMAIL.toLowerCase()
+      (Array.isArray(user?.roles) && user.roles.includes("admin"))
     );
   };
+
+  const currentUserIsSuperAdmin =
+    firebaseUser?.uid === SUPER_ADMIN_UID ||
+    (firebaseUser?.email || "").toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
   const filteredUsers = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -248,6 +264,12 @@ function AdminUsers() {
   const handleSuspendToggle = async (user) => {
     if (!user?.id) return;
 
+    // Super Admin can never be suspended
+    if (isSuperAdmin(user)) {
+      alert("The Super Admin cannot be suspended.");
+      return;
+    }
+
     if (isAdminUser(user)) {
       alert("Admin accounts cannot be suspended from this page.");
       return;
@@ -267,8 +289,15 @@ function AdminUsers() {
   const handleToggleAdmin = async (user) => {
     if (!user?.id) return;
 
-    // Never allow changing the main admin
-    if ((user.email || "").toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+    // Super Admin can never be removed
+    if (isSuperAdmin(user)) {
+      alert("The Super Admin cannot be removed.");
+      return;
+    }
+
+    // Only Super Admin can remove other admins
+    if (isAdminUser(user) && !currentUserIsSuperAdmin) {
+      alert("Only the Super Admin can remove other admins.");
       return;
     }
 
@@ -278,7 +307,6 @@ function AdminUsers() {
       // Remove admin rights but keep original marketplace role
       await updateUser(user.id, {
         isAdmin: false,
-        // If role was pure "admin", fall back to buyer
         role: user.role === "admin" ? "buyer" : user.role,
       });
     } else {
@@ -334,18 +362,20 @@ function AdminUsers() {
   if (!firebaseUser || !allowed) {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-gray-50 px-4">
-        <div className="max-w-sm text-center bg-white rounded-2xl border p-8">
-          <FiShield className="mx-auto text-red-500" size={28} />
-          <h1 className="text-xl font-bold mt-3">Access Denied</h1>
+        <div className="max-w-sm text-center bg-white rounded-2xl border border-gray-100 p-8 shadow-sm">
+          <div className="w-14 h-14 mx-auto rounded-full bg-red-50 text-red-500 flex items-center justify-center mb-4">
+            <FiShield size={24} />
+          </div>
+          <h1 className="text-xl font-bold text-gray-800">Access Denied</h1>
           <p className="text-sm text-gray-500 mt-2">
-            You do not have permission to access the admin users page.
+            You do not have permission to view this page.
           </p>
           <button
             type="button"
-            onClick={() => navigate("/")}
-            className="mt-5 h-11 px-6 rounded-xl bg-[#008236] text-white text-sm font-semibold"
+            onClick={() => navigate("/admin-dashboard")}
+            className="mt-6 h-11 px-6 rounded-xl bg-[#008236] text-white text-sm font-semibold hover:bg-[#006f2e] transition"
           >
-            Go Home
+            Return to Dashboard
           </button>
         </div>
       </div>
@@ -511,11 +541,17 @@ function AdminUsers() {
             ) : (
               <div className="divide-y divide-gray-100">
                 {filteredUsers.map((user) => {
+                  const superAdmin = isSuperAdmin(user);
+
                   const name =
                     user.fullName ||
                     user.name ||
                     user.displayName ||
-                    "User";
+                    (superAdmin ? "CampusMart Admin" : "User");
+
+                  const email =
+                    user.email ||
+                    (superAdmin ? ADMIN_EMAIL : "—");
 
                   const seller = isSeller(user);
                   const suspended = isSuspended(user);
@@ -558,11 +594,15 @@ function AdminUsers() {
                               {seller ? "Seller" : "Buyer"}
                             </span>
 
-                            {admin && (
+                            {superAdmin ? (
+                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                                Super Admin
+                              </span>
+                            ) : admin ? (
                               <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-50 text-purple-600">
                                 Admin
                               </span>
-                            )}
+                            ) : null}
 
                             {suspended && (
                               <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-600">
@@ -572,7 +612,7 @@ function AdminUsers() {
                           </div>
 
                           <p className="text-xs text-gray-500 mt-0.5 truncate">
-                            {user.email || "—"}
+                            {email}
                           </p>
 
                           <p className="text-xs text-gray-400 mt-0.5">
@@ -583,8 +623,8 @@ function AdminUsers() {
                       </div>
 
                       <div className="flex flex-wrap gap-2 lg:justify-end">
-                        {/* Suspend / Activate */}
-                        {!admin && (
+                        {/* Suspend / Activate - never show for Super Admin */}
+                        {!superAdmin && !admin && (
                           <button
                             type="button"
                             disabled={updatingId === user.id}
@@ -619,9 +659,8 @@ function AdminUsers() {
                           </button>
                         )}
 
-                        {/* Make Admin / Remove Admin */}
-                        {(user.email || "").toLowerCase() !==
-                          ADMIN_EMAIL.toLowerCase() && (
+                        {/* Make Admin / Remove Admin - never show for Super Admin */}
+                        {!superAdmin && (
                           <button
                             type="button"
                             disabled={updatingId === user.id}
