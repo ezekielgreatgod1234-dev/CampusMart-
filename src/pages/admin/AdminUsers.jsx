@@ -6,6 +6,7 @@ import {
   onSnapshot,
   doc,
   updateDoc,
+  deleteDoc,
   serverTimestamp,
   getDoc,
 } from "firebase/firestore";
@@ -26,6 +27,8 @@ import {
   FiUserCheck,
   FiUserX,
   FiMessageCircle,
+  FiTrash2,
+  FiAlertTriangle,
 } from "react-icons/fi";
 
 import { db } from "../../context/firebase";
@@ -48,6 +51,12 @@ function AdminUsers() {
   const [filter, setFilter] = useState("all");
   const [updatingId, setUpdatingId] = useState(null);
   const [unreadSupportCount, setUnreadSupportCount] = useState(0);
+
+  // Delete confirmation modal state
+  const [deleteModal, setDeleteModal] = useState({
+    open: false,
+    user: null,
+  });
 
   // =========================================================
   // ACCESS CONTROL (supports dual-role)
@@ -171,12 +180,9 @@ function AdminUsers() {
   };
 
   const isSuperAdmin = (user) => {
-    // Identify by UID (most reliable)
     if (user?.id === SUPER_ADMIN_UID || user?.uid === SUPER_ADMIN_UID) {
       return true;
     }
-
-    // Fallback by email
     const email = (user?.email || "").toLowerCase().trim();
     return email === ADMIN_EMAIL.toLowerCase();
   };
@@ -264,7 +270,6 @@ function AdminUsers() {
   const handleSuspendToggle = async (user) => {
     if (!user?.id) return;
 
-    // Super Admin can never be suspended
     if (isSuperAdmin(user)) {
       alert("The Super Admin cannot be suspended.");
       return;
@@ -289,13 +294,11 @@ function AdminUsers() {
   const handleToggleAdmin = async (user) => {
     if (!user?.id) return;
 
-    // Super Admin can never be removed
     if (isSuperAdmin(user)) {
       alert("The Super Admin cannot be removed.");
       return;
     }
 
-    // Only Super Admin can remove other admins
     if (isAdminUser(user) && !currentUserIsSuperAdmin) {
       alert("Only the Super Admin can remove other admins.");
       return;
@@ -304,16 +307,67 @@ function AdminUsers() {
     const currentlyAdmin = isAdminUser(user);
 
     if (currentlyAdmin) {
-      // Remove admin rights but keep original marketplace role
       await updateUser(user.id, {
         isAdmin: false,
         role: user.role === "admin" ? "buyer" : user.role,
       });
     } else {
-      // Make admin WITHOUT destroying buyer/seller role
       await updateUser(user.id, {
         isAdmin: true,
       });
+    }
+  };
+
+  // Open custom delete modal
+  const openDeleteModal = (user) => {
+    if (!user?.id) return;
+
+    if (!currentUserIsSuperAdmin) {
+      alert("Only the Super Admin can delete accounts.");
+      return;
+    }
+
+    if (isSuperAdmin(user)) {
+      alert("The Super Admin account cannot be deleted.");
+      return;
+    }
+
+    setDeleteModal({ open: true, user });
+  };
+
+  // Close modal
+  const closeDeleteModal = () => {
+    if (updatingId) return; // prevent closing while deleting
+    setDeleteModal({ open: false, user: null });
+  };
+
+  // Confirm delete
+  const confirmDeleteUser = async () => {
+    const user = deleteModal.user;
+    if (!user?.id) return;
+
+    if (!currentUserIsSuperAdmin) {
+      alert("Only the Super Admin can delete accounts.");
+      return;
+    }
+
+    if (isSuperAdmin(user)) {
+      alert("The Super Admin account cannot be deleted.");
+      return;
+    }
+
+    if (updatingId) return;
+
+    setUpdatingId(user.id);
+
+    try {
+      await deleteDoc(doc(db, "users", user.id));
+      setDeleteModal({ open: false, user: null });
+    } catch (error) {
+      console.error("Could not delete user:", error);
+      alert("Could not delete user. Check your Firestore rules.");
+    } finally {
+      setUpdatingId(null);
     }
   };
 
@@ -381,6 +435,13 @@ function AdminUsers() {
       </div>
     );
   }
+
+  const deleteTargetName =
+    deleteModal.user?.fullName ||
+    deleteModal.user?.name ||
+    deleteModal.user?.displayName ||
+    deleteModal.user?.email ||
+    "this user";
 
   // =========================================================
   // RENDER
@@ -623,7 +684,7 @@ function AdminUsers() {
                       </div>
 
                       <div className="flex flex-wrap gap-2 lg:justify-end">
-                        {/* Suspend / Activate - never show for Super Admin */}
+                        {/* Suspend / Activate */}
                         {!superAdmin && !admin && (
                           <button
                             type="button"
@@ -659,7 +720,7 @@ function AdminUsers() {
                           </button>
                         )}
 
-                        {/* Make Admin / Remove Admin - never show for Super Admin */}
+                        {/* Make Admin / Remove Admin */}
                         {!superAdmin && (
                           <button
                             type="button"
@@ -689,6 +750,34 @@ function AdminUsers() {
                             )}
                           </button>
                         )}
+
+                        {/* Delete button - GREEN (only Super Admin) */}
+                        {currentUserIsSuperAdmin && !superAdmin && (
+                          <button
+                            type="button"
+                            disabled={updatingId === user.id}
+                            onClick={() => openDeleteModal(user)}
+                            className="
+                              h-9 px-3 rounded-lg text-xs font-semibold
+                              flex items-center gap-1.5
+                              bg-[#008236] text-white hover:bg-[#006f2e]
+                              disabled:opacity-50 disabled:cursor-not-allowed
+                              transition
+                            "
+                          >
+                            {updatingId === user.id ? (
+                              <>
+                                <span className="w-3.5 h-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                                Deleting...
+                              </>
+                            ) : (
+                              <>
+                                <FiTrash2 size={14} />
+                                Delete
+                              </>
+                            )}
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
@@ -698,6 +787,85 @@ function AdminUsers() {
           </div>
         </main>
       </div>
+
+      {/* ===================== CUSTOM DELETE MODAL ===================== */}
+      {deleteModal.open && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"
+            onClick={closeDeleteModal}
+          />
+
+          {/* Modal card */}
+          <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="px-6 pt-6 pb-4 text-center">
+              <div className="w-14 h-14 mx-auto rounded-full bg-red-50 text-red-500 flex items-center justify-center mb-4">
+                <FiAlertTriangle size={26} />
+              </div>
+
+              <h2 className="text-lg font-bold text-gray-900">
+                Delete Account?
+              </h2>
+
+              <p className="text-sm text-gray-500 mt-2 leading-relaxed">
+                Are you sure you want to permanently delete{" "}
+                <span className="font-semibold text-gray-800">
+                  “{deleteTargetName}”
+                </span>
+                ?
+              </p>
+
+              <p className="text-xs text-red-500 mt-3 font-medium">
+                This action cannot be undone.
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="px-6 pb-6 flex flex-col sm:flex-row gap-3">
+              <button
+                type="button"
+                onClick={closeDeleteModal}
+                disabled={!!updatingId}
+                className="
+                  flex-1 h-11 rounded-xl text-sm font-semibold
+                  bg-gray-100 text-gray-700 hover:bg-gray-200
+                  disabled:opacity-50 disabled:cursor-not-allowed
+                  transition
+                "
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={confirmDeleteUser}
+                disabled={!!updatingId}
+                className="
+                  flex-1 h-11 rounded-xl text-sm font-semibold
+                  bg-[#008236] text-white hover:bg-[#006f2e]
+                  disabled:opacity-50 disabled:cursor-not-allowed
+                  flex items-center justify-center gap-2
+                  transition
+                "
+              >
+                {updatingId ? (
+                  <>
+                    <span className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <FiTrash2 size={16} />
+                    Yes, Delete
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
