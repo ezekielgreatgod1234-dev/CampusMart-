@@ -1631,66 +1631,63 @@ function App() {
   // CLEAN CUSTOMER SAVE
   // =======================================================
 
-
-
-
   // =======================================================
-// LIVE BUYER ORDERS (status from seller updates)
-// =======================================================
+  // LIVE BUYER ORDERS (status from seller updates)
+  // =======================================================
 
-useEffect(() => {
-  if (!firebaseUser?.uid) {
-    setOrders([]);
-    return;
-  }
-
-  const buyerUid = String(firebaseUser.uid);
-
-  // Prefer buyerId (what you save on placeOrder). Fallback if you also use userId.
-  const ordersQuery = query(
-    collection(db, "orders"),
-    where("buyerId", "==", buyerUid)
-  );
-
-  const unsubscribe = onSnapshot(
-    ordersQuery,
-    (snapshot) => {
-      const list = snapshot.docs.map((d) => {
-        const data = d.data() || {};
-
-        return {
-          id: d.id,
-          ...data,
-          // keep a simple status for OrderSummary / Orders pages
-          status: String(data.status || "pending").toLowerCase(),
-        };
-      });
-
-      // Newest first (optional)
-      list.sort((a, b) => {
-        const aT =
-          a.createdAt?.toMillis?.() ||
-          a.createdAt?.seconds * 1000 ||
-          Date.parse(a.createdAt) ||
-          0;
-        const bT =
-          b.createdAt?.toMillis?.() ||
-          b.createdAt?.seconds * 1000 ||
-          Date.parse(b.createdAt) ||
-          0;
-        return bT - aT;
-      });
-
-      setOrders(list);
-    },
-    (error) => {
-      console.error("Buyer orders listener error:", error);
+  useEffect(() => {
+    if (!firebaseUser?.uid) {
       setOrders([]);
+      return;
     }
-  );
 
-  return () => unsubscribe();
-}, [firebaseUser?.uid]);
+    const buyerUid = String(firebaseUser.uid);
+
+    // Prefer buyerId (what you save on placeOrder). Fallback if you also use userId.
+    const ordersQuery = query(
+      collection(db, "orders"),
+      where("buyerId", "==", buyerUid)
+    );
+
+    const unsubscribe = onSnapshot(
+      ordersQuery,
+      (snapshot) => {
+        const list = snapshot.docs.map((d) => {
+          const data = d.data() || {};
+
+          return {
+            id: d.id,
+            ...data,
+            // keep a simple status for OrderSummary / Orders pages
+            status: String(data.status || "pending").toLowerCase(),
+          };
+        });
+
+        // Newest first (optional)
+        list.sort((a, b) => {
+          const aT =
+            a.createdAt?.toMillis?.() ||
+            a.createdAt?.seconds * 1000 ||
+            Date.parse(a.createdAt) ||
+            0;
+          const bT =
+            b.createdAt?.toMillis?.() ||
+            b.createdAt?.seconds * 1000 ||
+            Date.parse(b.createdAt) ||
+            0;
+          return bT - aT;
+        });
+
+        setOrders(list);
+      },
+      (error) => {
+        console.error("Buyer orders listener error:", error);
+        setOrders([]);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [firebaseUser?.uid]);
 
   useEffect(() => {
     return () => {
@@ -2170,7 +2167,7 @@ useEffect(() => {
   };
 
   // =======================================================
-  // PLACE ORDER
+  // PLACE ORDER  (FIXED – prevents double seller credit)
   // =======================================================
 
   const placeOrder =
@@ -2210,6 +2207,47 @@ useEffect(() => {
       const paystackReference =
         orderData.paystackReference ||
         null;
+
+      // -------------------------------------------------
+      // IDEMPOTENCY GUARD
+      // If this Paystack reference was already processed,
+      // do NOT create orders or credit the seller again.
+      // -------------------------------------------------
+      if (paystackReference) {
+        try {
+          const existingQuery = query(
+            collection(db, "orders"),
+            where(
+              "paystackReference",
+              "==",
+              String(paystackReference)
+            )
+          );
+
+          const existingSnap =
+            await getDocs(existingQuery);
+
+          if (!existingSnap.empty) {
+            console.warn(
+              "placeOrder: payment already processed →",
+              paystackReference
+            );
+
+            // Return the first existing order so callers still get a result
+            const first = existingSnap.docs[0];
+            return {
+              id: first.id,
+              ...first.data(),
+            };
+          }
+        } catch (checkErr) {
+          console.warn(
+            "placeOrder: could not check existing reference",
+            checkErr
+          );
+          // Continue – better to risk a rare double than block payment
+        }
+      }
 
       const bySeller = {};
 
@@ -2306,7 +2344,10 @@ useEffect(() => {
             paymentStatus:
               "paid",
 
-            paystackReference,
+            paystackReference:
+              paystackReference
+                ? String(paystackReference)
+                : null,
 
             status: "pending",
 
@@ -2597,14 +2638,15 @@ useEffect(() => {
 
             paymentStatus:
               "paid",
+
+            paystackReference:
+              paystackReference
+                ? String(paystackReference)
+                : null,
           });
         }
 
-        const nextOrders = [
-          ...orders,
-          ...createdOrders,
-        ];
-
+        // Clear purchased items from cart
         const purchasedIds =
           items.map(
             (item) => item.id
@@ -2618,15 +2660,14 @@ useEffect(() => {
               )
           );
 
-        setOrders(nextOrders);
-
         setCart(nextCart);
 
+        // The live orders listener will pick up the new orders.
+        // We still save cart + wishlist.
         queueCustomerDataSave({
           nextCart,
-          nextWishlist:
-            wishlist,
-          nextOrders,
+          nextWishlist: wishlist,
+          nextOrders: orders, // live listener owns the real orders list
           immediate: true,
         });
 
@@ -4124,6 +4165,12 @@ useEffect(() => {
                   }
                   markMessageAsRead={
                     markMessageAsRead
+                  }
+                  sendMessage={
+                    sendMessage
+                  }
+                  deleteMessages={
+                    deleteMessages
                   }
                   profile={profile}
                 />
