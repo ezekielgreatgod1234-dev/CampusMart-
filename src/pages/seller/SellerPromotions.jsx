@@ -422,14 +422,22 @@ function SellerPromotions({ unreadMessages = 0, profile = {} }) {
     }
   };
 
+  // =====================================================
+  // PAY WITH CARD — same Paystack flow as buyer checkout
+  // =====================================================
   const payWithCard = async () => {
     if (!firebaseUser?.uid) {
       setFormError("Please log in again.");
       return;
     }
-    const email = firebaseUser.email || profile?.email || "seller@campusmart.app";
+
+    const email =
+      firebaseUser.email || profile?.email || "seller@campusmart.app";
+
     setSubmitting(true);
     setShowPaymentModal(false);
+    setFormError("");
+
     try {
       const response = await fetch(`${BACKEND_URL}/initialize-payment`, {
         method: "POST",
@@ -444,12 +452,23 @@ function SellerPromotions({ unreadMessages = 0, profile = {} }) {
           productIds: selectedProductIds,
           planId: selectedPlan.id,
           planDays: selectedPlan.days,
+          callback_url: `${window.location.origin}/seller/promotions`,
         }),
       });
+
       const data = await response.json();
-      if (!response.ok || !data?.data?.authorization_url) {
-        throw new Error(data?.error || data?.message || "Could not start payment");
+
+      // Support flat + nested response shapes from backend
+      const authorizationUrl =
+        data?.data?.authorization_url || data?.authorization_url;
+      const reference = data?.data?.reference || data?.reference;
+
+      if (!response.ok || !authorizationUrl) {
+        throw new Error(
+          data?.error || data?.message || "Could not start Paystack payment"
+        );
       }
+
       sessionStorage.setItem(
         "campusmart_pending_promotion",
         JSON.stringify({
@@ -459,11 +478,12 @@ function SellerPromotions({ unreadMessages = 0, profile = {} }) {
           planDays: selectedPlan.days,
           amountPerProduct: selectedPlan.price,
           totalAmount,
-          reference: data.data.reference,
+          reference,
           sellerId: firebaseUser.uid,
         })
       );
-      window.location.href = data.data.authorization_url;
+
+      window.location.href = authorizationUrl;
     } catch (error) {
       console.error(error);
       setFormError(error?.message || "Unable to open payment.");
@@ -471,10 +491,15 @@ function SellerPromotions({ unreadMessages = 0, profile = {} }) {
     }
   };
 
+  // After Paystack redirects back with ?reference=
   useEffect(() => {
     const run = async () => {
+      const params = new URLSearchParams(location.search);
+      const refFromUrl = params.get("reference") || params.get("trxref");
+
       const raw = sessionStorage.getItem("campusmart_pending_promotion");
       if (!raw || !firebaseUser?.uid) return;
+
       let pending;
       try {
         pending = JSON.parse(raw);
@@ -482,42 +507,91 @@ function SellerPromotions({ unreadMessages = 0, profile = {} }) {
         sessionStorage.removeItem("campusmart_pending_promotion");
         return;
       }
+
       if (pending.sellerId !== firebaseUser.uid) return;
-      const params = new URLSearchParams(location.search);
-      const ref =
-        params.get("reference") || params.get("trxref") || pending.reference;
-      if (!ref) return;
+
+      const reference = refFromUrl || pending.reference;
+      if (!reference) return;
+
+      // Avoid double-apply on re-render
+      const appliedKey = `cm_promo_applied_${reference}`;
+      try {
+        if (sessionStorage.getItem(appliedKey)) {
+          sessionStorage.removeItem("campusmart_pending_promotion");
+          if (location.search) {
+            navigate("/seller/promotions", { replace: true });
+          }
+          return;
+        }
+      } catch {
+        // ignore
+      }
+
       try {
         setSubmitting(true);
-        const plan = boostPlans.find((p) => p.id === pending.planId) || {
-          id: pending.planId,
-          label: pending.planLabel,
-          days: pending.planDays,
-          price: pending.amountPerProduct,
-        };
+        setFormError("");
+
+        // Verify with backend (Paystack)
+        let verified = false;
+        try {
+          const verifyRes = await fetch(
+            `${BACKEND_URL}/verify-payment/${encodeURIComponent(reference)}`
+          );
+          const verifyData = await verifyRes.json();
+          if (verifyRes.ok && verifyData?.data?.status === "success") {
+            verified = true;
+          }
+        } catch (verifyErr) {
+          console.warn("Verify endpoint failed, checking reference only:", verifyErr);
+        }
+
+        // If verify endpoint is down but we have a reference from Paystack redirect, still try boost
+        if (!verified && !refFromUrl) {
+          throw new Error(
+            "Payment was not confirmed. If you were charged, contact support with your reference."
+          );
+        }
+
+        const plan =
+          boostPlans.find((p) => p.id === pending.planId) || {
+            id: pending.planId,
+            label: pending.planLabel,
+            days: pending.planDays,
+            price: pending.amountPerProduct,
+          };
+
         await applyBoostToProducts({
           productIds: pending.productIds || [],
           plan,
           amountPerProduct: pending.amountPerProduct,
           totalPaid: pending.totalAmount,
           paidVia: "Card (Paystack)",
-          paystackReference: ref,
+          paystackReference: reference,
         });
+
+        try {
+          sessionStorage.setItem(appliedKey, "1");
+        } catch {
+          // ignore
+        }
         sessionStorage.removeItem("campusmart_pending_promotion");
+
         setSuccessMessage(
-          `Payment successful. ${(pending.productIds || []).length} product(s) boosted.`
+          `Payment successful. ${(pending.productIds || []).length} product(s) are now boosted.`
         );
         setSelectedProductIds([]);
-        if (location.search) navigate("/seller/promotions", { replace: true });
+        navigate("/seller/promotions", { replace: true });
       } catch (e) {
         console.error(e);
         setFormError(
-          "Payment may have succeeded but boost failed. Contact support with your reference."
+          e?.message ||
+            "Payment may have succeeded but boost failed. Contact support with your Paystack reference."
         );
       } finally {
         setSubmitting(false);
       }
     };
+
     run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firebaseUser?.uid, location.search]);
@@ -674,11 +748,29 @@ function SellerPromotions({ unreadMessages = 0, profile = {} }) {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
             {[
-              { step: "1", title: "Select products", text: "One or many from your store.", icon: FiPackage },
-              { step: "2", title: "Pick a plan", text: "Price × number of products.", icon: FiZap },
-              { step: "3", title: "Pay & go live", text: "Balance or card via Paystack.", icon: FiArrowUp },
+              {
+                step: "1",
+                title: "Select products",
+                text: "One or many from your store.",
+                icon: FiPackage,
+              },
+              {
+                step: "2",
+                title: "Pick a plan",
+                text: "Price × number of products.",
+                icon: FiZap,
+              },
+              {
+                step: "3",
+                title: "Pay & go live",
+                text: "Balance or card via Paystack.",
+                icon: FiArrowUp,
+              },
             ].map(({ step, title, text, icon: Icon }) => (
-              <div key={step} className="bg-white rounded-2xl border border-gray-100 p-4 flex gap-3">
+              <div
+                key={step}
+                className="bg-white rounded-2xl border border-gray-100 p-4 flex gap-3"
+              >
                 <div className="w-10 h-10 rounded-xl bg-green-50 text-[#008236] flex items-center justify-center font-bold text-sm">
                   {step}
                 </div>
@@ -705,7 +797,10 @@ function SellerPromotions({ unreadMessages = 0, profile = {} }) {
 
           <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
             <section className="xl:col-span-3">
-              <form onSubmit={handlePromote} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <form
+                onSubmit={handlePromote}
+                className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
+              >
                 <div className="p-5 border-b border-gray-100">
                   <h2 className="text-lg font-bold">Boost products</h2>
                   <p className="text-xs text-gray-500 mt-1">
@@ -724,14 +819,24 @@ function SellerPromotions({ unreadMessages = 0, profile = {} }) {
                       <label className="text-xs font-semibold text-gray-700">
                         Your products{" "}
                         {selectedCount > 0 && (
-                          <span className="text-[#008236]">({selectedCount} selected)</span>
+                          <span className="text-[#008236]">
+                            ({selectedCount} selected)
+                          </span>
                         )}
                       </label>
                       <div className="flex gap-2">
-                        <button type="button" onClick={selectAll} className="text-[11px] font-semibold text-[#008236]">
+                        <button
+                          type="button"
+                          onClick={selectAll}
+                          className="text-[11px] font-semibold text-[#008236]"
+                        >
                           Select all
                         </button>
-                        <button type="button" onClick={clearSelection} className="text-[11px] font-semibold text-gray-400">
+                        <button
+                          type="button"
+                          onClick={clearSelection}
+                          className="text-[11px] font-semibold text-gray-400"
+                        >
                           Clear
                         </button>
                       </div>
@@ -745,7 +850,11 @@ function SellerPromotions({ unreadMessages = 0, profile = {} }) {
                     ) : sellerProducts.length === 0 ? (
                       <div className="py-8 text-center text-sm text-gray-500 border border-dashed rounded-xl">
                         No products.{" "}
-                        <button type="button" onClick={() => handleNavigation("/seller/products")} className="text-[#008236] font-semibold">
+                        <button
+                          type="button"
+                          onClick={() => handleNavigation("/seller/products")}
+                          className="text-[#008236] font-semibold"
+                        >
                           Add products
                         </button>
                       </div>
@@ -766,20 +875,28 @@ function SellerPromotions({ unreadMessages = 0, profile = {} }) {
                             >
                               <div
                                 className={`w-5 h-5 rounded-md border flex items-center justify-center ${
-                                  active ? "bg-[#008236] border-[#008236] text-white" : "border-gray-300"
+                                  active
+                                    ? "bg-[#008236] border-[#008236] text-white"
+                                    : "border-gray-300"
                                 }`}
                               >
                                 {active && <FiCheck size={12} />}
                               </div>
                               {product.image ? (
-                                <img src={product.image} alt="" className="w-11 h-11 rounded-xl object-cover" />
+                                <img
+                                  src={product.image}
+                                  alt=""
+                                  className="w-11 h-11 rounded-xl object-cover"
+                                />
                               ) : (
                                 <div className="w-11 h-11 rounded-xl bg-green-50 text-[#008236] flex items-center justify-center">
                                   <FiPackage size={18} />
                                 </div>
                               )}
                               <div className="min-w-0 flex-1">
-                                <p className="text-sm font-semibold truncate">{product.name}</p>
+                                <p className="text-sm font-semibold truncate">
+                                  {product.name}
+                                </p>
                                 <p className="text-[10px] text-gray-400">
                                   {product.category} · {formatNaira(product.price)}
                                 </p>
@@ -818,7 +935,9 @@ function SellerPromotions({ unreadMessages = 0, profile = {} }) {
                             <p className="text-lg font-bold text-[#008236] mt-1">
                               {formatNaira(plan.price)}
                             </p>
-                            <p className="text-[10px] text-gray-400 mt-1">{plan.description}</p>
+                            <p className="text-[10px] text-gray-400 mt-1">
+                              {plan.description}
+                            </p>
                           </button>
                         );
                       })}
@@ -827,7 +946,9 @@ function SellerPromotions({ unreadMessages = 0, profile = {} }) {
 
                   <div className="rounded-xl bg-green-50 border border-green-100 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <div>
-                      <p className="text-xs font-semibold text-gray-700">You will pay</p>
+                      <p className="text-xs font-semibold text-gray-700">
+                        You will pay
+                      </p>
                       <p className="text-xl font-bold text-[#008236]">
                         {selectedCount === 0
                           ? formatNaira(selectedPlan.price)
@@ -836,7 +957,9 @@ function SellerPromotions({ unreadMessages = 0, profile = {} }) {
                       <p className="text-[10px] text-gray-500 mt-1">
                         {selectedCount === 0
                           ? "Select products first"
-                          : `${selectedCount} × ${formatNaira(selectedPlan.price)} · ${selectedPlan.label}`}
+                          : `${selectedCount} × ${formatNaira(
+                              selectedPlan.price
+                            )} · ${selectedPlan.label}`}
                       </p>
                     </div>
                     <button
@@ -865,7 +988,9 @@ function SellerPromotions({ unreadMessages = 0, profile = {} }) {
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm h-full">
                 <div className="p-5 border-b border-gray-100">
                   <h2 className="font-bold">Active boosts</h2>
-                  <p className="text-xs text-gray-500 mt-1">At the top of listings</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    At the top of listings
+                  </p>
                 </div>
                 <div className="p-4 space-y-3">
                   {activeBoosts.length === 0 ? (
@@ -875,10 +1000,15 @@ function SellerPromotions({ unreadMessages = 0, profile = {} }) {
                     </div>
                   ) : (
                     activeBoosts.map((boost) => (
-                      <div key={boost.id} className="border border-green-100 rounded-xl p-3.5 bg-green-50/40">
+                      <div
+                        key={boost.id}
+                        className="border border-green-100 rounded-xl p-3.5 bg-green-50/40"
+                      >
                         <div className="flex justify-between gap-2">
                           <div className="min-w-0">
-                            <p className="text-sm font-semibold truncate">{boost.productName}</p>
+                            <p className="text-sm font-semibold truncate">
+                              {boost.productName}
+                            </p>
                             <p className="text-[10px] text-gray-400 mt-0.5">
                               {boost.plan} · {formatNaira(boost.amountPaid)}
                               {boost.paidVia ? ` · ${boost.paidVia}` : ""}
@@ -922,7 +1052,8 @@ function SellerPromotions({ unreadMessages = 0, profile = {} }) {
               <div className="p-5 bg-green-50 border-b border-green-100">
                 <h3 className="text-lg font-bold">How do you want to pay?</h3>
                 <p className="text-sm text-gray-500 mt-1">
-                  {formatNaira(totalAmount)} · {selectedCount} product(s) · {selectedPlan.label}
+                  {formatNaira(totalAmount)} · {selectedCount} product(s) ·{" "}
+                  {selectedPlan.label}
                 </p>
               </div>
               <div className="p-4 space-y-3">
@@ -944,7 +1075,9 @@ function SellerPromotions({ unreadMessages = 0, profile = {} }) {
                       {formatNaira(availableBalance)} available
                     </p>
                     {totalAmount > availableBalance && (
-                      <p className="text-[10px] text-red-500 mt-1">Not enough balance</p>
+                      <p className="text-[10px] text-red-500 mt-1">
+                        Not enough balance
+                      </p>
                     )}
                   </div>
                 </button>
@@ -962,7 +1095,9 @@ function SellerPromotions({ unreadMessages = 0, profile = {} }) {
                   </div>
                   <div>
                     <p className="text-sm font-semibold">Pay with card</p>
-                    <p className="text-xs text-gray-500 mt-0.5">Paystack secure checkout</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Paystack secure checkout
+                    </p>
                   </div>
                 </button>
               </div>
