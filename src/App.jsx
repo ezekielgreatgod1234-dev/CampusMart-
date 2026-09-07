@@ -84,6 +84,7 @@ import PrivacyPolicy from "./pages/customer/PrivacyPolicy";
 import TermsAndConditions from "./pages/customer/TermsAndConditions";
 
 import AccountDisabled from "./context/AccountDisabled";
+import AccountNotFound from "./pages/admin/AccountNotFound"; // adjust path
 
 // =========================================================
 // ADMIN PAGES
@@ -1629,6 +1630,67 @@ function App() {
   // =======================================================
   // CLEAN CUSTOMER SAVE
   // =======================================================
+
+
+
+
+  // =======================================================
+// LIVE BUYER ORDERS (status from seller updates)
+// =======================================================
+
+useEffect(() => {
+  if (!firebaseUser?.uid) {
+    setOrders([]);
+    return;
+  }
+
+  const buyerUid = String(firebaseUser.uid);
+
+  // Prefer buyerId (what you save on placeOrder). Fallback if you also use userId.
+  const ordersQuery = query(
+    collection(db, "orders"),
+    where("buyerId", "==", buyerUid)
+  );
+
+  const unsubscribe = onSnapshot(
+    ordersQuery,
+    (snapshot) => {
+      const list = snapshot.docs.map((d) => {
+        const data = d.data() || {};
+
+        return {
+          id: d.id,
+          ...data,
+          // keep a simple status for OrderSummary / Orders pages
+          status: String(data.status || "pending").toLowerCase(),
+        };
+      });
+
+      // Newest first (optional)
+      list.sort((a, b) => {
+        const aT =
+          a.createdAt?.toMillis?.() ||
+          a.createdAt?.seconds * 1000 ||
+          Date.parse(a.createdAt) ||
+          0;
+        const bT =
+          b.createdAt?.toMillis?.() ||
+          b.createdAt?.seconds * 1000 ||
+          Date.parse(b.createdAt) ||
+          0;
+        return bT - aT;
+      });
+
+      setOrders(list);
+    },
+    (error) => {
+      console.error("Buyer orders listener error:", error);
+      setOrders([]);
+    }
+  );
+
+  return () => unsubscribe();
+}, [firebaseUser?.uid]);
 
   useEffect(() => {
     return () => {
@@ -4901,6 +4963,8 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        <Route path="/account-not-found" element={<AccountNotFound />} />
 
         {/* ================================================= */}
         {/* FALLBACK */}

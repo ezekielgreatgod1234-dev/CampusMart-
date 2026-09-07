@@ -25,7 +25,7 @@ import { auth, db } from "./firebase";
 const ADMIN_EMAIL = "campusmart1234@gmail.com";
 
 // Session lasts 1 hour
-const SESSION_DURATION_MS = 60 * 60 * 1000; // 1 hour
+const SESSION_DURATION_MS = 60 * 60 * 1000;
 const SESSION_KEY = "campusmart_session_expires_at";
 
 function Login() {
@@ -81,10 +81,18 @@ function Login() {
     }
   };
 
-  // Start 1-hour session after successful login
   const startSession = () => {
     const expiresAt = Date.now() + SESSION_DURATION_MS;
     localStorage.setItem(SESSION_KEY, String(expiresAt));
+  };
+
+  const forceSignOut = async () => {
+    try {
+      await signOut(auth);
+    } catch (_) {
+      // ignore
+    }
+    localStorage.removeItem(SESSION_KEY);
   };
 
   const handleSubmit = async (e) => {
@@ -112,24 +120,47 @@ function Login() {
       const user = userCredential.user;
       const userEmail = (user.email || "").toLowerCase();
 
+      // =====================================================
+      // LOAD FIRESTORE PROFILE
+      // =====================================================
+      let userSnap = null;
       let userData = null;
 
       try {
-        const userSnap = await getDoc(doc(db, "users", user.uid));
+        userSnap = await getDoc(doc(db, "users", user.uid));
         if (userSnap.exists()) {
-          userData = userSnap.data();
+          userData = userSnap.data() || {};
         }
       } catch (firestoreError) {
         console.error("Could not check account status:", firestoreError);
       }
 
-      const accountStatus = String(userData?.accountStatus || "active")
-        .trim()
-        .toLowerCase();
+      // =====================================================
+      // ACCOUNT DELETED / NOT FOUND
+if (!userSnap || !userSnap.exists()) {
+  await forceSignOut();
+  navigate("/account-not-found", { replace: true });
+  return;
+}
 
-      if (accountStatus === "disabled") {
-        await signOut(auth);
-        localStorage.removeItem(SESSION_KEY);
+const accountStatus = String(userData?.accountStatus || "active")
+  .trim()
+  .toLowerCase();
+
+if (accountStatus === "deleted" || userData?.deleted === true) {
+  await forceSignOut();
+  navigate("/account-not-found", { replace: true });
+  return;
+}
+
+      // =====================================================
+      // SUSPENDED / DISABLED
+      // =====================================================
+      if (
+        accountStatus === "disabled" ||
+        accountStatus === "suspended"
+      ) {
+        await forceSignOut();
 
         navigate("/account-disabled", {
           replace: true,
@@ -151,7 +182,6 @@ function Login() {
           userData.roles.includes("admin"));
 
       if (isAdmin) {
-        // Send admin users to role selection page
         navigate("/choose-dashboard", {
           replace: true,
           state: { userData },
