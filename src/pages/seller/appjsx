@@ -84,7 +84,7 @@ import PrivacyPolicy from "./pages/customer/PrivacyPolicy";
 import TermsAndConditions from "./pages/customer/TermsAndConditions";
 
 import AccountDisabled from "./context/AccountDisabled";
-import AccountNotFound from "./pages/admin/AccountNotFound"; // adjust path
+import AccountNotFound from "./pages/admin/AccountNotFound";
 
 // =========================================================
 // ADMIN PAGES
@@ -1631,66 +1631,63 @@ function App() {
   // CLEAN CUSTOMER SAVE
   // =======================================================
 
-
-
-
   // =======================================================
-// LIVE BUYER ORDERS (status from seller updates)
-// =======================================================
+  // LIVE BUYER ORDERS (status from seller updates)
+  // =======================================================
 
-useEffect(() => {
-  if (!firebaseUser?.uid) {
-    setOrders([]);
-    return;
-  }
-
-  const buyerUid = String(firebaseUser.uid);
-
-  // Prefer buyerId (what you save on placeOrder). Fallback if you also use userId.
-  const ordersQuery = query(
-    collection(db, "orders"),
-    where("buyerId", "==", buyerUid)
-  );
-
-  const unsubscribe = onSnapshot(
-    ordersQuery,
-    (snapshot) => {
-      const list = snapshot.docs.map((d) => {
-        const data = d.data() || {};
-
-        return {
-          id: d.id,
-          ...data,
-          // keep a simple status for OrderSummary / Orders pages
-          status: String(data.status || "pending").toLowerCase(),
-        };
-      });
-
-      // Newest first (optional)
-      list.sort((a, b) => {
-        const aT =
-          a.createdAt?.toMillis?.() ||
-          a.createdAt?.seconds * 1000 ||
-          Date.parse(a.createdAt) ||
-          0;
-        const bT =
-          b.createdAt?.toMillis?.() ||
-          b.createdAt?.seconds * 1000 ||
-          Date.parse(b.createdAt) ||
-          0;
-        return bT - aT;
-      });
-
-      setOrders(list);
-    },
-    (error) => {
-      console.error("Buyer orders listener error:", error);
+  useEffect(() => {
+    if (!firebaseUser?.uid) {
       setOrders([]);
+      return;
     }
-  );
 
-  return () => unsubscribe();
-}, [firebaseUser?.uid]);
+    const buyerUid = String(firebaseUser.uid);
+
+    // Prefer buyerId (what you save on placeOrder). Fallback if you also use userId.
+    const ordersQuery = query(
+      collection(db, "orders"),
+      where("buyerId", "==", buyerUid)
+    );
+
+    const unsubscribe = onSnapshot(
+      ordersQuery,
+      (snapshot) => {
+        const list = snapshot.docs.map((d) => {
+          const data = d.data() || {};
+
+          return {
+            id: d.id,
+            ...data,
+            // keep a simple status for OrderSummary / Orders pages
+            status: String(data.status || "pending").toLowerCase(),
+          };
+        });
+
+        // Newest first (optional)
+        list.sort((a, b) => {
+          const aT =
+            a.createdAt?.toMillis?.() ||
+            a.createdAt?.seconds * 1000 ||
+            Date.parse(a.createdAt) ||
+            0;
+          const bT =
+            b.createdAt?.toMillis?.() ||
+            b.createdAt?.seconds * 1000 ||
+            Date.parse(b.createdAt) ||
+            0;
+          return bT - aT;
+        });
+
+        setOrders(list);
+      },
+      (error) => {
+        console.error("Buyer orders listener error:", error);
+        setOrders([]);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [firebaseUser?.uid]);
 
   useEffect(() => {
     return () => {
@@ -2116,51 +2113,32 @@ useEffect(() => {
     };
 
   // =======================================================
-  // COMMISSION
+  // COMMISSION  ✅ FIXED – always balances exactly
   // =======================================================
 
-  const PLATFORM_COMMISSION_RATE =
-    0.05;
+  const PLATFORM_COMMISSION_RATE = 0.05;
 
-  const getItemLineTotal =
-    (item) => {
-      const price = Number(
-        String(
-          item?.price ?? 0
-        ).replace(/[₦,]/g, "")
-      );
+  const getItemLineTotal = (item) => {
+    const price = Number(
+      String(item?.price ?? 0).replace(/[₦,]/g, "")
+    );
+    const qty = Number(item?.quantity || 1);
 
-      const qty = Number(
-        item?.quantity || 1
-      );
+    return (
+      (Number.isFinite(price) ? price : 0) *
+      (Number.isFinite(qty) ? qty : 1)
+    );
+  };
 
-      return (
-        (Number.isFinite(price)
-          ? price
-          : 0) *
-        (Number.isFinite(qty)
-          ? qty
-          : 1)
-      );
-    };
+  const splitAmount = (total) => {
+    // Always work with whole naira
+    const gross = Math.round(Number(total) || 0);
 
-  const splitAmount = (
-    total
-  ) => {
-    const gross =
-      Number(total) || 0;
+    // Seller gets exactly 95% (rounded)
+    const sellerAmount = Math.round(gross * (1 - PLATFORM_COMMISSION_RATE));
 
-    const platformFee =
-      Math.round(
-        gross *
-          PLATFORM_COMMISSION_RATE
-      );
-
-    const sellerAmount =
-      Math.max(
-        0,
-        gross - platformFee
-      );
+    // Platform gets the remainder → this GUARANTEES platformFee + sellerAmount === gross
+    const platformFee = gross - sellerAmount;
 
     return {
       gross,
@@ -2170,7 +2148,7 @@ useEffect(() => {
   };
 
   // =======================================================
-  // PLACE ORDER
+  // PLACE ORDER  (FIXED – prevents double seller credit)
   // =======================================================
 
   const placeOrder =
@@ -2210,6 +2188,47 @@ useEffect(() => {
       const paystackReference =
         orderData.paystackReference ||
         null;
+
+      // -------------------------------------------------
+      // IDEMPOTENCY GUARD
+      // If this Paystack reference was already processed,
+      // do NOT create orders or credit the seller again.
+      // -------------------------------------------------
+      if (paystackReference) {
+        try {
+          const existingQuery = query(
+            collection(db, "orders"),
+            where(
+              "paystackReference",
+              "==",
+              String(paystackReference)
+            )
+          );
+
+          const existingSnap =
+            await getDocs(existingQuery);
+
+          if (!existingSnap.empty) {
+            console.warn(
+              "placeOrder: payment already processed →",
+              paystackReference
+            );
+
+            // Return the first existing order so callers still get a result
+            const first = existingSnap.docs[0];
+            return {
+              id: first.id,
+              ...first.data(),
+            };
+          }
+        } catch (checkErr) {
+          console.warn(
+            "placeOrder: could not check existing reference",
+            checkErr
+          );
+          // Continue – better to risk a rare double than block payment
+        }
+      }
 
       const bySeller = {};
 
@@ -2306,7 +2325,10 @@ useEffect(() => {
             paymentStatus:
               "paid",
 
-            paystackReference,
+            paystackReference:
+              paystackReference
+                ? String(paystackReference)
+                : null,
 
             status: "pending",
 
@@ -2373,134 +2395,6 @@ useEffect(() => {
               ),
               orderPayload
             );
-
-          const sellerRef =
-            doc(
-              db,
-              "users",
-              String(sellerId)
-            );
-
-          try {
-            await updateDoc(
-              sellerRef,
-              {
-                availableBalance:
-                  increment(
-                    sellerAmount
-                  ),
-
-                totalEarnings:
-                  increment(
-                    sellerAmount
-                  ),
-
-                totalSalesGross:
-                  increment(
-                    total
-                  ),
-
-                totalPlatformFees:
-                  increment(
-                    platformFee
-                  ),
-
-                updatedAt:
-                  serverTimestamp(),
-              }
-            );
-          } catch (
-            sellerErr
-          ) {
-            console.warn(
-              "Seller balance update fallback:",
-              sellerErr
-            );
-
-            await setDoc(
-              sellerRef,
-              {
-                availableBalance:
-                  increment(
-                    sellerAmount
-                  ),
-
-                totalEarnings:
-                  increment(
-                    sellerAmount
-                  ),
-
-                totalSalesGross:
-                  increment(
-                    total
-                  ),
-
-                totalPlatformFees:
-                  increment(
-                    platformFee
-                  ),
-
-                updatedAt:
-                  serverTimestamp(),
-              },
-              {
-                merge: true,
-              }
-            );
-          }
-
-          try {
-            await addDoc(
-              collection(
-                db,
-                "earnings"
-              ),
-              {
-                sellerId:
-                  String(
-                    sellerId
-                  ),
-
-                orderId:
-                  orderRef.id,
-
-                type: "sale",
-
-                title:
-                  `Order #${orderNumber}`,
-
-                description:
-                  sellerItems
-                    .map(
-                      (i) =>
-                        i.name ||
-                        i.productName ||
-                        "Item"
-                    )
-                    .join(", "),
-
-                gross: total,
-
-                platformFee,
-
-                amount:
-                  sellerAmount,
-
-                status:
-                  "Completed",
-
-                createdAt:
-                  serverTimestamp(),
-              }
-            );
-          } catch (
-            earnErr
-          ) {
-            console.warn(
-              "Could not write earnings ledger:",
-              earnErr
-            );
-          }
 
           for (const item of sellerItems) {
             const productId =
@@ -2597,14 +2491,15 @@ useEffect(() => {
 
             paymentStatus:
               "paid",
+
+            paystackReference:
+              paystackReference
+                ? String(paystackReference)
+                : null,
           });
         }
 
-        const nextOrders = [
-          ...orders,
-          ...createdOrders,
-        ];
-
+        // Clear purchased items from cart
         const purchasedIds =
           items.map(
             (item) => item.id
@@ -2618,15 +2513,14 @@ useEffect(() => {
               )
           );
 
-        setOrders(nextOrders);
-
         setCart(nextCart);
 
+        // The live orders listener will pick up the new orders.
+        // We still save cart + wishlist.
         queueCustomerDataSave({
           nextCart,
-          nextWishlist:
-            wishlist,
-          nextOrders,
+          nextWishlist: wishlist,
+          nextOrders: orders, // live listener owns the real orders list
           immediate: true,
         });
 
@@ -4124,6 +4018,12 @@ useEffect(() => {
                   }
                   markMessageAsRead={
                     markMessageAsRead
+                  }
+                  sendMessage={
+                    sendMessage
+                  }
+                  deleteMessages={
+                    deleteMessages
                   }
                   profile={profile}
                 />

@@ -84,7 +84,7 @@ import PrivacyPolicy from "./pages/customer/PrivacyPolicy";
 import TermsAndConditions from "./pages/customer/TermsAndConditions";
 
 import AccountDisabled from "./context/AccountDisabled";
-import AccountNotFound from "./pages/admin/AccountNotFound"; // adjust path
+import AccountNotFound from "./pages/admin/AccountNotFound";
 
 // =========================================================
 // ADMIN PAGES
@@ -2113,51 +2113,32 @@ function App() {
     };
 
   // =======================================================
-  // COMMISSION
+  // COMMISSION  ✅ FIXED – always balances exactly
   // =======================================================
 
-  const PLATFORM_COMMISSION_RATE =
-    0.05;
+  const PLATFORM_COMMISSION_RATE = 0.05;
 
-  const getItemLineTotal =
-    (item) => {
-      const price = Number(
-        String(
-          item?.price ?? 0
-        ).replace(/[₦,]/g, "")
-      );
+  const getItemLineTotal = (item) => {
+    const price = Number(
+      String(item?.price ?? 0).replace(/[₦,]/g, "")
+    );
+    const qty = Number(item?.quantity || 1);
 
-      const qty = Number(
-        item?.quantity || 1
-      );
+    return (
+      (Number.isFinite(price) ? price : 0) *
+      (Number.isFinite(qty) ? qty : 1)
+    );
+  };
 
-      return (
-        (Number.isFinite(price)
-          ? price
-          : 0) *
-        (Number.isFinite(qty)
-          ? qty
-          : 1)
-      );
-    };
+  const splitAmount = (total) => {
+    // Always work with whole naira
+    const gross = Math.round(Number(total) || 0);
 
-  const splitAmount = (
-    total
-  ) => {
-    const gross =
-      Number(total) || 0;
+    // Seller gets exactly 95% (rounded)
+    const sellerAmount = Math.round(gross * (1 - PLATFORM_COMMISSION_RATE));
 
-    const platformFee =
-      Math.round(
-        gross *
-          PLATFORM_COMMISSION_RATE
-      );
-
-    const sellerAmount =
-      Math.max(
-        0,
-        gross - platformFee
-      );
+    // Platform gets the remainder → this GUARANTEES platformFee + sellerAmount === gross
+    const platformFee = gross - sellerAmount;
 
     return {
       gross,
@@ -2414,134 +2395,6 @@ function App() {
               ),
               orderPayload
             );
-
-          const sellerRef =
-            doc(
-              db,
-              "users",
-              String(sellerId)
-            );
-
-          try {
-            await updateDoc(
-              sellerRef,
-              {
-                availableBalance:
-                  increment(
-                    sellerAmount
-                  ),
-
-                totalEarnings:
-                  increment(
-                    sellerAmount
-                  ),
-
-                totalSalesGross:
-                  increment(
-                    total
-                  ),
-
-                totalPlatformFees:
-                  increment(
-                    platformFee
-                  ),
-
-                updatedAt:
-                  serverTimestamp(),
-              }
-            );
-          } catch (
-            sellerErr
-          ) {
-            console.warn(
-              "Seller balance update fallback:",
-              sellerErr
-            );
-
-            await setDoc(
-              sellerRef,
-              {
-                availableBalance:
-                  increment(
-                    sellerAmount
-                  ),
-
-                totalEarnings:
-                  increment(
-                    sellerAmount
-                  ),
-
-                totalSalesGross:
-                  increment(
-                    total
-                  ),
-
-                totalPlatformFees:
-                  increment(
-                    platformFee
-                  ),
-
-                updatedAt:
-                  serverTimestamp(),
-              },
-              {
-                merge: true,
-              }
-            );
-          }
-
-          try {
-            await addDoc(
-              collection(
-                db,
-                "earnings"
-              ),
-              {
-                sellerId:
-                  String(
-                    sellerId
-                  ),
-
-                orderId:
-                  orderRef.id,
-
-                type: "sale",
-
-                title:
-                  `Order #${orderNumber}`,
-
-                description:
-                  sellerItems
-                    .map(
-                      (i) =>
-                        i.name ||
-                        i.productName ||
-                        "Item"
-                    )
-                    .join(", "),
-
-                gross: total,
-
-                platformFee,
-
-                amount:
-                  sellerAmount,
-
-                status:
-                  "Completed",
-
-                createdAt:
-                  serverTimestamp(),
-              }
-            );
-          } catch (
-            earnErr
-          ) {
-            console.warn(
-              "Could not write earnings ledger:",
-              earnErr
-            );
-          }
 
           for (const item of sellerItems) {
             const productId =

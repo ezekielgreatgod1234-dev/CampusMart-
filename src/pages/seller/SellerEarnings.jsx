@@ -301,125 +301,107 @@ function SellerEarnings({ unreadMessages = 0, profile = {} }) {
   }, [firebaseUser?.uid]);
 
   // =====================================================
-  // RESET EARNINGS
-  // =====================================================
+// RESET EARNINGS (stronger version)
+// =====================================================
 
-  const handleResetEarnings = async () => {
-    if (!firebaseUser?.uid) {
-      setResetError("You must be logged in to reset earnings.");
-      return;
-    }
+const handleResetEarnings = async () => {
+  if (!firebaseUser?.uid) {
+    setResetError("You must be logged in to reset earnings.");
+    return;
+  }
 
-    setResettingEarnings(true);
-    setResetError("");
-    setResetMessage("");
+  setResettingEarnings(true);
+  setResetError("");
+  setResetMessage("");
 
-    try {
-      // ---------------------------------------------------
-      // 1. GET ALL EARNINGS BELONGING TO THIS SELLER
-      // ---------------------------------------------------
+  try {
+    // 1. Delete all earnings records for this seller
+    const earningsQuery = query(
+      collection(db, "earnings"),
+      where("sellerId", "==", firebaseUser.uid)
+    );
 
-      const earningsQuery = query(
-        collection(db, "earnings"),
-        where("sellerId", "==", firebaseUser.uid)
-      );
+    const earningsSnapshot = await getDocs(earningsQuery);
+    const docs = earningsSnapshot.docs;
 
-      const earningsSnapshot = await getDocs(earningsQuery);
+    const batchSize = 450;
 
-      // ---------------------------------------------------
-      // 2. DELETE EARNINGS IN BATCHES
-      //
-      // Firestore batches have a 500 operation limit.
-      // We use 450 to stay safely below that limit.
-      // ---------------------------------------------------
+    for (let i = 0; i < docs.length; i += batchSize) {
+      const batch = writeBatch(db);
+      const chunk = docs.slice(i, i + batchSize);
 
-      const docs = earningsSnapshot.docs;
-
-      const batchSize = 450;
-
-      for (let i = 0; i < docs.length; i += batchSize) {
-        const batch = writeBatch(db);
-
-        const chunk = docs.slice(
-          i,
-          i + batchSize
-        );
-
-        chunk.forEach((earningDoc) => {
-          batch.delete(earningDoc.ref);
-        });
-
-        await batch.commit();
-      }
-
-      // ---------------------------------------------------
-      // 3. RESET SELLER TOTALS
-      // ---------------------------------------------------
-
-      const userRef = doc(
-        db,
-        "users",
-        firebaseUser.uid
-      );
-
-      const resetBatch = writeBatch(db);
-
-      resetBatch.update(userRef, {
-        totalEarnings: 0,
-        availableBalance: 0,
-        totalPlatformFees: 0,
-        totalSalesGross: 0,
-        updatedAt: new Date(),
+      chunk.forEach((earningDoc) => {
+        batch.delete(earningDoc.ref);
       });
 
-      await resetBatch.commit();
-
-      // ---------------------------------------------------
-      // 4. UPDATE LOCAL UI IMMEDIATELY
-      // ---------------------------------------------------
-
-      setTotalEarnings(0);
-      setAvailableBalance(0);
-      setTotalPlatformFees(0);
-      setRecentEarnings([]);
-
-      setResetMessage(
-        `${docs.length} old earning ${
-          docs.length === 1
-            ? "record was"
-            : "records were"
-        } deleted successfully.`
-      );
-
-      setShowResetModal(false);
-
-      console.log(
-        `Reset complete. Deleted ${docs.length} earnings records.`
-      );
-    } catch (error) {
-      console.error(
-        "Reset earnings error:",
-        error
-      );
-
-      if (
-        error?.code ===
-        "permission-denied"
-      ) {
-        setResetError(
-          "Permission denied. Update your Firestore rules to allow a seller to delete their own earnings records."
-        );
-      } else {
-        setResetError(
-          error?.message ||
-            "Unable to reset earnings. Please try again."
-        );
-      }
-    } finally {
-      setResettingEarnings(false);
+      await batch.commit();
     }
-  };
 
+    // 2. Also clear any old orders belonging to this seller (optional but recommended for clean testing)
+    const ordersQuery = query(
+      collection(db, "orders"),
+      where("sellerId", "==", firebaseUser.uid)
+    );
+
+    const ordersSnapshot = await getDocs(ordersQuery);
+
+    for (let i = 0; i < ordersSnapshot.docs.length; i += batchSize) {
+      const batch = writeBatch(db);
+      const chunk = ordersSnapshot.docs.slice(i, i + batchSize);
+
+      chunk.forEach((orderDoc) => {
+        batch.delete(orderDoc.ref);
+      });
+
+      await batch.commit();
+    }
+
+    // 3. Hard reset seller balance fields
+    const userRef = doc(db, "users", firebaseUser.uid);
+
+    const resetBatch = writeBatch(db);
+
+    resetBatch.update(userRef, {
+      totalEarnings: 0,
+      availableBalance: 0,
+      totalPlatformFees: 0,
+      totalSalesGross: 0,
+      updatedAt: new Date(),
+    });
+
+    await resetBatch.commit();
+
+    // 4. Update UI immediately
+    setTotalEarnings(0);
+    setAvailableBalance(0);
+    setTotalPlatformFees(0);
+    setRecentEarnings([]);
+
+    setResetMessage(
+      `Successfully reset. ${docs.length} earnings record${
+        docs.length === 1 ? "" : "s"
+      } and ${ordersSnapshot.size} order${
+        ordersSnapshot.size === 1 ? "" : "s"
+      } deleted.`
+    );
+
+    setShowResetModal(false);
+  } catch (error) {
+    console.error("Reset earnings error:", error);
+
+    if (error?.code === "permission-denied") {
+      setResetError(
+        "Permission denied. Update your Firestore rules to allow a seller to delete their own earnings and orders."
+      );
+    } else {
+      setResetError(
+        error?.message || "Unable to reset earnings. Please try again."
+      );
+    }
+  } finally {
+    setResettingEarnings(false);
+  }
+};
   // =====================================================
   // LIVE SELLER WITHDRAWALS
   // =====================================================

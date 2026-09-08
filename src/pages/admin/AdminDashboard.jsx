@@ -4,6 +4,10 @@ import { useNavigate, useLocation } from "react-router-dom";
 import {
   collection,
   onSnapshot,
+  getDocs,
+  deleteDoc,
+  doc,
+  updateDoc,
 } from "firebase/firestore";
 
 import {
@@ -20,6 +24,10 @@ import {
   FiClock,
   FiShield,
   FiMessageCircle,
+  FiTrash2,
+  FiRefreshCw,
+  FiAlertTriangle,
+  FiCheckCircle,
 } from "react-icons/fi";
 
 import { db } from "../../context/firebase";
@@ -43,11 +51,15 @@ function AdminDashboard() {
   const [platformFees, setPlatformFees] = useState(0);
   const [pendingWithdrawals, setPendingWithdrawals] = useState(0);
 
-  // Support messages badge
   const [unreadSupportCount, setUnreadSupportCount] = useState(0);
 
+  // Reset states
+  const [isResetting, setIsResetting] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+
   // =========================================================
-  // ACCESS CONTROL (supports dual-role: buyer/seller + admin)
+  // ACCESS CONTROL
   // =========================================================
   useEffect(() => {
     if (!firebaseUser) {
@@ -204,6 +216,65 @@ function AdminDashboard() {
     };
   }, [allowed]);
 
+  // =========================================================
+  // RESET ALL TRANSACTIONS
+  // =========================================================
+  const handleResetAllTransactions = async () => {
+    setIsResetting(true);
+    setShowResetConfirm(false);
+
+    try {
+      // 1. Delete all orders
+      const ordersSnap = await getDocs(collection(db, "orders"));
+      const orderDeletes = ordersSnap.docs.map((d) => deleteDoc(d.ref));
+      await Promise.all(orderDeletes);
+
+      // 2. Delete all earnings
+      const earningsSnap = await getDocs(collection(db, "earnings"));
+      const earningsDeletes = earningsSnap.docs.map((d) => deleteDoc(d.ref));
+      await Promise.all(earningsDeletes);
+
+      // 3. Optional: clear platformFees
+      try {
+        const feesSnap = await getDocs(collection(db, "platformFees"));
+        const feesDeletes = feesSnap.docs.map((d) => deleteDoc(d.ref));
+        await Promise.all(feesDeletes);
+      } catch (e) {}
+
+      // 4. Reset seller balances
+      const usersSnap = await getDocs(collection(db, "users"));
+      const balanceResets = usersSnap.docs.map(async (userDoc) => {
+        const data = userDoc.data() || {};
+        if (
+          data.availableBalance !== undefined ||
+          data.totalEarnings !== undefined ||
+          data.role === "seller" ||
+          data.isSeller === true
+        ) {
+          await updateDoc(userDoc.ref, {
+            availableBalance: 0,
+            totalEarnings: 0,
+            totalSalesGross: 0,
+            totalPlatformFees: 0,
+          });
+        }
+      });
+
+      await Promise.all(balanceResets);
+
+      // Show custom success modal
+      setShowSuccessModal(true);
+    } catch (error) {
+      console.error("Reset failed:", error);
+      alert(
+        "❌ Reset failed. Check the console for details.\n\nError: " +
+          (error.message || "Unknown error")
+      );
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
   const formatNaira = (n) =>
     `₦${Number(n || 0).toLocaleString("en-NG")}`;
 
@@ -211,41 +282,13 @@ function AdminDashboard() {
   // ADMIN MENU
   // =========================================================
   const menuItems = [
-    {
-      label: "Overview",
-      icon: FiGrid,
-      path: "/admin-dashboard",
-    },
-    {
-      label: "Users",
-      icon: FiUsers,
-      path: "/admin/users",
-    },
-    {
-      label: "Products",
-      icon: FiPackage,
-      path: "/admin/products",
-    },
-    {
-      label: "Orders",
-      icon: FiShoppingBag,
-      path: "/admin/orders",
-    },
-    {
-      label: "Platform Fees",
-      icon: FiDollarSign,
-      path: "/admin/fees",
-    },
-    {
-      label: "Withdrawals",
-      icon: FiCreditCard,
-      path: "/admin/withdrawals",
-    },
-    {
-      label: "Payments",
-      icon: FiTrendingUp,
-      path: "/admin/payments",
-    },
+    { label: "Overview", icon: FiGrid, path: "/admin-dashboard" },
+    { label: "Users", icon: FiUsers, path: "/admin/users" },
+    { label: "Products", icon: FiPackage, path: "/admin/products" },
+    { label: "Orders", icon: FiShoppingBag, path: "/admin/orders" },
+    { label: "Platform Fees", icon: FiDollarSign, path: "/admin/fees" },
+    { label: "Withdrawals", icon: FiCreditCard, path: "/admin/withdrawals" },
+    { label: "Payments", icon: FiTrendingUp, path: "/admin/payments" },
     {
       label: "Support Messages",
       icon: FiMessageCircle,
@@ -362,15 +405,7 @@ function AdminDashboard() {
                 type="button"
                 onClick={() => handleNavigation(path)}
                 className={`
-                  w-full
-                  flex
-                  items-center
-                  gap-3
-                  px-3.5
-                  py-3
-                  rounded-xl
-                  text-left
-                  transition
+                  w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-left transition
                   ${
                     active
                       ? "bg-white text-[#008236] font-semibold"
@@ -379,22 +414,10 @@ function AdminDashboard() {
                 `}
               >
                 <Icon size={18} className="flex-shrink-0" />
-
                 <span className="flex-1 text-[14px]">{label}</span>
 
                 {badge > 0 && (
-                  <span
-                    className={`
-                      min-w-[20px] h-[20px] px-1.5 rounded-full
-                      text-[10px] font-bold
-                      flex items-center justify-center flex-shrink-0
-                      ${
-                        active
-                          ? "bg-red-500 text-white"
-                          : "bg-red-500 text-white"
-                      }
-                    `}
-                  >
+                  <span className="min-w-[20px] h-[20px] px-1.5 rounded-full text-[10px] font-bold flex items-center justify-center flex-shrink-0 bg-red-500 text-white">
                     {badge > 99 ? "99+" : badge}
                   </span>
                 )}
@@ -446,51 +469,15 @@ function AdminDashboard() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-            <StatCard
-              label="Total Users"
-              value={totalUsers}
-              icon={FiUsers}
-              color="text-blue-600"
-              bg="bg-blue-50"
-            />
-            <StatCard
-              label="Total Products"
-              value={totalProducts}
-              icon={FiPackage}
-              color="text-purple-600"
-              bg="bg-purple-50"
-            />
-            <StatCard
-              label="Total Orders"
-              value={totalOrders}
-              icon={FiShoppingBag}
-              color="text-orange-600"
-              bg="bg-orange-50"
-            />
-            <StatCard
-              label="Total Revenue"
-              value={formatNaira(totalRevenue)}
-              icon={FiTrendingUp}
-              color="text-emerald-600"
-              bg="bg-emerald-50"
-            />
-            <StatCard
-              label="CampusMart Fees (5%)"
-              value={formatNaira(platformFees)}
-              icon={FiDollarSign}
-              color="text-[#008236]"
-              bg="bg-green-50"
-            />
-            <StatCard
-              label="Pending Withdrawals"
-              value={pendingWithdrawals}
-              icon={FiClock}
-              color="text-amber-600"
-              bg="bg-amber-50"
-            />
+            <StatCard label="Total Users" value={totalUsers} icon={FiUsers} color="text-blue-600" bg="bg-blue-50" />
+            <StatCard label="Total Products" value={totalProducts} icon={FiPackage} color="text-purple-600" bg="bg-purple-50" />
+            <StatCard label="Total Orders" value={totalOrders} icon={FiShoppingBag} color="text-orange-600" bg="bg-orange-50" />
+            <StatCard label="Total Revenue" value={formatNaira(totalRevenue)} icon={FiTrendingUp} color="text-emerald-600" bg="bg-emerald-50" />
+            <StatCard label="CampusMart Fees (5%)" value={formatNaira(platformFees)} icon={FiDollarSign} color="text-[#008236]" bg="bg-green-50" />
+            <StatCard label="Pending Withdrawals" value={pendingWithdrawals} icon={FiClock} color="text-amber-600" bg="bg-amber-50" />
           </div>
 
-          {/* Support quick access with badge */}
+          {/* Support Messages */}
           <div className="mt-6 bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
@@ -509,9 +496,7 @@ function AdminDashboard() {
                   </h2>
                   <p className="text-xs text-gray-500 mt-1">
                     {unreadSupportCount > 0
-                      ? `${unreadSupportCount} new message${
-                          unreadSupportCount === 1 ? "" : "s"
-                        }`
+                      ? `${unreadSupportCount} new message${unreadSupportCount === 1 ? "" : "s"}`
                       : "View and manage messages from users."}
                   </p>
                 </div>
@@ -527,8 +512,178 @@ function AdminDashboard() {
               </button>
             </div>
           </div>
+
+          {/* RESET SECTION */}
+          <div className="mt-8 bg-white rounded-2xl border border-green-200 p-5 shadow-sm">
+            <div className="flex items-start gap-4">
+              <div className="w-11 h-11 rounded-xl bg-green-50 text-[#008236] flex items-center justify-center flex-shrink-0">
+                <FiRefreshCw size={22} />
+              </div>
+
+              <div className="flex-1">
+                <h2 className="text-sm font-bold text-[#008236]">
+                  Reset Transactions
+                </h2>
+                <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                  This will permanently delete <strong>all buyer orders</strong>,{" "}
+                  <strong>all seller earnings</strong>, and reset every seller’s
+                  balance to ₦0. Use this only when you want to test payments from
+                  a completely clean state.
+                </p>
+
+                <button
+                  type="button"
+                  disabled={isResetting}
+                  onClick={() => setShowResetConfirm(true)}
+                  className={`
+                    mt-4 h-11 px-5 rounded-xl text-sm font-semibold
+                    flex items-center gap-2 transition
+                    ${
+                      isResetting
+                        ? "bg-green-300 text-white cursor-not-allowed"
+                        : "bg-[#008236] hover:bg-[#006f2e] text-white"
+                    }
+                  `}
+                >
+                  {isResetting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                      Resetting...
+                    </>
+                  ) : (
+                    <>
+                      <FiTrash2 size={16} />
+                      Reset All Orders & Earnings
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
         </main>
       </div>
+
+      {/* ===================== CONFIRM MODAL ===================== */}
+      {showResetConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => !isResetting && setShowResetConfirm(false)}
+          />
+
+          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
+            <div className="bg-[#008236] px-6 py-5 flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center">
+                <FiAlertTriangle size={22} className="text-white" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">Confirm Reset</h3>
+                <p className="text-xs text-green-100 mt-0.5">
+                  This action cannot be undone
+                </p>
+              </div>
+            </div>
+
+            <div className="px-6 py-5">
+              <p className="text-sm text-gray-600 leading-relaxed">
+                You are about to permanently delete:
+              </p>
+
+              <ul className="mt-3 space-y-2 text-sm text-gray-700">
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#008236]" />
+                  All buyer orders
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#008236]" />
+                  All seller earnings records
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#008236]" />
+                  Reset every seller’s balance to ₦0
+                </li>
+              </ul>
+
+              <p className="mt-4 text-xs text-gray-500">
+                This is intended for testing only. Make sure you really want to
+                clear all transaction data.
+              </p>
+            </div>
+
+            <div className="px-6 pb-6 flex flex-col sm:flex-row gap-3">
+              <button
+                type="button"
+                disabled={isResetting}
+                onClick={() => setShowResetConfirm(false)}
+                className="flex-1 h-11 rounded-xl border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={isResetting}
+                onClick={handleResetAllTransactions}
+                className="flex-1 h-11 rounded-xl bg-[#008236] hover:bg-[#006f2e] text-white text-sm font-semibold transition flex items-center justify-center gap-2"
+              >
+                {isResetting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    Resetting...
+                  </>
+                ) : (
+                  <>
+                    <FiTrash2 size={16} />
+                    Yes, Reset Everything
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================== SUCCESS MODAL ===================== */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowSuccessModal(false)}
+          />
+
+          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
+            {/* Green success header */}
+            <div className="bg-[#008236] px-6 py-6 flex flex-col items-center text-center">
+              <div className="w-16 h-16 rounded-full bg-white/15 flex items-center justify-center mb-3">
+                <FiCheckCircle size={36} className="text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-white">Reset Complete!</h3>
+              <p className="text-sm text-green-100 mt-1">
+                All transaction data has been cleared
+              </p>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 py-5">
+              <p className="text-sm text-gray-600 text-center leading-relaxed">
+                All buyer orders, seller earnings and balances have been
+                successfully reset. You can now test payments from a clean state.
+              </p>
+            </div>
+
+            {/* Action */}
+            <div className="px-6 pb-6">
+              <button
+                type="button"
+                onClick={() => setShowSuccessModal(false)}
+                className="w-full h-11 rounded-xl bg-[#008236] hover:bg-[#006f2e] text-white text-sm font-semibold transition"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
