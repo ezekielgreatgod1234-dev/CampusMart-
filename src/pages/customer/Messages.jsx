@@ -70,21 +70,6 @@ function Messages({
   // =====================================================
   // PUBLIC PROFILE STATE
   // =====================================================
-  //
-  // Stores:
-  //
-  // publicProfiles/{uid}
-  //
-  // Example:
-  //
-  // {
-  //   fullName: "...",
-  //   displayName: "...",
-  //   profileImage: "...",
-  //   photoURL: "..."
-  // }
-  //
-  // =====================================================
 
   const [
     profileMap,
@@ -100,6 +85,82 @@ function Messages({
     presenceMap,
     setPresenceMap,
   ] = useState({});
+
+
+  // =====================================================
+  // TIMESTAMP HELPERS
+  // =====================================================
+
+  const getTimestampMs = (
+    timestamp
+  ) => {
+    if (!timestamp) {
+      return 0;
+    }
+
+    try {
+      if (
+        typeof timestamp.toMillis ===
+        "function"
+      ) {
+        return timestamp.toMillis();
+      }
+
+      if (
+        typeof timestamp.toDate ===
+        "function"
+      ) {
+        return timestamp
+          .toDate()
+          .getTime();
+      }
+
+      const numeric =
+        Number(timestamp);
+
+      if (
+        !Number.isNaN(
+          numeric
+        ) && numeric > 0
+      ) {
+        return numeric;
+      }
+
+      const date =
+        new Date(timestamp);
+
+      return Number.isNaN(
+        date.getTime()
+      )
+        ? 0
+        : date.getTime();
+    } catch {
+      return 0;
+    }
+  };
+
+
+  // =====================================================
+  // GET MESSAGE TIMESTAMP MS
+  // =====================================================
+
+  const getMessageTimestampMs = (message) => {
+    if (!message) return 0;
+
+    // Check createdAtMs first (our own field)
+    if (
+      typeof message.createdAtMs === "number" &&
+      Number.isFinite(message.createdAtMs) &&
+      message.createdAtMs > 0
+    ) {
+      return message.createdAtMs < 1e12
+        ? message.createdAtMs * 1000
+        : message.createdAtMs;
+    }
+
+    // Check createdAt (Firebase Timestamp or other)
+    return getTimestampMs(message.createdAt);
+  };
 
 
   // =====================================================
@@ -141,132 +202,85 @@ function Messages({
 
 
   // =====================================================
-  // TIMESTAMP TO MILLISECONDS
+  // GET NEWEST VISIBLE MESSAGE
   // =====================================================
 
-  const getTimestampMs = (
-    timestamp
-  ) => {
-    if (!timestamp) {
-      return 0;
-    }
-
-    try {
-      if (
-        typeof timestamp.toMillis ===
-        "function"
-      ) {
-        return timestamp.toMillis();
-      }
-
-      if (
-        typeof timestamp.toDate ===
-        "function"
-      ) {
-        return timestamp
-          .toDate()
-          .getTime();
-      }
-
-      const numeric =
-        Number(timestamp);
-
-      if (
-        !Number.isNaN(
-          numeric
-        )
-      ) {
-        return numeric;
-      }
-
-      const date =
-        new Date(timestamp);
-
-      return Number.isNaN(
-        date.getTime()
-      )
-        ? 0
-        : date.getTime();
-    } catch {
-      return 0;
-    }
-  };
-
-
-  // =====================================================
-  // MESSAGE TIMESTAMP HELPERS
-  // =====================================================
-
-  const getMessageTimestampMs = (message) => {
-    if (!message) return 0;
-
-    if (
-      typeof message.createdAtMs === "number" &&
-      Number.isFinite(message.createdAtMs) &&
-      message.createdAtMs > 0
-    ) {
-      return message.createdAtMs < 1e12
-        ? message.createdAtMs * 1000
-        : message.createdAtMs;
-    }
-
-    return getTimestampMs(message.createdAt);
-  };
-
-
-  // =====================================================
-  // GET LAST VISIBLE MESSAGE
-  // =====================================================
-
-  const getLastVisibleMessage = (conversation) => {
+  const getNewestVisibleMessage = (conversation) => {
     const rawMessages = Array.isArray(conversation?.messages)
       ? conversation.messages
       : Array.isArray(conversation?.conversation)
         ? conversation.conversation
         : [];
 
-    let latest = null;
-    let latestMs = -1;
-    let latestIndex = -1;
+    if (rawMessages.length === 0) {
+      return null;
+    }
 
-    rawMessages.forEach((message, index) => {
+    let newest = null;
+    let newestMs = -1;
+
+    for (const message of rawMessages) {
+      // Skip deleted messages
       const deletedFor = Array.isArray(message?.deletedFor)
         ? message.deletedFor
         : [];
 
       if (firebaseUser?.uid && deletedFor.includes(firebaseUser.uid)) {
-        return;
+        continue;
       }
 
       if (message?.deletedForEveryone === true) {
-        return;
+        continue;
       }
 
       const messageMs = getMessageTimestampMs(message);
 
+      // If this message has a valid timestamp and is newer than current newest
       if (
-        latest === null ||
-        messageMs > latestMs ||
-        (messageMs === latestMs && index > latestIndex)
+        messageMs > 0 &&
+        (newest === null || messageMs > newestMs)
       ) {
-        latest = message;
-        latestMs = messageMs;
-        latestIndex = index;
+        newest = message;
+        newestMs = messageMs;
       }
-    });
+    }
 
-    return latest;
+    return newest;
   };
 
 
   // =====================================================
-  // AUTHORITATIVE CONVERSATION PREVIEW
+  // GET CONVERSATION PREVIEW
   // =====================================================
 
   const getConversationPreview = (conversation) => {
-    const embedded = getLastVisibleMessage(conversation);
-    const embeddedMs = getMessageTimestampMs(embedded);
+    // CRITICAL FIX: Always use the newest message from the messages array
+    const newestMessage = getNewestVisibleMessage(conversation);
 
+    if (newestMessage) {
+      const timestampMs = getMessageTimestampMs(newestMessage);
+      
+      // Get the preview text from the newest message
+      let previewText = "";
+      
+      if (typeof newestMessage.text === "string" && newestMessage.text.trim()) {
+        previewText = newestMessage.text;
+      } else if (newestMessage.imageUrl) {
+        previewText = "📷 Photo";
+      } else if (typeof newestMessage.message === "string" && newestMessage.message.trim()) {
+        previewText = newestMessage.message;
+      } else if (typeof newestMessage.content === "string" && newestMessage.content.trim()) {
+        previewText = newestMessage.content;
+      }
+
+      return {
+        message: previewText || "No messages yet",
+        timestamp: timestampMs,
+        embedded: newestMessage,
+      };
+    }
+
+    // Fallback to conversation-level fields only if no messages exist
     const documentText =
       typeof conversation?.lastMessage === "string"
         ? conversation.lastMessage.trim()
@@ -274,25 +288,6 @@ function Messages({
 
     const documentMs = getTimestampMs(conversation?.lastMessageAt);
 
-    // IMPORTANT:
-    // If the conversation contains a real message with a valid timestamp,
-    // that message is the source of truth for the preview. Do NOT allow an
-    // older/stale conversation.lastMessage value to replace it.
-    if (embedded && embeddedMs > 0) {
-      return {
-        message:
-          typeof embedded.text === "string" && embedded.text.trim()
-            ? embedded.text
-            : embedded.imageUrl
-              ? "📷 Photo"
-              : documentText || "",
-        timestamp: embeddedMs,
-        embedded,
-      };
-    }
-
-    // Some older conversations may contain messages without timestamps.
-    // In that case, use the conversation-level fields as the fallback.
     if (documentText && documentMs > 0) {
       return {
         message: documentText,
@@ -301,25 +296,9 @@ function Messages({
       };
     }
 
-    if (embedded) {
-      return {
-        message:
-          typeof embedded.text === "string" && embedded.text.trim()
-            ? embedded.text
-            : embedded.imageUrl
-              ? "📷 Photo"
-              : documentText || "",
-        timestamp:
-          embeddedMs ||
-          documentMs ||
-          0,
-        embedded,
-      };
-    }
-
     return {
-      message: documentText || "",
-      timestamp: documentMs || 0,
+      message: "No messages yet",
+      timestamp: 0,
       embedded: null,
     };
   };
@@ -710,7 +689,7 @@ function Messages({
 
 
                   // =================================================
-                  // LAST MESSAGE / PREVIEW
+                  // CRITICAL FIX: Get preview from actual newest message
                   // =================================================
 
                   const preview = getConversationPreview({
@@ -718,13 +697,8 @@ function Messages({
                     messages: rawMessages,
                   });
 
-                  const lastMessage =
-                    preview.message || "No messages yet";
-
-                  const lastMessageAt =
-                    preview.timestamp ||
-                    getTimestampMs(data.lastMessageAt) ||
-                    0;
+                  const previewText = preview.message || "No messages yet";
+                  const previewTimestamp = preview.timestamp || 0;
 
 
                   // =================================================
@@ -739,14 +713,6 @@ function Messages({
                       conversationDoc.id,
 
                     otherParticipantId,
-
-                    /*
-                     * These are only fallbacks.
-                     *
-                     * The real profile will come from:
-                     *
-                     * publicProfiles/{otherParticipantId}
-                     */
 
                     fallbackName:
                       participantNames[
@@ -766,14 +732,10 @@ function Messages({
                       data.unreadCounts ||
                       {},
 
-                    lastMessage,
-
-                    lastMessageAt,
-
-                    time:
-                      formatTime(
-                        lastMessageAt
-                      ),
+                    // Use the preview from the actual newest message
+                    lastMessage: previewText,
+                    lastMessageAt: previewTimestamp,
+                    time: formatTime(previewTimestamp),
 
                     conversation:
                       rawMessages,
@@ -786,24 +748,22 @@ function Messages({
 
 
             // =================================================
-            // NEWEST FIRST
+            // CRITICAL FIX: Sort by the actual newest message timestamp
             // =================================================
 
             loaded.sort(
               (a, b) => {
                 const aTime =
-                  getTimestampMs(
-                    a.lastMessageAt
-                  );
+                  typeof a.lastMessageAt === "number" && a.lastMessageAt > 0
+                    ? a.lastMessageAt
+                    : 0;
 
                 const bTime =
-                  getTimestampMs(
-                    b.lastMessageAt
-                  );
+                  typeof b.lastMessageAt === "number" && b.lastMessageAt > 0
+                    ? b.lastMessageAt
+                    : 0;
 
-                return (
-                  bTime - aTime
-                );
+                return bTime - aTime;
               }
             );
 
@@ -848,17 +808,6 @@ function Messages({
 
   // =====================================================
   // LOAD OTHER USERS' PUBLIC PROFILES
-  // =====================================================
-  //
-  // THIS IS THE IMPORTANT FIX.
-  //
-  // For every other participant we listen to:
-  //
-  // publicProfiles/{uid}
-  //
-  // This means the profile picture/name does NOT have
-  // to be copied into the conversation document.
-  //
   // =====================================================
 
   useEffect(() => {
@@ -957,13 +906,6 @@ function Messages({
                   snapshot.data();
 
 
-                console.log(
-                  "Loaded public profile:",
-                  participantId,
-                  data
-                );
-
-
                 setProfileMap(
                   (previous) => ({
                     ...previous,
@@ -975,12 +917,6 @@ function Messages({
                 );
 
               } else {
-
-                console.warn(
-                  "No public profile found for:",
-                  participantId
-                );
-
 
                 setProfileMap(
                   (previous) => ({
@@ -1973,15 +1909,6 @@ function Messages({
                   // =================================================
                   // GET NAME
                   // =================================================
-                  //
-                  // Priority:
-                  //
-                  // 1. displayName
-                  // 2. fullName
-                  // 3. name
-                  // 4. conversation fallback
-                  //
-                  // =================================================
 
                   const otherUserName =
                     publicProfile?.displayName ||
@@ -1993,10 +1920,6 @@ function Messages({
 
                   // =================================================
                   // GET PROFILE IMAGE
-                  // =================================================
-                  //
-                  // Supports all common field names.
-                  //
                   // =================================================
 
                   const otherUserImage =
@@ -2010,7 +1933,7 @@ function Messages({
 
 
                   // =================================================
-                  // LAST MESSAGE
+                  // CRITICAL FIX: Get preview from actual newest message
                   // =================================================
 
                   const preview =
