@@ -52,9 +52,7 @@ function Chat({
   const [deleting, setDeleting] = useState(false);
 
   // =====================================================
-  // TIMESTAMP — used ONLY for the little time label under
-  // each bubble (e.g. "6:04 PM"). NEVER used for ordering
-  // messages anymore — see note below on why.
+  // TIMESTAMP HELPER
   // =====================================================
 
   const getMessageTimestampMs = (message) => {
@@ -167,6 +165,7 @@ function Chat({
     return () => unsubscribe();
   }, [id]);
 
+  // Get other participant info
   const otherParticipantId =
     liveConversation?.buyerId === firebaseUser?.uid
       ? liveConversation?.sellerId
@@ -191,21 +190,7 @@ function Chat({
     null;
 
   // =====================================================
-  // MESSAGES — USE FIRESTORE ARRAY ORDER DIRECTLY.
-  //
-  // Every message is appended to this array inside a
-  // runTransaction (read current array -> push new message
-  // -> write it back). That means the array is ALREADY in
-  // the exact order messages were actually sent — it is the
-  // single source of truth for chronology.
-  //
-  // We deliberately do NOT re-sort by createdAt/createdAtMs
-  // here anymore. Re-sorting by a client-generated timestamp
-  // is what caused messages to appear out of order: if two
-  // devices' clocks are even a little out of sync, a message
-  // sent later can carry an earlier timestamp number than one
-  // sent before it, and re-sorting would then flip them.
-  // Trusting array order avoids that entirely.
+  // GET MESSAGES - Use Firestore array directly
   // =====================================================
 
   const chatMessages =
@@ -213,11 +198,10 @@ function Chat({
       ? liveConversation.messages
       : fallbackPerson?.conversation || [];
 
+  // Sort messages by timestamp (newest last)
   const orderedChatMessages = [...chatMessages].sort((a, b) => {
     const aMs = getMessageTimestampMs(a);
     const bMs = getMessageTimestampMs(b);
-
-    if (aMs === bMs) return 0;
     return aMs - bMs;
   });
 
@@ -236,9 +220,7 @@ function Chat({
     return message.sender === "me";
   };
 
-  // Mark incoming messages as read when the buyer is actually
-  // inside this conversation. App.markMessageAsRead() updates only
-  // incoming messages and resets this user's unread count.
+  // Mark incoming messages as read
   useEffect(() => {
     if (
       !id ||
@@ -432,19 +414,46 @@ function Chat({
     }
   };
 
+  // =====================================================
+  // FIXED: SEND MESSAGE
+  // =====================================================
+
   const handleSendMessage = async () => {
     const text = messageText.trim();
-    if (!text || sending || typeof sendMessage !== "function" || !id) {
+    
+    // Don't send empty messages or if already sending
+    if (!text || sending) {
       return;
     }
 
+    // Check if sendMessage is available
+    if (typeof sendMessage !== "function") {
+      console.error("sendMessage is not a function");
+      return;
+    }
+
+    // Check if we have a conversation ID
+    if (!id) {
+      console.error("No conversation ID");
+      return;
+    }
+
+    // Clear input immediately for better UX
     setMessageText("");
     setSending(true);
 
     try {
-      await sendMessage(id, text);
+      // Call the sendMessage function from App.jsx
+      const success = await sendMessage(id, text);
+      
+      if (!success) {
+        // If sending failed, restore the message text
+        setMessageText(text);
+        console.error("Failed to send message");
+      }
     } catch (error) {
       console.error("Customer send message error:", error);
+      // Restore the message text on error so user can retry
       setMessageText(text);
     } finally {
       setSending(false);
