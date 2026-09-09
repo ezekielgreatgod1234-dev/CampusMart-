@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 
 import {
   signInWithEmailAndPassword,
   signOut,
+  sendEmailVerification,
 } from "firebase/auth";
 
 import { doc, getDoc } from "firebase/firestore";
@@ -23,8 +24,6 @@ import {
 import { auth, db } from "./firebase";
 
 const ADMIN_EMAIL = "campusmart1234@gmail.com";
-
-// Session lasts 1 hour
 const SESSION_DURATION_MS = 60 * 60 * 1000;
 const SESSION_KEY = "campusmart_session_expires_at";
 
@@ -40,16 +39,20 @@ function Login() {
   });
 
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (location.state?.justRegistered) {
+      setSuccess(
+        "Account created! Please verify your email, then log in."
+      );
+    }
+  }, [location.state]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-
-    setFormData((current) => ({
-      ...current,
-      [name]: value,
-    }));
-
+    setFormData((current) => ({ ...current, [name]: value }));
     setError("");
   };
 
@@ -57,25 +60,18 @@ function Login() {
     switch (error.code) {
       case "auth/invalid-email":
         return "Please enter a valid email address.";
-
       case "auth/user-not-found":
         return "No account was found with this email.";
-
       case "auth/wrong-password":
         return "Incorrect email or password.";
-
       case "auth/invalid-credential":
         return "Incorrect email or password.";
-
       case "auth/user-disabled":
         return "This account has been disabled.";
-
       case "auth/too-many-requests":
         return "Too many login attempts. Please try again later.";
-
       case "auth/network-request-failed":
         return "Network error. Please check your internet connection.";
-
       default:
         return "Unable to log in. Please try again.";
     }
@@ -97,8 +93,8 @@ function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     setError("");
+    setSuccess("");
 
     const email = formData.email.trim().toLowerCase();
     const password = formData.password;
@@ -120,9 +116,27 @@ function Login() {
       const user = userCredential.user;
       const userEmail = (user.email || "").toLowerCase();
 
-      // =====================================================
-      // LOAD FIRESTORE PROFILE
-      // =====================================================
+      // Refresh so emailVerified is current
+      await user.reload();
+
+      // Block unverified emails (except super admin if you want)
+      if (!user.emailVerified && userEmail !== ADMIN_EMAIL.toLowerCase()) {
+        try {
+          await sendEmailVerification(user, {
+            url: `${window.location.origin}/login`,
+            handleCodeInApp: false,
+          });
+        } catch (verifyErr) {
+          console.warn("Resend verification failed:", verifyErr);
+        }
+
+        await forceSignOut();
+        setError(
+          "Please verify your email first. We sent a new verification link to your inbox."
+        );
+        return;
+      }
+
       let userSnap = null;
       let userData = null;
 
@@ -135,45 +149,34 @@ function Login() {
         console.error("Could not check account status:", firestoreError);
       }
 
-      // =====================================================
-      // ACCOUNT DELETED / NOT FOUND
-if (!userSnap || !userSnap.exists()) {
-  await forceSignOut();
-  navigate("/account-not-found", { replace: true });
-  return;
-}
+      if (!userSnap || !userSnap.exists()) {
+        await forceSignOut();
+        navigate("/account-not-found", { replace: true });
+        return;
+      }
 
-const accountStatus = String(userData?.accountStatus || "active")
-  .trim()
-  .toLowerCase();
+      const accountStatus = String(userData?.accountStatus || "active")
+        .trim()
+        .toLowerCase();
 
-if (accountStatus === "deleted" || userData?.deleted === true) {
-  await forceSignOut();
-  navigate("/account-not-found", { replace: true });
-  return;
-}
+      if (accountStatus === "deleted" || userData?.deleted === true) {
+        await forceSignOut();
+        navigate("/account-not-found", { replace: true });
+        return;
+      }
 
-      // =====================================================
-      // SUSPENDED / DISABLED
-      // =====================================================
       if (
         accountStatus === "disabled" ||
         accountStatus === "suspended"
       ) {
         await forceSignOut();
-
-        navigate("/account-disabled", {
-          replace: true,
-        });
+        navigate("/account-disabled", { replace: true });
         return;
       }
 
-      // Start 1-hour session
       startSession();
 
-      // ===== ADMIN CHECK (supports dual roles) =====
       const isHardcodedAdmin = userEmail === ADMIN_EMAIL.toLowerCase();
-
       const isAdmin =
         isHardcodedAdmin ||
         userData?.role === "admin" ||
@@ -189,7 +192,13 @@ if (accountStatus === "deleted" || userData?.deleted === true) {
         return;
       }
 
-      // Normal buyer / seller
+      const role = String(userData?.role || "").trim().toLowerCase();
+
+      if (role === "seller") {
+        navigate("/seller-dashboard", { replace: true });
+        return;
+      }
+
       navigate("/dashboard", { replace: true });
     } catch (error) {
       console.error("Login error:", error);
@@ -201,7 +210,6 @@ if (accountStatus === "deleted" || userData?.deleted === true) {
 
   return (
     <div className="auth-page min-h-screen bg-[#f7faf8] flex">
-      {/* LEFT BRAND PANEL */}
       <div className="hidden lg:flex lg:w-[46%] xl:w-[48%] bg-[#073b2f] text-white relative overflow-hidden">
         <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-green-500/10" />
         <div className="absolute -bottom-40 -right-40 w-[500px] h-[500px] rounded-full bg-green-400/10" />
@@ -211,7 +219,6 @@ if (accountStatus === "deleted" || userData?.deleted === true) {
             <div className="w-12 h-12 rounded-xl bg-green-500 text-white flex items-center justify-center text-lg font-black tracking-tight shadow-[0_8px_20px_rgba(34,197,94,0.25)] transition group-hover:scale-105">
               CM
             </div>
-
             <div>
               <div className="text-2xl font-black">
                 Campus
@@ -254,13 +261,6 @@ if (accountStatus === "deleted" || userData?.deleted === true) {
                 </p>
               </div>
             </div>
-
-            <div className="mt-6 flex items-center gap-3 text-sm text-green-100/70">
-              <div className="w-7 h-7 rounded-full bg-green-500/20 flex items-center justify-center">
-                <FiCheck className="text-green-400" size={15} />
-              </div>
-              Built specifically for students
-            </div>
           </div>
 
           <p className="text-sm text-green-100/50">
@@ -269,7 +269,6 @@ if (accountStatus === "deleted" || userData?.deleted === true) {
         </div>
       </div>
 
-      {/* LOGIN SIDE */}
       <div className="flex-1 min-h-screen flex items-center justify-center px-5 py-10 sm:px-8">
         <div className="w-full max-w-[500px]">
           <div className="mb-8">
@@ -277,7 +276,6 @@ if (accountStatus === "deleted" || userData?.deleted === true) {
               <div className="w-14 h-14 rounded-2xl bg-green-600 text-white flex items-center justify-center text-xl font-black tracking-tight shadow-[0_8px_20px_rgba(22,163,74,0.25)] ring-4 ring-green-100 transition group-hover:scale-105">
                 CM
               </div>
-
               <div>
                 <div className="text-2xl font-black text-gray-900 tracking-tight">
                   Campus
@@ -300,6 +298,18 @@ if (accountStatus === "deleted" || userData?.deleted === true) {
             </p>
           </div>
 
+          {success && (
+            <div className="mb-5 rounded-xl bg-green-50 border border-green-200 px-4 py-3.5 text-sm text-green-800 flex items-start gap-3 shadow-sm">
+              <div className="w-8 h-8 rounded-full bg-green-600 text-white flex items-center justify-center shrink-0">
+                <FiCheck size={16} />
+              </div>
+              <div>
+                <p className="font-bold">Almost there!</p>
+                <p className="mt-0.5 text-green-700">{success}</p>
+              </div>
+            </div>
+          )}
+
           {error && (
             <div className="mb-5 rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-600">
               {error}
@@ -314,7 +324,6 @@ if (accountStatus === "deleted" || userData?.deleted === true) {
               >
                 Email address
               </label>
-
               <div className="relative">
                 <FiMail
                   size={18}
@@ -341,7 +350,6 @@ if (accountStatus === "deleted" || userData?.deleted === true) {
                 >
                   Password
                 </label>
-
                 <button
                   type="button"
                   onClick={() => navigate("/forgot-password")}
@@ -356,7 +364,6 @@ if (accountStatus === "deleted" || userData?.deleted === true) {
                   size={18}
                   className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
                 />
-
                 <input
                   id="password"
                   name="password"
@@ -367,10 +374,9 @@ if (accountStatus === "deleted" || userData?.deleted === true) {
                   autoComplete="current-password"
                   className="w-full h-13 rounded-xl border border-gray-200 bg-white pl-11 pr-12 text-sm outline-none focus:border-green-500 focus:ring-4 focus:ring-green-50 transition"
                 />
-
                 <button
                   type="button"
-                  onClick={() => setShowPassword((current) => !current)}
+                  onClick={() => setShowPassword((c) => !c)}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-green-600 transition"
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >

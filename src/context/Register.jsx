@@ -5,6 +5,7 @@ import {
   createUserWithEmailAndPassword,
   updateProfile,
   signOut,
+  sendEmailVerification,
 } from "firebase/auth";
 
 import {
@@ -30,7 +31,7 @@ import {
 import { auth, db } from "./firebase";
 
 // =========================================================
-// WELCOME NOTIFICATION (from Admin → Announcements settings)
+// WELCOME NOTIFICATION (background only)
 // =========================================================
 async function sendWelcomeNotification(userId, userEmail, fullName) {
   if (!userId) return;
@@ -44,9 +45,7 @@ async function sendWelcomeNotification(userId, userEmail, fullName) {
     const welcomeSnap = await getDoc(doc(db, "settings", "welcomeMessage"));
     if (welcomeSnap.exists()) {
       const w = welcomeSnap.data() || {};
-      if (w.enabled === false) {
-        enabled = false;
-      }
+      if (w.enabled === false) enabled = false;
       if (w.title) title = String(w.title);
       if (w.body) body = String(w.body);
     }
@@ -56,7 +55,6 @@ async function sendWelcomeNotification(userId, userEmail, fullName) {
 
   if (!enabled) return;
 
-  // Personalize slightly
   const name = (fullName || "").trim().split(/\s+/)[0] || "there";
   const personalizedBody = body.includes("{name}")
     ? body.replace(/\{name\}/g, name)
@@ -96,21 +94,16 @@ function Register() {
   });
 
   const [agreeToTerms, setAgreeToTerms] = useState(false);
-
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-
     setFormData((current) => ({
       ...current,
       [name]: value,
     }));
-
     setError("");
-    setSuccess("");
   };
 
   const selectRole = (role) => {
@@ -118,34 +111,26 @@ function Register() {
       ...current,
       role,
     }));
-
     setError("");
-    setSuccess("");
   };
 
   const handleTermsChange = (e) => {
     setAgreeToTerms(e.target.checked);
     setError("");
-    setSuccess("");
   };
 
   const getFirebaseErrorMessage = (error) => {
     switch (error.code) {
       case "auth/email-already-in-use":
         return "An account with this email already exists. Please log in instead.";
-
       case "auth/invalid-email":
         return "Please enter a valid email address.";
-
       case "auth/weak-password":
         return "Password must be at least 6 characters long.";
-
       case "auth/network-request-failed":
         return "Network error. Please check your internet connection.";
-
       case "auth/operation-not-allowed":
         return "Email and password accounts are not enabled in Firebase.";
-
       default:
         return "Unable to create your account. Please try again.";
     }
@@ -153,9 +138,7 @@ function Register() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     setError("");
-    setSuccess("");
 
     const fullName = formData.fullName.trim();
     const email = formData.email.trim().toLowerCase();
@@ -197,20 +180,22 @@ function Register() {
 
     try {
       setLoading(true);
+      console.log("1. Creating auth user...");
 
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         email,
         password
       );
-
       const user = userCredential.user;
+      console.log("2. Auth user created:", user.uid);
 
       await updateProfile(user, {
         displayName: fullName,
       });
+      console.log("3. Profile name updated");
 
-      // Main user document
+      // Required Firestore write
       await setDoc(doc(db, "users", user.uid), {
         id: user.uid,
         fullName,
@@ -223,66 +208,69 @@ function Register() {
         role,
         isSeller: role === "seller",
         isVerifiedSeller: false,
+        emailVerified: false,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         termsAccepted: true,
         termsAcceptedAt: serverTimestamp(),
       });
+      console.log("4. users doc saved");
 
-      // Public profile (store page / product cards)
+      // Public profile – do not block registration
+      setDoc(
+        doc(db, "publicProfiles", user.uid),
+        {
+          fullName,
+          displayName: fullName,
+          email,
+          role,
+          isSeller: role === "seller",
+          isVerifiedSeller: false,
+          profileImage: null,
+          bio: "",
+          campus: "",
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      ).catch((e) => console.warn("publicProfiles:", e));
+
+      // Verification email – max 8 seconds so it cannot hang forever
       try {
-        await setDoc(
-          doc(db, "publicProfiles", user.uid),
-          {
-            fullName,
-            displayName: fullName,
-            email,
-            role,
-            isSeller: role === "seller",
-            isVerifiedSeller: false,
-            profileImage: null,
-            bio: "",
-            campus: "",
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          },
-          { merge: true }
-        );
-      } catch (pubErr) {
-        console.warn("publicProfiles create:", pubErr);
+        console.log("5. Sending verification email...");
+        await Promise.race([
+          sendEmailVerification(user, {
+            url: `${window.location.origin}/login`,
+            handleCodeInApp: false,
+          }),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("verify-timeout")), 8000)
+          ),
+        ]);
+        console.log("6. Verification email sent");
+      } catch (e) {
+        console.warn("Verification email skipped/failed:", e);
       }
 
-      // In-app welcome notification
-      await sendWelcomeNotification(user.uid, email, fullName);
-
-      // Real welcome EMAIL to the registered address
-      try {
-        await fetch("https://campusbackend-1.onrender.com/send-welcome-email", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, fullName }),
-        });
-      } catch (mailErr) {
-        console.warn("Welcome email request failed:", mailErr);
-        // Do not block registration if email fails
-      }
-
-      setSuccess(
-        "Account created successfully! Redirecting to login..."
-      );
-
-      // Sign out so they must log in cleanly
+      // Sign out + go to success immediately
+      console.log("7. Signing out...");
       await signOut(auth);
+      console.log("8. Navigating to success");
 
-      setTimeout(() => {
-        navigate("/login", {
-          replace: true,
-          state: {
-            registeredEmail: email,
-            justRegistered: true,
-          },
-        });
-      }, 1800);
+      navigate("/registration-success", {
+        replace: true,
+        state: {
+          registeredEmail: email,
+        },
+      });
+
+      // Background only – NEVER await these
+      sendWelcomeNotification(user.uid, email, fullName).catch(() => {});
+      fetch("https://campusbackend-1.onrender.com/send-welcome-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, fullName }),
+      }).catch(() => {});
     } catch (error) {
       console.error("Registration error:", error);
       setError(getFirebaseErrorMessage(error));
@@ -293,24 +281,14 @@ function Register() {
 
   return (
     <div className="auth-page min-h-screen bg-[#f7faf8] flex">
-      {/* =====================================================
-          LEFT SIDE - BRAND
-      ====================================================== */}
+      {/* LEFT SIDE */}
       <div className="hidden lg:flex lg:w-[46%] xl:w-[48%] bg-[#073b2f] text-white relative overflow-hidden">
         <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-green-500/10" />
         <div className="absolute -bottom-40 -right-40 w-[500px] h-[500px] rounded-full bg-green-400/10" />
 
         <div className="relative z-10 w-full flex flex-col justify-between p-12 xl:p-16">
           <Link to="/" className="inline-flex items-center gap-3 w-fit group">
-            <div
-              className="
-                w-12 h-12 rounded-xl bg-green-500 text-white
-                flex items-center justify-center text-lg font-black tracking-tight
-                shadow-[0_8px_20px_rgba(34,197,94,0.25)]
-                transition group-hover:scale-105
-                group-hover:shadow-[0_10px_25px_rgba(34,197,94,0.35)]
-              "
-            >
+            <div className="w-12 h-12 rounded-xl bg-green-500 text-white flex items-center justify-center text-lg font-black tracking-tight shadow-[0_8px_20px_rgba(34,197,94,0.25)] transition group-hover:scale-105">
               CM
             </div>
             <div>
@@ -383,22 +361,12 @@ function Register() {
         </div>
       </div>
 
-      {/* =====================================================
-          RIGHT SIDE
-      ====================================================== */}
+      {/* RIGHT SIDE */}
       <div className="flex-1 min-h-screen flex items-center justify-center px-5 py-10 sm:px-8">
         <div className="w-full max-w-[500px]">
           <div className="mb-8">
             <Link to="/" className="inline-flex items-center gap-3 group">
-              <div
-                className="
-                  w-14 h-14 rounded-2xl bg-green-600 text-white
-                  flex items-center justify-center text-xl font-black tracking-tight
-                  shadow-[0_8px_20px_rgba(22,163,74,0.25)] ring-4 ring-green-100
-                  transition group-hover:scale-105
-                  group-hover:shadow-[0_10px_25px_rgba(22,163,74,0.35)]
-                "
-              >
+              <div className="w-14 h-14 rounded-2xl bg-green-600 text-white flex items-center justify-center text-xl font-black tracking-tight shadow-[0_8px_20px_rgba(22,163,74,0.25)] ring-4 ring-green-100 transition group-hover:scale-105">
                 CM
               </div>
               <div>
@@ -429,13 +397,6 @@ function Register() {
             </div>
           )}
 
-          {success && (
-            <div className="mb-5 rounded-xl bg-green-50 border border-green-100 px-4 py-3 text-sm text-green-700 flex items-start gap-3">
-              <FiCheck className="mt-0.5 shrink-0" size={18} />
-              <span>{success}</span>
-            </div>
-          )}
-
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label
@@ -457,13 +418,8 @@ function Register() {
                   onChange={handleChange}
                   placeholder="e.g. John Doe"
                   autoComplete="name"
-                  disabled={loading || !!success}
-                  className="
-                    w-full h-13 rounded-xl border border-gray-200 bg-white
-                    pl-11 pr-4 text-sm outline-none
-                    focus:border-green-500 focus:ring-4 focus:ring-green-50
-                    transition disabled:opacity-60
-                  "
+                  disabled={loading}
+                  className="w-full h-13 rounded-xl border border-gray-200 bg-white pl-11 pr-4 text-sm outline-none focus:border-green-500 focus:ring-4 focus:ring-green-50 transition disabled:opacity-60"
                 />
               </div>
             </div>
@@ -488,13 +444,8 @@ function Register() {
                   onChange={handleChange}
                   placeholder="you@example.com"
                   autoComplete="email"
-                  disabled={loading || !!success}
-                  className="
-                    w-full h-13 rounded-xl border border-gray-200 bg-white
-                    pl-11 pr-4 text-sm outline-none
-                    focus:border-green-500 focus:ring-4 focus:ring-green-50
-                    transition disabled:opacity-60
-                  "
+                  disabled={loading}
+                  className="w-full h-13 rounded-xl border border-gray-200 bg-white pl-11 pr-4 text-sm outline-none focus:border-green-500 focus:ring-4 focus:ring-green-50 transition disabled:opacity-60"
                 />
               </div>
             </div>
@@ -506,7 +457,7 @@ function Register() {
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
-                  disabled={loading || !!success}
+                  disabled={loading}
                   onClick={() => selectRole("buyer")}
                   className={`relative text-left rounded-xl border-2 p-4 transition ${
                     formData.role === "buyer"
@@ -536,7 +487,7 @@ function Register() {
 
                 <button
                   type="button"
-                  disabled={loading || !!success}
+                  disabled={loading}
                   onClick={() => selectRole("seller")}
                   className={`relative text-left rounded-xl border-2 p-4 transition ${
                     formData.role === "seller"
@@ -586,13 +537,8 @@ function Register() {
                   onChange={handleChange}
                   placeholder="At least 6 characters"
                   autoComplete="new-password"
-                  disabled={loading || !!success}
-                  className="
-                    w-full h-13 rounded-xl border border-gray-200 bg-white
-                    pl-11 pr-12 text-sm outline-none
-                    focus:border-green-500 focus:ring-4 focus:ring-green-50
-                    transition disabled:opacity-60
-                  "
+                  disabled={loading}
+                  className="w-full h-13 rounded-xl border border-gray-200 bg-white pl-11 pr-12 text-sm outline-none focus:border-green-500 focus:ring-4 focus:ring-green-50 transition disabled:opacity-60"
                 />
                 <button
                   type="button"
@@ -625,13 +571,8 @@ function Register() {
                   onChange={handleChange}
                   placeholder="Repeat your password"
                   autoComplete="new-password"
-                  disabled={loading || !!success}
-                  className="
-                    w-full h-13 rounded-xl border border-gray-200 bg-white
-                    pl-11 pr-12 text-sm outline-none
-                    focus:border-green-500 focus:ring-4 focus:ring-green-50
-                    transition disabled:opacity-60
-                  "
+                  disabled={loading}
+                  className="w-full h-13 rounded-xl border border-gray-200 bg-white pl-11 pr-12 text-sm outline-none focus:border-green-500 focus:ring-4 focus:ring-green-50 transition disabled:opacity-60"
                 />
                 <button
                   type="button"
@@ -656,7 +597,7 @@ function Register() {
                   type="checkbox"
                   checked={agreeToTerms}
                   onChange={handleTermsChange}
-                  disabled={loading || !!success}
+                  disabled={loading}
                   className="mt-1 h-4 w-4 shrink-0 accent-green-600 cursor-pointer"
                 />
                 <span className="text-sm leading-6 text-gray-600">
@@ -679,33 +620,17 @@ function Register() {
                   of CampusMart.
                 </span>
               </label>
-              <div className="mt-3 flex items-center gap-2 text-xs text-gray-400">
-                <FiShield size={14} className="shrink-0" />
-                Your information is handled according to our privacy and
-                security policies.
-              </div>
             </div>
 
             <button
               type="submit"
-              disabled={loading || !!success}
-              className="
-                w-full h-13 rounded-xl bg-green-600 text-white font-bold text-sm
-                flex items-center justify-center gap-2
-                hover:bg-green-700 active:bg-green-800 transition
-                shadow-lg shadow-green-600/10
-                disabled:opacity-60 disabled:cursor-not-allowed
-              "
+              disabled={loading}
+              className="w-full h-13 rounded-xl bg-green-600 text-white font-bold text-sm flex items-center justify-center gap-2 hover:bg-green-700 active:bg-green-800 transition shadow-lg shadow-green-600/10 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {loading ? (
                 <>
                   <span className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
                   Creating account...
-                </>
-              ) : success ? (
-                <>
-                  <FiCheck size={18} />
-                  Redirecting...
                 </>
               ) : (
                 <>
@@ -726,22 +651,6 @@ function Register() {
                 Log in
               </Link>
             </p>
-          </div>
-
-          <div className="mt-5 flex items-center justify-center gap-4 text-xs text-gray-400">
-            <Link
-              to="/terms-and-conditions"
-              className="hover:text-green-600 transition"
-            >
-              Terms & Conditions
-            </Link>
-            <span>•</span>
-            <Link
-              to="/privacy-policy"
-              className="hover:text-green-600 transition"
-            >
-              Privacy Policy
-            </Link>
           </div>
 
           <div className="mt-5 text-center">

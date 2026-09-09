@@ -454,7 +454,7 @@ function Landing() {
 
               <div className="text-lg sm:text-2xl font-extrabold tracking-tight">
                 Campus
-                <span className="text-green-600">Mart</span>
+                <span className="text-green-600">Mart 2.0</span>
               </div>
             </Link>
 

@@ -60,7 +60,7 @@ function Logo() {
             </span>
 
             <span className="text-green-200">
-              Mart
+              Mart 2.0
             </span>
           </h1>
 
