@@ -552,35 +552,66 @@ async function formatConversation(conversationDoc, currentUserId) {
       ? sortedVisibleMessages[sortedVisibleMessages.length - 1]
       : null;
 
-  const lastMessage =
+  // The embedded messages array is normally the source of truth, but on
+  // mobile there can be a very small window where the conversation document
+  // has already received the new message while the embedded array being
+  // processed is still from the previous snapshot.  Always fall back to the
+  // document-level lastMessage/lastMessageAt so the list immediately shows
+  // the newly sent message and moves the conversation to the top.
+  const lastMessageFromArray =
     lastVisibleMessage?.text ||
     (lastVisibleMessage?.imageUrl ? "📷 Photo" : "") ||
     "";
 
+  const lastMessage =
+    lastMessageFromArray ||
+    data.lastMessage ||
+    data.lastMessageText ||
+    "";
+
   const lastMessageTimestamp = getMessageTimestamp(lastVisibleMessage);
 
-  // Fallback to the conversation document's own lastMessageAt/updatedAt
-  // fields in case the embedded messages array hasn't caught up yet
-  // (e.g. right after a write, or if messages were trimmed/migrated).
+  // Always normalize lastMessageAt because Firestore can return either a
+  // number or a Timestamp depending on how the conversation was written.
   const docLevelTimestamp = (() => {
     const raw = data.lastMessageAt;
+
     if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
       return raw < 1e12 ? raw * 1000 : raw;
     }
+
     if (raw && typeof raw.toMillis === "function") {
       const ms = raw.toMillis();
       if (Number.isFinite(ms) && ms > 0) return ms;
     }
+
+    if (raw instanceof Date) {
+      const ms = raw.getTime();
+      if (Number.isFinite(ms) && ms > 0) return ms;
+    }
+
+    if (typeof raw === "string" && raw.trim()) {
+      const ms = Date.parse(raw);
+      if (Number.isFinite(ms) && ms > 0) return ms;
+    }
+
     return 0;
   })();
 
-  const sortTimestamp = Math.max(lastMessageTimestamp, docLevelTimestamp);
+  const sortTimestamp = Math.max(
+    lastMessageTimestamp,
+    docLevelTimestamp
+  );
 
   let displayTime = "";
+  const displayTimestamp =
+    lastMessageTimestamp > 0
+      ? lastMessageTimestamp
+      : docLevelTimestamp;
 
-  if (lastMessageTimestamp > 0) {
+  if (displayTimestamp > 0) {
     try {
-      displayTime = new Date(lastMessageTimestamp).toLocaleTimeString([], {
+      displayTime = new Date(displayTimestamp).toLocaleTimeString([], {
         hour: "2-digit",
         minute: "2-digit",
       });
@@ -1426,16 +1457,30 @@ function App() {
       where("participants", "array-contains", firebaseUser.uid)
     );
 
+    // Snapshot callbacks can overlap because formatConversation loads public
+    // profiles asynchronously. On a fast/mobile connection an older snapshot
+    // can finish after the newer snapshot and overwrite the list with stale
+    // data. Keep a sequence number so only the newest snapshot can update UI.
+    let snapshotSequence = 0;
+    let active = true;
+
     const processSnapshot = async (snapshot) => {
+      const sequence = ++snapshotSequence;
+
       try {
         const conversationList = await Promise.all(
           snapshot.docs.map((conversationDoc) =>
             formatConversation(conversationDoc, firebaseUser.uid)
           )
         );
+
+        if (!active || sequence !== snapshotSequence) return;
+
         setMessages(sortConversations(conversationList));
       } catch (error) {
         console.error("Error processing conversations:", error);
+
+        if (!active || sequence !== snapshotSequence) return;
         setMessages([]);
       }
     };
@@ -1443,13 +1488,19 @@ function App() {
     if (isMessagesPage) {
       const unsubscribe = onSnapshot(
         conversationsQuery,
-        (snapshot) => processSnapshot(snapshot),
+        (snapshot) => {
+          processSnapshot(snapshot);
+        },
         (error) => {
           console.error("Conversation listener error:", error);
-          setMessages([]);
+          if (active) setMessages([]);
         }
       );
-      return () => unsubscribe();
+
+      return () => {
+        active = false;
+        unsubscribe();
+      };
     }
 
     let cancelled = false;
