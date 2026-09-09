@@ -961,6 +961,75 @@ function SellerMessages({
   };
 
   // =====================================================
+  // LAST MESSAGE
+  // =====================================================
+
+  const getTimestampMillis = (value) => {
+    if (!value) return 0;
+
+    if (typeof value?.toMillis === "function") {
+      return value.toMillis();
+    }
+
+    if (typeof value?.toDate === "function") {
+      return value.toDate().getTime();
+    }
+
+    if (value instanceof Date) {
+      return value.getTime();
+    }
+
+    if (typeof value === "number") {
+      return value;
+    }
+
+    const parsed = new Date(value).getTime();
+    return Number.isNaN(parsed) ? 0 : parsed;
+  };
+
+  const getConversationLastMessage = (message) => {
+    if (!message) return null;
+
+    const conversation =
+      Array.isArray(message?.conversation)
+        ? message.conversation
+        : Array.isArray(message?.messages)
+          ? message.messages
+          : [];
+
+    if (!conversation.length) return null;
+
+    return (
+      [...conversation]
+        .sort((a, b) => {
+          const aTime = getTimestampMillis(
+            a?.createdAt || a?.timestamp || a?.time
+          );
+          const bTime = getTimestampMillis(
+            b?.createdAt || b?.timestamp || b?.time
+          );
+          return aTime - bTime;
+        })
+        .pop() || null
+    );
+  };
+
+  const getLastMessage = (message) => {
+    const latest = getConversationLastMessage(message);
+
+    return (
+      latest?.text ||
+      latest?.message ||
+      latest?.content ||
+      latest?.messageText ||
+      message?.lastMessage ||
+      message?.lastMessageText ||
+      "No messages yet."
+    );
+  };
+
+
+  // =====================================================
   // SEARCH
   // =====================================================
 
@@ -971,11 +1040,35 @@ function SellerMessages({
           .trim()
           .toLowerCase();
 
+      const sortedMessages = [...messages].sort((a, b) => {
+        const aTime = Math.max(
+          getTimestampMillis(a?.lastMessageAt),
+          getTimestampMillis(a?.updatedAt),
+          getTimestampMillis(
+            getConversationLastMessage(a)?.createdAt ||
+              getConversationLastMessage(a)?.timestamp ||
+              getConversationLastMessage(a)?.time
+          )
+        );
+
+        const bTime = Math.max(
+          getTimestampMillis(b?.lastMessageAt),
+          getTimestampMillis(b?.updatedAt),
+          getTimestampMillis(
+            getConversationLastMessage(b)?.createdAt ||
+              getConversationLastMessage(b)?.timestamp ||
+              getConversationLastMessage(b)?.time
+          )
+        );
+
+        return bTime - aTime;
+      });
+
       if (!searchText) {
-        return messages;
+        return sortedMessages;
       }
 
-      return messages.filter(
+      return sortedMessages.filter(
         (message) => {
           const buyerName =
             getBuyerName(message);
@@ -984,11 +1077,7 @@ function SellerMessages({
             String(buyerName)
               .toLowerCase()
               .includes(searchText) ||
-            String(
-              message?.lastMessage ||
-                message?.lastMessageText ||
-                ""
-            )
+            String(getLastMessage(message))
               .toLowerCase()
               .includes(searchText) ||
             String(
@@ -1031,57 +1120,42 @@ function SellerMessages({
   };
 
   // =====================================================
-  // LAST MESSAGE
-  // =====================================================
-
-  const getLastMessage = (message) => {
-    return (
-      message?.lastMessage ||
-      message?.lastMessageText ||
-      "No messages yet."
-    );
-  };
-
-  // =====================================================
   // TIME
   // =====================================================
 
   const getMessageTime = (message) => {
-    if (message?.time) {
+    if (message?.time && !message?.lastMessageAt) {
       return message.time;
     }
 
+    const latest = getConversationLastMessage(message);
+    const latestTime = getTimestampMillis(
+      latest?.createdAt || latest?.timestamp || latest?.time
+    );
+
+    const conversationTime = latestTime
+      ? new Date(latestTime)
+      : null;
+
+    if (conversationTime && !Number.isNaN(conversationTime.getTime())) {
+      return conversationTime.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    }
+
     if (message?.lastMessageAt) {
-      try {
-        const date =
-          message.lastMessageAt
-            ?.toDate
-            ? message.lastMessageAt.toDate()
-            : new Date(
-                message.lastMessageAt
-              );
+      const time = getTimestampMillis(message.lastMessageAt);
 
-        if (
-          Number.isNaN(
-            date.getTime()
-          )
-        ) {
-          return "";
-        }
-
-        return date.toLocaleTimeString(
-          [],
-          {
-            hour: "2-digit",
-            minute: "2-digit",
-          }
-        );
-      } catch {
-        return "";
+      if (time) {
+        return new Date(time).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
       }
     }
 
-    return "";
+    return message?.time || "";
   };
 
   // =====================================================

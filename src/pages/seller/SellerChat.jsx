@@ -14,8 +14,6 @@ import {
   doc,
   getDoc,
   onSnapshot,
-  runTransaction,
-  Timestamp,
 } from "firebase/firestore";
 
 import {
@@ -649,130 +647,17 @@ function SellerChat({
   };
 
   // =====================================================
-  // MARK BUYER MESSAGES AS SEEN
+  // READ / SEEN STATE
   // =====================================================
-
-  useEffect(() => {
-    if (
-      !conversationId ||
-      !firebaseUser?.uid ||
-      !liveConversation ||
-      !Array.isArray(
-        liveConversation.messages
-      )
-    ) {
-      return;
-    }
-
-    let cancelled = false;
-
-    const markIncomingMessagesAsSeen =
-      async () => {
-        try {
-          const conversationRef = doc(
-            db,
-            "conversations",
-            String(conversationId)
-          );
-
-          await runTransaction(
-            db,
-            async (transaction) => {
-              const snapshot =
-                await transaction.get(
-                  conversationRef
-                );
-
-              if (!snapshot.exists()) {
-                return;
-              }
-
-              const data =
-                snapshot.data();
-
-              const currentMessages =
-                Array.isArray(
-                  data.messages
-                )
-                  ? data.messages
-                  : [];
-
-              let changed = false;
-
-              const updatedMessages =
-                currentMessages.map(
-                  (message) => {
-                    const senderId =
-                      message?.senderId ||
-                      message?.senderUid ||
-                      message?.userId;
-
-                    const belongsToOtherPerson =
-                      senderId &&
-                      String(senderId) !==
-                        String(
-                          firebaseUser.uid
-                        );
-
-                    if (
-                      belongsToOtherPerson &&
-                      !message?.seenAt
-                    ) {
-                      changed = true;
-
-                      return {
-                        ...message,
-                        seenAt:
-                          Timestamp.now(),
-                      };
-                    }
-
-                    return message;
-                  }
-                );
-
-              if (changed) {
-                transaction.update(
-                  conversationRef,
-                  {
-                    messages:
-                      updatedMessages,
-                  }
-                );
-              }
-            }
-          );
-
-          if (
-            !cancelled &&
-            typeof markMessageAsRead ===
-              "function"
-          ) {
-            await Promise.resolve(
-              markMessageAsRead(
-                conversationId
-              )
-            );
-          }
-        } catch (error) {
-          console.error(
-            "Seller mark messages as seen error:",
-            error
-          );
-        }
-      };
-
-    markIncomingMessagesAsSeen();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    conversationId,
-    firebaseUser?.uid,
-    liveConversation?.id,
-    markMessageAsRead,
-  ]);
+  // IMPORTANT:
+  // Do NOT mark incoming messages as read just because the
+  // Firestore listener receives the conversation.
+  //
+  // The seller's conversation list calls markMessageAsRead()
+  // when the seller actually opens the conversation. This
+  // prevents a buyer's newly sent message from becoming
+  // "seen" while the seller has not opened it.
+  // =====================================================
 
   // =====================================================
   // VISIBLE MESSAGES
