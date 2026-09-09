@@ -1928,79 +1928,6 @@ const handleResetEarnings = async () => {
               PLATFORM COMMISSION
           ===================================================== */}
 
-          <section className="mb-5 sm:mb-6">
-
-            <div className="rounded-2xl border border-green-100 bg-white shadow-sm overflow-hidden">
-
-              <div className="flex flex-col sm:flex-row sm:items-stretch">
-
-                <div className="sm:w-1.5 bg-[#008236] flex-shrink-0" />
-
-                <div className="flex-1 p-4 sm:p-5 flex gap-3 sm:gap-4">
-
-                  <div className="w-11 h-11 rounded-xl bg-green-50 text-[#008236] flex items-center justify-center flex-shrink-0 border border-green-100">
-                    <FiPercent size={20} />
-                  </div>
-
-                  <div className="min-w-0">
-
-                    <div className="flex flex-wrap items-center gap-2">
-
-                      <h3 className="text-sm sm:text-base font-bold text-gray-900">
-                        Platform commission
-                      </h3>
-
-                      <span className="inline-flex items-center rounded-full bg-[#008236] px-2.5 py-0.5 text-[10px] font-bold text-white">
-                        5% per sale
-                      </span>
-
-                    </div>
-
-                    <p className="text-xs sm:text-sm text-gray-600 leading-5 sm:leading-6 mt-2">
-
-                      CampusMart charges a transparent{" "}
-
-                      <span className="font-semibold text-gray-800">
-                        {PLATFORM_COMMISSION_RATE *
-                          100}
-                        % service fee
-                      </span>{" "}
-
-                      on every completed sale. Totals on this page are{" "}
-
-                      <span className="font-semibold text-gray-800">
-                        net amounts after the platform fee
-                      </span>
-                      .
-
-                      Buyers pay the listed price; the fee is taken from your
-                      proceeds when the order is paid.
-
-                    </p>
-
-                    <div className="mt-3 flex items-start gap-2 text-[11px] sm:text-xs text-gray-500">
-
-                      <FiInfo
-                        size={14}
-                        className="mt-0.5 text-[#008236] flex-shrink-0"
-                      />
-
-                      <span>
-                        Example: on a ₦10,000 sale, CampusMart retains ₦500 and
-                        you earn ₦9,500.
-                      </span>
-
-                    </div>
-
-                  </div>
-
-                </div>
-
-              </div>
-
-            </div>
-
-          </section>
 
           {/* =====================================================
               RECENT EARNINGS
@@ -2019,7 +1946,7 @@ const handleResetEarnings = async () => {
                   </h2>
 
                   <p className="text-xs sm:text-sm text-gray-500 mt-1">
-                    Latest income from your sales (after commission).
+                    Latest income from your sales 
                   </p>
 
                 </div>

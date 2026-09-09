@@ -272,16 +272,7 @@ function Payment({ cartCount = 0, placeOrder }) {
           <span>Secured by Paystack · SSL encrypted</span>
         </div>
 
-        <div className="flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50 p-4">
-          <div className="w-8 h-8 rounded-lg bg-white text-[#008236] flex items-center justify-center border border-green-100 shrink-0">
-            <FiShield size={16} />
-          </div>
-          <p className="text-xs text-gray-500 leading-5">
-            Your order will be created first. After you complete payment on
-            Paystack, the seller will be credited with 95% and CampusMart will
-            keep 5%.
-          </p>
-        </div>
+        
 
         <div className="flex items-center gap-2 text-xs text-gray-400 justify-center">
           <FiCheckCircle className="text-green-600" size={14} />

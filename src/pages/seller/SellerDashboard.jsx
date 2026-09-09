@@ -668,8 +668,8 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
                   Welcome back, {sellerFirstName}
                 </h1>
                 <p className="text-sm sm:text-base text-green-50 mt-1.5 max-w-xl">
-                  Live overview of your orders, products, and earnings after
-                  CampusMart&apos;s 5% fee.
+                  Live overview of your orders, products, and earnings.
+                  
                 </p>
               </div>
             </div>
