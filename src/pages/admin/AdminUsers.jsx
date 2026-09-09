@@ -7,6 +7,7 @@ import {
   doc,
   updateDoc,
   deleteDoc,
+  setDoc,
   serverTimestamp,
   getDoc,
 } from "firebase/firestore";
@@ -29,6 +30,7 @@ import {
   FiMessageCircle,
   FiTrash2,
   FiAlertTriangle,
+  FiCheckCircle,
 } from "react-icons/fi";
 
 import { db } from "../../context/firebase";
@@ -36,6 +38,29 @@ import { useAuth } from "../../context/AuthContext";
 
 const ADMIN_EMAIL = "campusmart1234@gmail.com";
 const SUPER_ADMIN_UID = "oIW3Jj1EOISi7jv1p2aRk1C3mMW2";
+
+// Meta-style green verified mark (inline, small)
+function VerifiedBadge({ size = 14 }) {
+  const s = Number(size) || 14;
+  return (
+    <span
+      className="inline-flex items-center justify-center flex-shrink-0"
+      title="Verified seller"
+      aria-label="Verified seller"
+    >
+      <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="12" fill="#008236" />
+        <path
+          d="M7.2 12.3l2.7 2.7 6.5-6.5"
+          stroke="#fff"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </span>
+  );
+}
 
 function AdminUsers() {
   const navigate = useNavigate();
@@ -196,6 +221,8 @@ function AdminUsers() {
     );
   };
 
+  const isVerifiedSeller = (user) => user?.isVerifiedSeller === true;
+
   const currentUserIsSuperAdmin =
     firebaseUser?.uid === SUPER_ADMIN_UID ||
     (firebaseUser?.email || "").toLowerCase() === ADMIN_EMAIL.toLowerCase();
@@ -208,6 +235,7 @@ function AdminUsers() {
 
       if (filter === "sellers" && !seller) return false;
       if (filter === "buyers" && seller) return false;
+      if (filter === "verified" && !isVerifiedSeller(user)) return false;
       if (!q) return true;
 
       const haystack = [
@@ -318,6 +346,54 @@ function AdminUsers() {
     }
   };
 
+  // =========================================================
+  // VERIFY / REMOVE SELLER BADGE
+  // =========================================================
+  const handleToggleVerified = async (user) => {
+    if (!user?.id) return;
+
+    if (!isSeller(user)) {
+      alert("Only sellers can receive the verified badge.");
+      return;
+    }
+
+    if (updatingId) return;
+
+    const next = !isVerifiedSeller(user);
+    setUpdatingId(user.id);
+
+    try {
+      await updateDoc(doc(db, "users", user.id), {
+        isVerifiedSeller: next,
+        verifiedAt: next ? serverTimestamp() : null,
+        verifiedBy: next
+          ? firebaseUser?.uid || ADMIN_EMAIL
+          : null,
+        updatedAt: serverTimestamp(),
+      });
+
+      // Keep public profile in sync (for product cards / store)
+      await setDoc(
+        doc(db, "publicProfiles", user.id),
+        {
+          isVerifiedSeller: next,
+          fullName:
+            user.fullName ||
+            user.name ||
+            user.displayName ||
+            "",
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (error) {
+      console.error("Could not update verified badge:", error);
+      alert("Could not update verified badge. Check your Firestore rules.");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   // Open custom delete modal
   const openDeleteModal = (user) => {
     if (!user?.id) return;
@@ -362,6 +438,11 @@ function AdminUsers() {
 
     try {
       await deleteDoc(doc(db, "users", user.id));
+      try {
+        await deleteDoc(doc(db, "publicProfiles", user.id));
+      } catch {
+        // optional
+      }
       setDeleteModal({ open: false, user: null });
     } catch (error) {
       console.error("Could not delete user:", error);
@@ -574,6 +655,7 @@ function AdminUsers() {
                 { id: "all", label: "All" },
                 { id: "buyers", label: "Buyers" },
                 { id: "sellers", label: "Sellers" },
+                { id: "verified", label: "Verified" },
               ].map((item) => (
                 <button
                   key={item.id}
@@ -617,6 +699,7 @@ function AdminUsers() {
                   const seller = isSeller(user);
                   const suspended = isSuspended(user);
                   const admin = isAdminUser(user);
+                  const verified = isVerifiedSeller(user);
 
                   return (
                     <div
@@ -638,8 +721,9 @@ function AdminUsers() {
 
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <p className="font-semibold text-gray-900 truncate">
-                              {name}
+                            <p className="font-semibold text-gray-900 truncate flex items-center gap-1.5">
+                              <span className="truncate">{name}</span>
+                              {verified && <VerifiedBadge size={14} />}
                             </p>
 
                             <span
@@ -665,6 +749,12 @@ function AdminUsers() {
                               </span>
                             ) : null}
 
+                            {verified && (
+                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-50 text-[#008236] border border-green-100">
+                                Verified
+                              </span>
+                            )}
+
                             {suspended && (
                               <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-600">
                                 Suspended
@@ -684,6 +774,37 @@ function AdminUsers() {
                       </div>
 
                       <div className="flex flex-wrap gap-2 lg:justify-end">
+                        {/* Verify / Remove verified badge (sellers only) */}
+                        {seller && !superAdmin && (
+                          <button
+                            type="button"
+                            disabled={updatingId === user.id}
+                            onClick={() => handleToggleVerified(user)}
+                            className={`
+                              h-9 px-3 rounded-lg text-xs font-semibold
+                              flex items-center gap-1.5
+                              disabled:opacity-50 disabled:cursor-not-allowed
+                              ${
+                                verified
+                                  ? "bg-green-50 text-[#008236] border border-green-200 hover:bg-green-100"
+                                  : "bg-white text-gray-700 border border-gray-200 hover:border-green-300 hover:text-[#008236]"
+                              }
+                            `}
+                          >
+                            {updatingId === user.id ? (
+                              <>
+                                <span className="w-3.5 h-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                                Updating...
+                              </>
+                            ) : (
+                              <>
+                                <FiCheckCircle size={14} />
+                                {verified ? "Remove badge" : "Verify seller"}
+                              </>
+                            )}
+                          </button>
+                        )}
+
                         {/* Suspend / Activate */}
                         {!superAdmin && !admin && (
                           <button

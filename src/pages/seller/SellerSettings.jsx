@@ -80,6 +80,7 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
     phone: "",
     campus: "",
     address: "",
+    bio: "",
   });
 
   const [personalForm, setPersonalForm] = useState({
@@ -87,6 +88,7 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
     email: "",
     phone: "",
     campus: "",
+    bio: "",
   });
 
   const [personalSaved, setPersonalSaved] = useState(false);
@@ -310,6 +312,12 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
             campus: savedProfile.campus || "",
 
             address: savedProfile.address || "",
+
+            bio:
+              savedProfile.bio ||
+              savedProfile.about ||
+              userData.bio ||
+              "",
           };
 
           setSellerProfile(loadedProfile);
@@ -319,6 +327,7 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
             email: loadedProfile.email,
             phone: loadedProfile.phone,
             campus: loadedProfile.campus,
+            bio: loadedProfile.bio,
           });
 
           setProfileVisibility(
@@ -331,6 +340,7 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
             phone: "",
             campus: "",
             address: "",
+            bio: "",
           };
 
           const newSettings = {
@@ -354,6 +364,7 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
             email: newProfile.email,
             phone: "",
             campus: "",
+            bio: "",
           });
 
           setProfileVisibility("campus");
@@ -485,18 +496,45 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
       const updatedProfile = {
         ...sellerProfile,
         ...personalForm,
+        bio: (personalForm.bio || "").trim(),
       };
 
       const userRef = doc(db, "users", firebaseUser.uid);
 
+      // Save under profile + top-level fields so store / publicProfiles can read them
       await setDoc(
         userRef,
         {
           profile: updatedProfile,
+          fullName: updatedProfile.fullName || "",
+          phone: updatedProfile.phone || "",
+          campus: updatedProfile.campus || "",
+          address: updatedProfile.address || "",
+          bio: updatedProfile.bio || "",
+          updatedAt: serverTimestamp(),
         },
         {
           merge: true,
         }
+      );
+
+      // Public store About section
+      await setDoc(
+        doc(db, "publicProfiles", firebaseUser.uid),
+        {
+          fullName: updatedProfile.fullName || "",
+          displayName: updatedProfile.fullName || "",
+          campus: updatedProfile.campus || "",
+          phone: updatedProfile.phone || "",
+          bio: updatedProfile.bio || "",
+          profileImage:
+            profile?.profileImage ||
+            profile?.photoURL ||
+            firebaseUser.photoURL ||
+            null,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
       );
 
       setSellerProfile(updatedProfile);
@@ -1505,6 +1543,29 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
                       icon={FiEye}
                     />
 
+                  </div>
+
+                  {/* BIO — shown as About on public store */}
+                  <div className="mt-5">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Bio / About
+                    </label>
+                    <textarea
+                      name="bio"
+                      rows={4}
+                      value={personalForm.bio || ""}
+                      onChange={handlePersonalChange}
+                      placeholder="Tell buyers about yourself, what you sell, pickup points..."
+                      maxLength={500}
+                      className="
+                        w-full px-4 py-3 rounded-xl border border-gray-200
+                        bg-gray-50 text-sm text-gray-700 outline-none resize-none
+                        focus:bg-white focus:border-green-500 transition
+                      "
+                    />
+                    <p className="mt-1 text-[11px] text-gray-400 text-right">
+                      {(personalForm.bio || "").length}/500 · Shown on your public store
+                    </p>
                   </div>
 
                   <div className="mt-6 pt-5 border-t border-gray-100 flex justify-end">

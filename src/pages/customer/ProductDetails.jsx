@@ -1,12 +1,5 @@
-import {
-  useEffect,
-  useState,
-} from "react";
-
-import {
-  useParams,
-  useNavigate,
-} from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 
 import CustomerLayout from "../../layouts/CustomerLayout";
 
@@ -21,6 +14,7 @@ import {
   FiMessageCircle,
   FiRefreshCw,
   FiImage,
+  FiChevronRight,
 } from "react-icons/fi";
 
 import {
@@ -33,8 +27,29 @@ import {
 } from "firebase/firestore";
 
 import { db } from "../../context/firebase";
-
 import { useAuth } from "../../context/AuthContext";
+
+function VerifiedBadge({ size = 16, className = "" }) {
+  const s = Number(size) || 16;
+  return (
+    <span
+      className={`inline-flex items-center justify-center flex-shrink-0 ${className}`}
+      title="Verified seller"
+      aria-label="Verified seller"
+    >
+      <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="12" fill="#008236" />
+        <path
+          d="M7.2 12.3l2.7 2.7 6.5-6.5"
+          stroke="#fff"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </span>
+  );
+}
 
 function ProductDetails({
   addToCart,
@@ -44,11 +59,7 @@ function ProductDetails({
 }) {
   const { id } = useParams();
   const navigate = useNavigate();
-
-  const {
-    firebaseUser,
-    profileLoading,
-  } = useAuth();
+  const { firebaseUser, profileLoading } = useAuth();
 
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -61,14 +72,11 @@ function ProductDetails({
     if (value === null || value === undefined || value === "") {
       return fallback;
     }
-
     if (typeof value === "number") {
       return Number.isFinite(value) ? value : fallback;
     }
-
     const cleaned = String(value).replace(/[₦,\s]/g, "").trim();
     const number = Number(cleaned);
-
     return Number.isFinite(number) ? number : fallback;
   };
 
@@ -76,7 +84,6 @@ function ProductDetails({
     if (Object.prototype.hasOwnProperty.call(data, "stock")) {
       return Math.max(0, Math.floor(getNumber(data.stock, 0)));
     }
-
     const fallbackFields = [
       "stockQuantity",
       "quantity",
@@ -84,21 +91,17 @@ function ProductDetails({
       "availableStock",
       "availableQuantity",
     ];
-
     for (const field of fallbackFields) {
       if (Object.prototype.hasOwnProperty.call(data, field)) {
         return Math.max(0, Math.floor(getNumber(data[field], 0)));
       }
     }
-
     const availability = String(data.availability || "")
       .trim()
       .toLowerCase();
-
     const status = String(data.status || "")
       .trim()
       .toLowerCase();
-
     if (
       availability === "unavailable" ||
       availability === "out_of_stock" ||
@@ -109,11 +112,9 @@ function ProductDetails({
     ) {
       return 0;
     }
-
     return 1;
   };
 
-  // Load product
   useEffect(() => {
     if (!id) {
       setProduct(null);
@@ -140,35 +141,24 @@ function ProductDetails({
         }
 
         const data = snapshot.data();
-
         let images = [];
-
         if (Array.isArray(data.images)) {
           images = data.images.filter(Boolean);
         }
-
-        if (images.length === 0 && data.image) {
-          images = [data.image];
-        }
-
-        if (images.length === 0 && data.imageUrl) {
-          images = [data.imageUrl];
-        }
+        if (images.length === 0 && data.image) images = [data.image];
+        if (images.length === 0 && data.imageUrl) images = [data.imageUrl];
 
         const primaryImage =
           data.image || data.imageUrl || images[0] || null;
-
         const stock = getProductStock(data);
-
         const status = String(data.status || "active")
           .trim()
           .toLowerCase();
-
         const availability = String(data.availability || "available")
           .trim()
           .toLowerCase();
 
-        const normalizedProduct = {
+        setProduct({
           id: snapshot.id,
           ...data,
           name: data.name || "Untitled Product",
@@ -181,18 +171,16 @@ function ProductDetails({
           sellerId: data.sellerId || "",
           sellerName: data.sellerName || "CampusMart Seller",
           sellerImage: data.sellerImage || null,
+          isVerifiedSeller: data.isVerifiedSeller === true,
           stock,
           quantity: stock,
           status,
           availability,
           createdAt: data.createdAt || null,
           updatedAt: data.updatedAt || null,
-        };
-
-        setProduct(normalizedProduct);
+        });
         setLoading(false);
         setError("");
-
         setQuantity((current) => {
           if (stock <= 0) return 1;
           return Math.min(Math.max(1, current), stock);
@@ -208,19 +196,13 @@ function ProductDetails({
       }
     );
 
-    return () => {
-      unsubscribe();
-    };
+    return () => unsubscribe();
   }, [id]);
 
-  // Count view EVERY time this page is opened (same account can view 10 times = +10)
   useEffect(() => {
     if (!id || !product) return;
-
     const productId = String(id);
     const sellerId = String(product.sellerId || "");
-
-    // Don't count the seller viewing their own product
     if (
       firebaseUser?.uid &&
       sellerId &&
@@ -228,116 +210,67 @@ function ProductDetails({
     ) {
       return;
     }
-
-    const countView = async () => {
-      try {
-        await updateDoc(doc(db, "products", productId), {
-          views: increment(1),
-          lastViewedAt: serverTimestamp(),
-        });
-      } catch (err) {
-        console.warn("Could not count product view:", err);
-      }
-    };
-
-    countView();
+    updateDoc(doc(db, "products", productId), {
+      views: increment(1),
+      lastViewedAt: serverTimestamp(),
+    }).catch((err) => console.warn("Could not count product view:", err));
   }, [id, product?.id, product?.sellerId, firebaseUser?.uid]);
 
   const isWishlisted = product ? wishlist.includes(product.id) : false;
-
   const stock = Math.max(0, Number(product?.stock || 0));
   const isOutOfStock = stock <= 0;
 
+  const openSellerStore = () => {
+    if (!product?.sellerId) return;
+    navigate(`/store/${product.sellerId}`);
+  };
+
   const handleWishlist = () => {
-    if (!product) return;
-    if (!toggleWishlist) {
-      console.error("toggleWishlist function was not provided.");
-      return;
-    }
+    if (!product || !toggleWishlist) return;
     toggleWishlist(product.id);
   };
 
   const handleAddToCart = () => {
-    if (!product) return;
-
-    if (isOutOfStock) {
-      alert("This product is currently out of stock.");
-      return;
-    }
-
-    if (!addToCart) {
-      console.error("addToCart function was not provided.");
-      return;
-    }
-
-    const safeQuantity = Math.min(
-      Math.max(1, Number(quantity) || 1),
-      stock
-    );
-
+    if (!product || isOutOfStock || !addToCart) return;
+    const safeQuantity = Math.min(Math.max(1, Number(quantity) || 1), stock);
     addToCart(product, safeQuantity);
     setAdded(true);
     window.setTimeout(() => setAdded(false), 2000);
   };
 
   const handleBuyNow = () => {
-    if (!product) return;
-
-    if (isOutOfStock) {
-      alert("This product is currently out of stock.");
-      return;
-    }
-
-    if (!addToCart) {
-      console.error("addToCart function was not provided.");
-      return;
-    }
-
-    const safeQuantity = Math.min(
-      Math.max(1, Number(quantity) || 1),
-      stock
-    );
-
+    if (!product || isOutOfStock || !addToCart) return;
+    const safeQuantity = Math.min(Math.max(1, Number(quantity) || 1), stock);
     addToCart(product, safeQuantity);
     navigate("/cart");
   };
 
   const handleChatWithSeller = async () => {
     if (!product || chatLoading || profileLoading) return;
-
     if (!firebaseUser?.uid) {
       navigate("/login");
       return;
     }
-
     const sellerId = String(product.sellerId || "").trim();
-
     if (!sellerId) {
       alert("This seller is not properly configured for chat.");
       return;
     }
-
     if (String(firebaseUser.uid) === sellerId) {
       alert("You cannot chat with yourself.");
       return;
     }
 
     setChatLoading(true);
-
     try {
       const participantIds = [String(firebaseUser.uid), sellerId].sort();
       const conversationId = participantIds.join("_");
-      const conversationRef = doc(db, "conversations", conversationId);
-
       const customerName =
-        firebaseUser.displayName ||
-        firebaseUser.email ||
-        "CampusMart User";
-
+        firebaseUser.displayName || firebaseUser.email || "CampusMart User";
       const sellerName = product.sellerName || "CampusMart Seller";
 
       await setDoc(
-        conversationRef,
+        doc(db, "conversations", conversationId),
         {
           participants: participantIds,
           participantNames: {
@@ -366,7 +299,6 @@ function ProductDetails({
         },
         { merge: true }
       );
-
       navigate(`/messages/${conversationId}`);
     } catch (error) {
       console.error("Error opening seller chat:", error);
@@ -426,7 +358,6 @@ function ProductDetails({
 
         <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-6 lg:p-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* IMAGE */}
             <div className="relative">
               <div className="bg-gray-100 rounded-2xl overflow-hidden">
                 {product.image ? (
@@ -446,9 +377,7 @@ function ProductDetails({
                 type="button"
                 onClick={handleWishlist}
                 aria-label={
-                  isWishlisted
-                    ? "Remove from wishlist"
-                    : "Add to wishlist"
+                  isWishlisted ? "Remove from wishlist" : "Add to wishlist"
                 }
                 className={`
                   absolute top-4 right-4 w-11 h-11 sm:w-12 sm:h-12
@@ -471,7 +400,6 @@ function ProductDetails({
               </button>
             </div>
 
-            {/* INFO */}
             <div className="flex flex-col">
               <span className="text-green-600 font-medium text-sm">
                 {product.category}
@@ -481,7 +409,6 @@ function ProductDetails({
                 {product.name}
               </h1>
 
-              {/* PRICE */}
               <div className="mt-6">
                 <p className="text-sm text-gray-400">Price</p>
                 <h2 className="text-3xl font-bold text-gray-900 mt-1">
@@ -489,7 +416,6 @@ function ProductDetails({
                 </h2>
               </div>
 
-              {/* OUT OF STOCK ONLY */}
               {isOutOfStock && (
                 <div className="mt-3">
                   <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-50 text-red-600 text-sm font-semibold">
@@ -498,8 +424,23 @@ function ProductDetails({
                 </div>
               )}
 
-              {/* SELLER */}
-              <div className="flex items-center gap-3 mt-6 p-4 bg-gray-50 rounded-xl">
+              {/* SELLER — opens public store */}
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={openSellerStore}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    openSellerStore();
+                  }
+                }}
+                className="
+                  flex items-center gap-3 mt-6 p-4 bg-gray-50 rounded-xl
+                  cursor-pointer hover:bg-green-50 border border-transparent
+                  hover:border-green-100 transition group
+                "
+              >
                 {product.sellerImage ? (
                   <img
                     src={product.sellerImage}
@@ -512,15 +453,25 @@ function ProductDetails({
                   </div>
                 )}
 
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <p className="text-xs text-gray-400">Sold by</p>
-                  <p className="font-semibold text-gray-800">
-                    {product.sellerName}
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <p className="font-semibold text-gray-800 truncate group-hover:text-[#008236]">
+                      {product.sellerName}
+                    </p>
+                    {product.isVerifiedSeller && <VerifiedBadge size={15} />}
+                  </div>
+                  <p className="text-[11px] text-[#008236] mt-0.5 font-medium">
+                    View store & more products
                   </p>
                 </div>
+
+                <FiChevronRight
+                  className="text-gray-300 group-hover:text-[#008236] flex-shrink-0"
+                  size={20}
+                />
               </div>
 
-              {/* CHAT */}
               <button
                 type="button"
                 onClick={handleChatWithSeller}
@@ -545,7 +496,6 @@ function ProductDetails({
                 )}
               </button>
 
-              {/* DESCRIPTION */}
               <div className="mt-6">
                 <h3 className="font-bold text-gray-800">Description</h3>
                 <p className="text-gray-500 text-sm leading-6 mt-2">
@@ -554,13 +504,9 @@ function ProductDetails({
                 </p>
               </div>
 
-              {/* QUANTITY */}
               {!isOutOfStock && (
                 <div className="mt-6">
-                  <p className="font-semibold text-gray-800 mb-3">
-                    Quantity
-                  </p>
-
+                  <p className="font-semibold text-gray-800 mb-3">Quantity</p>
                   <div className="flex items-center border border-gray-200 rounded-xl w-fit overflow-hidden">
                     <button
                       type="button"
@@ -571,11 +517,9 @@ function ProductDetails({
                     >
                       <FiMinus />
                     </button>
-
                     <span className="w-12 text-center font-semibold">
                       {quantity}
                     </span>
-
                     <button
                       type="button"
                       disabled={quantity >= stock}
@@ -592,7 +536,6 @@ function ProductDetails({
                 </div>
               )}
 
-              {/* ACTIONS */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-7">
                 <button
                   type="button"

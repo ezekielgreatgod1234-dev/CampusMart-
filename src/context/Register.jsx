@@ -10,6 +10,7 @@ import {
 import {
   doc,
   setDoc,
+  getDoc,
   serverTimestamp,
 } from "firebase/firestore";
 
@@ -27,6 +28,58 @@ import {
 } from "react-icons/fi";
 
 import { auth, db } from "./firebase";
+
+// =========================================================
+// WELCOME NOTIFICATION (from Admin → Announcements settings)
+// =========================================================
+async function sendWelcomeNotification(userId, userEmail, fullName) {
+  if (!userId) return;
+
+  let title = "Welcome to CampusMart 👋";
+  let body =
+    "Thanks for joining CampusMart! Browse products, chat sellers, and enjoy secure campus shopping.";
+  let enabled = true;
+
+  try {
+    const welcomeSnap = await getDoc(doc(db, "settings", "welcomeMessage"));
+    if (welcomeSnap.exists()) {
+      const w = welcomeSnap.data() || {};
+      if (w.enabled === false) {
+        enabled = false;
+      }
+      if (w.title) title = String(w.title);
+      if (w.body) body = String(w.body);
+    }
+  } catch (err) {
+    console.warn("Could not load welcome settings:", err);
+  }
+
+  if (!enabled) return;
+
+  // Personalize slightly
+  const name = (fullName || "").trim().split(/\s+/)[0] || "there";
+  const personalizedBody = body.includes("{name}")
+    ? body.replace(/\{name\}/g, name)
+    : body;
+
+  try {
+    await setDoc(
+      doc(db, "userNotifications", `${userId}_welcome`),
+      {
+        userId,
+        email: userEmail || "",
+        title,
+        body: personalizedBody,
+        type: "welcome",
+        read: false,
+        createdAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+  } catch (err) {
+    console.warn("Could not create welcome notification:", err);
+  }
+}
 
 function Register() {
   const navigate = useNavigate();
@@ -145,12 +198,11 @@ function Register() {
     try {
       setLoading(true);
 
-      const userCredential =
-        await createUserWithEmailAndPassword(
-          auth,
-          email,
-          password
-        );
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
 
       const user = userCredential.user;
 
@@ -158,6 +210,7 @@ function Register() {
         displayName: fullName,
       });
 
+      // Main user document
       await setDoc(doc(db, "users", user.uid), {
         id: user.uid,
         fullName,
@@ -165,20 +218,60 @@ function Register() {
         phone: "",
         campus: "",
         address: "",
+        bio: "",
         profileImage: null,
         role,
+        isSeller: role === "seller",
+        isVerifiedSeller: false,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-
-        // Records that the user accepted the terms
         termsAccepted: true,
         termsAcceptedAt: serverTimestamp(),
       });
 
+      // Public profile (store page / product cards)
+      try {
+        await setDoc(
+          doc(db, "publicProfiles", user.uid),
+          {
+            fullName,
+            displayName: fullName,
+            email,
+            role,
+            isSeller: role === "seller",
+            isVerifiedSeller: false,
+            profileImage: null,
+            bio: "",
+            campus: "",
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+      } catch (pubErr) {
+        console.warn("publicProfiles create:", pubErr);
+      }
+
+      // In-app welcome notification
+      await sendWelcomeNotification(user.uid, email, fullName);
+
+      // Real welcome EMAIL to the registered address
+      try {
+        await fetch("https://campusbackend-1.onrender.com/send-welcome-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, fullName }),
+        });
+      } catch (mailErr) {
+        console.warn("Welcome email request failed:", mailErr);
+        // Do not block registration if email fails
+      }
+
       setSuccess(
-        "Account created successfully. Taking you to login..."
+        "Account created successfully! Redirecting to login..."
       );
 
+      // Sign out so they must log in cleanly
       await signOut(auth);
 
       setTimeout(() => {
@@ -186,9 +279,10 @@ function Register() {
           replace: true,
           state: {
             registeredEmail: email,
+            justRegistered: true,
           },
         });
-      }, 1000);
+      }, 1800);
     } catch (error) {
       console.error("Registration error:", error);
       setError(getFirebaseErrorMessage(error));
@@ -199,77 +293,36 @@ function Register() {
 
   return (
     <div className="auth-page min-h-screen bg-[#f7faf8] flex">
-
       {/* =====================================================
           LEFT SIDE - BRAND
       ====================================================== */}
-
       <div className="hidden lg:flex lg:w-[46%] xl:w-[48%] bg-[#073b2f] text-white relative overflow-hidden">
-
-        {/* Decorative circles */}
-
         <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-green-500/10" />
-
         <div className="absolute -bottom-40 -right-40 w-[500px] h-[500px] rounded-full bg-green-400/10" />
 
         <div className="relative z-10 w-full flex flex-col justify-between p-12 xl:p-16">
-
-          {/* =====================================================
-              LEFT LOGO
-          ====================================================== */}
-
-          <Link
-            to="/"
-            className="inline-flex items-center gap-3 w-fit group"
-          >
-
-            {/* CM Logo */}
-
+          <Link to="/" className="inline-flex items-center gap-3 w-fit group">
             <div
               className="
-                w-12
-                h-12
-                rounded-xl
-                bg-green-500
-                text-white
-                flex
-                items-center
-                justify-center
-                text-lg
-                font-black
-                tracking-tight
+                w-12 h-12 rounded-xl bg-green-500 text-white
+                flex items-center justify-center text-lg font-black tracking-tight
                 shadow-[0_8px_20px_rgba(34,197,94,0.25)]
-                transition
-                group-hover:scale-105
+                transition group-hover:scale-105
                 group-hover:shadow-[0_10px_25px_rgba(34,197,94,0.35)]
               "
             >
               CM
             </div>
-
             <div>
-
               <div className="text-2xl font-black">
                 Campus
-                <span className="text-green-400">
-                  Mart
-                </span>
+                <span className="text-green-400">Mart</span>
               </div>
-
-              <p className="text-xs text-green-100/70">
-                Your Campus Marketplace
-              </p>
-
+              <p className="text-xs text-green-100/70">Your Campus Marketplace</p>
             </div>
-
           </Link>
 
-          {/* =====================================================
-              MAIN CONTENT
-          ====================================================== */}
-
           <div className="max-w-lg">
-
             <div className="inline-flex items-center gap-2 px-3 py-2 rounded-full bg-white/10 border border-white/10 text-sm text-green-100">
               <FiShield size={15} />
               Safe campus marketplace
@@ -277,203 +330,98 @@ function Register() {
 
             <h1 className="mt-7 text-5xl xl:text-6xl font-black leading-[1.05] tracking-tight">
               Everything you need,
-              <span className="block text-green-400">
-                right on campus.
-              </span>
+              <span className="block text-green-400">right on campus.</span>
             </h1>
 
             <p className="mt-6 text-lg leading-8 text-green-50/70 max-w-md">
-              Buy affordable items from fellow students or
-              turn things you no longer need into cash.
+              Buy affordable items from fellow students or turn things you no
+              longer need into cash.
             </p>
 
             <div className="mt-10 space-y-5">
-
-              {/* Find deals */}
-
               <div className="flex items-center gap-4">
-
                 <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center">
-
-                  <FiShoppingCart
-                    className="text-green-400"
-                    size={21}
-                  />
-
+                  <FiShoppingCart className="text-green-400" size={21} />
                 </div>
-
                 <div>
-
-                  <p className="font-bold">
-                    Find great deals
-                  </p>
-
+                  <p className="font-bold">Find great deals</p>
                   <p className="text-sm text-green-100/60">
                     Shop directly from students around you.
                   </p>
-
                 </div>
-
               </div>
 
-              {/* Sell */}
-
               <div className="flex items-center gap-4">
-
                 <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center">
-
-                  <FiTag
-                    className="text-green-400"
-                    size={21}
-                  />
-
+                  <FiTag className="text-green-400" size={21} />
                 </div>
-
                 <div>
-
-                  <p className="font-bold">
-                    Sell your items
-                  </p>
-
+                  <p className="font-bold">Sell your items</p>
                   <p className="text-sm text-green-100/60">
                     List your unused items and reach buyers.
                   </p>
-
                 </div>
-
               </div>
-
-              {/* Campus focused */}
 
               <div className="flex items-center gap-4">
-
                 <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center">
-
-                  <FiShield
-                    className="text-green-400"
-                    size={21}
-                  />
-
+                  <FiShield className="text-green-400" size={21} />
                 </div>
-
                 <div>
-
-                  <p className="font-bold">
-                    Campus focused
-                  </p>
-
+                  <p className="font-bold">Campus focused</p>
                   <p className="text-sm text-green-100/60">
-                    Connect with people in your student
-                    community.
+                    Connect with people in your student community.
                   </p>
-
                 </div>
-
               </div>
-
             </div>
-
           </div>
-
-          {/* Bottom */}
 
           <p className="text-sm text-green-100/50">
             © 2026 CampusMart. Built for students.
           </p>
-
         </div>
       </div>
 
       {/* =====================================================
           RIGHT SIDE
       ====================================================== */}
-
       <div className="flex-1 min-h-screen flex items-center justify-center px-5 py-10 sm:px-8">
-
         <div className="w-full max-w-[500px]">
-
-          {/* =====================================================
-              CM LOGO ABOVE REGISTER FORM
-          ====================================================== */}
-
           <div className="mb-8">
-
-            <Link
-              to="/"
-              className="inline-flex items-center gap-3 group"
-            >
-
-              {/* CM LOGO */}
-
+            <Link to="/" className="inline-flex items-center gap-3 group">
               <div
                 className="
-                  w-14
-                  h-14
-                  rounded-2xl
-                  bg-green-600
-                  text-white
-                  flex
-                  items-center
-                  justify-center
-                  text-xl
-                  font-black
-                  tracking-tight
-                  shadow-[0_8px_20px_rgba(22,163,74,0.25)]
-                  ring-4
-                  ring-green-100
-                  transition
-                  group-hover:scale-105
+                  w-14 h-14 rounded-2xl bg-green-600 text-white
+                  flex items-center justify-center text-xl font-black tracking-tight
+                  shadow-[0_8px_20px_rgba(22,163,74,0.25)] ring-4 ring-green-100
+                  transition group-hover:scale-105
                   group-hover:shadow-[0_10px_25px_rgba(22,163,74,0.35)]
                 "
               >
                 CM
               </div>
-
-              {/* Brand */}
-
               <div>
-
                 <div className="text-2xl font-black text-gray-900 tracking-tight">
                   Campus
-                  <span className="text-green-600">
-                    Mart
-                  </span>
+                  <span className="text-green-600">Mart</span>
                 </div>
-
                 <p className="text-xs text-gray-500 mt-0.5">
                   Your Campus Marketplace
                 </p>
-
               </div>
-
             </Link>
-
           </div>
 
-          {/* =====================================================
-              HEADING
-          ====================================================== */}
-
           <div className="mb-7">
-
-            <p className="text-sm font-bold text-green-600">
-              GET STARTED
-            </p>
-
+            <p className="text-sm font-bold text-green-600">GET STARTED</p>
             <h2 className="mt-2 text-3xl sm:text-4xl font-black text-gray-900 tracking-tight">
               Create your account
             </h2>
-
             <p className="mt-3 text-gray-500">
-              Join CampusMart and start buying or selling
-              on campus.
+              Join CampusMart and start buying or selling on campus.
             </p>
-
           </div>
-
-          {/* =====================================================
-              ERROR
-          ====================================================== */}
 
           {error && (
             <div className="mb-5 rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-600">
@@ -481,50 +429,26 @@ function Register() {
             </div>
           )}
 
-          {/* =====================================================
-              SUCCESS
-          ====================================================== */}
-
           {success && (
             <div className="mb-5 rounded-xl bg-green-50 border border-green-100 px-4 py-3 text-sm text-green-700 flex items-start gap-3">
-
-              <FiCheck
-                className="mt-0.5 shrink-0"
-                size={18}
-              />
-
+              <FiCheck className="mt-0.5 shrink-0" size={18} />
               <span>{success}</span>
-
             </div>
           )}
 
-          {/* =====================================================
-              FORM
-          ====================================================== */}
-
-          <form
-            onSubmit={handleSubmit}
-            className="space-y-5"
-          >
-
-            {/* Full name */}
-
+          <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-
               <label
                 htmlFor="fullName"
                 className="block text-sm font-bold text-gray-700 mb-2"
               >
                 Full name
               </label>
-
               <div className="relative">
-
                 <FiUser
                   size={18}
                   className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
                 />
-
                 <input
                   id="fullName"
                   name="fullName"
@@ -533,46 +457,29 @@ function Register() {
                   onChange={handleChange}
                   placeholder="e.g. John Doe"
                   autoComplete="name"
+                  disabled={loading || !!success}
                   className="
-                    w-full
-                    h-13
-                    rounded-xl
-                    border
-                    border-gray-200
-                    bg-white
-                    pl-11
-                    pr-4
-                    text-sm
-                    outline-none
-                    focus:border-green-500
-                    focus:ring-4
-                    focus:ring-green-50
-                    transition
+                    w-full h-13 rounded-xl border border-gray-200 bg-white
+                    pl-11 pr-4 text-sm outline-none
+                    focus:border-green-500 focus:ring-4 focus:ring-green-50
+                    transition disabled:opacity-60
                   "
                 />
-
               </div>
-
             </div>
 
-            {/* Email */}
-
             <div>
-
               <label
                 htmlFor="email"
                 className="block text-sm font-bold text-gray-700 mb-2"
               >
                 Email address
               </label>
-
               <div className="relative">
-
                 <FiMail
                   size={18}
                   className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
                 />
-
                 <input
                   id="email"
                   name="email"
@@ -581,44 +488,25 @@ function Register() {
                   onChange={handleChange}
                   placeholder="you@example.com"
                   autoComplete="email"
+                  disabled={loading || !!success}
                   className="
-                    w-full
-                    h-13
-                    rounded-xl
-                    border
-                    border-gray-200
-                    bg-white
-                    pl-11
-                    pr-4
-                    text-sm
-                    outline-none
-                    focus:border-green-500
-                    focus:ring-4
-                    focus:ring-green-50
-                    transition
+                    w-full h-13 rounded-xl border border-gray-200 bg-white
+                    pl-11 pr-4 text-sm outline-none
+                    focus:border-green-500 focus:ring-4 focus:ring-green-50
+                    transition disabled:opacity-60
                   "
                 />
-
               </div>
-
             </div>
 
-            {/* =====================================================
-                ROLE
-            ====================================================== */}
-
             <div>
-
               <label className="block text-sm font-bold text-gray-700 mb-3">
                 What do you want to do?
               </label>
-
               <div className="grid grid-cols-2 gap-3">
-
-                {/* Buyer */}
-
                 <button
                   type="button"
+                  disabled={loading || !!success}
                   onClick={() => selectRole("buyer")}
                   className={`relative text-left rounded-xl border-2 p-4 transition ${
                     formData.role === "buyer"
@@ -626,13 +514,11 @@ function Register() {
                       : "border-gray-200 bg-white hover:border-green-200"
                   }`}
                 >
-
                   {formData.role === "buyer" && (
                     <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-green-600 text-white flex items-center justify-center">
                       <FiCheck size={12} />
                     </div>
                   )}
-
                   <div
                     className={`w-10 h-10 rounded-lg flex items-center justify-center ${
                       formData.role === "buyer"
@@ -642,21 +528,15 @@ function Register() {
                   >
                     <FiShoppingCart size={19} />
                   </div>
-
-                  <p className="mt-3 font-bold text-sm text-gray-900">
-                    Buyer
-                  </p>
-
+                  <p className="mt-3 font-bold text-sm text-gray-900">Buyer</p>
                   <p className="mt-1 text-xs leading-5 text-gray-500">
                     I want to find and buy products.
                   </p>
-
                 </button>
-
-                {/* Seller */}
 
                 <button
                   type="button"
+                  disabled={loading || !!success}
                   onClick={() => selectRole("seller")}
                   className={`relative text-left rounded-xl border-2 p-4 transition ${
                     formData.role === "seller"
@@ -664,13 +544,11 @@ function Register() {
                       : "border-gray-200 bg-white hover:border-green-200"
                   }`}
                 >
-
                   {formData.role === "seller" && (
                     <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-green-600 text-white flex items-center justify-center">
                       <FiCheck size={12} />
                     </div>
                   )}
-
                   <div
                     className={`w-10 h-10 rounded-lg flex items-center justify-center ${
                       formData.role === "seller"
@@ -680,338 +558,200 @@ function Register() {
                   >
                     <FiTag size={19} />
                   </div>
-
-                  <p className="mt-3 font-bold text-sm text-gray-900">
-                    Seller
-                  </p>
-
+                  <p className="mt-3 font-bold text-sm text-gray-900">Seller</p>
                   <p className="mt-1 text-xs leading-5 text-gray-500">
                     I want to list and sell products.
                   </p>
-
                 </button>
-
               </div>
-
             </div>
 
-            {/* =====================================================
-                PASSWORD
-            ====================================================== */}
-
             <div>
-
               <label
                 htmlFor="password"
                 className="block text-sm font-bold text-gray-700 mb-2"
               >
                 Password
               </label>
-
               <div className="relative">
-
                 <FiLock
                   size={18}
                   className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
                 />
-
                 <input
                   id="password"
                   name="password"
-                  type={
-                    showPassword
-                      ? "text"
-                      : "password"
-                  }
+                  type={showPassword ? "text" : "password"}
                   value={formData.password}
                   onChange={handleChange}
                   placeholder="At least 6 characters"
                   autoComplete="new-password"
+                  disabled={loading || !!success}
                   className="
-                    w-full
-                    h-13
-                    rounded-xl
-                    border
-                    border-gray-200
-                    bg-white
-                    pl-11
-                    pr-12
-                    text-sm
-                    outline-none
-                    focus:border-green-500
-                    focus:ring-4
-                    focus:ring-green-50
-                    transition
+                    w-full h-13 rounded-xl border border-gray-200 bg-white
+                    pl-11 pr-12 text-sm outline-none
+                    focus:border-green-500 focus:ring-4 focus:ring-green-50
+                    transition disabled:opacity-60
                   "
                 />
-
                 <button
                   type="button"
-                  onClick={() =>
-                    setShowPassword(
-                      (current) => !current
-                    )
-                  }
+                  onClick={() => setShowPassword((c) => !c)}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
-                  aria-label={
-                    showPassword
-                      ? "Hide password"
-                      : "Show password"
-                  }
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                 >
-
-                  {showPassword ? (
-                    <FiEye size={18} />
-                  ) : (
-                    <FiEyeOff size={18} />
-                  )}
-
+                  {showPassword ? <FiEye size={18} /> : <FiEyeOff size={18} />}
                 </button>
-
               </div>
-
             </div>
 
-            {/* =====================================================
-                CONFIRM PASSWORD
-            ====================================================== */}
-
             <div>
-
               <label
                 htmlFor="confirmPassword"
                 className="block text-sm font-bold text-gray-700 mb-2"
               >
                 Confirm password
               </label>
-
               <div className="relative">
-
                 <FiLock
                   size={18}
                   className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
                 />
-
                 <input
                   id="confirmPassword"
                   name="confirmPassword"
-                  type={
-                    showConfirmPassword
-                      ? "text"
-                      : "password"
-                  }
+                  type={showConfirmPassword ? "text" : "password"}
                   value={formData.confirmPassword}
                   onChange={handleChange}
                   placeholder="Repeat your password"
                   autoComplete="new-password"
+                  disabled={loading || !!success}
                   className="
-                    w-full
-                    h-13
-                    rounded-xl
-                    border
-                    border-gray-200
-                    bg-white
-                    pl-11
-                    pr-12
-                    text-sm
-                    outline-none
-                    focus:border-green-500
-                    focus:ring-4
-                    focus:ring-green-50
-                    transition
+                    w-full h-13 rounded-xl border border-gray-200 bg-white
+                    pl-11 pr-12 text-sm outline-none
+                    focus:border-green-500 focus:ring-4 focus:ring-green-50
+                    transition disabled:opacity-60
                   "
                 />
-
                 <button
                   type="button"
-                  onClick={() =>
-                    setShowConfirmPassword(
-                      (current) => !current
-                    )
-                  }
+                  onClick={() => setShowConfirmPassword((c) => !c)}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
                   aria-label={
-                    showConfirmPassword
-                      ? "Hide password"
-                      : "Show password"
+                    showConfirmPassword ? "Hide password" : "Show password"
                   }
                 >
-
                   {showConfirmPassword ? (
                     <FiEye size={18} />
                   ) : (
                     <FiEyeOff size={18} />
                   )}
-
                 </button>
-
               </div>
-
             </div>
 
-            {/* =====================================================
-                TERMS & CONDITIONS
-            ====================================================== */}
-
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-
               <label className="flex items-start gap-3 cursor-pointer">
-
                 <input
                   type="checkbox"
                   checked={agreeToTerms}
                   onChange={handleTermsChange}
+                  disabled={loading || !!success}
                   className="mt-1 h-4 w-4 shrink-0 accent-green-600 cursor-pointer"
                 />
-
                 <span className="text-sm leading-6 text-gray-600">
-
                   I agree to the{" "}
-
                   <Link
                     to="/terms-and-conditions"
-                    
-                    
                     className="font-bold text-green-600 hover:text-green-700 hover:underline"
                     onClick={(e) => e.stopPropagation()}
                   >
                     Terms & Conditions
-                  </Link>
-
-                  {" "}and{" "}
-
+                  </Link>{" "}
+                  and{" "}
                   <Link
                     to="/privacy-policy"
-                   
                     className="font-bold text-green-600 hover:text-green-700 hover:underline"
                     onClick={(e) => e.stopPropagation()}
                   >
                     Privacy Policy
-                  </Link>
-
-                  {" "}of CampusMart.
-
+                  </Link>{" "}
+                  of CampusMart.
                 </span>
-
               </label>
-
               <div className="mt-3 flex items-center gap-2 text-xs text-gray-400">
-
-                <FiShield
-                  size={14}
-                  className="shrink-0"
-                />
-
-                Your information is handled according to our
-                privacy and security policies.
-
+                <FiShield size={14} className="shrink-0" />
+                Your information is handled according to our privacy and
+                security policies.
               </div>
-
             </div>
-
-            {/* =====================================================
-                SUBMIT
-            ====================================================== */}
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !!success}
               className="
-                w-full
-                h-13
-                rounded-xl
-                bg-green-600
-                text-white
-                font-bold
-                text-sm
-                flex
-                items-center
-                justify-center
-                gap-2
-                hover:bg-green-700
-                active:bg-green-800
-                transition
-                shadow-lg
-                shadow-green-600/10
-                disabled:opacity-60
-                disabled:cursor-not-allowed
+                w-full h-13 rounded-xl bg-green-600 text-white font-bold text-sm
+                flex items-center justify-center gap-2
+                hover:bg-green-700 active:bg-green-800 transition
+                shadow-lg shadow-green-600/10
+                disabled:opacity-60 disabled:cursor-not-allowed
               "
             >
-
               {loading ? (
                 <>
                   <span className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-
                   Creating account...
+                </>
+              ) : success ? (
+                <>
+                  <FiCheck size={18} />
+                  Redirecting...
                 </>
               ) : (
                 <>
                   Create account
-
                   <FiArrowRight size={18} />
                 </>
               )}
-
             </button>
-
           </form>
 
-          {/* =====================================================
-              LOGIN
-          ====================================================== */}
-
           <div className="mt-7 text-center">
-
             <p className="text-sm text-gray-500">
-
               Already have an account?{" "}
-
               <Link
                 to="/login"
                 className="font-bold text-green-600 hover:text-green-700"
               >
                 Log in
               </Link>
-
             </p>
-
           </div>
 
-          {/* Legal links */}
-
           <div className="mt-5 flex items-center justify-center gap-4 text-xs text-gray-400">
-
             <Link
               to="/terms-and-conditions"
               className="hover:text-green-600 transition"
             >
               Terms & Conditions
             </Link>
-
             <span>•</span>
-
             <Link
               to="/privacy-policy"
               className="hover:text-green-600 transition"
             >
               Privacy Policy
             </Link>
-
           </div>
 
-          {/* Back */}
-
           <div className="mt-5 text-center">
-
             <Link
               to="/"
               className="text-sm text-gray-400 hover:text-green-600 transition"
             >
               ← Back to CampusMart
             </Link>
-
           </div>
-
         </div>
       </div>
     </div>

@@ -85,6 +85,7 @@ import TermsAndConditions from "./pages/customer/TermsAndConditions";
 
 import AccountDisabled from "./context/AccountDisabled";
 import AccountNotFound from "./pages/admin/AccountNotFound";
+import SellerStore from "./pages/customer/SellerStore";
 
 // =========================================================
 // ADMIN PAGES
@@ -99,6 +100,7 @@ import AdminWithdrawals from "./pages/admin/AdminWithdrawals";
 import AdminPayments from "./pages/admin/AdminPayments";
 import AdminSupportMessages from "./pages/admin/AdminSupportMessages";
 import ChooseDashboard from "./pages/admin/ChooseDashboard";
+import AdminAnnouncements from "./pages/admin/AdminAnnouncements";
 
 // =========================================================
 // DEFAULT PROFILE
@@ -4865,6 +4867,25 @@ function App() {
         />
 
         <Route path="/account-not-found" element={<AccountNotFound />} />
+
+
+        <Route
+  path="/store/:sellerId"
+  element={
+    <ProtectedRoute profileResolved={profileResolved}>
+      <CustomerRoute profile={profile} profileResolved={profileResolved}>
+        <SellerStore
+          cartCount={cartCount}
+          addToCart={addToCart}
+          wishlist={wishlist}
+          toggleWishlist={toggleWishlist}
+        />
+      </CustomerRoute>
+    </ProtectedRoute>
+  }
+/>
+
+<Route path="/admin/announcements" element={<AdminAnnouncements />} />
 
         {/* ================================================= */}
         {/* FALLBACK */}

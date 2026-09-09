@@ -8,6 +8,29 @@ import {
   FiImage,
 } from "react-icons/fi";
 
+// Meta-style green verified badge
+function VerifiedBadge({ size = 14, className = "" }) {
+  const s = Number(size) || 14;
+  return (
+    <span
+      className={`inline-flex items-center justify-center flex-shrink-0 ${className}`}
+      title="Verified seller"
+      aria-label="Verified seller"
+    >
+      <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="12" fill="#008236" />
+        <path
+          d="M7.2 12.3l2.7 2.7 6.5-6.5"
+          stroke="#fff"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </span>
+  );
+}
+
 function ProductCard({
   product,
   addToCart,
@@ -15,41 +38,21 @@ function ProductCard({
   toggleWishlist,
 }) {
   const navigate = useNavigate();
-
   const [added, setAdded] = useState(false);
 
-  // =====================================================
-  // SAFE PRODUCT VALUES
-  // =====================================================
-
   const productId = product?.id || "";
-
   const productName = product?.name || "Untitled Product";
-
   const productCategory = product?.category || "Other";
-
   const productDescription = product?.description || "";
-
   const productSeller = product?.sellerName || "CampusMart Seller";
-
-  // =====================================================
-  // IMAGE
-  // =====================================================
+  const isVerifiedSeller = product?.isVerifiedSeller === true;
 
   const productImage =
     product?.image ||
     product?.imageUrl ||
     (Array.isArray(product?.images) ? product.images[0] : null);
 
-  // =====================================================
-  // PRICE
-  // =====================================================
-
   const productPrice = Number(product?.price || 0);
-
-  // =====================================================
-  // STOCK
-  // =====================================================
 
   const getStockValue = () => {
     const stockCandidates = [
@@ -65,7 +68,6 @@ function ProductCard({
       if (typeof value === "number" && Number.isFinite(value)) {
         return Math.max(0, value);
       }
-
       if (typeof value === "string" && value.trim() !== "") {
         const parsed = Number(value.replace(/[₦,\s]/g, ""));
         if (Number.isFinite(parsed)) {
@@ -73,19 +75,12 @@ function ProductCard({
         }
       }
     }
-
-    // No stock field → unknown (do not invent 1)
     return null;
   };
 
-  const productStock = getStockValue(); // number | null
-
-  // =====================================================
-  // STATUS
-  // =====================================================
+  const productStock = getStockValue();
 
   const productStatus = String(product?.status || "active").toLowerCase();
-
   const productAvailability = String(
     product?.availability || "available"
   ).toLowerCase();
@@ -112,29 +107,12 @@ function ProductCard({
       productStatus === "out of stock" ||
       (productStock !== null && productStock <= 0));
 
-  // =====================================================
-  // WISHLIST
-  // =====================================================
-
   const isWishlisted = wishlist.includes(productId);
-
-  // =====================================================
-  // PRICE FORMAT
-  // =====================================================
-
   const formattedPrice = `₦${productPrice.toLocaleString("en-NG")}`;
 
-  // =====================================================
-  // NEW PRODUCT
-  // =====================================================
-
   const isNewProduct = (() => {
-    if (!product?.createdAt) {
-      return false;
-    }
-
+    if (!product?.createdAt) return false;
     let createdTime = 0;
-
     if (typeof product.createdAt.toMillis === "function") {
       createdTime = product.createdAt.toMillis();
     } else if (product.createdAt instanceof Date) {
@@ -148,70 +126,31 @@ function ProductCard({
       const parsed = new Date(product.createdAt).getTime();
       createdTime = Number.isNaN(parsed) ? 0 : parsed;
     }
-
-    if (!createdTime) {
-      return false;
-    }
-
-    const sevenDays = 7 * 24 * 60 * 60 * 1000;
-
-    return Date.now() - createdTime <= sevenDays;
+    if (!createdTime) return false;
+    return Date.now() - createdTime <= 7 * 24 * 60 * 60 * 1000;
   })();
-
-  // =====================================================
-  // ADD TO CART
-  // =====================================================
 
   const handleAddToCart = (e) => {
     e.stopPropagation();
-
-    if (!productId) return;
-    if (!isAvailable) return;
-
-    if (typeof addToCart !== "function") {
-      console.error("addToCart function was not provided.");
-      return;
-    }
-
+    if (!productId || !isAvailable) return;
+    if (typeof addToCart !== "function") return;
     addToCart(product, 1);
-
     setAdded(true);
-
-    setTimeout(() => {
-      setAdded(false);
-    }, 2000);
+    setTimeout(() => setAdded(false), 2000);
   };
-
-  // =====================================================
-  // WISHLIST
-  // =====================================================
 
   const handleWishlist = (e) => {
     e.stopPropagation();
-
     if (!productId) return;
-
     if (typeof toggleWishlist === "function") {
       toggleWishlist(productId);
     }
   };
 
-  // =====================================================
-  // OPEN PRODUCT DETAILS
-  // =====================================================
-
   const handleProductClick = () => {
-    if (!productId) {
-      console.error("Cannot open product: product ID is missing.");
-      return;
-    }
-
+    if (!productId) return;
     navigate(`/products/${productId}`);
   };
-
-  // =====================================================
-  // RENDER
-  // =====================================================
 
   return (
     <div
@@ -229,7 +168,6 @@ function ProductCard({
         shadow-sm hover:shadow-lg transition duration-300 cursor-pointer group
       "
     >
-      {/* IMAGE */}
       <div className="relative bg-gray-100 overflow-hidden">
         {productImage ? (
           <img
@@ -237,20 +175,13 @@ function ProductCard({
             alt={productName}
             onError={(e) => {
               e.currentTarget.style.display = "none";
-
               const fallback =
                 e.currentTarget.parentElement?.querySelector(
                   ".product-image-fallback"
                 );
-
-              if (fallback) {
-                fallback.classList.remove("hidden");
-              }
+              if (fallback) fallback.classList.remove("hidden");
             }}
-            className="
-              w-full h-40 sm:h-48 md:h-52 object-cover
-              group-hover:scale-105 transition duration-300
-            "
+            className="w-full h-40 sm:h-48 md:h-52 object-cover group-hover:scale-105 transition duration-300"
           />
         ) : null}
 
@@ -258,8 +189,7 @@ function ProductCard({
           className={`
             product-image-fallback
             ${productImage ? "hidden" : "flex"}
-            w-full h-40 sm:h-48 md:h-52
-            items-center justify-center bg-gray-100
+            w-full h-40 sm:h-48 md:h-52 items-center justify-center bg-gray-100
           `}
         >
           <div className="flex flex-col items-center justify-center text-gray-400">
@@ -300,7 +230,6 @@ function ProductCard({
         </button>
       </div>
 
-      {/* CONTENT */}
       <div className="p-3 sm:p-4">
         <p className="text-xs sm:text-sm text-green-600 font-medium">
           {productCategory}
@@ -308,19 +237,18 @@ function ProductCard({
 
         <h3
           title={productName}
-          className="
-            font-semibold text-sm sm:text-base text-gray-800 mt-1 truncate
-            group-hover:text-green-600 transition
-          "
+          className="font-semibold text-sm sm:text-base text-gray-800 mt-1 truncate group-hover:text-green-600 transition"
         >
           {productName}
         </h3>
 
+        {/* Seller + verified badge */}
         <p
-          className="text-xs text-gray-400 mt-1 truncate"
+          className="text-xs text-gray-400 mt-1 flex items-center gap-1 min-w-0"
           title={productSeller}
         >
-          {productSeller}
+          <span className="truncate">{productSeller}</span>
+          {isVerifiedSeller && <VerifiedBadge size={13} />}
         </p>
 
         {productDescription && (
@@ -329,7 +257,6 @@ function ProductCard({
           </p>
         )}
 
-        {/* STOCK — only when we know a low number */}
         {isAvailable &&
           productStock !== null &&
           productStock > 0 &&
@@ -339,7 +266,6 @@ function ProductCard({
             </p>
           )}
 
-        {/* PRICE + CART */}
         <div className="flex items-center justify-between gap-2 mt-3">
           <div className="min-w-0">
             <p className="text-xs text-gray-400">Price</p>

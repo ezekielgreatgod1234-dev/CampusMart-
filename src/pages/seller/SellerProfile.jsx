@@ -29,6 +29,10 @@ import {
   FiEdit3,
   FiSave,
   FiCamera,
+  FiShare2,
+  FiCheck,
+  FiCopy,
+  FiExternalLink,
 } from "react-icons/fi";
 
 import {
@@ -41,9 +45,27 @@ import {
 import { db } from "../../context/firebase";
 import { useAuth } from "../../context/AuthContext";
 
-// =========================================================
-// DEFAULT PROFILE
-// =========================================================
+function VerifiedBadge({ size = 18, className = "" }) {
+  const s = Number(size) || 18;
+  return (
+    <span
+      className={`inline-flex items-center justify-center flex-shrink-0 ${className}`}
+      title="Verified seller"
+      aria-label="Verified seller"
+    >
+      <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="12" fill="#008236" />
+        <path
+          d="M7.2 12.3l2.7 2.7 6.5-6.5"
+          stroke="#fff"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </span>
+  );
+}
 
 const DEFAULT_PROFILE = {
   fullName: "",
@@ -51,13 +73,11 @@ const DEFAULT_PROFILE = {
   phone: "",
   campus: "",
   address: "",
+  bio: "",
   profileImage: null,
   role: "Seller",
+  isVerifiedSeller: false,
 };
-
-// =========================================================
-// SELLER PROFILE
-// =========================================================
 
 function SellerProfile({
   profile: profileFromApp,
@@ -67,11 +87,6 @@ function SellerProfile({
   const navigate = useNavigate();
   const location = useLocation();
   const { firebaseUser } = useAuth();
-
-  // =======================================================
-  // PROFILE FROM APP (no localStorage)
-  // App.jsx should load: users/{firebaseUser.uid}
-  // =======================================================
 
   const profile = {
     ...DEFAULT_PROFILE,
@@ -92,31 +107,27 @@ function SellerProfile({
       profileFromApp?.avatar ||
       firebaseUser?.photoURL ||
       null,
+    bio: profileFromApp?.bio || profileFromApp?.about || "",
     role: profileFromApp?.role || "Seller",
+    isVerifiedSeller: profileFromApp?.isVerifiedSeller === true,
   };
 
-  // =======================================================
-  // SIDEBAR
-  // =======================================================
-
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  // Pending orders badge
   const [newOrdersCount, setNewOrdersCount] = useState(0);
-
-  // =======================================================
-  // EDIT MODE
-  // =======================================================
-
   const [editing, setEditing] = useState(false);
-
   const [formData, setFormData] = useState(profile);
-
   const [saving, setSaving] = useState(false);
-
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const fileInputRef = useRef(null);
 
-  // Keep form in sync when profile prop updates
+  const storeUrl =
+    typeof window !== "undefined" && firebaseUser?.uid
+      ? `${window.location.origin}/store/${firebaseUser.uid}`
+      : firebaseUser?.uid
+        ? `/store/${firebaseUser.uid}`
+        : "";
+
   useEffect(() => {
     if (!editing) {
       setFormData({
@@ -130,12 +141,10 @@ function SellerProfile({
     profile.phone,
     profile.campus,
     profile.address,
+    profile.bio,
     profile.profileImage,
+    profile.isVerifiedSeller,
   ]);
-
-  // =======================================================
-  // PENDING ORDERS BADGE
-  // =======================================================
 
   useEffect(() => {
     if (!firebaseUser?.uid) {
@@ -152,15 +161,10 @@ function SellerProfile({
       ordersQuery,
       (snapshot) => {
         let pending = 0;
-
         snapshot.docs.forEach((orderDoc) => {
           const data = orderDoc.data() || {};
           const status = String(data.status || "pending").toLowerCase();
-
-          if (status === "cancelled" || status === "canceled") {
-            return;
-          }
-
+          if (status === "cancelled" || status === "canceled") return;
           if (
             status === "pending" ||
             status === "placed" ||
@@ -169,7 +173,6 @@ function SellerProfile({
             pending += 1;
           }
         });
-
         setNewOrdersCount(pending);
       },
       (error) => {
@@ -179,10 +182,6 @@ function SellerProfile({
 
     return () => unsubscribe();
   }, [firebaseUser?.uid]);
-
-  // =======================================================
-  // SELLER DISPLAY
-  // =======================================================
 
   const sellerFullName =
     profile.fullName?.trim() ||
@@ -194,22 +193,10 @@ function SellerProfile({
 
   const sellerImage = profile.profileImage || null;
 
-  // =======================================================
-  // MENU (Reviews & Analytics removed)
-  // =======================================================
-
   const menuItems = useMemo(
     () => [
-      {
-        label: "Dashboard",
-        icon: FiGrid,
-        path: "/seller-dashboard",
-      },
-      {
-        label: "Products",
-        icon: FiPackage,
-        path: "/seller/products",
-      },
+      { label: "Dashboard", icon: FiGrid, path: "/seller-dashboard" },
+      { label: "Products", icon: FiPackage, path: "/seller/products" },
       {
         label: "Orders",
         icon: FiShoppingBag,
@@ -222,27 +209,15 @@ function SellerProfile({
         path: "/seller/messages",
         badge: unreadMessages,
       },
-      {
-        label: "Earnings",
-        icon: FiDollarSign,
-        path: "/seller/earnings",
-      },
+      { label: "Earnings", icon: FiDollarSign, path: "/seller/earnings" },
       {
         label: "Promotions",
         icon: FiTag,
         path: "/seller/promotions",
         new: true,
       },
-      {
-        label: "Profile",
-        icon: FiUser,
-        path: "/seller/profile",
-      },
-      {
-        label: "Settings",
-        icon: FiSettings,
-        path: "/seller/settings",
-      },
+      { label: "Profile", icon: FiUser, path: "/seller/profile" },
+      { label: "Settings", icon: FiSettings, path: "/seller/settings" },
     ],
     [newOrdersCount, unreadMessages]
   );
@@ -264,10 +239,6 @@ function SellerProfile({
     navigate("/logout");
   };
 
-  // =======================================================
-  // FORM
-  // =======================================================
-
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((current) => ({
@@ -281,9 +252,79 @@ function SellerProfile({
     fileInputRef.current?.click();
   };
 
-  // =======================================================
-  // PROFILE PICTURE (saved via updateProfile → Firestore)
-  // =======================================================
+  const handleCopyStoreLink = async () => {
+    if (!storeUrl) return;
+    try {
+      await navigator.clipboard.writeText(storeUrl);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      const input = document.createElement("input");
+      input.value = storeUrl;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand("copy");
+      document.body.removeChild(input);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    }
+  };
+
+  const shareText = `Check out ${sellerFullName}'s store on CampusMart`;
+
+  const openShareWindow = (url) => {
+    window.open(url, "_blank", "noopener,noreferrer,width=600,height=500");
+  };
+
+  const shareToWhatsApp = () => {
+    if (!storeUrl) return;
+    openShareWindow(
+      `https://wa.me/?text=${encodeURIComponent(`${shareText}\n${storeUrl}`)}`
+    );
+  };
+
+  const shareToFacebook = () => {
+    if (!storeUrl) return;
+    openShareWindow(
+      `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(storeUrl)}`
+    );
+  };
+
+  const shareToTwitter = () => {
+    if (!storeUrl) return;
+    openShareWindow(
+      `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(storeUrl)}`
+    );
+  };
+
+  const shareToTelegram = () => {
+    if (!storeUrl) return;
+    openShareWindow(
+      `https://t.me/share/url?url=${encodeURIComponent(storeUrl)}&text=${encodeURIComponent(shareText)}`
+    );
+  };
+
+  const handleShareStore = async () => {
+    if (!storeUrl) return;
+    setShareOpen(true);
+  };
+
+  const handleNativeShare = async () => {
+    if (!storeUrl) return;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `${sellerFullName} on CampusMart`,
+          text: shareText,
+          url: storeUrl,
+        });
+        setShareOpen(false);
+        return;
+      } catch {
+        // cancelled
+      }
+    }
+  };
 
   const handleProfileImage = (e) => {
     const file = e.target.files?.[0];
@@ -309,19 +350,12 @@ function SellerProfile({
         if (!imageUrl) return;
 
         if (typeof updateProfile !== "function") {
-          console.error(
-            "updateProfile was not provided to SellerProfile.jsx"
-          );
           alert("Profile update function is not available.");
           return;
         }
 
         setSaving(true);
-
-        await updateProfile({
-          profileImage: imageUrl,
-        });
-
+        await updateProfile({ profileImage: imageUrl });
         window.dispatchEvent(new Event("profileUpdated"));
       } catch (error) {
         console.error("Error updating profile picture:", error);
@@ -350,9 +384,6 @@ function SellerProfile({
 
   const handleSave = async () => {
     if (typeof updateProfile !== "function") {
-      console.error(
-        "updateProfile was not provided to SellerProfile.jsx"
-      );
       alert("Profile update function is not available.");
       return;
     }
@@ -363,6 +394,7 @@ function SellerProfile({
       phone: formData.phone?.trim() || "",
       campus: formData.campus?.trim() || "",
       address: formData.address?.trim() || "",
+      bio: formData.bio?.trim() || "",
     };
 
     try {
@@ -386,26 +418,16 @@ function SellerProfile({
     setEditing(false);
   };
 
-  const roleText =
-    String(profile.role || "").trim() || "Seller";
-
-  // =======================================================
-  // RENDER
-  // =======================================================
+  const roleText = String(profile.role || "").trim() || "Seller";
 
   return (
     <div className="h-[100dvh] w-full bg-gray-50 text-gray-800 font-sans overflow-hidden flex flex-col">
-      {/* MOBILE OVERLAY */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
-
-      {/* ================================================= */}
-      {/* SIDEBAR */}
-      {/* ================================================= */}
 
       <aside
         className={`
@@ -563,17 +585,12 @@ function SellerProfile({
         </div>
       </aside>
 
-      {/* ================================================= */}
-      {/* MAIN */}
-      {/* ================================================= */}
-
       <div
         className="
           min-w-0 flex flex-col h-[100dvh] w-full
           lg:ml-[291px] lg:w-[calc(100%-291px)]
         "
       >
-        {/* TOP NAVBAR */}
         <header
           className="
             min-h-[70px] bg-[#007233] text-white
@@ -596,7 +613,6 @@ function SellerProfile({
 
           <div className="flex items-center gap-2 text-white flex-shrink-0">
             <FiShoppingBag size={19} className="text-green-200" />
-
             <span className="text-sm sm:text-base font-semibold whitespace-nowrap">
               Your Store
             </span>
@@ -659,10 +675,13 @@ function SellerProfile({
 
               <div className="hidden sm:block text-left">
                 <p
-                  className="text-xs font-bold leading-4 max-w-[180px] truncate"
+                  className="text-xs font-bold leading-4 max-w-[180px] truncate flex items-center gap-1"
                   title={sellerFullName}
                 >
-                  {sellerFullName}
+                  <span className="truncate">{sellerFullName}</span>
+                  {profile.isVerifiedSeller && (
+                    <VerifiedBadge size={12} />
+                  )}
                 </p>
                 <p className="text-[10px] text-green-100 mt-0.5">Seller</p>
               </div>
@@ -672,7 +691,6 @@ function SellerProfile({
           </div>
         </header>
 
-        {/* CONTENT */}
         <main
           className="
             flex-1 overflow-y-auto overflow-x-hidden bg-gray-50
@@ -680,20 +698,16 @@ function SellerProfile({
             py-5 sm:py-6 lg:py-8
           "
         >
-          {/* GREEN BANNER */}
           <div
             className="
               relative overflow-hidden rounded-2xl
-              bg-gradient-to-r from-[#007233]
-                to-[#008f3f]
-               
+              bg-gradient-to-r from-[#007233] to-[#008f3f]
               p-6 sm:p-7 text-white
               shadow-lg shadow-green-700/20 mb-6
             "
           >
             <div className="pointer-events-none absolute -right-8 -top-10 h-40 w-40 rounded-full bg-white/10" />
             <div className="pointer-events-none absolute -right-2 top-16 h-28 w-28 rounded-full bg-white/10" />
-            <div className="pointer-events-none absolute right-24 -bottom-12 h-32 w-32 rounded-full bg-white/5" />
 
             <div
               className="
@@ -711,14 +725,12 @@ function SellerProfile({
             </h1>
 
             <p className="relative mt-2 max-w-xl text-sm sm:text-[15px] text-green-100 leading-relaxed">
-              Manage your personal information and keep your seller account up
-              to date.
+              Manage your personal information and share your public store with
+              buyers.
             </p>
           </div>
 
-          {/* PROFILE GRID */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* LEFT CARD */}
             <div className="bg-white rounded-2xl border border-green-100 p-6 h-fit shadow-sm">
               <div className="flex flex-col items-center text-center">
                 <div className="relative">
@@ -767,15 +779,30 @@ function SellerProfile({
                   />
                 </div>
 
-                <h2 className="text-xl font-bold text-gray-800 mt-4">
-                  {profile.fullName || "Your Name"}
-                </h2>
+                <div className="mt-4 flex items-center justify-center gap-1.5 flex-wrap">
+                  <h2 className="text-xl font-bold text-gray-800">
+                    {profile.fullName || "Your Name"}
+                  </h2>
+                  {profile.isVerifiedSeller && <VerifiedBadge size={20} />}
+                </div>
 
                 <p className="text-sm text-gray-500 mt-1 break-all">
                   {profile.email || "No email"}
                 </p>
 
                 <p className="text-sm text-gray-500 mt-1">{roleText}</p>
+
+                {profile.isVerifiedSeller && (
+                  <p className="text-xs text-[#008236] font-semibold mt-2">
+                    Verified CampusMart seller
+                  </p>
+                )}
+
+                {profile.bio && (
+                  <p className="text-xs text-gray-500 mt-3 leading-relaxed px-1">
+                    {profile.bio}
+                  </p>
+                )}
 
                 <div
                   className="
@@ -799,10 +826,71 @@ function SellerProfile({
                 >
                   {saving ? "Saving..." : "Change Profile Picture"}
                 </button>
+
+                {/* Public store actions */}
+                <div className="w-full mt-5 pt-5 border-t border-gray-100 space-y-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      firebaseUser?.uid &&
+                      navigate(`/store/${firebaseUser.uid}`)
+                    }
+                    className="
+                      w-full h-10 rounded-xl border border-green-200
+                      bg-green-50 text-[#008236] text-sm font-semibold
+                      flex items-center justify-center gap-2
+                      hover:bg-green-100 transition
+                    "
+                  >
+                    <FiExternalLink size={15} />
+                    View my public store
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleShareStore}
+                    className="
+                      w-full h-10 rounded-xl bg-[#008236] text-white
+                      text-sm font-semibold flex items-center justify-center gap-2
+                      hover:bg-[#006f2e] transition
+                    "
+                  >
+                    {linkCopied ? (
+                      <>
+                        <FiCheck size={15} />
+                        Link copied!
+                      </>
+                    ) : (
+                      <>
+                        <FiShare2 size={15} />
+                        Share store link
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleCopyStoreLink}
+                    className="
+                      w-full h-10 rounded-xl border border-gray-200
+                      text-gray-600 text-sm font-semibold
+                      flex items-center justify-center gap-2
+                      hover:bg-gray-50 transition
+                    "
+                  >
+                    <FiCopy size={15} />
+                    Copy link
+                  </button>
+
+                  {storeUrl && (
+                    <p className="text-[10px] text-gray-400 break-all px-1 pt-1">
+                      {storeUrl}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* RIGHT FORM */}
             <div className="lg:col-span-2 bg-white rounded-2xl border border-green-100 p-5 sm:p-6 shadow-sm">
               <div className="flex items-center justify-between gap-3 mb-6">
                 <div>
@@ -833,7 +921,6 @@ function SellerProfile({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                {/* Full Name */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Full Name
@@ -856,7 +943,6 @@ function SellerProfile({
                   </div>
                 </div>
 
-                {/* Email */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Email Address
@@ -879,7 +965,6 @@ function SellerProfile({
                   </div>
                 </div>
 
-                {/* Phone */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Phone Number
@@ -902,7 +987,6 @@ function SellerProfile({
                   </div>
                 </div>
 
-                {/* Campus */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Campus
@@ -925,7 +1009,6 @@ function SellerProfile({
                   </div>
                 </div>
 
-                {/* Address */}
                 <div className="sm:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Address
@@ -946,6 +1029,26 @@ function SellerProfile({
                       "
                     />
                   </div>
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Bio / About (shown on your public store)
+                  </label>
+                  <textarea
+                    name="bio"
+                    value={formData.bio || ""}
+                    onChange={handleChange}
+                    disabled={!editing || saving}
+                    rows={4}
+                    placeholder="Tell buyers about yourself, what you sell, pickup points..."
+                    className="
+                      w-full px-4 py-3 rounded-xl border border-gray-200
+                      bg-gray-50 text-sm outline-none resize-none
+                      focus:bg-white focus:border-green-500
+                      disabled:cursor-not-allowed
+                    "
+                  />
                 </div>
               </div>
 
@@ -989,6 +1092,119 @@ function SellerProfile({
           </div>
         </main>
       </div>
+
+      {/* ========== SHARE MODAL ========== */}
+      {shareOpen && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setShareOpen(false)}
+          />
+          <div className="relative w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+            <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-gray-100">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Share store</h3>
+                <p className="text-xs text-gray-500 mt-0.5 truncate max-w-[240px]">
+                  {sellerFullName}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShareOpen(false)}
+                className="w-9 h-9 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-500"
+              >
+                <FiX size={20} />
+              </button>
+            </div>
+
+            <div className="p-4 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={shareToWhatsApp}
+                className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:bg-green-50 hover:border-green-100 transition text-left"
+              >
+                <span className="w-10 h-10 rounded-full bg-[#25D366] text-white flex items-center justify-center text-lg font-bold flex-shrink-0">
+                  W
+                </span>
+                <span className="text-sm font-semibold text-gray-800">
+                  WhatsApp
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={shareToFacebook}
+                className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:bg-blue-50 hover:border-blue-100 transition text-left"
+              >
+                <span className="w-10 h-10 rounded-full bg-[#1877F2] text-white flex items-center justify-center text-lg font-bold flex-shrink-0">
+                  f
+                </span>
+                <span className="text-sm font-semibold text-gray-800">
+                  Facebook
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={shareToTwitter}
+                className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:bg-gray-50 transition text-left"
+              >
+                <span className="w-10 h-10 rounded-full bg-black text-white flex items-center justify-center text-sm font-bold flex-shrink-0">
+                  X
+                </span>
+                <span className="text-sm font-semibold text-gray-800">
+                  X / Twitter
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={shareToTelegram}
+                className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:bg-sky-50 hover:border-sky-100 transition text-left"
+              >
+                <span className="w-10 h-10 rounded-full bg-[#26A5E4] text-white flex items-center justify-center text-lg font-bold flex-shrink-0">
+                  T
+                </span>
+                <span className="text-sm font-semibold text-gray-800">
+                  Telegram
+                </span>
+              </button>
+            </div>
+
+            <div className="px-4 pb-5 space-y-2">
+              {typeof navigator !== "undefined" && navigator.share && (
+                <button
+                  type="button"
+                  onClick={handleNativeShare}
+                  className="w-full h-11 rounded-xl bg-[#008236] text-white text-sm font-semibold flex items-center justify-center gap-2 hover:bg-[#006f2e]"
+                >
+                  <FiShare2 size={16} />
+                  More share options
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={handleCopyStoreLink}
+                className="w-full h-11 rounded-xl border border-gray-200 text-gray-700 text-sm font-semibold flex items-center justify-center gap-2 hover:bg-gray-50"
+              >
+                {linkCopied ? (
+                  <>
+                    <FiCheck size={16} className="text-[#008236]" />
+                    Link copied
+                  </>
+                ) : (
+                  <>
+                    <FiCopy size={16} />
+                    Copy link
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

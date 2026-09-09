@@ -419,6 +419,9 @@ function SellerProducts({ unreadMessages = 0, profile = {} }) {
                 firebaseUser.displayName ||
                 "CampusMart Seller",
 
+              isVerifiedSeller:
+                data.isVerifiedSeller === true,
+
               createdAt:
                 data.createdAt || null,
 
@@ -816,6 +819,16 @@ const sellerImage =
     setSavingProduct(true);
     setFormError("");
 
+    const sellerName =
+      profile?.fullName ||
+      profile?.displayName ||
+      profile?.name ||
+      firebaseUser.displayName ||
+      "CampusMart Seller";
+
+    const isVerifiedSeller =
+      profile?.isVerifiedSeller === true;
+
     try {
       if (editingProduct) {
         let imageUrl =
@@ -841,6 +854,8 @@ const sellerImage =
             productForm.description.trim(),
           image: imageUrl,
           status: productForm.status,
+          sellerName,
+          isVerifiedSeller,
           updatedAt: serverTimestamp(),
         });
 
@@ -869,12 +884,12 @@ const sellerImage =
           sellerId:
             firebaseUser.uid,
 
-          sellerName:
-            firebaseUser.displayName ||
-            "CampusMart Seller",
+          sellerName,
 
           sellerEmail:
             firebaseUser.email || "",
+
+          isVerifiedSeller,
 
           createdAt:
             serverTimestamp(),
