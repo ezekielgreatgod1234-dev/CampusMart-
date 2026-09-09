@@ -1102,11 +1102,16 @@ function App() {
     });
   };
 
-  const PLATFORM_COMMISSION_RATE = 0.05;
+    // =======================================================
+  // COMMISSION — 100% to seller
+  // =======================================================
+
+  const PLATFORM_COMMISSION_RATE = 0;
 
   const getItemLineTotal = (item) => {
     const price = Number(String(item?.price ?? 0).replace(/[₦,]/g, ""));
     const qty = Number(item?.quantity || 1);
+
     return (
       (Number.isFinite(price) ? price : 0) * (Number.isFinite(qty) ? qty : 1)
     );
@@ -1114,9 +1119,12 @@ function App() {
 
   const splitAmount = (total) => {
     const gross = Math.round(Number(total) || 0);
-    const sellerAmount = Math.round(gross * (1 - PLATFORM_COMMISSION_RATE));
-    const platformFee = gross - sellerAmount;
-    return { gross, platformFee, sellerAmount };
+
+    return {
+      gross,
+      platformFee: 0,
+      sellerAmount: gross,
+    };
   };
 
   const placeOrder = async (orderData) => {

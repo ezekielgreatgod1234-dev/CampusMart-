@@ -1,7 +1,6 @@
 import {
   FiGrid,
   FiShoppingBag,
-
   FiHeart,
   FiShoppingCart,
   FiPackage,
@@ -9,6 +8,7 @@ import {
   FiUser,
   FiSettings,
   FiLogOut,
+  FiBriefcase, // for Gigs
 } from "react-icons/fi";
 
 const sidebarMenu = [
@@ -18,11 +18,15 @@ const sidebarMenu = [
     path: "/dashboard",
   },
   {
-  name: "Browse Products",
-  icon: FiShoppingBag,
-  path: "/browse-products",
-},
-  
+    name: "Browse Products",
+    icon: FiShoppingBag,
+    path: "/browse-products",
+  },
+  {
+    name: "Gigs",
+    icon: FiBriefcase,
+    path: "/gigs",
+  },
   {
     name: "Wishlist",
     icon: FiHeart,
