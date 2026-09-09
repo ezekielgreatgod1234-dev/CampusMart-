@@ -266,49 +266,60 @@ function Messages({
   const getConversationPreview = (conversation) => {
     const embedded = getLastVisibleMessage(conversation);
     const embeddedMs = getMessageTimestampMs(embedded);
-    const documentMs = getTimestampMs(conversation?.lastMessageAt);
 
     const documentText =
       typeof conversation?.lastMessage === "string"
         ? conversation.lastMessage.trim()
         : "";
 
-    // sendMessage() writes lastMessage + lastMessageAt at the same time
-    // as the message. If that document-level timestamp is newer/equal,
-    // use it. This protects the mobile list from a stale embedded array.
-    if (documentText && documentMs >= embeddedMs) {
+    const documentMs = getTimestampMs(conversation?.lastMessageAt);
+
+    // IMPORTANT:
+    // If the conversation contains a real message with a valid timestamp,
+    // that message is the source of truth for the preview. Do NOT allow an
+    // older/stale conversation.lastMessage value to replace it.
+    if (embedded && embeddedMs > 0) {
       return {
-        message: conversation.lastMessage,
-        timestamp: conversation.lastMessageAt || 0,
+        message:
+          typeof embedded.text === "string" && embedded.text.trim()
+            ? embedded.text
+            : embedded.imageUrl
+              ? "📷 Photo"
+              : documentText || "",
+        timestamp: embeddedMs,
         embedded,
+      };
+    }
+
+    // Some older conversations may contain messages without timestamps.
+    // In that case, use the conversation-level fields as the fallback.
+    if (documentText && documentMs > 0) {
+      return {
+        message: documentText,
+        timestamp: documentMs,
+        embedded: null,
       };
     }
 
     if (embedded) {
       return {
         message:
-          embedded.text ||
-          (embedded.imageUrl ? "📷 Photo" : ""),
+          typeof embedded.text === "string" && embedded.text.trim()
+            ? embedded.text
+            : embedded.imageUrl
+              ? "📷 Photo"
+              : documentText || "",
         timestamp:
-          embedded.createdAt ||
-          embedded.createdAtMs ||
-          conversation?.lastMessageAt ||
+          embeddedMs ||
+          documentMs ||
           0,
         embedded,
       };
     }
 
-    if (documentText) {
-      return {
-        message: conversation.lastMessage,
-        timestamp: conversation.lastMessageAt || 0,
-        embedded: null,
-      };
-    }
-
     return {
-      message: "",
-      timestamp: conversation?.lastMessageAt || 0,
+      message: documentText || "",
+      timestamp: documentMs || 0,
       embedded: null,
     };
   };
@@ -712,7 +723,7 @@ function Messages({
 
                   const lastMessageAt =
                     preview.timestamp ||
-                    data.lastMessageAt ||
+                    getTimestampMs(data.lastMessageAt) ||
                     0;
 
 
@@ -2012,6 +2023,11 @@ function Messages({
                     preview.message ||
                     "No messages yet.";
 
+                  const previewTime =
+                    preview.timestamp
+                      ? formatTime(preview.timestamp)
+                      : "";
+
                   const sentByMe =
                     isLastMessageFromCurrentUser(
                       conversation,
@@ -2214,7 +2230,7 @@ function Messages({
                             "
                           >
                             {
-                              conversation.time
+                              previewTime
                             }
                           </span>
 
