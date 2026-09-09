@@ -558,6 +558,24 @@ async function formatConversation(conversationDoc, currentUserId) {
     "";
 
   const lastMessageTimestamp = getMessageTimestamp(lastVisibleMessage);
+
+  // Fallback to the conversation document's own lastMessageAt/updatedAt
+  // fields in case the embedded messages array hasn't caught up yet
+  // (e.g. right after a write, or if messages were trimmed/migrated).
+  const docLevelTimestamp = (() => {
+    const raw = data.lastMessageAt;
+    if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
+      return raw < 1e12 ? raw * 1000 : raw;
+    }
+    if (raw && typeof raw.toMillis === "function") {
+      const ms = raw.toMillis();
+      if (Number.isFinite(ms) && ms > 0) return ms;
+    }
+    return 0;
+  })();
+
+  const sortTimestamp = Math.max(lastMessageTimestamp, docLevelTimestamp);
+
   let displayTime = "";
 
   if (lastMessageTimestamp > 0) {
@@ -581,6 +599,9 @@ async function formatConversation(conversationDoc, currentUserId) {
     lastMessageStatus: lastVisibleMessage?.status || null,
     lastMessageIsOwn: lastVisibleMessage?.isOwnMessage || false,
     time: displayTime,
+    // Used purely for ordering the conversation list (WhatsApp-style:
+    // most recently active chat first). Not shown in the UI directly.
+    sortTimestamp,
     unread: unreadCount,
     online: data.onlineStatus?.[otherParticipantId] === true,
     conversation: sortedVisibleMessages,
@@ -592,13 +613,32 @@ async function formatConversation(conversationDoc, currentUserId) {
   };
 }
 
+// WhatsApp-style ordering: whichever conversation had the most recent
+// activity (last message, either sent or received) floats to the top.
+// If chat A got a message at 9:00am and chat B got one at 10:00am,
+// B will render above A, and each row still shows its own last message.
 function sortConversations(conversationList) {
   return [...conversationList].sort((a, b) => {
-    const aMessages = Array.isArray(a.conversation) ? a.conversation : [];
-    const bMessages = Array.isArray(b.conversation) ? b.conversation : [];
-    const aLast = aMessages.length > 0 ? aMessages[aMessages.length - 1] : null;
-    const bLast = bMessages.length > 0 ? bMessages[bMessages.length - 1] : null;
-    return getMessageTimestamp(bLast) - getMessageTimestamp(aLast);
+    const aTime =
+      typeof a.sortTimestamp === "number"
+        ? a.sortTimestamp
+        : getMessageTimestamp(
+            Array.isArray(a.conversation) && a.conversation.length > 0
+              ? a.conversation[a.conversation.length - 1]
+              : null
+          );
+
+    const bTime =
+      typeof b.sortTimestamp === "number"
+        ? b.sortTimestamp
+        : getMessageTimestamp(
+            Array.isArray(b.conversation) && b.conversation.length > 0
+              ? b.conversation[b.conversation.length - 1]
+              : null
+          );
+
+    // Descending: larger (more recent) timestamp first.
+    return bTime - aTime;
   });
 }
 
