@@ -15,8 +15,6 @@ import CustomerLayout from "../../layouts/CustomerLayout";
 import {
   doc,
   onSnapshot,
-  runTransaction,
-  Timestamp,
 } from "firebase/firestore";
 
 import { db } from "../../context/firebase";
@@ -215,6 +213,14 @@ function Chat({
       ? liveConversation.messages
       : fallbackPerson?.conversation || [];
 
+  const orderedChatMessages = [...chatMessages].sort((a, b) => {
+    const aMs = getMessageTimestampMs(a);
+    const bMs = getMessageTimestampMs(b);
+
+    if (aMs === bMs) return 0;
+    return aMs - bMs;
+  });
+
   const isMyMessage = (message) => {
     if (!message || !firebaseUser?.uid) return false;
 
@@ -230,7 +236,9 @@ function Chat({
     return message.sender === "me";
   };
 
-  // Mark incoming as seen — NEVER change createdAt / createdAtMs
+  // Mark incoming messages as read when the buyer is actually
+  // inside this conversation. App.markMessageAsRead() updates only
+  // incoming messages and resets this user's unread count.
   useEffect(() => {
     if (
       !id ||
@@ -241,58 +249,30 @@ function Chat({
       return;
     }
 
-    const markIncomingMessagesAsSeen = async () => {
+    if (typeof markMessageAsRead !== "function") {
+      return;
+    }
+
+    let cancelled = false;
+
+    const markRead = async () => {
       try {
-        const conversationRef = doc(db, "conversations", String(id));
-
-        await runTransaction(db, async (transaction) => {
-          const snapshot = await transaction.get(conversationRef);
-          if (!snapshot.exists()) return;
-
-          const data = snapshot.data();
-          const currentMessages = Array.isArray(data.messages)
-            ? data.messages
-            : [];
-
-          let changed = false;
-
-          const updatedMessages = currentMessages.map((message) => {
-            const senderId =
-              message?.senderId || message?.senderUid || message?.userId;
-
-            const belongsToOtherPerson =
-              senderId && String(senderId) !== String(firebaseUser.uid);
-
-            if (belongsToOtherPerson && !message?.seenAt) {
-              changed = true;
-              return {
-                ...message,
-                seenAt: Timestamp.now(),
-              };
-            }
-
-            return message;
-          });
-
-          if (changed) {
-            transaction.update(conversationRef, {
-              messages: updatedMessages,
-            });
-          }
-        });
-
-        if (typeof markMessageAsRead === "function") {
-          await Promise.resolve(markMessageAsRead(id));
-        }
+        await Promise.resolve(markMessageAsRead(id));
       } catch (error) {
-        console.error("Buyer mark messages as seen error:", error);
+        if (!cancelled) {
+          console.error("Buyer mark messages as read error:", error);
+        }
       }
     };
 
-    markIncomingMessagesAsSeen();
+    markRead();
+
+    return () => {
+      cancelled = true;
+    };
   }, [id, firebaseUser?.uid, liveConversation?.id, markMessageAsRead]);
 
-  const visibleMessages = chatMessages.filter((message) => {
+  const visibleMessages = orderedChatMessages.filter((message) => {
     const deletedFor = Array.isArray(message.deletedFor)
       ? message.deletedFor
       : [];

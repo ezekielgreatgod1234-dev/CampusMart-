@@ -194,68 +194,123 @@ function Messages({
 
 
   // =====================================================
+  // MESSAGE TIMESTAMP HELPERS
+  // =====================================================
+
+  const getMessageTimestampMs = (message) => {
+    if (!message) return 0;
+
+    if (
+      typeof message.createdAtMs === "number" &&
+      Number.isFinite(message.createdAtMs) &&
+      message.createdAtMs > 0
+    ) {
+      return message.createdAtMs < 1e12
+        ? message.createdAtMs * 1000
+        : message.createdAtMs;
+    }
+
+    return getTimestampMs(message.createdAt);
+  };
+
+
+  // =====================================================
   // GET LAST VISIBLE MESSAGE
   // =====================================================
 
-  const getLastVisibleMessage = (
-    conversation
-  ) => {
-    const rawMessages =
-      Array.isArray(
-        conversation?.messages
-      )
-        ? conversation.messages
+  const getLastVisibleMessage = (conversation) => {
+    const rawMessages = Array.isArray(conversation?.messages)
+      ? conversation.messages
+      : Array.isArray(conversation?.conversation)
+        ? conversation.conversation
         : [];
 
-    const visibleMessages =
-      rawMessages.filter(
-        (message) => {
-          const deletedFor =
-            Array.isArray(
-              message?.deletedFor
-            )
-              ? message.deletedFor
-              : [];
+    let latest = null;
+    let latestMs = -1;
+    let latestIndex = -1;
 
-          if (
-            deletedFor.includes(
-              firebaseUser?.uid
-            )
-          ) {
-            return false;
-          }
+    rawMessages.forEach((message, index) => {
+      const deletedFor = Array.isArray(message?.deletedFor)
+        ? message.deletedFor
+        : [];
 
-          if (
-            message?.deletedForEveryone ===
-            true
-          ) {
-            return false;
-          }
-
-          return true;
-        }
-      );
-
-    visibleMessages.sort(
-      (a, b) => {
-        const aTime =
-          getTimestampMs(
-            a?.createdAt
-          );
-
-        const bTime =
-          getTimestampMs(
-            b?.createdAt
-          );
-
-        return bTime - aTime;
+      if (firebaseUser?.uid && deletedFor.includes(firebaseUser.uid)) {
+        return;
       }
-    );
 
-    return (
-      visibleMessages[0] ||
-      null
-    );
+      if (message?.deletedForEveryone === true) {
+        return;
+      }
+
+      const messageMs = getMessageTimestampMs(message);
+
+      if (
+        latest === null ||
+        messageMs > latestMs ||
+        (messageMs === latestMs && index > latestIndex)
+      ) {
+        latest = message;
+        latestMs = messageMs;
+        latestIndex = index;
+      }
+    });
+
+    return latest;
+  };
+
+
+  // =====================================================
+  // AUTHORITATIVE CONVERSATION PREVIEW
+  // =====================================================
+
+  const getConversationPreview = (conversation) => {
+    const embedded = getLastVisibleMessage(conversation);
+    const embeddedMs = getMessageTimestampMs(embedded);
+    const documentMs = getTimestampMs(conversation?.lastMessageAt);
+
+    const documentText =
+      typeof conversation?.lastMessage === "string"
+        ? conversation.lastMessage.trim()
+        : "";
+
+    // sendMessage() writes lastMessage + lastMessageAt at the same time
+    // as the message. If that document-level timestamp is newer/equal,
+    // use it. This protects the mobile list from a stale embedded array.
+    if (documentText && documentMs >= embeddedMs) {
+      return {
+        message: conversation.lastMessage,
+        timestamp: conversation.lastMessageAt || 0,
+        embedded,
+      };
+    }
+
+    if (embedded) {
+      return {
+        message:
+          embedded.text ||
+          (embedded.imageUrl ? "📷 Photo" : ""),
+        timestamp:
+          embedded.createdAt ||
+          embedded.createdAtMs ||
+          conversation?.lastMessageAt ||
+          0,
+        embedded,
+      };
+    }
+
+    if (documentText) {
+      return {
+        message: conversation.lastMessage,
+        timestamp: conversation.lastMessageAt || 0,
+        embedded: null,
+      };
+    }
+
+    return {
+      message: "",
+      timestamp: conversation?.lastMessageAt || 0,
+      embedded: null,
+    };
   };
 
 
@@ -644,31 +699,19 @@ function Messages({
 
 
                   // =================================================
-                  // LAST MESSAGE
+                  // LAST MESSAGE / PREVIEW
                   // =================================================
 
-                  const lastVisibleMessage =
-                    getLastVisibleMessage({
-                      messages:
-                        rawMessages,
-                    });
-
+                  const preview = getConversationPreview({
+                    ...data,
+                    messages: rawMessages,
+                  });
 
                   const lastMessage =
-                    lastVisibleMessage
-                      ?.text ||
-                    (
-                      lastVisibleMessage
-                        ?.imageUrl
-                        ? "📷 Photo"
-                        : data.lastMessage ||
-                          "No messages yet"
-                    );
-
+                    preview.message || "No messages yet";
 
                   const lastMessageAt =
-                    lastVisibleMessage
-                      ?.createdAt ||
+                    preview.timestamp ||
                     data.lastMessageAt ||
                     0;
 
@@ -1959,18 +2002,21 @@ function Messages({
                   // LAST MESSAGE
                   // =================================================
 
-                  const lastMessage =
-                    getLastVisibleMessage(
-                      conversation
-                    );
+                  const preview =
+                    getConversationPreview(conversation);
 
+                  const lastMessage =
+                    preview.embedded;
+
+                  const previewText =
+                    preview.message ||
+                    "No messages yet.";
 
                   const sentByMe =
                     isLastMessageFromCurrentUser(
                       conversation,
                       lastMessage
                     );
-
 
                   const seenByOther =
                     isLastMessageSeenByOther(
@@ -2242,8 +2288,7 @@ function Messages({
                             `}
                           >
                             {
-                              conversation.lastMessage ||
-                              "No messages yet."
+                              previewText
                             }
                           </p>
 

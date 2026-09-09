@@ -82,11 +82,6 @@ import AdminSupportMessages from "./pages/admin/AdminSupportMessages";
 import ChooseDashboard from "./pages/admin/ChooseDashboard";
 import AdminAnnouncements from "./pages/admin/AdminAnnouncements";
 import RegistrationSuccess from "./pages/customer/RegistrationSuccess";
-import Gigs from "./pages/customer/Gigs"; // adjust path
-import CreateGig from "./pages/customer/CreateGig";
-import GigDetail from "./pages/customer/GigDetail";
-import MyGigApplications from "./pages/customer/MyGigApplications";
-
 
 const emptyProfile = {
   fullName: "",
@@ -428,8 +423,6 @@ function getMessageTimestamp(message) {
   return 0;
 }
 
-// Newest message last (ascending order) — this is what renders a normal
-// chat feed with the most recent message sitting under older ones.
 function sortMessagesChronologically(messages) {
   if (!Array.isArray(messages)) return [];
 
@@ -531,87 +524,23 @@ async function formatConversation(conversationDoc, currentUserId) {
     return true;
   });
 
-  // Normalize each message's tick state:
-  //  - status "sent"      -> single grey tick (recipient hasn't opened chat)
-  //  - status "read"      -> double blue tick (recipient opened chat)
-  // Only meaningful for messages the current user sent; messages received
-  // from the other party don't need ticks shown on your own screen.
-  const ticketedMessages = visibleMessages.map((message) => {
-    const isOwnMessage = String(message.senderId) === String(currentUserId);
-    const read = message.read === true;
-    return {
-      ...message,
-      isOwnMessage,
-      status: read ? "read" : message.status || "sent",
-    };
-  });
-
-  const sortedVisibleMessages = sortMessagesChronologically(ticketedMessages);
+  const sortedVisibleMessages = sortMessagesChronologically(visibleMessages);
   const lastVisibleMessage =
     sortedVisibleMessages.length > 0
       ? sortedVisibleMessages[sortedVisibleMessages.length - 1]
       : null;
 
-  // The embedded messages array is normally the source of truth, but on
-  // mobile there can be a very small window where the conversation document
-  // has already received the new message while the embedded array being
-  // processed is still from the previous snapshot.  Always fall back to the
-  // document-level lastMessage/lastMessageAt so the list immediately shows
-  // the newly sent message and moves the conversation to the top.
-  const lastMessageFromArray =
+  const lastMessage =
     lastVisibleMessage?.text ||
     (lastVisibleMessage?.imageUrl ? "📷 Photo" : "") ||
     "";
 
-  const lastMessage =
-    lastMessageFromArray ||
-    data.lastMessage ||
-    data.lastMessageText ||
-    "";
-
   const lastMessageTimestamp = getMessageTimestamp(lastVisibleMessage);
-
-  // Always normalize lastMessageAt because Firestore can return either a
-  // number or a Timestamp depending on how the conversation was written.
-  const docLevelTimestamp = (() => {
-    const raw = data.lastMessageAt;
-
-    if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
-      return raw < 1e12 ? raw * 1000 : raw;
-    }
-
-    if (raw && typeof raw.toMillis === "function") {
-      const ms = raw.toMillis();
-      if (Number.isFinite(ms) && ms > 0) return ms;
-    }
-
-    if (raw instanceof Date) {
-      const ms = raw.getTime();
-      if (Number.isFinite(ms) && ms > 0) return ms;
-    }
-
-    if (typeof raw === "string" && raw.trim()) {
-      const ms = Date.parse(raw);
-      if (Number.isFinite(ms) && ms > 0) return ms;
-    }
-
-    return 0;
-  })();
-
-  const sortTimestamp = Math.max(
-    lastMessageTimestamp,
-    docLevelTimestamp
-  );
-
   let displayTime = "";
-  const displayTimestamp =
-    lastMessageTimestamp > 0
-      ? lastMessageTimestamp
-      : docLevelTimestamp;
 
-  if (displayTimestamp > 0) {
+  if (lastMessageTimestamp > 0) {
     try {
-      displayTime = new Date(displayTimestamp).toLocaleTimeString([], {
+      displayTime = new Date(lastMessageTimestamp).toLocaleTimeString([], {
         hour: "2-digit",
         minute: "2-digit",
       });
@@ -627,12 +556,7 @@ async function formatConversation(conversationDoc, currentUserId) {
     name: otherName,
     profileImage: otherParticipantImage,
     lastMessage,
-    lastMessageStatus: lastVisibleMessage?.status || null,
-    lastMessageIsOwn: lastVisibleMessage?.isOwnMessage || false,
     time: displayTime,
-    // Used purely for ordering the conversation list (WhatsApp-style:
-    // most recently active chat first). Not shown in the UI directly.
-    sortTimestamp,
     unread: unreadCount,
     online: data.onlineStatus?.[otherParticipantId] === true,
     conversation: sortedVisibleMessages,
@@ -644,32 +568,13 @@ async function formatConversation(conversationDoc, currentUserId) {
   };
 }
 
-// WhatsApp-style ordering: whichever conversation had the most recent
-// activity (last message, either sent or received) floats to the top.
-// If chat A got a message at 9:00am and chat B got one at 10:00am,
-// B will render above A, and each row still shows its own last message.
 function sortConversations(conversationList) {
   return [...conversationList].sort((a, b) => {
-    const aTime =
-      typeof a.sortTimestamp === "number"
-        ? a.sortTimestamp
-        : getMessageTimestamp(
-            Array.isArray(a.conversation) && a.conversation.length > 0
-              ? a.conversation[a.conversation.length - 1]
-              : null
-          );
-
-    const bTime =
-      typeof b.sortTimestamp === "number"
-        ? b.sortTimestamp
-        : getMessageTimestamp(
-            Array.isArray(b.conversation) && b.conversation.length > 0
-              ? b.conversation[b.conversation.length - 1]
-              : null
-          );
-
-    // Descending: larger (more recent) timestamp first.
-    return bTime - aTime;
+    const aMessages = Array.isArray(a.conversation) ? a.conversation : [];
+    const bMessages = Array.isArray(b.conversation) ? b.conversation : [];
+    const aLast = aMessages.length > 0 ? aMessages[aMessages.length - 1] : null;
+    const bLast = bMessages.length > 0 ? bMessages[bMessages.length - 1] : null;
+    return getMessageTimestamp(bLast) - getMessageTimestamp(aLast);
   });
 }
 
@@ -1457,30 +1362,16 @@ function App() {
       where("participants", "array-contains", firebaseUser.uid)
     );
 
-    // Snapshot callbacks can overlap because formatConversation loads public
-    // profiles asynchronously. On a fast/mobile connection an older snapshot
-    // can finish after the newer snapshot and overwrite the list with stale
-    // data. Keep a sequence number so only the newest snapshot can update UI.
-    let snapshotSequence = 0;
-    let active = true;
-
     const processSnapshot = async (snapshot) => {
-      const sequence = ++snapshotSequence;
-
       try {
         const conversationList = await Promise.all(
           snapshot.docs.map((conversationDoc) =>
             formatConversation(conversationDoc, firebaseUser.uid)
           )
         );
-
-        if (!active || sequence !== snapshotSequence) return;
-
         setMessages(sortConversations(conversationList));
       } catch (error) {
         console.error("Error processing conversations:", error);
-
-        if (!active || sequence !== snapshotSequence) return;
         setMessages([]);
       }
     };
@@ -1488,19 +1379,13 @@ function App() {
     if (isMessagesPage) {
       const unsubscribe = onSnapshot(
         conversationsQuery,
-        (snapshot) => {
-          processSnapshot(snapshot);
-        },
+        (snapshot) => processSnapshot(snapshot),
         (error) => {
           console.error("Conversation listener error:", error);
-          if (active) setMessages([]);
+          setMessages([]);
         }
       );
-
-      return () => {
-        active = false;
-        unsubscribe();
-      };
+      return () => unsubscribe();
     }
 
     let cancelled = false;
@@ -1533,57 +1418,12 @@ function App() {
     0
   );
 
-  // Called when the current user opens/views a conversation. This does two
-  // things, just like WhatsApp:
-  //   1) Zeroes out their own unread badge count for that conversation.
-  //   2) Flips every message sent *to* them (i.e. not their own) to
-  //      read: true / status: "read", so on the sender's screen the tick
-  //      flips from single (sent) to double (read).
   const markMessageAsRead = async (messageId) => {
     if (!firebaseUser || !messageId) return false;
-
-    const conversationRef = doc(db, "conversations", String(messageId));
-
     try {
-      await runTransaction(db, async (transaction) => {
-        const snapshot = await transaction.get(conversationRef);
-        if (!snapshot.exists()) return;
-
-        const data = snapshot.data();
-        const existingMessages = Array.isArray(data.messages)
-          ? data.messages
-          : [];
-
-        let changed = false;
-        const updatedMessages = existingMessages.map((message) => {
-          // Never mark your own messages as "read" here — only messages
-          // the other person sent to you should flip to double ticks.
-          if (String(message.senderId) === String(firebaseUser.uid)) {
-            return message;
-          }
-          if (message.read === true && message.status === "read") {
-            return message;
-          }
-          changed = true;
-          return {
-            ...message,
-            read: true,
-            status: "read",
-            readAt: Date.now(),
-          };
-        });
-
-        const updatePayload = {
-          [`unreadCounts.${firebaseUser.uid}`]: 0,
-        };
-
-        if (changed) {
-          updatePayload.messages = updatedMessages;
-        }
-
-        transaction.update(conversationRef, updatePayload);
+      await updateDoc(doc(db, "conversations", String(messageId)), {
+        [`unreadCounts.${firebaseUser.uid}`]: 0,
       });
-
       return true;
     } catch (error) {
       console.error("Error marking conversation as read:", error);
@@ -1638,11 +1478,6 @@ function App() {
             minute: "2-digit",
           }),
           deletedFor: [],
-          // WhatsApp-style tick state: single tick until the recipient
-          // opens the conversation and markMessageAsRead flips this.
-          delivered: true,
-          read: false,
-          status: "sent",
         };
 
         const currentUnread = Number(data.unreadCounts?.[receiverId] || 0);
@@ -2495,50 +2330,6 @@ function App() {
 
         <Route path="/admin/announcements" element={<AdminAnnouncements />} />
 
-       {/* ===================== GIGS ===================== */}
-<Route
-  path="/gigs"
-  element={
-    <ProtectedRoute profileResolved={profileResolved}>
-      <CustomerRoute profile={profile} profileResolved={profileResolved}>
-        <Gigs cartCount={cartCount} />
-      </CustomerRoute>
-    </ProtectedRoute>
-  }
-/>
-
-<Route
-  path="/gigs/create"
-  element={
-    <ProtectedRoute profileResolved={profileResolved}>
-      <CustomerRoute profile={profile} profileResolved={profileResolved}>
-        <CreateGig cartCount={cartCount} profile={profile} />
-      </CustomerRoute>
-    </ProtectedRoute>
-  }
-/>
-
-<Route
-  path="/gigs/:id"
-  element={
-    <ProtectedRoute profileResolved={profileResolved}>
-      <CustomerRoute profile={profile} profileResolved={profileResolved}>
-        <GigDetail cartCount={cartCount} profile={profile} />
-      </CustomerRoute>
-    </ProtectedRoute>
-  }
-/>
-
-<Route
-  path="/gigs/applications"
-  element={
-    <ProtectedRoute profileResolved={profileResolved}>
-      <CustomerRoute profile={profile} profileResolved={profileResolved}>
-        <MyGigApplications cartCount={cartCount} profile={profile} />
-      </CustomerRoute>
-    </ProtectedRoute>
-  }
-/>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>
