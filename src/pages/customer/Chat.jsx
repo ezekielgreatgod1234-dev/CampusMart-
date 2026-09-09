@@ -52,7 +52,7 @@ function Chat({
   const [deleting, setDeleting] = useState(false);
 
   // =====================================================
-  // TIMESTAMP HELPER
+  // TIMESTAMP HELPER (only for display time under bubbles)
   // =====================================================
 
   const getMessageTimestampMs = (message) => {
@@ -107,7 +107,7 @@ function Chat({
     (message) => String(message.id) === String(id)
   );
 
-  // Lock page scroll
+  // Lock page scroll on mobile
   useEffect(() => {
     const originalBodyOverflow = document.body.style.overflow;
     const originalBodyHeight = document.body.style.height;
@@ -165,7 +165,7 @@ function Chat({
     return () => unsubscribe();
   }, [id]);
 
-  // Get other participant info
+  // Other participant
   const otherParticipantId =
     liveConversation?.buyerId === firebaseUser?.uid
       ? liveConversation?.sellerId
@@ -190,7 +190,10 @@ function Chat({
     null;
 
   // =====================================================
-  // GET MESSAGES - Use Firestore array directly
+  // MESSAGES — TRUST FIRESTORE ARRAY ORDER
+  // sendMessage always appends, so the array is already
+  // chronological. Re-sorting by timestamp can scramble
+  // order when some messages have missing/bad timestamps.
   // =====================================================
 
   const chatMessages =
@@ -198,12 +201,28 @@ function Chat({
       ? liveConversation.messages
       : fallbackPerson?.conversation || [];
 
-  // Sort messages by timestamp (newest last)
-  const orderedChatMessages = [...chatMessages].sort((a, b) => {
-    const aMs = getMessageTimestampMs(a);
-    const bMs = getMessageTimestampMs(b);
-    return aMs - bMs;
-  });
+  // Stable chronological order:
+  // 1) Prefer valid timestamps
+  // 2) If timestamps equal or missing, keep original array index
+  //    (array index = real send order)
+  const orderedChatMessages = chatMessages
+    .map((message, index) => ({
+      message,
+      index,
+      timestamp: getMessageTimestampMs(message),
+    }))
+    .sort((a, b) => {
+      const aHas = a.timestamp > 0;
+      const bHas = b.timestamp > 0;
+
+      if (aHas && bHas && a.timestamp !== b.timestamp) {
+        return a.timestamp - b.timestamp;
+      }
+
+      // Same timestamp or missing → preserve send order
+      return a.index - b.index;
+    })
+    .map((item) => item.message);
 
   const isMyMessage = (message) => {
     if (!message || !firebaseUser?.uid) return false;
@@ -220,7 +239,7 @@ function Chat({
     return message.sender === "me";
   };
 
-  // Mark incoming messages as read
+  // Mark as read
   useEffect(() => {
     if (
       !id ||
@@ -231,9 +250,7 @@ function Chat({
       return;
     }
 
-    if (typeof markMessageAsRead !== "function") {
-      return;
-    }
+    if (typeof markMessageAsRead !== "function") return;
 
     let cancelled = false;
 
@@ -270,7 +287,7 @@ function Chat({
     return true;
   });
 
-  // Scroll to bottom when new messages arrive
+  // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [visibleMessages.length, id]);
@@ -414,46 +431,25 @@ function Chat({
     }
   };
 
-  // =====================================================
-  // FIXED: SEND MESSAGE
-  // =====================================================
-
   const handleSendMessage = async () => {
     const text = messageText.trim();
-    
-    // Don't send empty messages or if already sending
-    if (!text || sending) {
-      return;
-    }
 
-    // Check if sendMessage is available
-    if (typeof sendMessage !== "function") {
-      console.error("sendMessage is not a function");
-      return;
-    }
+    if (!text || sending) return;
+    if (typeof sendMessage !== "function") return;
+    if (!id) return;
 
-    // Check if we have a conversation ID
-    if (!id) {
-      console.error("No conversation ID");
-      return;
-    }
-
-    // Clear input immediately for better UX
     setMessageText("");
     setSending(true);
 
     try {
-      // Call the sendMessage function from App.jsx
       const success = await sendMessage(id, text);
-      
+
       if (!success) {
-        // If sending failed, restore the message text
         setMessageText(text);
         console.error("Failed to send message");
       }
     } catch (error) {
       console.error("Customer send message error:", error);
-      // Restore the message text on error so user can retry
       setMessageText(text);
     } finally {
       setSending(false);
