@@ -428,6 +428,8 @@ function getMessageTimestamp(message) {
   return 0;
 }
 
+// Newest message last (ascending order) — this is what renders a normal
+// chat feed with the most recent message sitting under older ones.
 function sortMessagesChronologically(messages) {
   if (!Array.isArray(messages)) return [];
 
@@ -529,7 +531,22 @@ async function formatConversation(conversationDoc, currentUserId) {
     return true;
   });
 
-  const sortedVisibleMessages = sortMessagesChronologically(visibleMessages);
+  // Normalize each message's tick state:
+  //  - status "sent"      -> single grey tick (recipient hasn't opened chat)
+  //  - status "read"      -> double blue tick (recipient opened chat)
+  // Only meaningful for messages the current user sent; messages received
+  // from the other party don't need ticks shown on your own screen.
+  const ticketedMessages = visibleMessages.map((message) => {
+    const isOwnMessage = String(message.senderId) === String(currentUserId);
+    const read = message.read === true;
+    return {
+      ...message,
+      isOwnMessage,
+      status: read ? "read" : message.status || "sent",
+    };
+  });
+
+  const sortedVisibleMessages = sortMessagesChronologically(ticketedMessages);
   const lastVisibleMessage =
     sortedVisibleMessages.length > 0
       ? sortedVisibleMessages[sortedVisibleMessages.length - 1]
@@ -561,6 +578,8 @@ async function formatConversation(conversationDoc, currentUserId) {
     name: otherName,
     profileImage: otherParticipantImage,
     lastMessage,
+    lastMessageStatus: lastVisibleMessage?.status || null,
+    lastMessageIsOwn: lastVisibleMessage?.isOwnMessage || false,
     time: displayTime,
     unread: unreadCount,
     online: data.onlineStatus?.[otherParticipantId] === true,
@@ -1423,12 +1442,57 @@ function App() {
     0
   );
 
+  // Called when the current user opens/views a conversation. This does two
+  // things, just like WhatsApp:
+  //   1) Zeroes out their own unread badge count for that conversation.
+  //   2) Flips every message sent *to* them (i.e. not their own) to
+  //      read: true / status: "read", so on the sender's screen the tick
+  //      flips from single (sent) to double (read).
   const markMessageAsRead = async (messageId) => {
     if (!firebaseUser || !messageId) return false;
+
+    const conversationRef = doc(db, "conversations", String(messageId));
+
     try {
-      await updateDoc(doc(db, "conversations", String(messageId)), {
-        [`unreadCounts.${firebaseUser.uid}`]: 0,
+      await runTransaction(db, async (transaction) => {
+        const snapshot = await transaction.get(conversationRef);
+        if (!snapshot.exists()) return;
+
+        const data = snapshot.data();
+        const existingMessages = Array.isArray(data.messages)
+          ? data.messages
+          : [];
+
+        let changed = false;
+        const updatedMessages = existingMessages.map((message) => {
+          // Never mark your own messages as "read" here — only messages
+          // the other person sent to you should flip to double ticks.
+          if (String(message.senderId) === String(firebaseUser.uid)) {
+            return message;
+          }
+          if (message.read === true && message.status === "read") {
+            return message;
+          }
+          changed = true;
+          return {
+            ...message,
+            read: true,
+            status: "read",
+            readAt: Date.now(),
+          };
+        });
+
+        const updatePayload = {
+          [`unreadCounts.${firebaseUser.uid}`]: 0,
+        };
+
+        if (changed) {
+          updatePayload.messages = updatedMessages;
+        }
+
+        transaction.update(conversationRef, updatePayload);
       });
+
       return true;
     } catch (error) {
       console.error("Error marking conversation as read:", error);
@@ -1483,6 +1547,11 @@ function App() {
             minute: "2-digit",
           }),
           deletedFor: [],
+          // WhatsApp-style tick state: single tick until the recipient
+          // opens the conversation and markMessageAsRead flips this.
+          delivered: true,
+          read: false,
+          status: "sent",
         };
 
         const currentUnread = Number(data.unreadCounts?.[receiverId] || 0);

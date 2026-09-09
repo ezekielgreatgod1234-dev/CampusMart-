@@ -82,6 +82,11 @@ import AdminSupportMessages from "./pages/admin/AdminSupportMessages";
 import ChooseDashboard from "./pages/admin/ChooseDashboard";
 import AdminAnnouncements from "./pages/admin/AdminAnnouncements";
 import RegistrationSuccess from "./pages/customer/RegistrationSuccess";
+import Gigs from "./pages/customer/Gigs"; // adjust path
+import CreateGig from "./pages/customer/CreateGig";
+import GigDetail from "./pages/customer/GigDetail";
+import MyGigApplications from "./pages/customer/MyGigApplications";
+
 
 const emptyProfile = {
   fullName: "",
@@ -2330,6 +2335,50 @@ function App() {
 
         <Route path="/admin/announcements" element={<AdminAnnouncements />} />
 
+       {/* ===================== GIGS ===================== */}
+<Route
+  path="/gigs"
+  element={
+    <ProtectedRoute profileResolved={profileResolved}>
+      <CustomerRoute profile={profile} profileResolved={profileResolved}>
+        <Gigs cartCount={cartCount} />
+      </CustomerRoute>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/gigs/create"
+  element={
+    <ProtectedRoute profileResolved={profileResolved}>
+      <CustomerRoute profile={profile} profileResolved={profileResolved}>
+        <CreateGig cartCount={cartCount} profile={profile} />
+      </CustomerRoute>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/gigs/:id"
+  element={
+    <ProtectedRoute profileResolved={profileResolved}>
+      <CustomerRoute profile={profile} profileResolved={profileResolved}>
+        <GigDetail cartCount={cartCount} profile={profile} />
+      </CustomerRoute>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/gigs/applications"
+  element={
+    <ProtectedRoute profileResolved={profileResolved}>
+      <CustomerRoute profile={profile} profileResolved={profileResolved}>
+        <MyGigApplications cartCount={cartCount} profile={profile} />
+      </CustomerRoute>
+    </ProtectedRoute>
+  }
+/>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>
