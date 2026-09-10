@@ -666,7 +666,7 @@ function Chat({
                   onClick={selectAllForDeletion}
                   disabled={deleting}
                   title="Clear all messages"
-                  className="w-10 h-10 rounded-full hover:bg-red-50 flex items-center justify-center text-red-500 flex-shrink-0"
+                  className="w-10 h-10 rounded-full hover:bg-green-50 flex items-center justify-center text-green-600 flex-shrink-0"
                 >
                   <FiTrash2 size={18} />
                 </button>
