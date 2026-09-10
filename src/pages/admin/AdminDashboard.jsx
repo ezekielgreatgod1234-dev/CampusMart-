@@ -28,12 +28,16 @@ import {
   FiRefreshCw,
   FiAlertTriangle,
   FiCheckCircle,
+  FiMail,
+  FiSend,
+  FiAlertCircle,
 } from "react-icons/fi";
 
 import { db } from "../../context/firebase";
 import { useAuth } from "../../context/AuthContext";
 
 const ADMIN_EMAIL = "campusmart1234@gmail.com";
+const BACKEND_URL = "https://campusbackend-1.onrender.com";
 
 function AdminDashboard() {
   const navigate = useNavigate();
@@ -57,6 +61,17 @@ function AdminDashboard() {
   const [isResetting, setIsResetting] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+
+  // Announcement states
+  const [annTitle, setAnnTitle] = useState("");
+  const [annBody, setAnnBody] = useState("");
+  const [annMode, setAnnMode] = useState("all"); // all | single
+  const [annEmail, setAnnEmail] = useState("");
+  const [showBanner, setShowBanner] = useState(true);
+  const [annSending, setAnnSending] = useState(false);
+  const [annError, setAnnError] = useState("");
+  const [annSuccess, setAnnSuccess] = useState("");
+  const [bannerActive, setBannerActive] = useState(false);
 
   // =========================================================
   // ACCESS CONTROL
@@ -107,7 +122,7 @@ function AdminDashboard() {
   }, [firebaseUser]);
 
   // =========================================================
-  // LIVE ADMIN STATS + SUPPORT BADGE
+  // LIVE ADMIN STATS + SUPPORT BADGE + BANNER STATUS
   // =========================================================
   useEffect(() => {
     if (!allowed) return;
@@ -206,6 +221,18 @@ function AdminDashboard() {
       (error) => console.error("Could not load support messages:", error)
     );
 
+    const unsubBanner = onSnapshot(
+      doc(db, "settings", "liveBanner"),
+      (snap) => {
+        if (!snap.exists()) {
+          setBannerActive(false);
+          return;
+        }
+        setBannerActive(snap.data()?.active === true);
+      },
+      () => setBannerActive(false)
+    );
+
     return () => {
       unsubUsers();
       unsubProducts();
@@ -213,8 +240,103 @@ function AdminDashboard() {
       unsubFees();
       unsubWithdrawals();
       unsubSupport();
+      unsubBanner();
     };
   }, [allowed]);
+
+  // =========================================================
+  // SEND ANNOUNCEMENT (email + optional banner)
+  // =========================================================
+  const handleSendAnnouncement = async (e) => {
+    e.preventDefault();
+    setAnnError("");
+    setAnnSuccess("");
+
+    if (!annTitle.trim() || !annBody.trim()) {
+      setAnnError("Title and message are required.");
+      return;
+    }
+    if (annMode === "single" && !annEmail.trim()) {
+      setAnnError("Enter the recipient email.");
+      return;
+    }
+    if (!firebaseUser) {
+      setAnnError("Not signed in.");
+      return;
+    }
+
+    try {
+      setAnnSending(true);
+      const token = await firebaseUser.getIdToken();
+
+      const res = await fetch(`${BACKEND_URL}/send-announcement-email`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          title: annTitle.trim(),
+          body: annBody.trim(),
+          mode: annMode,
+          email:
+            annMode === "single"
+              ? annEmail.trim().toLowerCase()
+              : undefined,
+          showBanner,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Send failed");
+      }
+
+      if (annMode === "single") {
+        setAnnSuccess(
+          `Email sent to ${annEmail.trim()}${
+            showBanner ? " · In-app banner activated" : ""
+          }`
+        );
+      } else {
+        setAnnSuccess(
+          `Emails sent: ${data.sent || 0}${
+            data.failed ? ` (${data.failed} failed)` : ""
+          }${showBanner ? " · Banner activated for logged-in users" : ""}`
+        );
+      }
+
+      setAnnTitle("");
+      setAnnBody("");
+      setAnnEmail("");
+    } catch (err) {
+      console.error(err);
+      setAnnError(err.message || "Could not send announcement.");
+    } finally {
+      setAnnSending(false);
+    }
+  };
+
+  const handleClearBanner = async () => {
+    setAnnError("");
+    setAnnSuccess("");
+    try {
+      const token = await firebaseUser.getIdToken();
+      const res = await fetch(`${BACKEND_URL}/clear-live-banner`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed");
+      setAnnSuccess("In-app banner cleared.");
+    } catch (err) {
+      setAnnError(err.message || "Could not clear banner");
+    }
+  };
 
   // =========================================================
   // RESET ALL TRANSACTIONS
@@ -224,50 +346,42 @@ function AdminDashboard() {
     setShowResetConfirm(false);
 
     try {
-      // 1. Delete all orders
       const ordersSnap = await getDocs(collection(db, "orders"));
-      const orderDeletes = ordersSnap.docs.map((d) => deleteDoc(d.ref));
-      await Promise.all(orderDeletes);
+      await Promise.all(ordersSnap.docs.map((d) => deleteDoc(d.ref)));
 
-      // 2. Delete all earnings
       const earningsSnap = await getDocs(collection(db, "earnings"));
-      const earningsDeletes = earningsSnap.docs.map((d) => deleteDoc(d.ref));
-      await Promise.all(earningsDeletes);
+      await Promise.all(earningsSnap.docs.map((d) => deleteDoc(d.ref)));
 
-      // 3. Optional: clear platformFees
       try {
         const feesSnap = await getDocs(collection(db, "platformFees"));
-        const feesDeletes = feesSnap.docs.map((d) => deleteDoc(d.ref));
-        await Promise.all(feesDeletes);
+        await Promise.all(feesSnap.docs.map((d) => deleteDoc(d.ref)));
       } catch (e) {}
 
-      // 4. Reset seller balances
       const usersSnap = await getDocs(collection(db, "users"));
-      const balanceResets = usersSnap.docs.map(async (userDoc) => {
-        const data = userDoc.data() || {};
-        if (
-          data.availableBalance !== undefined ||
-          data.totalEarnings !== undefined ||
-          data.role === "seller" ||
-          data.isSeller === true
-        ) {
-          await updateDoc(userDoc.ref, {
-            availableBalance: 0,
-            totalEarnings: 0,
-            totalSalesGross: 0,
-            totalPlatformFees: 0,
-          });
-        }
-      });
+      await Promise.all(
+        usersSnap.docs.map(async (userDoc) => {
+          const data = userDoc.data() || {};
+          if (
+            data.availableBalance !== undefined ||
+            data.totalEarnings !== undefined ||
+            data.role === "seller" ||
+            data.isSeller === true
+          ) {
+            await updateDoc(userDoc.ref, {
+              availableBalance: 0,
+              totalEarnings: 0,
+              totalSalesGross: 0,
+              totalPlatformFees: 0,
+            });
+          }
+        })
+      );
 
-      await Promise.all(balanceResets);
-
-      // Show custom success modal
       setShowSuccessModal(true);
     } catch (error) {
       console.error("Reset failed:", error);
       alert(
-        "❌ Reset failed. Check the console for details.\n\nError: " +
+        "Reset failed. Check the console for details.\n\nError: " +
           (error.message || "Unknown error")
       );
     } finally {
@@ -469,12 +583,48 @@ function AdminDashboard() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-            <StatCard label="Total Users" value={totalUsers} icon={FiUsers} color="text-blue-600" bg="bg-blue-50" />
-            <StatCard label="Total Products" value={totalProducts} icon={FiPackage} color="text-purple-600" bg="bg-purple-50" />
-            <StatCard label="Total Orders" value={totalOrders} icon={FiShoppingBag} color="text-orange-600" bg="bg-orange-50" />
-            <StatCard label="Total Revenue" value={formatNaira(totalRevenue)} icon={FiTrendingUp} color="text-emerald-600" bg="bg-emerald-50" />
-            <StatCard label="CampusMart Fees (5%)" value={formatNaira(platformFees)} icon={FiDollarSign} color="text-[#008236]" bg="bg-green-50" />
-            <StatCard label="Pending Withdrawals" value={pendingWithdrawals} icon={FiClock} color="text-amber-600" bg="bg-amber-50" />
+            <StatCard
+              label="Total Users"
+              value={totalUsers}
+              icon={FiUsers}
+              color="text-blue-600"
+              bg="bg-blue-50"
+            />
+            <StatCard
+              label="Total Products"
+              value={totalProducts}
+              icon={FiPackage}
+              color="text-purple-600"
+              bg="bg-purple-50"
+            />
+            <StatCard
+              label="Total Orders"
+              value={totalOrders}
+              icon={FiShoppingBag}
+              color="text-orange-600"
+              bg="bg-orange-50"
+            />
+            <StatCard
+              label="Total Revenue"
+              value={formatNaira(totalRevenue)}
+              icon={FiTrendingUp}
+              color="text-emerald-600"
+              bg="bg-emerald-50"
+            />
+            <StatCard
+              label="CampusMart Fees (5%)"
+              value={formatNaira(platformFees)}
+              icon={FiDollarSign}
+              color="text-[#008236]"
+              bg="bg-green-50"
+            />
+            <StatCard
+              label="Pending Withdrawals"
+              value={pendingWithdrawals}
+              icon={FiClock}
+              color="text-amber-600"
+              bg="bg-amber-50"
+            />
           </div>
 
           {/* Support Messages */}
@@ -496,7 +646,9 @@ function AdminDashboard() {
                   </h2>
                   <p className="text-xs text-gray-500 mt-1">
                     {unreadSupportCount > 0
-                      ? `${unreadSupportCount} new message${unreadSupportCount === 1 ? "" : "s"}`
+                      ? `${unreadSupportCount} new message${
+                          unreadSupportCount === 1 ? "" : "s"
+                        }`
                       : "View and manage messages from users."}
                   </p>
                 </div>
@@ -511,6 +663,165 @@ function AdminDashboard() {
                 Open
               </button>
             </div>
+          </div>
+
+          {/* =====================================================
+              ANNOUNCEMENTS — email all / one + in-app banner
+             ===================================================== */}
+          <div className="mt-6 bg-white rounded-2xl border border-gray-100 p-5 sm:p-6 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-5">
+              <div className="flex items-start gap-3">
+                <div className="w-11 h-11 rounded-xl bg-green-50 text-[#008236] flex items-center justify-center flex-shrink-0 border border-green-100">
+                  <FiMail size={20} />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-gray-900">
+                    Announcements
+                  </h2>
+                  <p className="text-xs text-gray-500 mt-1 max-w-md">
+                    Email every registered user (or one address). Optionally show
+                    a floating banner telling them to check inbox + Junk/Spam.
+                  </p>
+                </div>
+              </div>
+
+              <div
+                className={`
+                  self-start px-3 py-1.5 rounded-full text-[11px] font-semibold
+                  ${
+                    bannerActive
+                      ? "bg-green-50 text-[#008236] border border-green-100"
+                      : "bg-gray-50 text-gray-500 border border-gray-100"
+                  }
+                `}
+              >
+                Banner: {bannerActive ? "Active" : "Off"}
+              </div>
+            </div>
+
+            {annError && (
+              <div className="mb-4 rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-600 flex gap-2">
+                <FiAlertCircle className="shrink-0 mt-0.5" size={16} />
+                {annError}
+              </div>
+            )}
+            {annSuccess && (
+              <div className="mb-4 rounded-xl bg-green-50 border border-green-100 px-4 py-3 text-sm text-green-700 flex gap-2">
+                <FiCheckCircle className="shrink-0 mt-0.5" size={16} />
+                {annSuccess}
+              </div>
+            )}
+
+            <form onSubmit={handleSendAnnouncement} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Recipients
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { id: "all", label: "All registered emails" },
+                    { id: "single", label: "One specific email" },
+                  ].map((o) => (
+                    <button
+                      key={o.id}
+                      type="button"
+                      onClick={() => setAnnMode(o.id)}
+                      className={`h-10 px-4 rounded-xl text-sm font-semibold transition ${
+                        annMode === o.id
+                          ? "bg-[#008236] text-white"
+                          : "bg-green-50 text-[#008236] border border-green-100"
+                      }`}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {annMode === "single" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Email address
+                  </label>
+                  <input
+                    type="email"
+                    value={annEmail}
+                    onChange={(e) => setAnnEmail(e.target.value)}
+                    placeholder="student@example.com"
+                    className="w-full h-11 px-4 rounded-xl border border-gray-200 bg-gray-50 text-sm outline-none focus:border-[#008236] focus:bg-white"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Title
+                </label>
+                <input
+                  type="text"
+                  value={annTitle}
+                  onChange={(e) => setAnnTitle(e.target.value)}
+                  placeholder="e.g. New CampusMart update"
+                  className="w-full h-11 px-4 rounded-xl border border-gray-200 bg-gray-50 text-sm outline-none focus:border-[#008236] focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Message
+                </label>
+                <textarea
+                  rows={4}
+                  value={annBody}
+                  onChange={(e) => setAnnBody(e.target.value)}
+                  placeholder="Write the announcement users will receive by email..."
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm outline-none focus:border-[#008236] focus:bg-white resize-none"
+                />
+              </div>
+
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showBanner}
+                  onChange={(e) => setShowBanner(e.target.checked)}
+                  className="mt-1 accent-green-600"
+                />
+                <span className="text-sm text-gray-600">
+                  Show floating banner when users log in (remind them to check
+                  inbox + Junk/Spam). They dismiss it with <strong>Done</strong>.
+                </span>
+              </label>
+
+              <div className="flex flex-col sm:flex-row gap-3 pt-1">
+                <button
+                  type="submit"
+                  disabled={annSending}
+                  className="h-11 px-5 rounded-xl bg-[#008236] hover:bg-[#006f2e] disabled:opacity-60 text-white text-sm font-semibold inline-flex items-center justify-center gap-2 transition"
+                >
+                  {annSending ? (
+                    <>
+                      <FiRefreshCw className="animate-spin" size={16} />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <FiSend size={16} />
+                      Send announcement
+                    </>
+                  )}
+                </button>
+
+                {bannerActive && (
+                  <button
+                    type="button"
+                    onClick={handleClearBanner}
+                    className="h-11 px-5 rounded-xl border border-green-200 text-[#008236] text-sm font-semibold hover:bg-green-50 transition"
+                  >
+                    Clear in-app banner
+                  </button>
+                )}
+              </div>
+            </form>
           </div>
 
           {/* RESET SECTION */}
@@ -563,7 +874,7 @@ function AdminDashboard() {
         </main>
       </div>
 
-      {/* ===================== CONFIRM MODAL ===================== */}
+      {/* CONFIRM MODAL */}
       {showResetConfirm && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div
@@ -643,7 +954,7 @@ function AdminDashboard() {
         </div>
       )}
 
-      {/* ===================== SUCCESS MODAL ===================== */}
+      {/* SUCCESS MODAL */}
       {showSuccessModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div
@@ -652,7 +963,6 @@ function AdminDashboard() {
           />
 
           <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
-            {/* Green success header */}
             <div className="bg-[#008236] px-6 py-6 flex flex-col items-center text-center">
               <div className="w-16 h-16 rounded-full bg-white/15 flex items-center justify-center mb-3">
                 <FiCheckCircle size={36} className="text-white" />
@@ -663,7 +973,6 @@ function AdminDashboard() {
               </p>
             </div>
 
-            {/* Body */}
             <div className="px-6 py-5">
               <p className="text-sm text-gray-600 text-center leading-relaxed">
                 All buyer orders, seller earnings and balances have been
@@ -671,7 +980,6 @@ function AdminDashboard() {
               </p>
             </div>
 
-            {/* Action */}
             <div className="px-6 pb-6">
               <button
                 type="button"

@@ -21,6 +21,7 @@ import {
   FiBriefcase,
   FiX,
   FiTrash2,
+  FiLoader,
 } from "react-icons/fi";
 
 function Gigs({ cartCount = 0 }) {
@@ -30,6 +31,18 @@ function Gigs({ cartCount = 0 }) {
   const [loading, setLoading] = useState(true);
   const [filterOpen, setFilterOpen] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+
+  const [deleteModal, setDeleteModal] = useState({
+    open: false,
+    gigId: null,
+    title: "",
+  });
+
+  const [toast, setToast] = useState({
+    open: false,
+    message: "",
+    type: "success",
+  });
 
   const categories = [
     "All",
@@ -47,6 +60,52 @@ function Gigs({ cartCount = 0 }) {
   const selectedCategory = categories.includes(urlCategory)
     ? urlCategory
     : "All";
+
+  const showToast = (message, type = "success") => {
+    setToast({ open: true, message, type });
+    window.setTimeout(() => {
+      setToast({ open: false, message: "", type: "success" });
+    }, 2800);
+  };
+
+  const formatNaira = (value) => {
+    if (value === null || value === undefined || value === "") {
+      return "Negotiable";
+    }
+    if (typeof value === "number") {
+      return `₦${value.toLocaleString("en-NG")}`;
+    }
+    const stringValue = String(value).trim();
+    if (!stringValue) return "Negotiable";
+    const cleaned = stringValue
+      .replace(/₦/g, "")
+      .replace(/\$/g, "")
+      .replace(/,/g, "")
+      .trim();
+    const numericValue = Number(cleaned);
+    if (!Number.isNaN(numericValue)) {
+      return `₦${numericValue.toLocaleString("en-NG")}`;
+    }
+    return stringValue.replace(/\$/g, "₦");
+  };
+
+  const formatDeadlineShort = (deadline) => {
+    if (!deadline) return "No deadline";
+    try {
+      let date;
+      if (deadline?.toDate) date = deadline.toDate();
+      else if (deadline instanceof Date) date = deadline;
+      else date = new Date(deadline);
+      if (Number.isNaN(date.getTime())) return String(deadline);
+      return date.toLocaleDateString("en-NG", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+    } catch {
+      return String(deadline);
+    }
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -100,18 +159,32 @@ function Gigs({ cartCount = 0 }) {
     setFilterOpen(false);
   };
 
-  const handleDeleteGig = async (e, gigId) => {
+  const openDeleteModal = (e, gig) => {
     e.preventDefault();
     e.stopPropagation();
+    setDeleteModal({
+      open: true,
+      gigId: gig.id,
+      title: gig.title || "this gig",
+    });
+  };
 
-    if (!window.confirm("Are you sure you want to delete this gig?")) return;
+  const closeDeleteModal = () => {
+    if (deletingId) return;
+    setDeleteModal({ open: false, gigId: null, title: "" });
+  };
 
-    setDeletingId(gigId);
+  const confirmDeleteGig = async () => {
+    if (!deleteModal.gigId) return;
+
+    setDeletingId(deleteModal.gigId);
     try {
-      await deleteDoc(doc(db, "gigs", gigId));
+      await deleteDoc(doc(db, "gigs", deleteModal.gigId));
+      setDeleteModal({ open: false, gigId: null, title: "" });
+      showToast("Gig deleted successfully.", "success");
     } catch (error) {
       console.error("Error deleting gig:", error);
-      alert("Failed to delete gig. Please try again.");
+      showToast("Failed to delete gig. Please try again.", "error");
     } finally {
       setDeletingId(null);
     }
@@ -139,6 +212,19 @@ function Gigs({ cartCount = 0 }) {
   return (
     <CustomerLayout cartCount={cartCount}>
       <div className="space-y-6">
+        {/* Toast */}
+        {toast.open && (
+          <div
+            className={`fixed top-4 right-4 z-[120] max-w-sm rounded-xl border px-4 py-3 shadow-lg text-sm font-medium ${
+              toast.type === "error"
+                ? "bg-red-50 border-red-100 text-red-700"
+                : "bg-green-50 border-green-100 text-green-800"
+            }`}
+          >
+            {toast.message}
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
@@ -172,7 +258,7 @@ function Gigs({ cartCount = 0 }) {
 
               <Link
                 to="/gigs/create"
-                className="inline-flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-5 py-3 rounded-xl text-sm font-medium transition shadow-sm whitespace-nowrap"
+                className="inline-flex items-center justify-center gap-2 bg-[#008236] hover:bg-[#006f2e] text-white px-5 py-3 rounded-xl text-sm font-medium transition shadow-sm whitespace-nowrap"
               >
                 <FiPlus size={18} />
                 Post a Gig
@@ -185,7 +271,7 @@ function Gigs({ cartCount = 0 }) {
           <div className="bg-green-50 border border-green-100 rounded-xl px-4 py-3">
             <p className="text-sm text-green-700">
               Search results for{" "}
-              <span className="font-semibold">"{search}"</span> —{" "}
+              <span className="font-semibold">&quot;{search}&quot;</span> —{" "}
               {filteredGigs.length} gig{filteredGigs.length !== 1 ? "s" : ""}
             </p>
           </div>
@@ -207,7 +293,7 @@ function Gigs({ cartCount = 0 }) {
                 onClick={() => handleCategoryChange(category)}
                 className={`shrink-0 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
                   selectedCategory === category
-                    ? "bg-green-600 text-white shadow-sm"
+                    ? "bg-[#008236] text-white shadow-sm"
                     : "bg-gray-100 text-gray-600 hover:bg-green-50 hover:text-green-600"
                 }`}
               >
@@ -258,7 +344,7 @@ function Gigs({ cartCount = 0 }) {
                   key={gig.id}
                   className="relative bg-white border border-gray-100 rounded-2xl p-5 hover:shadow-md hover:border-green-200 transition-all duration-200"
                 >
-                  <Link to={`/gigs/${gig.id}`} className="block">
+                  <Link to={`/gigs/${gig.id}`} className="block pr-10">
                     <div className="flex justify-between items-start gap-3">
                       <div className="flex-1 min-w-0">
                         <h3 className="font-semibold text-gray-800 text-lg">
@@ -276,11 +362,11 @@ function Gigs({ cartCount = 0 }) {
                     <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-4 text-sm text-gray-500">
                       <span className="flex items-center gap-1.5">
                         <FiDollarSign size={14} className="text-green-600" />
-                        {gig.budget || "Negotiable"}
+                        {formatNaira(gig.budget)}
                       </span>
                       <span className="flex items-center gap-1.5">
                         <FiClock size={14} className="text-green-600" />
-                        {gig.deadline}
+                        {formatDeadlineShort(gig.deadline)}
                       </span>
                       <span className="flex items-center gap-1.5">
                         <FiMapPin size={14} className="text-green-600" />
@@ -293,16 +379,20 @@ function Gigs({ cartCount = 0 }) {
                     </div>
                   </Link>
 
-                  {/* Delete button - only for poster */}
+                  {/* Delete — CampusMart green */}
                   {isOwner && (
                     <button
                       type="button"
-                      onClick={(e) => handleDeleteGig(e, gig.id)}
+                      onClick={(e) => openDeleteModal(e, gig)}
                       disabled={deletingId === gig.id}
-                      className="absolute top-4 right-4 w-9 h-9 rounded-full bg-red-50 text-red-500 hover:bg-red-100 flex items-center justify-center transition disabled:opacity-50"
+                      className="absolute top-4 right-4 w-9 h-9 rounded-full bg-green-50 text-[#008236] hover:bg-[#008236] hover:text-white border border-green-100 flex items-center justify-center transition disabled:opacity-50"
                       title="Delete gig"
                     >
-                      <FiTrash2 size={16} />
+                      {deletingId === gig.id ? (
+                        <FiLoader size={16} className="animate-spin" />
+                      ) : (
+                        <FiTrash2 size={16} />
+                      )}
                     </button>
                   )}
                 </div>
@@ -336,7 +426,7 @@ function Gigs({ cartCount = 0 }) {
               )}
               <Link
                 to="/gigs/create"
-                className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-xl text-sm font-medium"
+                className="inline-flex items-center gap-2 bg-[#008236] hover:bg-[#006f2e] text-white px-5 py-2.5 rounded-xl text-sm font-medium"
               >
                 <FiPlus size={16} />
                 Post a Gig
@@ -402,9 +492,60 @@ function Gigs({ cartCount = 0 }) {
               <button
                 type="button"
                 onClick={() => setFilterOpen(false)}
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-medium"
+                className="flex-1 bg-[#008236] hover:bg-[#006f2e] text-white py-3 rounded-xl font-medium"
               >
                 Apply Filters
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete modal — CampusMart green (no browser confirm) */}
+      {deleteModal.open && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center px-4">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
+            onClick={closeDeleteModal}
+          />
+          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-gray-100 p-6">
+            <div className="w-12 h-12 rounded-full bg-green-50 flex items-center justify-center mb-4">
+              <FiTrash2 size={22} className="text-[#008236]" />
+            </div>
+            <h3 className="text-lg font-bold text-gray-800">Delete this gig?</h3>
+            <p className="text-sm text-gray-600 leading-relaxed mt-2">
+              This will permanently remove{" "}
+              <span className="font-semibold text-gray-800">
+                “{deleteModal.title}”
+              </span>{" "}
+              from CampusMart. This cannot be undone.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 mt-6">
+              <button
+                type="button"
+                onClick={closeDeleteModal}
+                disabled={!!deletingId}
+                className="flex-1 py-3 border border-gray-200 rounded-xl text-gray-700 font-medium hover:bg-gray-50 transition disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteGig}
+                disabled={!!deletingId}
+                className="flex-1 flex items-center justify-center gap-2 bg-[#008236] hover:bg-[#006f2e] disabled:bg-green-400 text-white font-medium py-3 rounded-xl transition shadow-sm disabled:cursor-not-allowed"
+              >
+                {deletingId ? (
+                  <>
+                    <FiLoader className="animate-spin" size={16} />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <FiTrash2 size={16} />
+                    Yes, Delete
+                  </>
+                )}
               </button>
             </div>
           </div>

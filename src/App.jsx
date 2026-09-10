@@ -87,6 +87,8 @@ import CreateGig from "./pages/customer/CreateGig";
 import GigDetail from "./pages/customer/GigDetail";
 import MyGigApplications from "./pages/customer/MyGigApplications";
 
+import AnnouncementBanner from "./components/AnnouncementBanner";
+
 const emptyProfile = {
   fullName: "",
   displayName: "",
@@ -2332,59 +2334,65 @@ function App() {
           }
         />
 
-        <Route path="/admin/announcements" element={<AdminAnnouncements />} />
-
-
-
         {/* ===================== GIGS ===================== */}
-<Route
-  path="/gigs"
-  element={
-    <ProtectedRoute profileResolved={profileResolved}>
-      <CustomerRoute profile={profile} profileResolved={profileResolved}>
-        <Gigs cartCount={cartCount} />
-      </CustomerRoute>
-    </ProtectedRoute>
-  }
-/>
+        <Route
+          path="/gigs"
+          element={
+            <ProtectedRoute profileResolved={profileResolved}>
+              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+                <Gigs cartCount={cartCount} />
+              </CustomerRoute>
+            </ProtectedRoute>
+          }
+        />
 
-<Route
-  path="/gigs/create"
-  element={
-    <ProtectedRoute profileResolved={profileResolved}>
-      <CustomerRoute profile={profile} profileResolved={profileResolved}>
-        <CreateGig cartCount={cartCount} profile={profile} />
-      </CustomerRoute>
-    </ProtectedRoute>
-  }
-/>
+        <Route
+          path="/gigs/create"
+          element={
+            <ProtectedRoute profileResolved={profileResolved}>
+              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+                <CreateGig cartCount={cartCount} profile={profile} />
+              </CustomerRoute>
+            </ProtectedRoute>
+          }
+        />
 
-<Route
-  path="/gigs/:id"
-  element={
-    <ProtectedRoute profileResolved={profileResolved}>
-      <CustomerRoute profile={profile} profileResolved={profileResolved}>
-        <GigDetail cartCount={cartCount} profile={profile} />
-      </CustomerRoute>
-    </ProtectedRoute>
-  }
-/>
+        <Route
+          path="/gigs/:id"
+          element={
+            <ProtectedRoute profileResolved={profileResolved}>
+              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+                <GigDetail cartCount={cartCount} profile={profile} />
+              </CustomerRoute>
+            </ProtectedRoute>
+          }
+        />
 
-<Route
-  path="/gigs/applications"
-  element={
-    <ProtectedRoute profileResolved={profileResolved}>
-      <CustomerRoute profile={profile} profileResolved={profileResolved}>
-        <MyGigApplications cartCount={cartCount} profile={profile} />
-      </CustomerRoute>
-    </ProtectedRoute>
-  }
-/>
+        <Route
+          path="/gigs/applications"
+          element={
+            <ProtectedRoute profileResolved={profileResolved}>
+              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+                <MyGigApplications cartCount={cartCount} profile={profile} />
+              </CustomerRoute>
+            </ProtectedRoute>
+          }
+        />
 
-
+        <Route
+          path="/admin/announcements"
+          element={
+            <AdminRoute profile={profile} profileResolved={profileResolved}>
+              <AdminAnnouncements />
+            </AdminRoute>
+          }
+        />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+
+      {/* Banner must be OUTSIDE <Routes> or the app goes blank */}
+      <AnnouncementBanner />
     </>
   );
 }
