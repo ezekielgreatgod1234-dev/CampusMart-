@@ -233,9 +233,15 @@ function Register() {
           updatedAt: serverTimestamp(),
         },
         { merge: true }
-      ).catch((e) => console.warn("publicProfiles:", e));
+      ).catch((err) => console.warn("publicProfiles:", err));
 
-      // Verification email – max 8 seconds so it cannot hang forever
+      // =====================================================
+      // Firebase verification email (NOT Brevo)
+      // Longer timeout so Firebase has time to send
+      // =====================================================
+      let verificationSent = false;
+      let verificationError = "";
+
       try {
         console.log("5. Sending verification email...");
         await Promise.race([
@@ -244,15 +250,19 @@ function Register() {
             handleCodeInApp: false,
           }),
           new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("verify-timeout")), 8000)
+            setTimeout(() => reject(new Error("verify-timeout")), 30000)
           ),
         ]);
+        verificationSent = true;
         console.log("6. Verification email sent");
-      } catch (e) {
-        console.warn("Verification email skipped/failed:", e);
+      } catch (err) {
+        console.warn("Verification email failed:", err);
+        verificationError =
+          err?.message === "verify-timeout"
+            ? "Verification email timed out. You can resend it after login."
+            : "Verification email could not be sent. You can resend it after login.";
       }
 
-      // Sign out + go to success immediately
       console.log("7. Signing out...");
       await signOut(auth);
       console.log("8. Navigating to success");
@@ -261,6 +271,8 @@ function Register() {
         replace: true,
         state: {
           registeredEmail: email,
+          verificationSent,
+          verificationError,
         },
       });
 
@@ -271,9 +283,9 @@ function Register() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, fullName }),
       }).catch(() => {});
-    } catch (error) {
-      console.error("Registration error:", error);
-      setError(getFirebaseErrorMessage(error));
+    } catch (err) {
+      console.error("Registration error:", err);
+      setError(getFirebaseErrorMessage(err));
     } finally {
       setLoading(false);
     }
