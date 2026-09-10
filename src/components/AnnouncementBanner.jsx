@@ -398,7 +398,7 @@ function AnnouncementBanner() {
 
         @media (max-width: 640px) {
           .campusmart-ticker {
-            animation-duration: 75s;
+            animation-duration: 90s;
           }
         }
 
