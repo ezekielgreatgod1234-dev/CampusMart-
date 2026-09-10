@@ -323,13 +323,77 @@ function Chat({
     }
   };
 
-  const isMessageSeen = (message) =>
-    Boolean(
-      message?.seenAt ||
-        message?.readAt ||
-        message?.isRead === true ||
-        message?.seen === true
-    );
+  // =====================================================
+  // SEEN DETECTION
+  // Mirrors the logic used in the conversation list (Messages.jsx)
+  // so a message's ticks turn blue the same way the list preview
+  // does. Checks, in order:
+  //  1) per-message read arrays (readBy / seenBy / readByUserIds ...)
+  //  2) per-message read maps ({ [uid]: true })
+  //  3) simple boolean/timestamp flags (seenAt, readAt, isRead, seen)
+  //  4) conversation-level unreadCounts for the other participant
+  // =====================================================
+
+  const isMessageSeen = (message) => {
+    if (!message) return false;
+
+    const readArrays = [
+      message.readBy,
+      message.seenBy,
+      message.lastMessageSeenBy,
+      message.readByUserIds,
+      message.seenByUserIds,
+    ];
+
+    for (const readArray of readArrays) {
+      if (
+        Array.isArray(readArray) &&
+        otherParticipantId &&
+        readArray.some((uid) => String(uid) === String(otherParticipantId))
+      ) {
+        return true;
+      }
+    }
+
+    const readObjects = [message.readBy, message.seenBy, message.lastMessageSeenBy];
+
+    for (const readObject of readObjects) {
+      if (
+        readObject &&
+        typeof readObject === "object" &&
+        !Array.isArray(readObject) &&
+        otherParticipantId &&
+        readObject[otherParticipantId] === true
+      ) {
+        return true;
+      }
+    }
+
+    if (
+      message.seenAt ||
+      message.readAt ||
+      message.isRead === true ||
+      message.seen === true
+    ) {
+      return true;
+    }
+
+    // Fallback: if the other participant's unread count on the
+    // conversation is 0, they've caught up on everything I sent.
+    if (
+      isMyMessage(message) &&
+      otherParticipantId &&
+      liveConversation?.unreadCounts &&
+      Object.prototype.hasOwnProperty.call(
+        liveConversation.unreadCounts,
+        otherParticipantId
+      )
+    ) {
+      return Number(liveConversation.unreadCounts[otherParticipantId] || 0) === 0;
+    }
+
+    return false;
+  };
 
   const MessageTicks = ({ message }) => {
     if (!isMyMessage(message)) return null;
@@ -353,6 +417,20 @@ function Chat({
         )}
       </span>
     );
+  };
+
+  const getMessageId = (message, index) =>
+    String(message.id || `${getMessageTimestampMs(message)}-${index}`);
+
+  // Select every visible message and jump straight to the delete
+  // confirmation, instead of making the user tap each bubble.
+  const selectAllForDeletion = () => {
+    if (deleting || visibleMessages.length === 0) return;
+    const allIds = visibleMessages.map((message, index) =>
+      getMessageId(message, index)
+    );
+    setSelectedMessageIds(allIds);
+    setShowDeleteMenu(true);
   };
 
   const toggleMessageSelection = (messageId) => {
@@ -581,6 +659,18 @@ function Chat({
                   CampusMart conversation
                 </p>
               </div>
+
+              {visibleMessages.length > 0 && (
+                <button
+                  type="button"
+                  onClick={selectAllForDeletion}
+                  disabled={deleting}
+                  title="Clear all messages"
+                  className="w-10 h-10 rounded-full hover:bg-red-50 flex items-center justify-center text-red-500 flex-shrink-0"
+                >
+                  <FiTrash2 size={18} />
+                </button>
+              )}
             </>
           )}
         </div>
@@ -607,9 +697,7 @@ function Chat({
 
           {visibleMessages.map((message, index) => {
             const mine = isMyMessage(message);
-            const messageId = String(
-              message.id || `${getMessageTimestampMs(message)}-${index}`
-            );
+            const messageId = getMessageId(message, index);
             const selected = selectedMessageIds.includes(messageId);
 
             return (
@@ -702,8 +790,12 @@ function Chat({
                   </div>
                   <div>
                     <h3 className="text-lg font-bold text-gray-900">
-                      Delete message
-                      {selectedMessageIds.length > 1 ? "s" : ""}
+                      {selectedMessageIds.length === visibleMessages.length &&
+                      visibleMessages.length > 1
+                        ? "Delete all messages"
+                        : `Delete message${
+                            selectedMessageIds.length > 1 ? "s" : ""
+                          }`}
                     </h3>
                     <p className="text-sm text-gray-500">Choose an option</p>
                   </div>

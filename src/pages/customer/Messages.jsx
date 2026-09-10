@@ -237,7 +237,15 @@ function Messages({
     const newestMessage = getNewestVisibleMessage(conversation);
 
     if (newestMessage) {
-      const timestampMs = getMessageTimestampMs(newestMessage);
+      // Prefer the conversation document's own lastMessageAt (written
+      // server-side via serverTimestamp() on every send) over the
+      // timestamp embedded in the message array. Embedded timestamps
+      // can be null/unset for a brief window after an optimistic
+      // write, which was causing sort order to freeze / not bubble
+      // the conversation to the top when a new message arrived.
+      const documentMs = getTimestampMs(conversation?.lastMessageAt);
+      const embeddedMs = getMessageTimestampMs(newestMessage);
+      const timestampMs = documentMs > 0 ? documentMs : embeddedMs;
 
       let previewText = "";
 
