@@ -388,7 +388,7 @@ function AnnouncementBanner() {
         .campusmart-ticker {
           display: inline-block;
           min-width: 200%;
-          animation: campusmart-ticker-scroll 100s linear infinite;
+          animation: campusmart-ticker-scroll 130s linear infinite;
           will-change: transform;
         }
 
