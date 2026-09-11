@@ -89,6 +89,8 @@ import MyGigApplications from "./pages/customer/MyGigApplications";
 
 import AnnouncementBanner from "./components/AnnouncementBanner";
 
+import AIAssistant from "./pages/customer/AIAssistant";
+
 const emptyProfile = {
   fullName: "",
   displayName: "",
@@ -2334,7 +2336,10 @@ function App() {
           }
         />
 
-       {/* ===================== GIGS (Buyers + Sellers allowed) ===================== */}
+
+        
+
+      {/* ===================== GIGS (Buyers + Sellers allowed) ===================== */}
 <Route
   path="/gigs"
   element={
@@ -2371,6 +2376,28 @@ function App() {
   }
 />
 
+{/* ===================== CAMPUS AI ===================== */}
+<Route
+  path="/ai"
+  element={
+    <ProtectedRoute profileResolved={profileResolved}>
+      <CustomerRoute profile={profile} profileResolved={profileResolved}>
+        <AIAssistant cartCount={cartCount} />
+      </CustomerRoute>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/admin/announcements"
+  element={
+    <AdminRoute profile={profile} profileResolved={profileResolved}>
+      <AdminAnnouncements />
+    </AdminRoute>
+  }
+/>
+
+<Route path="*" element={<Navigate to="/" replace />} />
         <Route
           path="/admin/announcements"
           element={
@@ -2379,6 +2406,8 @@ function App() {
             </AdminRoute>
           }
         />
+
+  
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

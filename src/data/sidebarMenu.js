@@ -8,7 +8,8 @@ import {
   FiUser,
   FiSettings,
   FiLogOut,
-  FiBriefcase, // for Gigs
+  FiBriefcase,
+  FiZap, // for CampusAI
 } from "react-icons/fi";
 
 const sidebarMenu = [
@@ -26,6 +27,11 @@ const sidebarMenu = [
     name: "Gigs",
     icon: FiBriefcase,
     path: "/gigs",
+  },
+  {
+    name: "CampusMartAI",
+    icon: FiZap,
+    path: "/ai",
   },
   {
     name: "Wishlist",
