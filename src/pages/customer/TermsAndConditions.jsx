@@ -722,7 +722,7 @@ function TermsAndConditions() {
                     </p>
 
                     <a
-                      href="mailto:support@campusmart.com"
+                      href="mailto:causmart1234@gmail.com"
                       className="
                         inline-block
                         mt-3
@@ -732,13 +732,13 @@ function TermsAndConditions() {
                         hover:text-green-800
                       "
                     >
-                      campusmart1234@gmail.com
+                      causmart1234@gmail.com
                     </a>
                   </div>
                 </div>
               </div>
             </section>
-
+mp
             {/* =================================================
                 FINAL NOTE
             ================================================= */}
