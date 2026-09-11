@@ -89,7 +89,7 @@ import MyGigApplications from "./pages/customer/MyGigApplications";
 
 import AnnouncementBanner from "./components/AnnouncementBanner";
 
-import AIAssistant from "./pages/customer/AIAssistant";
+import AIAssistant from "./pages/admin/AIAssistant";
 
 const emptyProfile = {
   fullName: "",
