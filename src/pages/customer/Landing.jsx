@@ -55,52 +55,30 @@ function Landing() {
         }
       }
 
-      // No decision has been made yet
       setCookieConsent(null);
     } catch (error) {
       console.error("Unable to read cookie consent:", error);
-
-      // If cookies are unavailable, still show the banner
       setCookieConsent(null);
     }
   }, []);
 
   const setCookieConsentChoice = (choice) => {
     try {
-      // Remember the user's choice for 1 year.
       const oneYear = 60 * 60 * 24 * 365;
-
       document.cookie = `campusmart_cookie_consent=${choice}; max-age=${oneYear}; path=/; SameSite=Lax`;
-
       setCookieConsent(choice);
     } catch (error) {
       console.error("Unable to save cookie consent:", error);
-
-      // Still hide the banner for the current session
       setCookieConsent(choice);
     }
   };
 
   const acceptCookies = () => {
     setCookieConsentChoice("accepted");
-
-    // =====================================================
-    // PLACE OPTIONAL ANALYTICS / MARKETING INITIALIZATION
-    // HERE LATER IF YOU ADD THEM.
-    //
-    // Example:
-    // initializeAnalytics();
-    // =====================================================
   };
 
   const rejectCookies = () => {
     setCookieConsentChoice("rejected");
-
-    // =====================================================
-    // IMPORTANT:
-    // Do not initialize optional analytics/marketing cookies
-    // after the user rejects them.
-    // =====================================================
   };
 
   // =========================================================
@@ -110,6 +88,11 @@ function Landing() {
   const goToBrowse = () => {
     setMobileMenuOpen(false);
     navigate("/browse-products");
+  };
+
+  const goToGigs = () => {
+    setMobileMenuOpen(false);
+    navigate("/gigs");
   };
 
   const goToRegister = () => {
@@ -246,9 +229,9 @@ function Landing() {
       text: "Chat directly with buyers and sellers in real-time.",
     },
     {
-      icon: <FiBookOpen size={28} />,
-      title: "Campus Focused",
-      text: "Exclusively for university and polytechnic students.",
+      icon: <FiBriefcase size={28} />,
+      title: "Campus Gigs",
+      text: "Post or find quick jobs, tutoring, and campus tasks.",
     },
   ];
 
@@ -332,9 +315,9 @@ function Landing() {
       text: "Chat directly with buyers and sellers",
     },
     {
-      icon: <FiActivity size={29} />,
-      title: "Campus Focused",
-      text: "Built exclusively for university students",
+      icon: <FiBriefcase size={29} />,
+      title: "Campus Gigs",
+      text: "Find or post jobs right on your campus",
     },
   ];
 
@@ -372,10 +355,7 @@ function Landing() {
   return (
     <div className="landing-page min-h-screen bg-white text-gray-900 overflow-x-hidden">
 
-      {/* =====================================================
-          COOKIE BANNER ANIMATION
-      ===================================================== */}
-
+      {/* COOKIE BANNER ANIMATION */}
       <style>
         {`
           @keyframes campusMartCookieSlideIn {
@@ -383,12 +363,10 @@ function Landing() {
               opacity: 0;
               transform: translateY(120%);
             }
-
             60% {
               opacity: 1;
               transform: translateY(-4px);
             }
-
             100% {
               opacity: 1;
               transform: translateY(0);
@@ -410,56 +388,27 @@ function Landing() {
       {/* =====================================================
           NAVBAR
       ===================================================== */}
-
       <header className="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-gray-100">
         <div className="max-w-[1400px] mx-auto px-5 sm:px-8 lg:px-10">
           <div className="h-[70px] sm:h-[78px] flex items-center justify-between">
 
             {/* LOGO */}
-
             <Link
               to="/"
               className="flex items-center gap-2.5 shrink-0"
               onClick={closeMobileMenu}
             >
-              <div
-                className="
-                  w-10 h-10
-                  sm:w-11 sm:h-11
-                  rounded-xl
-                  bg-[#008236]
-                  text-white
-                  flex
-                  items-center
-                  justify-center
-                  shrink-0
-                  border
-                  border-green-700/20
-                  shadow-[0_5px_12px_rgba(0,0,0,0.42)]
-                "
-              >
-                <span
-                  className="
-                    text-[15px]
-                    sm:text-[17px]
-                    font-black
-                    tracking-tight
-                    leading-none
-                    drop-shadow-[0_2px_2px_rgba(0,0,0,0.35)]
-                  "
-                >
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-[#008236] text-white flex items-center justify-center shrink-0 border border-green-700/20 shadow-[0_5px_12px_rgba(0,0,0,0.42)]">
+                <span className="text-[15px] sm:text-[17px] font-black tracking-tight leading-none drop-shadow-[0_2px_2px_rgba(0,0,0,0.35)]">
                   CM
                 </span>
               </div>
-
               <div className="text-lg sm:text-2xl font-extrabold tracking-tight">
-                Campus
-                <span className="text-green-600">Mart 2.0</span>
+                Campus<span className="text-green-600">Mart 2.0</span>
               </div>
             </Link>
 
             {/* DESKTOP NAV */}
-
             <nav className="hidden lg:flex items-center gap-8 xl:gap-9">
               <a
                 href="#home"
@@ -473,6 +422,13 @@ function Landing() {
                 className="text-sm font-medium text-gray-700 hover:text-green-600 transition"
               >
                 Browse Products
+              </button>
+
+              <button
+                onClick={goToGigs}
+                className="text-sm font-medium text-gray-700 hover:text-green-600 transition"
+              >
+                Campus Gigs
               </button>
 
               <a
@@ -498,11 +454,9 @@ function Landing() {
             </nav>
 
             {/* DESKTOP RIGHT SIDE */}
-
             <div className="hidden md:flex items-center gap-3">
               <div className="hidden xl:flex items-center w-[230px] h-10 rounded-full border border-gray-200 bg-white px-4">
                 <FiSearch size={17} className="text-gray-400" />
-
                 <input
                   type="text"
                   placeholder="Search products..."
@@ -527,7 +481,6 @@ function Landing() {
             </div>
 
             {/* MOBILE MENU BUTTON */}
-
             <button
               type="button"
               onClick={() => setMobileMenuOpen((prev) => !prev)}
@@ -540,7 +493,6 @@ function Landing() {
         </div>
 
         {/* MOBILE MENU */}
-
         {mobileMenuOpen && (
           <div className="lg:hidden border-t border-gray-100 bg-white shadow-lg">
             <div className="px-5 sm:px-8 py-5">
@@ -558,6 +510,13 @@ function Landing() {
                   className="py-3.5 text-left text-sm font-medium text-gray-700 border-b border-gray-100"
                 >
                   Browse Products
+                </button>
+
+                <button
+                  onClick={goToGigs}
+                  className="py-3.5 text-left text-sm font-medium text-gray-700 border-b border-gray-100"
+                >
+                  Campus Gigs
                 </button>
 
                 <a
@@ -609,7 +568,6 @@ function Landing() {
       {/* =====================================================
           HERO
       ===================================================== */}
-
       <section
         id="home"
         className="relative overflow-hidden bg-gradient-to-br from-[#f5fff8] via-white to-[#f0fff5]"
@@ -617,64 +575,30 @@ function Landing() {
         <div className="max-w-[1400px] mx-auto px-5 sm:px-8 lg:px-10">
           <div className="relative min-h-[auto] lg:min-h-[600px] flex flex-col lg:block">
 
-            <div
-              className="
-                relative z-20
-                w-full lg:w-[49%] xl:w-[48%]
-                py-12 sm:py-16 lg:py-20
-              "
-            >
+            <div className="relative z-20 w-full lg:w-[49%] xl:w-[48%] py-12 sm:py-16 lg:py-20">
               <div className="inline-flex items-center gap-2 rounded-full bg-green-50 border border-green-100 px-3.5 py-2 text-xs sm:text-sm font-semibold text-green-700">
                 <span className="w-5 h-5 rounded-full bg-green-600 text-white flex items-center justify-center text-[10px]">
                   ★
                 </span>
-
                 The #1 Marketplace for Students
               </div>
 
-              <h1
-                className="
-                  mt-6 sm:mt-7
-                  text-[42px]
-                  sm:text-[52px]
-                  lg:text-[57px]
-                  xl:text-[64px]
-                  leading-[0.98]
-                  font-black
-                  tracking-[-0.045em]
-                  max-w-[650px]
-                "
-              >
+              <h1 className="mt-6 sm:mt-7 text-[42px] sm:text-[52px] lg:text-[57px] xl:text-[64px] leading-[0.98] font-black tracking-[-0.045em] max-w-[650px]">
                 Buy, Sell, Connect.
-
                 <br />
-
                 <span className="text-green-600">All on Campus.</span>
               </h1>
 
               <p className="mt-6 sm:mt-7 max-w-[500px] text-sm sm:text-lg leading-7 sm:leading-8 text-gray-600">
                 CampusMart makes it easy for students to buy and sell items
-                within their campus community.
+                within their campus community — plus find or post campus gigs.
               </p>
 
               <div className="mt-7 sm:mt-8 flex flex-wrap gap-3">
                 <button
                   type="button"
                   onClick={goToBrowse}
-                  className="
-                    h-11 sm:h-12
-                    px-4 sm:px-5
-                    rounded-xl
-                    bg-green-600
-                    text-white
-                    text-sm
-                    font-semibold
-                    flex items-center gap-2.5
-                    hover:bg-green-700
-                    transition
-                    shadow-sm
-                    whitespace-nowrap
-                  "
+                  className="h-11 sm:h-12 px-4 sm:px-5 rounded-xl bg-green-600 text-white text-sm font-semibold flex items-center gap-2.5 hover:bg-green-700 transition shadow-sm whitespace-nowrap"
                 >
                   Browse Products
                   <FiArrowRight size={17} />
@@ -682,25 +606,11 @@ function Landing() {
 
                 <button
                   type="button"
-                  onClick={goToRegister}
-                  className="
-                    h-11 sm:h-12
-                    px-4 sm:px-5
-                    rounded-xl
-                    bg-white
-                    border border-gray-200
-                    text-gray-800
-                    text-sm
-                    font-semibold
-                    flex items-center gap-2.5
-                    hover:border-green-300
-                    hover:text-green-700
-                    transition
-                    whitespace-nowrap
-                  "
+                  onClick={goToGigs}
+                  className="h-11 sm:h-12 px-4 sm:px-5 rounded-xl bg-white border border-gray-200 text-gray-800 text-sm font-semibold flex items-center gap-2.5 hover:border-green-300 hover:text-green-700 transition whitespace-nowrap"
                 >
-                  Sell an Item
-                  <FiTag size={17} />
+                  Campus Gigs
+                  <FiBriefcase size={17} />
                 </button>
               </div>
 
@@ -715,12 +625,10 @@ function Landing() {
                     />
                   ))}
                 </div>
-
                 <div>
                   <p className="font-bold text-gray-900 text-xs sm:text-sm">
                     Join students
                   </p>
-
                   <p className="text-xs sm:text-sm text-gray-500">
                     already using CampusMart
                   </p>
@@ -728,31 +636,12 @@ function Landing() {
               </div>
             </div>
 
-            <div
-              className="
-                hidden lg:block
-                absolute
-                right-[-30px]
-                xl:right-[-20px]
-                top-0
-                w-[55%]
-                h-full
-              "
-            >
+            <div className="hidden lg:block absolute right-[-30px] xl:right-[-20px] top-0 w-[55%] h-full">
               <div className="absolute inset-0 bg-gradient-to-r from-[#f5fff8] via-[#f5fff8]/30 to-transparent z-10 pointer-events-none" />
-
               <img
                 src="/3stud.png"
                 alt="Three students using CampusMart"
-                className="
-                  absolute
-                  right-0
-                  bottom-0
-                  w-full
-                  h-[94%]
-                  object-contain
-                  object-right-bottom
-                "
+                className="absolute right-0 bottom-0 w-full h-[94%] object-contain object-right-bottom"
               />
             </div>
 
@@ -761,13 +650,7 @@ function Landing() {
                 <img
                   src="/3stud.png"
                   alt="Three students using CampusMart"
-                  className="
-                    w-full
-                    h-[310px]
-                    sm:h-[390px]
-                    object-cover
-                    object-center
-                  "
+                  className="w-full h-[310px] sm:h-[390px] object-cover object-center"
                 />
               </div>
             </div>
@@ -775,7 +658,6 @@ function Landing() {
         </div>
 
         {/* HERO FEATURE BAR */}
-
         <div className="relative z-30 max-w-[1250px] mx-auto px-5 sm:px-8 lg:px-0 pb-7">
           <div className="rounded-2xl bg-green-600 text-white shadow-xl overflow-hidden">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
@@ -789,12 +671,10 @@ function Landing() {
                   <div className="w-14 h-14 rounded-full border-2 border-white/70 flex items-center justify-center shrink-0">
                     {item.icon}
                   </div>
-
                   <div>
                     <h3 className="font-bold text-sm sm:text-base">
                       {item.title}
                     </h3>
-
                     <p className="mt-1 text-xs sm:text-sm text-green-50 leading-5">
                       {item.text}
                     </p>
@@ -809,17 +689,13 @@ function Landing() {
       {/* =====================================================
           CATEGORIES
       ===================================================== */}
-
       <section className="py-16 sm:py-20">
         <div className="max-w-[1250px] mx-auto px-5 sm:px-8">
           <div className="text-center">
             <h2 className="text-3xl sm:text-4xl font-black">
               Shop by <span className="text-green-600">Category</span>
             </h2>
-
-            <p className="mt-3 text-gray-500">
-              Find exactly what you need
-            </p>
+            <p className="mt-3 text-gray-500">Find exactly what you need</p>
           </div>
 
           <div className="mt-10 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -837,12 +713,10 @@ function Landing() {
                     className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
                   />
                 </div>
-
                 <div className="p-4 text-center">
                   <h3 className="font-bold text-sm text-gray-900">
                     {category.name}
                   </h3>
-
                   <p className="mt-1 text-xs text-gray-500">
                     {category.count}{" "}
                     <span className="text-green-600">→</span>
@@ -855,9 +729,68 @@ function Landing() {
       </section>
 
       {/* =====================================================
+          CAMPUS GIGS FEATURE SECTION
+      ===================================================== */}
+      <section className="pb-16 sm:pb-20">
+        <div className="max-w-[1250px] mx-auto px-5 sm:px-8">
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#007233] to-[#008f3f] text-white">
+            <div className="absolute -right-16 -top-16 w-64 h-64 rounded-full bg-white/10" />
+            <div className="absolute right-20 -bottom-20 w-48 h-48 rounded-full bg-white/5" />
+
+            <div className="relative z-10 px-6 sm:px-10 py-10 sm:py-14 flex flex-col lg:flex-row lg:items-center gap-8 lg:gap-12">
+              <div className="flex-1">
+                <div className="inline-flex items-center gap-2 rounded-full bg-white/15 border border-white/20 px-3.5 py-1.5 text-xs font-semibold">
+                  <FiBriefcase size={14} />
+                  New Feature
+                </div>
+
+                <h2 className="mt-5 text-3xl sm:text-4xl font-black leading-tight">
+                  Need help on campus?
+                  <br />
+                  <span className="text-green-200">Post or find a Gig</span>
+                </h2>
+
+                <p className="mt-4 text-green-50 leading-7 max-w-[520px] text-sm sm:text-base">
+                  Looking for tutoring, logo design, delivery, repairs or any
+                  campus task? Post a gig or apply to ones from other students.
+                </p>
+
+                <div className="mt-7 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={goToGigs}
+                    className="h-11 px-5 rounded-xl bg-white text-green-700 font-bold text-sm flex items-center gap-2 hover:bg-green-50 transition"
+                  >
+                    Explore Campus Gigs
+                    <FiArrowRight size={16} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:w-[380px]">
+                {[
+                  { title: "Tutoring", text: "Math, coding, languages" },
+                  { title: "Design", text: "Logos, flyers, posters" },
+                  { title: "Delivery", text: "Errands around campus" },
+                  { title: "Repairs", text: "Phones, laptops & more" },
+                ].map((item) => (
+                  <div
+                    key={item.title}
+                    className="rounded-2xl bg-white/10 border border-white/15 p-4 backdrop-blur-sm"
+                  >
+                    <p className="font-bold text-sm">{item.title}</p>
+                    <p className="text-xs text-green-100 mt-1">{item.text}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* =====================================================
           STATS
       ===================================================== */}
-
       <section className="pb-16">
         <div className="max-w-[1250px] mx-auto px-5 sm:px-8">
           <div className="rounded-2xl bg-[#f1faf4] border border-green-50">
@@ -872,13 +805,9 @@ function Landing() {
                   <div className="w-12 h-12 rounded-full bg-white border border-green-100 text-green-600 flex items-center justify-center shrink-0">
                     {stat.icon}
                   </div>
-
                   <div>
                     <p className="text-xl font-black">{stat.number}</p>
-
-                    <p className="text-sm text-gray-600">
-                      {stat.label}
-                    </p>
+                    <p className="text-sm text-gray-600">{stat.label}</p>
                   </div>
                 </div>
               ))}
@@ -890,21 +819,14 @@ function Landing() {
       {/* =====================================================
           WHY STUDENTS LOVE CAMPUSMART
       ===================================================== */}
-
-      <section
-        id="about"
-        className="py-16 sm:py-20 bg-gray-50/60"
-      >
+      <section id="about" className="py-16 sm:py-20 bg-gray-50/60">
         <div className="max-w-[1250px] mx-auto px-5 sm:px-8">
           <div className="text-center">
             <h2 className="text-3xl sm:text-4xl font-black">
               Why Students Love{" "}
               <span className="text-green-600">CampusMart</span>
             </h2>
-
-            <p className="mt-3 text-gray-500">
-              Built for students. By students.
-            </p>
+            <p className="mt-3 text-gray-500">Built for students. By students.</p>
           </div>
 
           <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -916,11 +838,7 @@ function Landing() {
                 <div className="mx-auto w-16 h-16 rounded-full bg-green-50 text-green-600 flex items-center justify-center">
                   {benefit.icon}
                 </div>
-
-                <h3 className="mt-5 font-bold text-lg">
-                  {benefit.title}
-                </h3>
-
+                <h3 className="mt-5 font-bold text-lg">{benefit.title}</h3>
                 <p className="mt-3 text-sm text-gray-500 leading-6">
                   {benefit.text}
                 </p>
@@ -933,14 +851,12 @@ function Landing() {
       {/* =====================================================
           POPULAR PRODUCTS
       ===================================================== */}
-
       <section className="py-16 sm:py-20">
         <div className="max-w-[1250px] mx-auto px-5 sm:px-8">
           <div className="flex items-center justify-between gap-5">
             <h2 className="text-2xl sm:text-3xl font-black">
               Popular <span className="text-green-600">Right Now</span>
             </h2>
-
             <button
               onClick={goToBrowse}
               className="hidden sm:flex items-center gap-2 text-sm font-semibold text-green-700 hover:text-green-800"
@@ -962,30 +878,20 @@ function Landing() {
                     alt={product.name}
                     className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
                   />
-
                   <span className="absolute top-3 left-3 px-2 py-1 rounded-md bg-green-600 text-white text-[9px] font-bold">
                     {product.badge}
                   </span>
                 </div>
-
                 <div className="p-4">
-                  <h3 className="font-bold text-sm truncate">
-                    {product.name}
-                  </h3>
-
+                  <h3 className="font-bold text-sm truncate">{product.name}</h3>
                   <div className="flex items-center gap-1 mt-2 text-xs text-gray-500">
                     <FiMapPin size={12} />
-
-                    <span className="truncate">
-                      {product.location}
-                    </span>
+                    <span className="truncate">{product.location}</span>
                   </div>
-
                   <div className="mt-3 flex items-center justify-between gap-2">
                     <span className="font-black text-green-600 text-sm">
                       {product.price}
                     </span>
-
                     <button
                       type="button"
                       className="text-gray-400 hover:text-red-500 transition"
@@ -1005,58 +911,36 @@ function Landing() {
             View all products
             <FiArrowRight />
           </button>
-
-          <div className="flex justify-center gap-2 mt-7">
-            <span className="w-2.5 h-2.5 rounded-full bg-green-600" />
-            <span className="w-2.5 h-2.5 rounded-full bg-gray-200" />
-            <span className="w-2.5 h-2.5 rounded-full bg-gray-200" />
-            <span className="w-2.5 h-2.5 rounded-full bg-gray-200" />
-            <span className="w-2.5 h-2.5 rounded-full bg-gray-200" />
-          </div>
         </div>
       </section>
 
       {/* =====================================================
           HOW IT WORKS
       ===================================================== */}
-
-      <section
-        id="how-it-works"
-        className="py-16 sm:py-20 bg-gray-50/60"
-      >
+      <section id="how-it-works" className="py-16 sm:py-20 bg-gray-50/60">
         <div className="max-w-[1250px] mx-auto px-5 sm:px-8">
           <div className="text-center">
             <h2 className="text-3xl sm:text-4xl font-black">
               How <span className="text-green-600">CampusMart</span> Works
             </h2>
-
             <p className="mt-3 text-gray-500">
-              Buy or sell in just a few simple steps
+              Buy, sell or find gigs in just a few simple steps
             </p>
           </div>
 
           <div className="mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 lg:gap-5">
             {steps.map((step, index) => (
-              <div
-                key={step.title}
-                className="relative text-center"
-              >
+              <div key={step.title} className="relative text-center">
                 {index !== steps.length - 1 && (
                   <div className="hidden lg:block absolute top-10 left-[65%] w-[70%] border-t-2 border-dashed border-green-200" />
                 )}
-
                 <div className="relative mx-auto w-20 h-20 rounded-full bg-green-50 text-green-600 flex items-center justify-center">
                   {step.icon}
-
                   <span className="absolute -top-1 -left-2 w-7 h-7 rounded-full bg-green-600 text-white text-xs font-bold flex items-center justify-center border-4 border-white">
                     {step.number}
                   </span>
                 </div>
-
-                <h3 className="mt-6 font-bold text-lg">
-                  {step.title}
-                </h3>
-
+                <h3 className="mt-6 font-bold text-lg">{step.title}</h3>
                 <p className="mt-3 text-sm text-gray-500 leading-6 max-w-[230px] mx-auto">
                   {step.text}
                 </p>
@@ -1069,7 +953,6 @@ function Landing() {
       {/* =====================================================
           TESTIMONIALS
       ===================================================== */}
-
       <section className="py-16 sm:py-20">
         <div className="max-w-[1250px] mx-auto px-5 sm:px-8">
           <div className="text-center">
@@ -1087,29 +970,22 @@ function Landing() {
                 <div className="text-green-600 text-3xl font-black leading-none">
                   “
                 </div>
-
                 <div className="flex gap-1 mt-1 text-green-600">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <span key={star}>★</span>
                   ))}
                 </div>
-
                 <p className="mt-4 text-sm text-gray-600 leading-6">
                   {testimonial.text}
                 </p>
-
                 <div className="mt-6 flex items-center gap-3">
                   <img
                     src={testimonial.image}
                     alt={testimonial.name}
                     className="w-11 h-11 rounded-full object-cover"
                   />
-
                   <div>
-                    <p className="font-bold text-sm">
-                      {testimonial.name}
-                    </p>
-
+                    <p className="font-bold text-sm">{testimonial.name}</p>
                     <p className="text-xs text-gray-500 mt-1">
                       {testimonial.school}
                     </p>
@@ -1124,20 +1000,17 @@ function Landing() {
       {/* =====================================================
           CTA
       ===================================================== */}
-
       <section className="pb-10">
         <div className="max-w-[1250px] mx-auto px-5 sm:px-8">
           <div className="relative overflow-hidden rounded-2xl bg-green-700 text-white">
             <div className="relative z-20 px-7 sm:px-10 py-10 sm:py-12 max-w-[700px]">
               <h2 className="text-3xl sm:text-4xl font-black">
-                Ready to Buy or Sell?
+                Ready to Buy, Sell or Find a Gig?
               </h2>
-
               <p className="mt-4 text-green-50 leading-7 max-w-[520px]">
                 Join thousands of students already using CampusMart to make
                 campus life easier.
               </p>
-
               <div className="mt-7 flex flex-wrap gap-3">
                 <button
                   onClick={goToRegister}
@@ -1146,12 +1019,11 @@ function Landing() {
                   Get Started Now
                   <FiArrowRight />
                 </button>
-
                 <button
-                  onClick={goToBrowse}
+                  onClick={goToGigs}
                   className="h-11 px-5 rounded-xl border border-white/60 text-white font-bold text-sm hover:bg-white/10 transition"
                 >
-                  Browse Products
+                  Explore Gigs
                 </button>
               </div>
             </div>
@@ -1161,7 +1033,6 @@ function Landing() {
               alt=""
               className="hidden sm:block absolute right-0 bottom-0 h-full w-[45%] object-cover object-top opacity-95"
             />
-
             <div className="absolute inset-y-0 right-0 w-[55%] bg-gradient-to-r from-green-700 via-green-700/50 to-transparent pointer-events-none" />
           </div>
         </div>
@@ -1170,97 +1041,49 @@ function Landing() {
       {/* =====================================================
           FOOTER
       ===================================================== */}
-
       <footer id="contact" className="bg-[#00261d] text-white">
         <div className="max-w-[1250px] mx-auto px-5 sm:px-8 py-14">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-10">
 
             {/* BRAND */}
-
             <div className="lg:col-span-2">
-              <Link
-                to="/"
-                className="inline-flex items-center gap-3"
-              >
-                <div
-                  className="
-                    w-11 h-11
-                    rounded-xl
-                    bg-[#008236]
-                    flex
-                    items-center
-                    justify-center
-                    border
-                    border-green-700/20
-                    shadow-[0_5px_12px_rgba(0,0,0,0.55)]
-                  "
-                >
-                  <span
-                    className="
-                      text-white
-                      text-[17px]
-                      font-black
-                      tracking-tight
-                      leading-none
-                      drop-shadow-[0_2px_2px_rgba(0,0,0,0.4)]
-                    "
-                  >
+              <Link to="/" className="inline-flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-[#008236] flex items-center justify-center border border-green-700/20 shadow-[0_5px_12px_rgba(0,0,0,0.55)]">
+                  <span className="text-white text-[17px] font-black tracking-tight leading-none drop-shadow-[0_2px_2px_rgba(0,0,0,0.4)]">
                     CM
                   </span>
                 </div>
-
                 <span className="text-2xl font-black">
-                  Campus
-                  <span className="text-green-400">Mart</span>
+                  Campus<span className="text-green-400">Mart</span>
                 </span>
               </Link>
-
               <p className="mt-5 text-sm leading-6 text-gray-300 max-w-[330px]">
-                The #1 marketplace for students to buy, sell and connect within
-                their campus community.
+                The #1 marketplace for students to buy, sell, connect and find
+                campus gigs.
               </p>
             </div>
 
             {/* MARKETPLACE */}
-
             <div>
-              <h3 className="font-bold mb-5">
-                Marketplace
-              </h3>
-
+              <h3 className="font-bold mb-5">Marketplace</h3>
               <ul className="space-y-3 text-sm text-gray-300">
                 <li>
-                  <button
-                    onClick={goToBrowse}
-                    className="hover:text-green-400"
-                  >
+                  <button onClick={goToBrowse} className="hover:text-green-400">
                     Browse Products
                   </button>
                 </li>
-
                 <li>
-                  <button
-                    onClick={goToBrowse}
-                    className="hover:text-green-400"
-                  >
-                    All Categories
+                  <button onClick={goToGigs} className="hover:text-green-400">
+                    Campus Gigs
                   </button>
                 </li>
-
                 <li>
-                  <a
-                    href="#how-it-works"
-                    className="hover:text-green-400"
-                  >
+                  <a href="#how-it-works" className="hover:text-green-400">
                     How It Works
                   </a>
                 </li>
-
                 <li>
-                  <button
-                    onClick={goToRegister}
-                    className="hover:text-green-400"
-                  >
+                  <button onClick={goToRegister} className="hover:text-green-400">
                     Sell an Item
                   </button>
                 </li>
@@ -1268,12 +1091,8 @@ function Landing() {
             </div>
 
             {/* SUPPORT */}
-
             <div>
-              <h3 className="font-bold mb-5">
-                Condictions & Support
-              </h3>
-
+              <h3 className="font-bold mb-5">Conditions & Support</h3>
               <ul className="space-y-3 text-sm text-gray-300">
                 <li>
                   <Link
@@ -1283,7 +1102,6 @@ function Landing() {
                     Privacy Policy
                   </Link>
                 </li>
-
                 <li>
                   <Link
                     to="/terms-and-conditions"
@@ -1297,27 +1115,22 @@ function Landing() {
           </div>
 
           {/* CONTACT */}
-
           <div className="mt-12 pt-8 border-t border-white/10">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
               <div className="flex flex-wrap gap-5 text-sm text-gray-300">
-
                 <span className="flex items-center gap-2">
                   <FiPhone className="text-green-400" />
                   +234 704 320 5587
                 </span>
-
                 <span className="flex items-center gap-2">
                   <FiMail className="text-green-400" />
                   campusmart1234@gmail.com
                 </span>
-
                 <span className="flex items-center gap-2">
                   <FiMapPin className="text-green-400" />
                   Nigeria
                 </span>
               </div>
-
               <p className="text-sm text-gray-400">
                 © 2026 CampusMart. All rights reserved.
               </p>
@@ -1326,63 +1139,25 @@ function Landing() {
         </div>
       </footer>
 
-      {/* =====================================================
-          COOKIE CONSENT BANNER
-          SLOW SLIDE-IN FROM BOTTOM
-      ===================================================== */}
-
+      {/* COOKIE CONSENT BANNER */}
       {cookieConsent === null && (
-        <div
-          className="
-            fixed
-            bottom-0
-            left-0
-            right-0
-            z-[9999]
-            px-4
-            sm:px-6
-            lg:px-8
-            pb-4
-            sm:pb-5
-            pointer-events-none
-          "
-        >
-          <div
-            className="
-              max-w-[1100px]
-              mx-auto
-              pointer-events-auto
-              bg-white
-              border
-              border-gray-200
-              rounded-2xl
-              shadow-[0_10px_40px_rgba(0,0,0,0.16)]
-              overflow-hidden
-              campusmart-cookie-slide-in
-            "
-          >
+        <div className="fixed bottom-0 left-0 right-0 z-[9999] px-4 sm:px-6 lg:px-8 pb-4 sm:pb-5 pointer-events-none">
+          <div className="max-w-[1100px] mx-auto pointer-events-auto bg-white border border-gray-200 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.16)] overflow-hidden campusmart-cookie-slide-in">
             <div className="p-5 sm:p-6">
               <div className="flex flex-col lg:flex-row lg:items-center gap-5">
-
-                {/* COOKIE ICON */}
-
                 <div className="hidden sm:flex w-12 h-12 rounded-xl bg-green-50 text-green-600 items-center justify-center shrink-0">
                   <FiShield size={24} />
                 </div>
-
-                {/* MESSAGE */}
 
                 <div className="flex-1">
                   <h3 className="text-base sm:text-lg font-black text-gray-900">
                     We value your privacy
                   </h3>
-
                   <p className="mt-1.5 text-xs sm:text-sm text-gray-500 leading-5 sm:leading-6">
                     CampusMart uses cookies to help keep the website working
                     properly and improve your experience. You can accept or
                     reject optional cookies. Your choice will be remembered.
                   </p>
-
                   <Link
                     to="/privacy-policy"
                     className="inline-block mt-2 text-xs sm:text-sm font-semibold text-green-600 hover:text-green-700"
@@ -1391,55 +1166,23 @@ function Landing() {
                   </Link>
                 </div>
 
-                {/* BUTTONS */}
-
                 <div className="flex flex-col sm:flex-row gap-2.5 shrink-0">
                   <button
                     type="button"
                     onClick={rejectCookies}
-                    className="
-                      h-11
-                      px-5
-                      rounded-xl
-                      border
-                      border-gray-200
-                      bg-white
-                      text-gray-700
-                      text-sm
-                      font-semibold
-                      hover:bg-gray-50
-                      hover:border-gray-300
-                      transition
-                    "
+                    className="h-11 px-5 rounded-xl border border-gray-200 bg-white text-gray-700 text-sm font-semibold hover:bg-gray-50 hover:border-gray-300 transition"
                   >
                     Reject Cookies
                   </button>
-
                   <button
                     type="button"
                     onClick={acceptCookies}
-                    className="
-                      h-11
-                      px-5
-                      rounded-xl
-                      bg-green-600
-                      text-white
-                      text-sm
-                      font-semibold
-                      hover:bg-green-700
-                      transition
-                      shadow-sm
-                      flex
-                      items-center
-                      justify-center
-                      gap-2
-                    "
+                    className="h-11 px-5 rounded-xl bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition shadow-sm flex items-center justify-center gap-2"
                   >
                     <FiCheckCircle size={17} />
                     Accept Cookies
                   </button>
                 </div>
-
               </div>
             </div>
           </div>
