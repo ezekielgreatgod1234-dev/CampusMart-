@@ -275,9 +275,18 @@ function SellerPayment({ unreadMessages = 0 }) {
           <div className="flex items-center gap-3 pr-10">
             <div
               className="
-                w-10 h-10 min-w-[40px] rounded-xl
-                bg-[#008236] flex items-center justify-center
-                shadow-lg shadow-black/30 border border-white/10
+                w-10
+                h-10
+                min-w-[40px]
+                rounded-xl
+                bg-[#006f2e]
+                flex
+                items-center
+                justify-center
+                shadow-lg
+                shadow-black/30
+                border
+                border-white/10
                 flex-shrink-0
               "
             >
@@ -287,9 +296,9 @@ function SellerPayment({ unreadMessages = 0 }) {
             </div>
 
             <div className="min-w-0">
-              <h1 className="text-[30px] font-extrabold tracking-tight leading-none whitespace-nowrap">
+              <h1 className="text-[25px] font-extrabold tracking-tight leading-none whitespace-nowrap">
                 <span className="text-white">Campus</span>
-                <span className="text-green-300">Mart</span>
+                <span className="text-green-300">Mart 2.0</span>
               </h1>
               <p className="text-[10px] text-green-100 mt-1 whitespace-nowrap">
                 Sell. Connect. Grow.

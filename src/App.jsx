@@ -2334,50 +2334,42 @@ function App() {
           }
         />
 
-        {/* ===================== GIGS ===================== */}
-        <Route
-          path="/gigs"
-          element={
-            <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
-                <Gigs cartCount={cartCount} />
-              </CustomerRoute>
-            </ProtectedRoute>
-          }
-        />
+       {/* ===================== GIGS (Buyers + Sellers allowed) ===================== */}
+<Route
+  path="/gigs"
+  element={
+    <ProtectedRoute profileResolved={profileResolved}>
+      <Gigs cartCount={cartCount} />
+    </ProtectedRoute>
+  }
+/>
 
-        <Route
-          path="/gigs/create"
-          element={
-            <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
-                <CreateGig cartCount={cartCount} profile={profile} />
-              </CustomerRoute>
-            </ProtectedRoute>
-          }
-        />
+<Route
+  path="/gigs/create"
+  element={
+    <ProtectedRoute profileResolved={profileResolved}>
+      <CreateGig cartCount={cartCount} profile={profile} />
+    </ProtectedRoute>
+  }
+/>
 
-        <Route
-          path="/gigs/:id"
-          element={
-            <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
-                <GigDetail cartCount={cartCount} profile={profile} />
-              </CustomerRoute>
-            </ProtectedRoute>
-          }
-        />
+<Route
+  path="/gigs/:id"
+  element={
+    <ProtectedRoute profileResolved={profileResolved}>
+      <GigDetail cartCount={cartCount} profile={profile} />
+    </ProtectedRoute>
+  }
+/>
 
-        <Route
-          path="/gigs/applications"
-          element={
-            <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
-                <MyGigApplications cartCount={cartCount} profile={profile} />
-              </CustomerRoute>
-            </ProtectedRoute>
-          }
-        />
+<Route
+  path="/gigs/applications"
+  element={
+    <ProtectedRoute profileResolved={profileResolved}>
+      <MyGigApplications cartCount={cartCount} profile={profile} />
+    </ProtectedRoute>
+  }
+/>
 
         <Route
           path="/admin/announcements"

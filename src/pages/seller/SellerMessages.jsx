@@ -1698,7 +1698,7 @@ function SellerMessages({
                 h-10
                 min-w-[40px]
                 rounded-xl
-                bg-[#008236]
+                bg-[#006f2e]
                 flex
                 items-center
                 justify-center
@@ -1709,18 +1709,18 @@ function SellerMessages({
                 flex-shrink-0
               "
             >
-              <span className="text-white text-[16px] font-black tracking-tight">
+             <span className="text-white text-[16px] font-black tracking-tight">
                 CM
               </span>
             </div>
 
             <div className="min-w-0">
-              <h1 className="text-[30px] font-extrabold tracking-tight leading-none whitespace-nowrap">
+              <h1 className="text-[25px] font-extrabold tracking-tight leading-none whitespace-nowrap">
                 <span className="text-white">
                   Campus
                 </span>
                 <span className="text-green-300">
-                  Mart
+                  Mart 2.0
                 </span>
               </h1>
 
@@ -2359,47 +2359,7 @@ function SellerMessages({
                 </div>
               </div>
 
-              <div
-                className="
-                  hidden
-                  lg:block
-                  bg-white
-                  border
-                  border-gray-100
-                  rounded-2xl
-                  p-4
-                  sm:p-5
-                "
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className="
-                      w-10
-                      h-10
-                      rounded-xl
-                      bg-blue-100
-                      text-blue-600
-                      flex
-                      items-center
-                      justify-center
-                    "
-                  >
-                    <FiUsers
-                      size={19}
-                    />
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-gray-500">
-                      Buyers Online
-                    </p>
-
-                    <p className="text-xl font-bold text-gray-800">
-                      {onlineUsers}
-                    </p>
-                  </div>
-                </div>
-              </div>
+              
             </div>
 
             {/* ================================================= */}

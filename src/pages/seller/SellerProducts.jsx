@@ -1284,13 +1284,13 @@ const sellerImage =
 
             <div className="min-w-0">
 
-              <h1 className="text-[30px] font-extrabold tracking-tight leading-none whitespace-nowrap">
+              <h1 className="text-[25px] font-extrabold tracking-tight leading-none whitespace-nowrap">
                 <span className="text-white">
                   Campus
                 </span>
 
                 <span className="text-green-300">
-                  Mart
+                  Mart 2.0
                 </span>
               </h1>
 

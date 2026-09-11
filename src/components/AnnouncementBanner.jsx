@@ -20,11 +20,12 @@ function AnnouncementBanner() {
   const [dismissed, setDismissed] = useState(false);
   const [showAfterLogin, setShowAfterLogin] = useState(false);
 
-  // Only show on Dashboard
+  // Show on both Customer Dashboard and Seller Dashboard
   const isDashboard =
     location.pathname === "/dashboard" ||
     location.pathname === "/" ||
-    location.pathname === "/home";
+    location.pathname === "/home" ||
+    location.pathname === "/seller-dashboard";
 
   // =========================================================
   // ADMIN CHECK
@@ -193,7 +194,7 @@ function AnnouncementBanner() {
   // Admin never sees it
   if (isAdmin) return null;
 
-  // Only show on Dashboard
+  // Only show on Dashboard (customer or seller)
   if (!isDashboard) return null;
 
   // User dismissed it

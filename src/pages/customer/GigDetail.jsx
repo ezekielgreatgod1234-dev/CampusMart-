@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import CustomerLayout from "../../layouts/CustomerLayout";
 import {
   doc,
@@ -36,6 +36,7 @@ import {
 function GigDetail({ cartCount = 0, profile }) {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { firebaseUser } = useAuth();
 
   const [gig, setGig] = useState(null);
@@ -59,7 +60,11 @@ function GigDetail({ cartCount = 0, profile }) {
     proposedPrice: "",
   });
 
-  const [toast, setToast] = useState({ open: false, message: "", type: "success" });
+  const [toast, setToast] = useState({
+    open: false,
+    message: "",
+    type: "success",
+  });
 
   const isOwner = firebaseUser && gig?.posterId === firebaseUser.uid;
 
@@ -197,7 +202,7 @@ function GigDetail({ cartCount = 0, profile }) {
     const q = query(
       collection(db, "gigApplications"),
       where("gigId", "==", id),
-      where("applicantId", "==", firebaseUser.uid)
+      where("applicantId", "==", firebaseUser.uid),
     );
 
     const unsub = onSnapshot(
@@ -215,7 +220,7 @@ function GigDetail({ cartCount = 0, profile }) {
           })
           .catch(() => setAlreadyApplied(false))
           .finally(() => setCheckingApplication(false));
-      }
+      },
     );
 
     return () => unsub();
@@ -257,7 +262,7 @@ function GigDetail({ cartCount = 0, profile }) {
     if (currentDeadline && currentDeadline.getTime() < Date.now()) {
       showToast(
         "The application deadline has passed. Please wait for the poster to extend the deadline.",
-        "error"
+        "error",
       );
       setShowApplyForm(false);
       return;
@@ -292,9 +297,7 @@ function GigDetail({ cartCount = 0, profile }) {
         applicantImage,
         message: proposal.message.trim(),
         proposedPrice: priceToSave,
-        proposedPriceDisplay: priceToSave
-          ? formatNaira(priceToSave)
-          : null,
+        proposedPriceDisplay: priceToSave ? formatNaira(priceToSave) : null,
         status: "pending",
         createdAt: serverTimestamp(),
       });
@@ -313,7 +316,7 @@ function GigDetail({ cartCount = 0, profile }) {
               ...prev,
               applicationsCount: (prev.applicationsCount || 0) + 1,
             }
-          : prev
+          : prev,
       );
 
       showToast("Application sent successfully!", "success");
@@ -336,7 +339,7 @@ function GigDetail({ cartCount = 0, profile }) {
     if (!firebaseUser || !isOwner) {
       showToast(
         "Only the person who posted this gig can change the deadline.",
-        "error"
+        "error",
       );
       return;
     }
@@ -353,7 +356,7 @@ function GigDetail({ cartCount = 0, profile }) {
     if (selectedDate.getTime() <= Date.now()) {
       showToast(
         "Please choose a future date and time for the new deadline.",
-        "error"
+        "error",
       );
       return;
     }
@@ -375,12 +378,12 @@ function GigDetail({ cartCount = 0, profile }) {
               applicationOpen: true,
               status: "open",
             }
-          : prev
+          : prev,
       );
       setShowDeadlineEditor(false);
       showToast(
         "Deadline updated successfully. Applications are open again.",
-        "success"
+        "success",
       );
     } catch (error) {
       console.error("Error updating deadline:", error);
@@ -392,10 +395,7 @@ function GigDetail({ cartCount = 0, profile }) {
 
   const handleCloseGig = () => {
     if (!firebaseUser || !isOwner) {
-      showToast(
-        "Only the person who posted this gig can close it.",
-        "error"
-      );
+      showToast("Only the person who posted this gig can close it.", "error");
       return;
     }
     setShowCloseModal(true);
@@ -418,17 +418,20 @@ function GigDetail({ cartCount = 0, profile }) {
               applicationOpen: false,
               status: "completed",
             }
-          : prev
+          : prev,
       );
       setShowApplyForm(false);
       setShowCloseModal(false);
       showToast(
         "Your gig has been marked as completed. Applications are now closed.",
-        "success"
+        "success",
       );
     } catch (error) {
       console.error("Error closing gig:", error);
-      showToast("We couldn't close the gig right now. Please try again.", "error");
+      showToast(
+        "We couldn't close the gig right now. Please try again.",
+        "error",
+      );
     } finally {
       setClosingGig(false);
     }
@@ -478,10 +481,7 @@ function GigDetail({ cartCount = 0, profile }) {
   }
 
   const canApply =
-    !isOwner &&
-    !applicationClosed &&
-    !alreadyApplied &&
-    !checkingApplication;
+    !isOwner && !applicationClosed && !alreadyApplied && !checkingApplication;
 
   return (
     <CustomerLayout cartCount={cartCount}>
@@ -504,12 +504,17 @@ function GigDetail({ cartCount = 0, profile }) {
           <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"
-              onClick={() => navigate(-1)}
+              onClick={() => {
+                if (location.state?.fromSellerGigs) {
+                  navigate("/seller-dashboard", { state: { fromGigs: true } });
+                } else {
+                  navigate("/gigs");
+                }
+              }}
               className="w-10 h-10 shrink-0 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-green-50 hover:text-green-600 hover:border-green-200 transition"
             >
               <FiArrowLeft size={18} />
             </button>
-
             <div className="min-w-0">
               <h1 className="text-xl sm:text-2xl font-bold text-gray-800 line-clamp-1">
                 {gig.title}
@@ -593,7 +598,10 @@ function GigDetail({ cartCount = 0, profile }) {
 
           {isExpired && (
             <div className="mb-6 flex items-start gap-3 bg-orange-50 border border-orange-100 rounded-xl p-4">
-              <FiAlertCircle className="text-orange-600 mt-0.5 shrink-0" size={19} />
+              <FiAlertCircle
+                className="text-orange-600 mt-0.5 shrink-0"
+                size={19}
+              />
               <div>
                 <p className="font-medium text-orange-800 text-sm">
                   Application deadline has passed
@@ -611,7 +619,10 @@ function GigDetail({ cartCount = 0, profile }) {
               gig.status === "closed" ||
               gig.applicationOpen === false) && (
               <div className="mb-6 flex items-start gap-3 bg-green-50 border border-green-100 rounded-xl p-4">
-                <FiCheckCircle className="text-green-600 mt-0.5 shrink-0" size={19} />
+                <FiCheckCircle
+                  className="text-green-600 mt-0.5 shrink-0"
+                  size={19}
+                />
                 <div>
                   <p className="font-medium text-green-800 text-sm">
                     Applications are closed
@@ -647,11 +658,20 @@ function GigDetail({ cartCount = 0, profile }) {
               >
                 <div className="flex items-start gap-3">
                   {isExpired ? (
-                    <FiAlertCircle className="text-orange-600 mt-0.5 shrink-0" size={20} />
+                    <FiAlertCircle
+                      className="text-orange-600 mt-0.5 shrink-0"
+                      size={20}
+                    />
                   ) : gig.status === "completed" || gig.status === "closed" ? (
-                    <FiCheckCircle className="text-green-600 mt-0.5 shrink-0" size={20} />
+                    <FiCheckCircle
+                      className="text-green-600 mt-0.5 shrink-0"
+                      size={20}
+                    />
                   ) : (
-                    <FiClock className="text-green-600 mt-0.5 shrink-0" size={20} />
+                    <FiClock
+                      className="text-green-600 mt-0.5 shrink-0"
+                      size={20}
+                    />
                   )}
                   <div>
                     <p
@@ -694,7 +714,11 @@ function GigDetail({ cartCount = 0, profile }) {
                   onClick={handleOpenDeadlineEditor}
                   className="inline-flex items-center justify-center gap-2 bg-[#008236] hover:bg-[#006f2e] text-white text-sm font-medium px-4 py-3 rounded-xl transition shadow-sm"
                 >
-                  {isExpired ? <FiRefreshCw size={16} /> : <FiEdit3 size={16} />}
+                  {isExpired ? (
+                    <FiRefreshCw size={16} />
+                  ) : (
+                    <FiEdit3 size={16} />
+                  )}
                   {isExpired ? "Extend Deadline" : "Edit Deadline"}
                 </button>
 
@@ -730,7 +754,9 @@ function GigDetail({ cartCount = 0, profile }) {
                   <div className="flex items-start justify-between gap-3 mb-4">
                     <div>
                       <h3 className="font-semibold text-gray-800">
-                        {isExpired ? "Extend Gig Deadline" : "Edit Gig Deadline"}
+                        {isExpired
+                          ? "Extend Gig Deadline"
+                          : "Edit Gig Deadline"}
                       </h3>
                       <p className="text-sm text-gray-500 mt-1">
                         {isExpired
@@ -926,12 +952,15 @@ function GigDetail({ cartCount = 0, profile }) {
               Mark this gig as completed?
             </h3>
             <p className="text-sm text-gray-600 leading-relaxed mt-2">
-              If the work has been completed, you can close applications for this
-              gig. Students will no longer be able to apply.
+              If the work has been completed, you can close applications for
+              this gig. Students will no longer be able to apply.
             </p>
             <p className="text-sm text-gray-500 mt-3">
               If the work is not finished yet, choose
-              <span className="font-medium text-green-600"> Extend Deadline</span>{" "}
+              <span className="font-medium text-green-600">
+                {" "}
+                Extend Deadline
+              </span>{" "}
               instead.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 mt-6">
@@ -982,9 +1011,7 @@ function GigDetail({ cartCount = 0, profile }) {
             </h3>
             <p className="text-sm text-gray-600 leading-relaxed mt-2">
               This will permanently remove{" "}
-              <span className="font-semibold text-gray-800">
-                “{gig.title}”
-              </span>{" "}
+              <span className="font-semibold text-gray-800">“{gig.title}”</span>{" "}
               from CampusMart. This cannot be undone.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 mt-6">

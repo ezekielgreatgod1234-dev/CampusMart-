@@ -625,12 +625,30 @@ function SellerPromotions({ unreadMessages = 0, profile = {} }) {
             <FiX size={21} />
           </button>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#008236] flex items-center justify-center border border-white/10">
-              <span className="font-black">CM</span>
+            <div
+              className="
+                w-10
+                h-10
+                min-w-[40px]
+                rounded-xl
+                bg-[#006f2e]
+                flex
+                items-center
+                justify-center
+                shadow-lg
+                shadow-black/30
+                border
+                border-white/10
+                flex-shrink-0
+              "
+            >
+             <span className="text-white text-[16px] font-black tracking-tight">
+                CM
+              </span>
             </div>
             <div>
               <h1 className="text-[22px] font-extrabold leading-none">
-                Campus<span className="text-green-300">Mart</span>
+                Campus<span className="text-green-300">Mart 2.0</span>
               </h1>
               <p className="text-[10px] text-green-100 mt-1">Sell. Connect. Grow.</p>
             </div>

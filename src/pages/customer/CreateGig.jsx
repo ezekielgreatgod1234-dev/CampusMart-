@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import CustomerLayout from "../../layouts/CustomerLayout";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../../context/firebase";
@@ -8,6 +8,7 @@ import { FiArrowLeft, FiLoader } from "react-icons/fi";
 
 function CreateGig({ cartCount = 0, profile }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { firebaseUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -77,8 +78,19 @@ function CreateGig({ cartCount = 0, profile }) {
         updatedAt: serverTimestamp(),
       });
 
-      alert("Gig posted successfully!");
-      navigate("/gigs");
+      // ✅ Go back to Seller Dashboard Gigs view if coming from seller
+      if (location.state?.fromSellerGigs) {
+        navigate("/seller-dashboard", {
+          state: {
+            fromGigs: true,
+            successMessage: "Gig posted successfully!",
+          },
+        });
+      } else {
+        navigate("/gigs", {
+          state: { successMessage: "Gig posted successfully!" },
+        });
+      }
     } catch (error) {
       console.error("Error posting gig:", error);
       alert("Failed to post gig. Please try again.");
@@ -87,12 +99,21 @@ function CreateGig({ cartCount = 0, profile }) {
     }
   };
 
+  const handleBack = () => {
+    if (location.state?.fromSellerGigs) {
+      navigate("/seller-dashboard", { state: { fromGigs: true } });
+    } else {
+      navigate("/gigs");
+    }
+  };
+
   return (
     <CustomerLayout cartCount={cartCount}>
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate(-1)}
+            type="button"
+            onClick={handleBack}
             className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-green-50 hover:text-green-600 hover:border-green-200 transition"
           >
             <FiArrowLeft size={18} />
