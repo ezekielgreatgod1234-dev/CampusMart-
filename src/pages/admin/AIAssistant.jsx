@@ -25,7 +25,7 @@ function AIAssistant({ cartCount = 0 }) {
     {
       id: 1,
       role: "ai",
-      text: "Hi 👋 I’m CampusMartAI — your smart AI assistant.\n\nI can help you find products, suggest gigs, or answer questions about CampusMart. What do you need?",
+      text: "Hi 👋 I’m CampusMartAI, your smart AI assistant.\n\nI can help you find products, suggest gigs, or answer questions about CampusMart. What do you need?",
     },
   ]);
 
