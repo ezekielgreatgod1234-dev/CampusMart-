@@ -31,6 +31,7 @@ function Gigs({ cartCount = 0 }) {
   const [loading, setLoading] = useState(true);
   const [filterOpen, setFilterOpen] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [activeTab, setActiveTab] = useState("my"); // "my" | "other"
 
   const [deleteModal, setDeleteModal] = useState({
     open: false,
@@ -190,6 +191,7 @@ function Gigs({ cartCount = 0 }) {
     }
   };
 
+  // Filter by search + category
   const filteredGigs = gigs.filter((gig) => {
     const title = String(gig.title || "").toLowerCase();
     const description = String(gig.description || "").toLowerCase();
@@ -208,6 +210,74 @@ function Gigs({ cartCount = 0 }) {
 
     return matchesCategory && matchesSearch && gig.status !== "cancelled";
   });
+
+  // Split
+  const myGigs = filteredGigs.filter(
+    (gig) => firebaseUser && gig.posterId === firebaseUser.uid
+  );
+
+  const otherGigs = filteredGigs.filter(
+    (gig) => !firebaseUser || gig.posterId !== firebaseUser.uid
+  );
+
+  // What to show based on active tab
+  const displayedGigs = activeTab === "my" ? myGigs : otherGigs;
+
+  // Reusable card
+  const GigCard = ({ gig, isOwner }) => (
+    <div className="relative bg-white border border-gray-100 rounded-2xl p-5 hover:shadow-md hover:border-green-200 transition-all duration-200">
+      <Link to={`/gigs/${gig.id}`} className="block pr-10">
+        <div className="flex justify-between items-start gap-3">
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-gray-800 text-lg">
+              {gig.title}
+            </h3>
+            <p className="text-gray-500 text-sm mt-1.5 line-clamp-2">
+              {gig.description}
+            </p>
+          </div>
+          <span className="shrink-0 text-xs font-medium bg-green-50 text-green-700 px-3 py-1 rounded-full">
+            {gig.category}
+          </span>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-4 text-sm text-gray-500">
+          <span className="flex items-center gap-1.5">
+            <FiDollarSign size={14} className="text-green-600" />
+            {formatNaira(gig.budget)}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <FiClock size={14} className="text-green-600" />
+            {formatDeadlineShort(gig.deadline)}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <FiMapPin size={14} className="text-green-600" />
+            {gig.location || "Campus"}
+          </span>
+          <span className="ml-auto text-gray-400 text-xs">
+            {gig.applications} application
+            {gig.applications !== 1 ? "s" : ""}
+          </span>
+        </div>
+      </Link>
+
+      {isOwner && (
+        <button
+          type="button"
+          onClick={(e) => openDeleteModal(e, gig)}
+          disabled={deletingId === gig.id}
+          className="absolute top-4 right-4 w-9 h-9 rounded-full bg-green-50 text-[#008236] hover:bg-[#008236] hover:text-white border border-green-100 flex items-center justify-center transition disabled:opacity-50"
+          title="Delete gig"
+        >
+          {deletingId === gig.id ? (
+            <FiLoader size={16} className="animate-spin" />
+          ) : (
+            <FiTrash2 size={16} />
+          )}
+        </button>
+      )}
+    </div>
+  );
 
   return (
     <CustomerLayout cartCount={cartCount}>
@@ -303,24 +373,39 @@ function Gigs({ cartCount = 0 }) {
           </div>
         </section>
 
-        {/* Results header */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h2 className="font-semibold text-gray-800">
-              {selectedCategory === "All"
-                ? search
-                  ? "Search Results"
-                  : "All Gigs"
-                : selectedCategory}
-            </h2>
-            <p className="text-sm text-gray-500">
-              Showing {filteredGigs.length} of {gigs.length} gigs
-            </p>
-          </div>
+        {/* ========== TAB BUTTONS (no numbers) ========== */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-2 flex gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveTab("my")}
+            className={`flex-1 py-3 px-4 rounded-xl text-sm font-semibold transition-all ${
+              activeTab === "my"
+                ? "bg-[#008236] text-white shadow-sm"
+                : "bg-gray-50 text-gray-600 hover:bg-green-50 hover:text-green-700"
+            }`}
+          >
+            My Gigs
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("other")}
+            className={`flex-1 py-3 px-4 rounded-xl text-sm font-semibold transition-all ${
+              activeTab === "other"
+                ? "bg-[#008236] text-white shadow-sm"
+                : "bg-gray-50 text-gray-600 hover:bg-green-50 hover:text-green-700"
+            }`}
+          >
+            Other Campus Gigs
+          </button>
+        </div>
+
+        {/* Filters button */}
+        <div className="flex justify-end">
           <button
             type="button"
             onClick={() => setFilterOpen(true)}
-            className="shrink-0 px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-700 text-sm font-semibold hover:border-green-300 hover:bg-green-50 hover:text-green-700 transition"
+            className="px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-700 text-sm font-semibold hover:border-green-300 hover:bg-green-50 hover:text-green-700 transition"
           >
             Filters
           </button>
@@ -333,86 +418,34 @@ function Gigs({ cartCount = 0 }) {
           </section>
         )}
 
-        {!loading && filteredGigs.length > 0 && (
+        {/* ========== GIGS LIST (based on active tab) ========== */}
+        {!loading && displayedGigs.length > 0 && (
           <div className="grid gap-4">
-            {filteredGigs.map((gig) => {
-              const isOwner =
-                firebaseUser && gig.posterId === firebaseUser.uid;
-
-              return (
-                <div
-                  key={gig.id}
-                  className="relative bg-white border border-gray-100 rounded-2xl p-5 hover:shadow-md hover:border-green-200 transition-all duration-200"
-                >
-                  <Link to={`/gigs/${gig.id}`} className="block pr-10">
-                    <div className="flex justify-between items-start gap-3">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-gray-800 text-lg">
-                          {gig.title}
-                        </h3>
-                        <p className="text-gray-500 text-sm mt-1.5 line-clamp-2">
-                          {gig.description}
-                        </p>
-                      </div>
-                      <span className="shrink-0 text-xs font-medium bg-green-50 text-green-700 px-3 py-1 rounded-full">
-                        {gig.category}
-                      </span>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-4 text-sm text-gray-500">
-                      <span className="flex items-center gap-1.5">
-                        <FiDollarSign size={14} className="text-green-600" />
-                        {formatNaira(gig.budget)}
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <FiClock size={14} className="text-green-600" />
-                        {formatDeadlineShort(gig.deadline)}
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <FiMapPin size={14} className="text-green-600" />
-                        {gig.location || "Campus"}
-                      </span>
-                      <span className="ml-auto text-gray-400 text-xs">
-                        {gig.applications} application
-                        {gig.applications !== 1 ? "s" : ""}
-                      </span>
-                    </div>
-                  </Link>
-
-                  {/* Delete — CampusMart green */}
-                  {isOwner && (
-                    <button
-                      type="button"
-                      onClick={(e) => openDeleteModal(e, gig)}
-                      disabled={deletingId === gig.id}
-                      className="absolute top-4 right-4 w-9 h-9 rounded-full bg-green-50 text-[#008236] hover:bg-[#008236] hover:text-white border border-green-100 flex items-center justify-center transition disabled:opacity-50"
-                      title="Delete gig"
-                    >
-                      {deletingId === gig.id ? (
-                        <FiLoader size={16} className="animate-spin" />
-                      ) : (
-                        <FiTrash2 size={16} />
-                      )}
-                    </button>
-                  )}
-                </div>
-              );
-            })}
+            {displayedGigs.map((gig) => (
+              <GigCard
+                key={gig.id}
+                gig={gig}
+                isOwner={activeTab === "my"}
+              />
+            ))}
           </div>
         )}
 
-        {!loading && filteredGigs.length === 0 && (
+        {/* Empty state for current tab */}
+        {!loading && displayedGigs.length === 0 && (
           <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">
             <div className="w-16 h-16 mx-auto rounded-full bg-gray-100 flex items-center justify-center">
               <FiBriefcase size={26} className="text-gray-400" />
             </div>
             <h3 className="text-lg font-semibold text-gray-800 mt-4">
-              No gigs found
+              {activeTab === "my" ? "No gigs posted yet" : "No other gigs found"}
             </h3>
             <p className="text-gray-500 text-sm mt-2">
-              {search
+              {activeTab === "my"
+                ? "You haven't posted any gigs yet. Create one to get started."
+                : search
                 ? `We couldn't find any gigs matching "${search}".`
-                : "Be the first to post a gig on campus."}
+                : "There are no gigs from other students right now."}
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-5">
               {search && (
@@ -424,13 +457,15 @@ function Gigs({ cartCount = 0 }) {
                   Clear Search
                 </button>
               )}
-              <Link
-                to="/gigs/create"
-                className="inline-flex items-center gap-2 bg-[#008236] hover:bg-[#006f2e] text-white px-5 py-2.5 rounded-xl text-sm font-medium"
-              >
-                <FiPlus size={16} />
-                Post a Gig
-              </Link>
+              {activeTab === "my" && (
+                <Link
+                  to="/gigs/create"
+                  className="inline-flex items-center gap-2 bg-[#008236] hover:bg-[#006f2e] text-white px-5 py-2.5 rounded-xl text-sm font-medium"
+                >
+                  <FiPlus size={16} />
+                  Post a Gig
+                </Link>
+              )}
             </div>
           </div>
         )}
@@ -501,7 +536,7 @@ function Gigs({ cartCount = 0 }) {
         </div>
       )}
 
-      {/* Delete modal — CampusMart green (no browser confirm) */}
+      {/* Delete modal */}
       {deleteModal.open && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center px-4">
           <div
