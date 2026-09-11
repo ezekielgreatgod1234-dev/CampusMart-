@@ -17,6 +17,7 @@ import {
   FiUserPlus,
   FiShoppingBag,
   FiMessageCircle,
+  FiZap,
   FiCheckCircle,
   FiHeart,
   FiMapPin,
@@ -591,7 +592,7 @@ function Landing() {
 
               <p className="mt-6 sm:mt-7 max-w-[500px] text-sm sm:text-lg leading-7 sm:leading-8 text-gray-600">
                 CampusMart makes it easy for students to buy and sell items
-                within their campus community — plus find or post campus gigs.
+                within their campus community, plus find or post campus gigs.
               </p>
 
               <div className="mt-7 sm:mt-8 flex flex-wrap gap-3">
@@ -681,6 +682,48 @@ function Landing() {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* =====================================================
+          CAMPUSMART AI ASSISTANT - COMING SOON
+      ===================================================== */}
+      <section className="py-8 sm:py-10">
+        <div className="max-w-[1250px] mx-auto px-5 sm:px-8">
+          <div className="relative overflow-hidden rounded-3xl border border-green-100 bg-gradient-to-br from-[#f0fff5] via-white to-[#eafff1] shadow-sm">
+            <div className="absolute -right-20 -top-20 w-56 h-56 rounded-full bg-green-100/60" />
+            <div className="absolute -left-16 -bottom-24 w-48 h-48 rounded-full bg-green-50" />
+
+            <div className="relative z-10 px-6 sm:px-10 py-7 sm:py-9 flex flex-col md:flex-row md:items-center gap-6">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-green-600 text-white flex items-center justify-center shrink-0 shadow-lg shadow-green-600/20">
+                <FiZap size={34} />
+              </div>
+
+              <div className="flex-1">
+                <div className="inline-flex items-center gap-2 rounded-full bg-green-100 border border-green-200 px-3 py-1 text-[11px] sm:text-xs font-bold text-green-700 uppercase tracking-wide">
+                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                  Coming Soon
+                </div>
+
+                <h2 className="mt-3 text-2xl sm:text-3xl font-black text-gray-900">
+                  Meet <span className="text-green-600">CampusMart AI</span>
+                </h2>
+
+                <p className="mt-2 text-sm sm:text-base text-gray-600 leading-6 max-w-[700px]">
+                  Your smart CampusMart assistant is on the way. Get help finding products,
+                  discovering campus gigs, understanding orders, and navigating CampusMart all
+                  through one intelligent assistant.
+                </p>
+              </div>
+
+              <div className="shrink-0">
+                <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-white border border-green-100 text-green-700 text-sm font-bold shadow-sm">
+                  <FiMessageCircle size={18} />
+                  AI Assistant
+                </div>
+              </div>
             </div>
           </div>
         </div>
