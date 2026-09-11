@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams, useLocation, useNavigate } from "react-router-dom";
 import CustomerLayout from "../../layouts/CustomerLayout";
 import {
   collection,
@@ -27,6 +27,9 @@ import {
 function Gigs({ cartCount = 0 }) {
   const { firebaseUser } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+
   const [gigs, setGigs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -68,6 +71,19 @@ function Gigs({ cartCount = 0 }) {
       setToast({ open: false, message: "", type: "success" });
     }, 2800);
   };
+
+  // Show styled success toast after posting a gig (or applying)
+  useEffect(() => {
+    if (location.state?.successMessage) {
+      showToast(location.state.successMessage, "success");
+
+      // Clear the state so the message doesn't reappear on refresh
+      navigate(location.pathname + location.search, {
+        replace: true,
+        state: {},
+      });
+    }
+  }, [location.state]);
 
   const formatNaira = (value) => {
     if (value === null || value === undefined || value === "") {
@@ -373,7 +389,7 @@ function Gigs({ cartCount = 0 }) {
           </div>
         </section>
 
-        {/* ========== TAB BUTTONS (no numbers) ========== */}
+        {/* ========== TAB BUTTONS ========== */}
         <div className="bg-white rounded-2xl border border-gray-100 p-2 flex gap-2">
           <button
             type="button"
@@ -418,7 +434,7 @@ function Gigs({ cartCount = 0 }) {
           </section>
         )}
 
-        {/* ========== GIGS LIST (based on active tab) ========== */}
+        {/* ========== GIGS LIST ========== */}
         {!loading && displayedGigs.length > 0 && (
           <div className="grid gap-4">
             {displayedGigs.map((gig) => (
@@ -431,7 +447,7 @@ function Gigs({ cartCount = 0 }) {
           </div>
         )}
 
-        {/* Empty state for current tab */}
+        {/* Empty state */}
         {!loading && displayedGigs.length === 0 && (
           <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">
             <div className="w-16 h-16 mx-auto rounded-full bg-gray-100 flex items-center justify-center">
