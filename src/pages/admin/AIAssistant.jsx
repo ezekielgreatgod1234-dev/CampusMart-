@@ -25,6 +25,7 @@ function AIAssistant({ cartCount = 0 }) {
   const navigate = useNavigate();
   const messagesEndRef = useRef(null);
   const abortControllerRef = useRef(null);
+  const stoppedByUserRef = useRef(false);
 
   const { firebaseUser } = useAuth();
 
@@ -58,6 +59,17 @@ function AIAssistant({ cartCount = 0 }) {
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [isFirstVisit, setIsFirstVisit] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  /*
+   * AI usage-limit cooldown (client-side mirror of the backend
+   * cooldown). Once we know CampusMart AI is rate-limited, we
+   * remember it here so the limit message can drop instantly on
+   * the next send — no ID token fetch, no network round trip —
+   * instead of waiting on another request that's just going to
+   * fail the same way.
+   */
+  const [aiCooldownUntil, setAiCooldownUntil] = useState(0);
+  const [cooldownSecondsLeft, setCooldownSecondsLeft] = useState(0);
 
   // Custom CampusMart confirmation modal
   const [deleteModal, setDeleteModal] = useState({
@@ -198,6 +210,59 @@ function AIAssistant({ cartCount = 0 }) {
     });
   }, [messages, isTyping, searchStatus]);
 
+  /*
+   * Ticks the cooldown countdown every second and clears the
+   * cooldown once it expires.
+   */
+  useEffect(() => {
+    if (!aiCooldownUntil) {
+      setCooldownSecondsLeft(0);
+      return;
+    }
+
+    const tick = () => {
+      const secondsLeft = Math.max(
+        0,
+        Math.ceil((aiCooldownUntil - Date.now()) / 1000)
+      );
+
+      setCooldownSecondsLeft(secondsLeft);
+
+      if (secondsLeft <= 0) {
+        setAiCooldownUntil(0);
+      }
+    };
+
+    tick();
+
+    const interval = setInterval(tick, 1000);
+
+    return () => clearInterval(interval);
+  }, [aiCooldownUntil]);
+
+  const applyAiCooldown = (retryAfterSeconds) => {
+    const seconds =
+      Number(retryAfterSeconds) > 0
+        ? Number(retryAfterSeconds)
+        : 60;
+
+    setAiCooldownUntil(Date.now() + seconds * 1000);
+  };
+
+  const pushLimitMessage = () => {
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `limit-${Date.now()}`,
+        role: "ai",
+        text:
+          "CampusMart AI is temporarily unavailable due to its current usage capacity. Please try again shortly.",
+        products: [],
+        gigs: [],
+      },
+    ]);
+  };
+
   const looksLikeProductSearch = (text) => {
     const lower = String(text || "").toLowerCase();
 
@@ -299,6 +364,30 @@ function AIAssistant({ cartCount = 0 }) {
       return;
     }
 
+    /*
+     * Fast path: we already know CampusMart AI is rate-limited.
+     * Drop the limit message immediately — no ID token fetch, no
+     * fetch() call — instead of waiting on another round trip
+     * that would just fail the same way.
+     */
+    if (aiCooldownUntil && Date.now() < aiCooldownUntil) {
+      setIsFirstVisit(false);
+      setInput("");
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `user-${Date.now()}`,
+          role: "user",
+          text: message,
+        },
+      ]);
+
+      pushLimitMessage();
+
+      return;
+    }
+
     const userMessage = {
       id: `user-${Date.now()}`,
       role: "user",
@@ -331,6 +420,19 @@ function AIAssistant({ cartCount = 0 }) {
     try {
       const controller = new AbortController();
       abortControllerRef.current = controller;
+      stoppedByUserRef.current = false;
+
+      /*
+       * Give up waiting after 15s instead of sitting on
+       * "Almost there..." forever. If the backend hasn't
+       * answered by then, treat it like a limit/overload —
+       * show the limit message and start the cooldown.
+       */
+      const REPLY_TIMEOUT_MS = 15000;
+
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+      }, REPLY_TIMEOUT_MS);
 
       const idToken = await firebaseUser.getIdToken();
 
@@ -358,26 +460,7 @@ function AIAssistant({ cartCount = 0 }) {
         signal: controller.signal,
       });
 
-      /*
-       * Handle AI usage limit immediately.
-       * This prevents the raw backend/localhost message from reaching
-       * the user when the server responds with HTTP 429.
-       */
-      if (response.status === 429) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `limit-${Date.now()}`,
-            role: "ai",
-            text:
-              "CampusMart AI is temporarily unavailable due to its current usage capacity. Please try again shortly.",
-            products: [],
-            gigs: [],
-          },
-        ]);
-
-        return;
-      }
+      clearTimeout(timeoutId);
 
       let data = null;
 
@@ -385,6 +468,20 @@ function AIAssistant({ cartCount = 0 }) {
         data = await response.json();
       } catch {
         data = null;
+      }
+
+      /*
+       * Handle AI usage limit immediately.
+       * This prevents the raw backend/localhost message from reaching
+       * the user when the server responds with HTTP 429, and starts
+       * the client-side cooldown so the NEXT message drops the limit
+       * message instantly instead of hitting the network again.
+       */
+      if (response.status === 429) {
+        applyAiCooldown(data?.retryAfterSeconds);
+        pushLimitMessage();
+
+        return;
       }
 
       /*
@@ -405,17 +502,8 @@ function AIAssistant({ cartCount = 0 }) {
         serverMessage.includes("limit has been reached");
 
       if (isUsageLimit) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `limit-${Date.now()}`,
-            role: "ai",
-            text:
-              "CampusMart AI is temporarily unavailable due to its current usage capacity. Please try again shortly.",
-            products: [],
-            gigs: [],
-          },
-        ]);
+        applyAiCooldown(data?.retryAfterSeconds);
+        pushLimitMessage();
 
         return;
       }
@@ -440,16 +528,29 @@ function AIAssistant({ cartCount = 0 }) {
       setMessages((prev) => [...prev, aiMessage]);
     } catch (error) {
       if (error?.name === "AbortError") {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `stopped-${Date.now()}`,
-            role: "ai",
-            text: "Reply stopped.",
-            products: [],
-            gigs: [],
-          },
-        ]);
+        if (stoppedByUserRef.current) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `stopped-${Date.now()}`,
+              role: "ai",
+              text: "Reply stopped.",
+              products: [],
+              gigs: [],
+            },
+          ]);
+
+          return;
+        }
+
+        /*
+         * Not a user-initiated stop — we gave up waiting after
+         * the timeout. Treat it like a usage limit so the user
+         * gets an answer instead of silence, and so repeat
+         * sends drop instantly via the cooldown fast path.
+         */
+        applyAiCooldown();
+        pushLimitMessage();
 
         return;
       }
@@ -471,6 +572,8 @@ function AIAssistant({ cartCount = 0 }) {
         msg.includes("too many requests") ||
         msg.includes("limit reached")
       ) {
+        applyAiCooldown();
+
         errorText =
           "CampusMart AI is temporarily unavailable due to its current usage capacity. Please try again shortly.";
       } else if (
@@ -532,6 +635,7 @@ function AIAssistant({ cartCount = 0 }) {
   };
 
   const handleStopReply = () => {
+    stoppedByUserRef.current = true;
     abortControllerRef.current?.abort();
   };
 
@@ -1115,6 +1219,13 @@ function AIAssistant({ cartCount = 0 }) {
 
           {/* INPUT */}
           <div className="border-t border-gray-100 p-3 sm:p-4">
+            {cooldownSecondsLeft > 0 && (
+              <p className="text-[11px] text-amber-600 mb-2 text-center">
+                CampusMart AI is at capacity — try again in{" "}
+                {cooldownSecondsLeft}s
+              </p>
+            )}
+
             <div className="flex items-end gap-2.5">
               <div className="flex-1">
                 <textarea
