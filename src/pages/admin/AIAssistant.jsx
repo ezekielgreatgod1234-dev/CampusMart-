@@ -17,6 +17,8 @@ import {
   FiExternalLink,
   FiTrash2,
   FiSquare,
+  FiX,
+  FiAlertTriangle,
 } from "react-icons/fi";
 
 function AIAssistant({ cartCount = 0 }) {
@@ -56,6 +58,13 @@ function AIAssistant({ cartCount = 0 }) {
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [isFirstVisit, setIsFirstVisit] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Custom CampusMart confirmation modal
+  const [deleteModal, setDeleteModal] = useState({
+    open: false,
+    type: null,
+    messageId: null,
+  });
 
   const firstTimeWelcome = () => ({
     id: "welcome",
@@ -276,6 +285,7 @@ function AIAssistant({ cartCount = 0 }) {
       };
 
       setIsFirstVisit(false);
+
       setMessages((prev) => [
         ...prev,
         {
@@ -308,7 +318,6 @@ function AIAssistant({ cartCount = 0 }) {
       setSearchStatus("Thinking...");
     }
 
-    // After a short moment, if still loading a product search, refresh status
     const statusTimer = setTimeout(() => {
       if (looksLikeProductSearch(message)) {
         setSearchStatus("Still searching live listings...");
@@ -349,12 +358,66 @@ function AIAssistant({ cartCount = 0 }) {
         signal: controller.signal,
       });
 
+      /*
+       * Handle AI usage limit immediately.
+       * This prevents the raw backend/localhost message from reaching
+       * the user when the server responds with HTTP 429.
+       */
+      if (response.status === 429) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `limit-${Date.now()}`,
+            role: "ai",
+            text:
+              "CampusMart AI is temporarily unavailable due to its current usage capacity. Please try again shortly.",
+            products: [],
+            gigs: [],
+          },
+        ]);
+
+        return;
+      }
+
       let data = null;
 
       try {
         data = await response.json();
       } catch {
         data = null;
+      }
+
+      /*
+       * Also detect usage-limit messages returned by the backend
+       * even when the server does not use HTTP 429.
+       */
+      const serverMessage = String(
+        data?.error || data?.message || ""
+      ).toLowerCase();
+
+      const isUsageLimit =
+        serverMessage.includes("rate limit") ||
+        serverMessage.includes("usage limit") ||
+        serverMessage.includes("quota") ||
+        serverMessage.includes("resource exhausted") ||
+        serverMessage.includes("too many requests") ||
+        serverMessage.includes("limit reached") ||
+        serverMessage.includes("limit has been reached");
+
+      if (isUsageLimit) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `limit-${Date.now()}`,
+            role: "ai",
+            text:
+              "CampusMart AI is temporarily unavailable due to its current usage capacity. Please try again shortly.",
+            products: [],
+            gigs: [],
+          },
+        ]);
+
+        return;
       }
 
       if (!response.ok) {
@@ -404,10 +467,12 @@ function AIAssistant({ cartCount = 0 }) {
         msg.includes("busy right now") ||
         msg.includes("usage limit") ||
         msg.includes("quota") ||
-        msg.includes("resource exhausted")
+        msg.includes("resource exhausted") ||
+        msg.includes("too many requests") ||
+        msg.includes("limit reached")
       ) {
         errorText =
-          "I'm a bit busy right now 😅 Free AI limit reached — please wait a minute and try again.";
+          "CampusMart AI is temporarily unavailable due to its current usage capacity. Please try again shortly.";
       } else if (
         msg.includes("gemini_api_key") ||
         msg.includes("api key") ||
@@ -416,7 +481,7 @@ function AIAssistant({ cartCount = 0 }) {
         msg.includes("unauthenticated")
       ) {
         errorText =
-          "CampusMart AI key is missing or invalid on the server. Set GEMINI_API_KEY (free key from Google AI Studio).";
+          "CampusMart AI is temporarily unavailable. Please try again later.";
       } else if (
         msg.includes("model") &&
         (msg.includes("not available") ||
@@ -425,15 +490,20 @@ function AIAssistant({ cartCount = 0 }) {
           msg.includes("no longer available"))
       ) {
         errorText =
-          "That Gemini model is not available. Set GEMINI_AI_MODEL=gemini-3.6-flash on the server.";
+          "CampusMart AI is temporarily unavailable. Please try again later.";
       } else if (
         msg.includes("authentication") ||
         msg.includes("log in") ||
         msg.includes("firebase")
       ) {
         errorText = "Please log in again so I can help you.";
-      } else if (raw) {
-        errorText = raw.length > 300 ? raw.slice(0, 300) + "…" : raw;
+      } else {
+        /*
+         * Never expose localhost, API URLs, stack traces, or raw
+         * backend errors to the user.
+         */
+        errorText =
+          "Sorry, CampusMart AI couldn't complete that request right now. Please try again.";
       }
 
       setMessages((prev) => [
@@ -465,42 +535,25 @@ function AIAssistant({ cartCount = 0 }) {
     abortControllerRef.current?.abort();
   };
 
-  const handleDeleteMessage = async (messageId) => {
+  /*
+   * Open custom confirmation for deleting one message.
+   */
+  const handleDeleteMessage = (messageId) => {
     if (!messageId || isTyping || isDeleting) {
       return;
     }
 
-    const confirmed = window.confirm("Delete this message?");
-
-    if (!confirmed) {
-      return;
-    }
-
-    // Optimistic local removal — the message disappears immediately.
-    setMessages((prev) => prev.filter((m) => m.id !== messageId));
-
-    if (!firebaseUser) {
-      return;
-    }
-
-    try {
-      const idToken = await firebaseUser.getIdToken();
-
-      await fetch(
-        `${API_URL}/ai/history/messages/${encodeURIComponent(messageId)}`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${idToken}`,
-          },
-        }
-      );
-    } catch (error) {
-      console.error("CampusMart AI delete message error:", error);
-    }
+    setDeleteModal({
+      open: true,
+      type: "message",
+      messageId,
+    });
   };
 
-  const handleDeleteChat = async () => {
+  /*
+   * Open custom confirmation for deleting the entire chat.
+   */
+  const handleDeleteChat = () => {
     if (isDeleting || isTyping) {
       return;
     }
@@ -511,16 +564,102 @@ function AIAssistant({ cartCount = 0 }) {
       return;
     }
 
-    const confirmed = window.confirm(
-      "Delete this entire chat? This will permanently remove your CampusMart AI conversation history."
-    );
+    setDeleteModal({
+      open: true,
+      type: "chat",
+      messageId: null,
+    });
+  };
 
-    if (!confirmed) {
+  /*
+   * Close custom confirmation modal.
+   */
+  const closeDeleteModal = () => {
+    if (isDeleting) {
+      return;
+    }
+
+    setDeleteModal({
+      open: false,
+      type: null,
+      messageId: null,
+    });
+  };
+
+  /*
+   * Actually delete after user confirms inside our own modal.
+   */
+  const confirmDelete = async () => {
+    const deleteType = deleteModal.type;
+    const messageId = deleteModal.messageId;
+
+    if (!deleteType || isDeleting) {
       return;
     }
 
     setIsDeleting(true);
 
+    /*
+     * Close the modal immediately once deletion starts.
+     */
+    setDeleteModal({
+      open: false,
+      type: null,
+      messageId: null,
+    });
+
+    if (deleteType === "message") {
+      /*
+       * Optimistic local removal.
+       */
+      setMessages((prev) =>
+        prev.filter((m) => m.id !== messageId)
+      );
+
+      if (!firebaseUser) {
+        setIsDeleting(false);
+        return;
+      }
+
+      try {
+        const idToken = await firebaseUser.getIdToken();
+
+        const response = await fetch(
+          `${API_URL}/ai/history/messages/${encodeURIComponent(
+            messageId
+          )}`,
+          {
+            method: "DELETE",
+            headers: {
+              Authorization: `Bearer ${idToken}`,
+            },
+          }
+        );
+
+        /*
+         * Do not expose raw backend/localhost errors.
+         */
+        if (!response.ok) {
+          console.error(
+            "CampusMart AI delete message request failed:",
+            response.status
+          );
+        }
+      } catch (error) {
+        console.error(
+          "CampusMart AI delete message error:",
+          error
+        );
+      } finally {
+        setIsDeleting(false);
+      }
+
+      return;
+    }
+
+    /*
+     * Delete entire chat.
+     */
     try {
       const idToken = await firebaseUser.getIdToken();
 
@@ -540,25 +679,39 @@ function AIAssistant({ cartCount = 0 }) {
       }
 
       if (!response.ok || !data?.success) {
-        throw new Error(
-          data?.error || "Could not delete chat history."
+        /*
+         * Log only the safe status internally.
+         * Never put data.error into the chat.
+         */
+        console.error(
+          "CampusMart AI delete history request failed:",
+          response.status
         );
+
+        throw new Error("DELETE_CHAT_FAILED");
       }
 
       setMessages([]);
       setIsFirstVisit(true);
       setInput("");
     } catch (error) {
-      console.error("CampusMart AI delete history error:", error);
+      console.error(
+        "CampusMart AI delete history error:",
+        error
+      );
 
+      /*
+       * IMPORTANT:
+       * Never display error.message here because it may contain
+       * localhost URLs or raw backend/server information.
+       */
       setMessages((prev) => [
         ...prev,
         {
-          id: `error-${Date.now()}`,
+          id: `delete-error-${Date.now()}`,
           role: "ai",
           text:
-            String(error?.message || "").trim() ||
-            "Sorry, I couldn't delete the chat right now. Please try again.",
+            "We couldn't delete your CampusMart AI conversation right now. Please try again.",
           products: [],
           gigs: [],
         },
@@ -665,7 +818,10 @@ function AIAssistant({ cartCount = 0 }) {
   };
 
   const GigCard = ({ gig }) => {
-    const budget = Number(gig?.budget ?? gig?.price ?? gig?.amount);
+    const budget = Number(
+      gig?.budget ?? gig?.price ?? gig?.amount
+    );
+
     const hasBudget = Number.isFinite(budget);
 
     return (
@@ -714,7 +870,10 @@ function AIAssistant({ cartCount = 0 }) {
   };
 
   const showWelcomeScreen =
-    historyLoaded && isFirstVisit && messages.length === 0 && !isTyping;
+    historyLoaded &&
+    isFirstVisit &&
+    messages.length === 0 &&
+    !isTyping;
 
   return (
     <CustomerLayout cartCount={cartCount}>
@@ -739,6 +898,7 @@ function AIAssistant({ cartCount = 0 }) {
               <h1 className="text-xl font-bold text-gray-800">
                 CampusMart AI
               </h1>
+
               <p className="text-xs text-gray-500">
                 Your smart campus assistant
               </p>
@@ -750,12 +910,15 @@ function AIAssistant({ cartCount = 0 }) {
               type="button"
               onClick={handleDeleteChat}
               disabled={isDeleting || isTyping}
-              className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+              className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-green-50 hover:text-[#008236] hover:border-green-200 transition disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
               aria-label="Delete chat"
               title="Delete chat"
             >
               {isDeleting ? (
-                <FiLoader size={16} className="animate-spin" />
+                <FiLoader
+                  size={16}
+                  className="animate-spin"
+                />
               ) : (
                 <FiTrash2 size={16} />
               )}
@@ -771,7 +934,10 @@ function AIAssistant({ cartCount = 0 }) {
                 <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#008236] to-[#00a34a] text-white flex items-center justify-center shadow-md animate-pulse">
                   <FiZap size={22} />
                 </div>
-                <p className="text-sm">Loading CampusMart AI...</p>
+
+                <p className="text-sm">
+                  Loading CampusMart AI...
+                </p>
               </div>
             )}
 
@@ -791,8 +957,8 @@ function AIAssistant({ cartCount = 0 }) {
                   <span className="font-semibold text-[#008236]">
                     CampusMart AI
                   </span>
-                  . Ask me to find products, gigs, check your orders, or
-                  explain how CampusMart works.
+                  . Ask me to find products, gigs, check your
+                  orders, or explain how CampusMart works.
                 </p>
 
                 <div className="mt-8 w-full max-w-lg">
@@ -805,10 +971,15 @@ function AIAssistant({ cartCount = 0 }) {
                       <button
                         key={prompt.text}
                         type="button"
-                        onClick={() => handleSend(prompt.text)}
+                        onClick={() =>
+                          handleSend(prompt.text)
+                        }
                         className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-full border border-gray-200 bg-white text-xs sm:text-sm text-gray-700 hover:border-green-300 hover:bg-green-50 hover:text-green-700 transition shadow-sm"
                       >
-                        <span className="text-green-600">{prompt.icon}</span>
+                        <span className="text-green-600">
+                          {prompt.icon}
+                        </span>
+
                         {prompt.text}
                       </button>
                     ))}
@@ -824,7 +995,9 @@ function AIAssistant({ cartCount = 0 }) {
                 <div
                   key={msg.id}
                   className={`group flex gap-2 ${
-                    msg.role === "user" ? "flex-row-reverse" : ""
+                    msg.role === "user"
+                      ? "flex-row-reverse"
+                      : ""
                   }`}
                 >
                   <div
@@ -843,7 +1016,9 @@ function AIAssistant({ cartCount = 0 }) {
 
                   <div
                     className={`max-w-[80%] sm:max-w-[75%] ${
-                      msg.role === "user" ? "items-end" : ""
+                      msg.role === "user"
+                        ? "items-end"
+                        : ""
                     }`}
                   >
                     <div
@@ -860,12 +1035,17 @@ function AIAssistant({ cartCount = 0 }) {
                       Array.isArray(msg.products) &&
                       msg.products.length > 0 && (
                         <div className="space-y-3">
-                          {msg.products.map((product, index) => (
-                            <ProductCard
-                              key={product?.id || `product-${index}`}
-                              product={product}
-                            />
-                          ))}
+                          {msg.products.map(
+                            (product, index) => (
+                              <ProductCard
+                                key={
+                                  product?.id ||
+                                  `product-${index}`
+                                }
+                                product={product}
+                              />
+                            )
+                          )}
                         </div>
                       )}
 
@@ -875,7 +1055,10 @@ function AIAssistant({ cartCount = 0 }) {
                         <div className="space-y-3">
                           {msg.gigs.map((gig, index) => (
                             <GigCard
-                              key={gig?.id || `gig-${index}`}
+                              key={
+                                gig?.id ||
+                                `gig-${index}`
+                              }
                               gig={gig}
                             />
                           ))}
@@ -885,9 +1068,11 @@ function AIAssistant({ cartCount = 0 }) {
 
                   <button
                     type="button"
-                    onClick={() => handleDeleteMessage(msg.id)}
+                    onClick={() =>
+                      handleDeleteMessage(msg.id)
+                    }
                     disabled={isTyping || isDeleting}
-                    className="self-center w-7 h-7 rounded-full flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 sm:opacity-0 sm:group-hover:opacity-100 transition disabled:opacity-0 disabled:cursor-not-allowed shrink-0"
+                    className="self-center w-7 h-7 rounded-full flex items-center justify-center text-gray-300 hover:text-[#008236] hover:bg-green-50 sm:opacity-0 sm:group-hover:opacity-100 transition disabled:opacity-0 disabled:cursor-not-allowed shrink-0"
                     aria-label="Delete message"
                     title="Delete message"
                   >
@@ -905,9 +1090,14 @@ function AIAssistant({ cartCount = 0 }) {
 
                 <div className="bg-gray-50 rounded-2xl rounded-tl-sm px-4 py-3 min-w-[160px]">
                   <div className="flex items-center gap-2 text-xs font-medium text-[#008236] mb-2">
-                    <FiLoader size={13} className="animate-spin" />
+                    <FiLoader
+                      size={13}
+                      className="animate-spin"
+                    />
+
                     <span>
-                      {searchStatus || "CampusMart AI is thinking..."}
+                      {searchStatus ||
+                        "CampusMart AI is thinking..."}
                     </span>
                   </div>
 
@@ -929,7 +1119,9 @@ function AIAssistant({ cartCount = 0 }) {
               <div className="flex-1">
                 <textarea
                   value={input}
-                  onChange={(e) => setInput(e.target.value)}
+                  onChange={(e) =>
+                    setInput(e.target.value)
+                  }
                   onKeyDown={handleKeyDown}
                   placeholder="Ask CampusMart AI anything..."
                   rows={1}
@@ -942,7 +1134,7 @@ function AIAssistant({ cartCount = 0 }) {
                 <button
                   type="button"
                   onClick={handleStopReply}
-                  className="w-11 h-11 rounded-xl bg-red-500 hover:bg-red-600 text-white flex items-center justify-center transition shadow-sm shrink-0"
+                  className="w-11 h-11 rounded-xl bg-[#008236] hover:bg-[#006f2e] text-white flex items-center justify-center transition shadow-sm shrink-0"
                   aria-label="Stop response"
                   title="Stop response"
                 >
@@ -962,12 +1154,123 @@ function AIAssistant({ cartCount = 0 }) {
             </div>
 
             <p className="text-[11px] text-gray-400 mt-2 text-center">
-              CampusMart AI uses live CampusMart data when available. Always
-              double-check important information.
+              CampusMart AI uses live CampusMart data when
+              available. Always double-check important
+              information.
             </p>
           </div>
         </div>
       </div>
+
+      {/* =========================================================
+          CUSTOM CAMPUSMART DELETE CONFIRMATION MODAL
+          ========================================================= */}
+      {deleteModal.open && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-modal-title"
+        >
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
+            onClick={closeDeleteModal}
+          />
+
+          {/* Modal */}
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden animate-[scaleIn_0.18s_ease-out]">
+            {/* Green top section */}
+            <div className="h-2 bg-gradient-to-r from-[#008236] to-[#00a34a]" />
+
+            <div className="p-6 sm:p-7">
+              {/* Close button */}
+              <button
+                type="button"
+                onClick={closeDeleteModal}
+                disabled={isDeleting}
+                className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition disabled:opacity-50"
+                aria-label="Close"
+              >
+                <FiX size={18} />
+              </button>
+
+              {/* Icon */}
+              <div className="w-14 h-14 rounded-2xl bg-green-50 text-[#008236] flex items-center justify-center mb-5">
+                <FiAlertTriangle size={25} />
+              </div>
+
+              {/* Title */}
+              <h2
+                id="delete-modal-title"
+                className="text-xl font-bold text-gray-800 pr-8"
+              >
+                {deleteModal.type === "chat"
+                  ? "Delete conversation?"
+                  : "Delete message?"}
+              </h2>
+
+              {/* Description */}
+              <p className="mt-2 text-sm text-gray-500 leading-relaxed">
+                {deleteModal.type === "chat"
+                  ? "Are you sure you want to permanently delete your CampusMart AI conversation history? This action cannot be undone."
+                  : "Are you sure you want to delete this message? This action cannot be undone."}
+              </p>
+
+              {/* Buttons */}
+              <div className="flex gap-3 mt-7">
+                <button
+                  type="button"
+                  onClick={closeDeleteModal}
+                  disabled={isDeleting}
+                  className="flex-1 px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-700 text-sm font-semibold hover:bg-gray-50 transition disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={confirmDelete}
+                  disabled={isDeleting}
+                  className="flex-1 px-4 py-3 rounded-xl bg-[#008236] hover:bg-[#006f2e] text-white text-sm font-semibold transition flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {isDeleting ? (
+                    <>
+                      <FiLoader
+                        size={15}
+                        className="animate-spin"
+                      />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <FiTrash2 size={15} />
+                      {deleteModal.type === "chat"
+                        ? "Delete chat"
+                        : "Delete message"}
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom modal animation */}
+      <style>{`
+        @keyframes scaleIn {
+          from {
+            opacity: 0;
+            transform: scale(0.96) translateY(6px);
+          }
+
+          to {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+        }
+      `}</style>
     </CustomerLayout>
   );
 }
