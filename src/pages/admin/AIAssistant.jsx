@@ -15,11 +15,14 @@ import {
   FiUser,
   FiMapPin,
   FiExternalLink,
+  FiTrash2,
+  FiSquare,
 } from "react-icons/fi";
 
 function AIAssistant({ cartCount = 0 }) {
   const navigate = useNavigate();
   const messagesEndRef = useRef(null);
+  const abortControllerRef = useRef(null);
 
   const { firebaseUser } = useAuth();
 
@@ -52,6 +55,7 @@ function AIAssistant({ cartCount = 0 }) {
   const [messages, setMessages] = useState([]);
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [isFirstVisit, setIsFirstVisit] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const firstTimeWelcome = () => ({
     id: "welcome",
@@ -316,6 +320,9 @@ function AIAssistant({ cartCount = 0 }) {
     }, 2500);
 
     try {
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
       const idToken = await firebaseUser.getIdToken();
 
       const conversation = [...messages, userMessage]
@@ -339,6 +346,7 @@ function AIAssistant({ cartCount = 0 }) {
           message,
           messages: conversation,
         }),
+        signal: controller.signal,
       });
 
       let data = null;
@@ -368,6 +376,21 @@ function AIAssistant({ cartCount = 0 }) {
 
       setMessages((prev) => [...prev, aiMessage]);
     } catch (error) {
+      if (error?.name === "AbortError") {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `stopped-${Date.now()}`,
+            role: "ai",
+            text: "Reply stopped.",
+            products: [],
+            gigs: [],
+          },
+        ]);
+
+        return;
+      }
+
       console.error("CampusMart AI error:", error);
 
       let errorText =
@@ -425,6 +448,7 @@ function AIAssistant({ cartCount = 0 }) {
       ]);
     } finally {
       clearTimeout(statusTimer);
+      abortControllerRef.current = null;
       setIsTyping(false);
       setSearchStatus("");
     }
@@ -434,6 +458,113 @@ function AIAssistant({ cartCount = 0 }) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
+    }
+  };
+
+  const handleStopReply = () => {
+    abortControllerRef.current?.abort();
+  };
+
+  const handleDeleteMessage = async (messageId) => {
+    if (!messageId || isTyping || isDeleting) {
+      return;
+    }
+
+    const confirmed = window.confirm("Delete this message?");
+
+    if (!confirmed) {
+      return;
+    }
+
+    // Optimistic local removal — the message disappears immediately.
+    setMessages((prev) => prev.filter((m) => m.id !== messageId));
+
+    if (!firebaseUser) {
+      return;
+    }
+
+    try {
+      const idToken = await firebaseUser.getIdToken();
+
+      await fetch(
+        `${API_URL}/ai/history/messages/${encodeURIComponent(messageId)}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${idToken}`,
+          },
+        }
+      );
+    } catch (error) {
+      console.error("CampusMart AI delete message error:", error);
+    }
+  };
+
+  const handleDeleteChat = async () => {
+    if (isDeleting || isTyping) {
+      return;
+    }
+
+    if (!firebaseUser) {
+      setMessages([]);
+      setIsFirstVisit(true);
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Delete this entire chat? This will permanently remove your CampusMart AI conversation history."
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsDeleting(true);
+
+    try {
+      const idToken = await firebaseUser.getIdToken();
+
+      const response = await fetch(`${API_URL}/ai/history`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+        },
+      });
+
+      let data = null;
+
+      try {
+        data = await response.json();
+      } catch {
+        data = null;
+      }
+
+      if (!response.ok || !data?.success) {
+        throw new Error(
+          data?.error || "Could not delete chat history."
+        );
+      }
+
+      setMessages([]);
+      setIsFirstVisit(true);
+      setInput("");
+    } catch (error) {
+      console.error("CampusMart AI delete history error:", error);
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `error-${Date.now()}`,
+          role: "ai",
+          text:
+            String(error?.message || "").trim() ||
+            "Sorry, I couldn't delete the chat right now. Please try again.",
+          products: [],
+          gigs: [],
+        },
+      ]);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -599,12 +730,12 @@ function AIAssistant({ cartCount = 0 }) {
             <FiArrowLeft size={18} />
           </button>
 
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#008236] to-[#00a34a] text-white flex items-center justify-center shadow-md">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#008236] to-[#00a34a] text-white flex items-center justify-center shadow-md shrink-0">
               <FiZap size={20} />
             </div>
 
-            <div>
+            <div className="min-w-0">
               <h1 className="text-xl font-bold text-gray-800">
                 CampusMart AI
               </h1>
@@ -613,6 +744,23 @@ function AIAssistant({ cartCount = 0 }) {
               </p>
             </div>
           </div>
+
+          {messages.length > 0 && (
+            <button
+              type="button"
+              onClick={handleDeleteChat}
+              disabled={isDeleting || isTyping}
+              className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+              aria-label="Delete chat"
+              title="Delete chat"
+            >
+              {isDeleting ? (
+                <FiLoader size={16} className="animate-spin" />
+              ) : (
+                <FiTrash2 size={16} />
+              )}
+            </button>
+          )}
         </div>
 
         {/* CHAT */}
@@ -675,7 +823,7 @@ function AIAssistant({ cartCount = 0 }) {
               messages.map((msg) => (
                 <div
                   key={msg.id}
-                  className={`flex gap-3 ${
+                  className={`group flex gap-2 ${
                     msg.role === "user" ? "flex-row-reverse" : ""
                   }`}
                 >
@@ -694,7 +842,7 @@ function AIAssistant({ cartCount = 0 }) {
                   </div>
 
                   <div
-                    className={`max-w-[88%] sm:max-w-[80%] ${
+                    className={`max-w-[80%] sm:max-w-[75%] ${
                       msg.role === "user" ? "items-end" : ""
                     }`}
                   >
@@ -734,6 +882,17 @@ function AIAssistant({ cartCount = 0 }) {
                         </div>
                       )}
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteMessage(msg.id)}
+                    disabled={isTyping || isDeleting}
+                    className="self-center w-7 h-7 rounded-full flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 sm:opacity-0 sm:group-hover:opacity-100 transition disabled:opacity-0 disabled:cursor-not-allowed shrink-0"
+                    aria-label="Delete message"
+                    title="Delete message"
+                  >
+                    <FiTrash2 size={13} />
+                  </button>
                 </div>
               ))}
 
@@ -779,19 +938,27 @@ function AIAssistant({ cartCount = 0 }) {
                 />
               </div>
 
-              <button
-                type="button"
-                onClick={() => handleSend()}
-                disabled={!input.trim() || isTyping}
-                className="w-11 h-11 rounded-xl bg-[#008236] hover:bg-[#006f2e] disabled:bg-green-300 text-white flex items-center justify-center transition shadow-sm disabled:cursor-not-allowed shrink-0"
-                aria-label="Send message"
-              >
-                {isTyping ? (
-                  <FiLoader size={18} className="animate-spin" />
-                ) : (
+              {isTyping ? (
+                <button
+                  type="button"
+                  onClick={handleStopReply}
+                  className="w-11 h-11 rounded-xl bg-red-500 hover:bg-red-600 text-white flex items-center justify-center transition shadow-sm shrink-0"
+                  aria-label="Stop response"
+                  title="Stop response"
+                >
+                  <FiSquare size={16} />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleSend()}
+                  disabled={!input.trim()}
+                  className="w-11 h-11 rounded-xl bg-[#008236] hover:bg-[#006f2e] disabled:bg-green-300 text-white flex items-center justify-center transition shadow-sm disabled:cursor-not-allowed shrink-0"
+                  aria-label="Send message"
+                >
                   <FiSend size={18} />
-                )}
-              </button>
+                </button>
+              )}
             </div>
 
             <p className="text-[11px] text-gray-400 mt-2 text-center">
