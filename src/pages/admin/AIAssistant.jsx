@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import CustomerLayout from "../../layouts/CustomerLayout";
+import { useAuth } from "../../context/AuthContext";
+
 import {
   FiArrowLeft,
   FiSend,
@@ -11,23 +13,208 @@ import {
   FiMessageCircle,
   FiLoader,
   FiUser,
+  FiMapPin,
+  FiExternalLink,
 } from "react-icons/fi";
 
 function AIAssistant({ cartCount = 0 }) {
   const navigate = useNavigate();
   const messagesEndRef = useRef(null);
 
+  const { firebaseUser } = useAuth();
+
+  const API_URL =
+    import.meta.env.VITE_API_URL ||
+    import.meta.env.VITE_BACKEND_URL ||
+    "http://localhost:5000";
+
+  /*
+   * ---------------------------------------------------------
+   * USER NAME
+   * ---------------------------------------------------------
+   *
+   * We only use this for the greeting in the frontend.
+   *
+   * The backend will independently verify the Firebase
+   * authentication token and determine the real user's
+   * identity.
+   */
+  const getFirstName = () => {
+    const displayName =
+      firebaseUser?.displayName ||
+      "";
+
+    if (displayName.trim()) {
+      return displayName.trim().split(/\s+/)[0];
+    }
+
+    const emailName =
+      firebaseUser?.email?.split("@")?.[0] ||
+      "";
+
+    if (emailName.trim()) {
+      return emailName.trim().split(/\s+/)[0];
+    }
+
+    return "there";
+  };
+
+  const firstName = getFirstName();
+
+  /*
+   * ---------------------------------------------------------
+   * STATE
+   * ---------------------------------------------------------
+   */
+
   const [input, setInput] = useState("");
+
   const [isTyping, setIsTyping] = useState(false);
 
-  // Demo conversation (UI only for now)
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      role: "ai",
-      text: "Hi 👋 I’m CampusMartAI, your smart AI assistant.\n\nI can help you find products, suggest gigs, or answer questions about CampusMart. What do you need?",
-    },
-  ]);
+  const [searchStatus, setSearchStatus] =
+    useState("");
+
+  const [messages, setMessages] = useState([]);
+
+  const [historyLoaded, setHistoryLoaded] =
+    useState(false);
+
+  const firstTimeWelcome = () => ({
+    id: "welcome",
+    role: "ai",
+    text:
+      `Hey ${firstName} 👋\n\n` +
+      `I'm your CampusMart buddy — here to help you find ` +
+      `great campus deals, discover gigs, check your orders, ` +
+      `and make shopping on CampusMart easy.\n\n` +
+      `What are we looking for today?`,
+    products: [],
+    gigs: [],
+  });
+
+  const welcomeBackMessage = () => ({
+    id: `welcome-back-${Date.now()}`,
+    role: "ai",
+    text:
+      `Welcome back, ${firstName}! 😊\n\n` +
+      `Great to see you again. What are we buying today? ` +
+      `I can help you find products, gigs, or check your orders.`,
+    products: [],
+    gigs: [],
+  });
+
+  /*
+   * ---------------------------------------------------------
+   * LOAD SAVED CONVERSATION + 24h WELCOME BACK
+   * ---------------------------------------------------------
+   */
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadHistory = async () => {
+      if (!firebaseUser) {
+        if (!cancelled) {
+          setMessages([firstTimeWelcome()]);
+          setHistoryLoaded(true);
+        }
+        return;
+      }
+
+      try {
+        const idToken =
+          await firebaseUser.getIdToken();
+
+        const response = await fetch(
+          `${API_URL}/ai/history`,
+          {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${idToken}`,
+            },
+          }
+        );
+
+        let data = null;
+
+        try {
+          data = await response.json();
+        } catch {
+          data = null;
+        }
+
+        if (cancelled) {
+          return;
+        }
+
+        if (
+          response.ok &&
+          data?.success &&
+          data?.hasHistory &&
+          Array.isArray(data.messages) &&
+          data.messages.length > 0
+        ) {
+          const restored = data.messages.map(
+            (m, index) => ({
+              id:
+                m.id ||
+                `hist-${index}-${Date.now()}`,
+              role:
+                m.role === "user"
+                  ? "user"
+                  : "ai",
+              text: String(m.text || ""),
+              products:
+                Array.isArray(m.products)
+                  ? m.products
+                  : [],
+              gigs:
+                Array.isArray(m.gigs)
+                  ? m.gigs
+                  : [],
+            })
+          );
+
+          if (data.returningAfter24h) {
+            setMessages([
+              ...restored,
+              welcomeBackMessage(),
+            ]);
+          } else {
+            setMessages(restored);
+          }
+        } else {
+          setMessages([firstTimeWelcome()]);
+        }
+      } catch (error) {
+        console.error(
+          "CampusMart AI history load error:",
+          error
+        );
+
+        if (!cancelled) {
+          setMessages([firstTimeWelcome()]);
+        }
+      } finally {
+        if (!cancelled) {
+          setHistoryLoaded(true);
+        }
+      }
+    };
+
+    setHistoryLoaded(false);
+    loadHistory();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [firebaseUser, firstName, API_URL]);
+
+  /*
+   * ---------------------------------------------------------
+   * SUGGESTED PROMPTS
+   * ---------------------------------------------------------
+   */
 
   const suggestedPrompts = [
     {
@@ -35,204 +222,854 @@ function AIAssistant({ cartCount = 0 }) {
       text: "Find affordable laptops under ₦300k",
     },
     {
-      icon: <FiBriefcase size={16} />,
-      text: "Show me tutoring gigs near me",
+      icon: <FiSearch size={16} />,
+      text: "Find an iPhone 13 under ₦500,000",
     },
     {
-      icon: <FiSearch size={16} />,
-      text: "Best headphones for students",
+      icon: <FiBriefcase size={16} />,
+      text: "Show me tutoring gigs",
     },
     {
       icon: <FiMessageCircle size={16} />,
-      text: "How do I post a gig?",
+      text: "How do I become a seller?",
     },
   ];
 
-  // Auto scroll to bottom
+  /*
+   * ---------------------------------------------------------
+   * AUTO SCROLL
+   * ---------------------------------------------------------
+   */
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    messagesEndRef.current?.scrollIntoView({
+      behavior: "smooth",
+    });
   }, [messages, isTyping]);
 
-  const handleSend = (text = input) => {
-    const message = text.trim();
-    if (!message) return;
+  /*
+   * ---------------------------------------------------------
+   * DETECT WHETHER USER IS PROBABLY SEARCHING
+   * ---------------------------------------------------------
+   */
 
-    // Add user message
+  const looksLikeProductSearch = (text) => {
+    const lower = String(text || "").toLowerCase();
+
+    const productWords = [
+      "find",
+      "show",
+      "search",
+      "looking for",
+      "buy",
+      "available",
+      "product",
+      "products",
+      "laptop",
+      "phone",
+      "iphone",
+      "samsung",
+      "headphone",
+      "headphones",
+      "airpod",
+      "airpods",
+      "macbook",
+      "tablet",
+      "computer",
+      "charger",
+      "shoe",
+      "shoes",
+      "bag",
+      "watch",
+      "dress",
+      "clothes",
+      "keyboard",
+      "mouse",
+      "monitor",
+      "console",
+      "playstation",
+      "xbox",
+      "camera",
+    ];
+
+    return productWords.some((word) =>
+      lower.includes(word)
+    );
+  };
+
+  const looksLikeGigSearch = (text) => {
+    const lower = String(text || "").toLowerCase();
+
+    const gigWords = [
+      "gig",
+      "gigs",
+      "job",
+      "jobs",
+      "tutoring",
+      "tutor",
+      "designer",
+      "design",
+      "freelance",
+      "repair",
+      "photography",
+      "photographer",
+      "writer",
+      "writing",
+      "programming",
+      "developer",
+    ];
+
+    return gigWords.some((word) =>
+      lower.includes(word)
+    );
+  };
+
+  /*
+   * ---------------------------------------------------------
+   * SEND MESSAGE
+   * ---------------------------------------------------------
+   */
+
+  const handleSend = async (text = input) => {
+    const message = String(text || "").trim();
+
+    if (!message || isTyping) {
+      return;
+    }
+
+    /*
+     * Firebase authentication is required because the
+     * backend must know which CampusMart account is asking.
+     */
+    if (!firebaseUser) {
+      const authMessage = {
+        id: `error-${Date.now()}`,
+        role: "ai",
+        text:
+          "You need to be logged in to use CampusMart AI. " +
+          "Please log in and try again.",
+        products: [],
+        gigs: [],
+      };
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `user-${Date.now()}`,
+          role: "user",
+          text: message,
+        },
+        authMessage,
+      ]);
+
+      return;
+    }
+
     const userMessage = {
-      id: Date.now(),
+      id: `user-${Date.now()}`,
       role: "user",
       text: message,
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    setMessages((prev) => [
+      ...prev,
+      userMessage,
+    ]);
+
     setInput("");
     setIsTyping(true);
 
-    // Fake AI response (UI only)
-    setTimeout(() => {
-      const aiResponse = {
-        id: Date.now() + 1,
+    if (looksLikeProductSearch(message)) {
+      setSearchStatus("Searching CampusMart...");
+    } else if (looksLikeGigSearch(message)) {
+      setSearchStatus("Searching CampusMart gigs...");
+    } else {
+      setSearchStatus("CampusMart AI is thinking...");
+    }
+
+    try {
+      /*
+       * Get a fresh Firebase ID token.
+       *
+       * IMPORTANT:
+       * We never send the user's UID as a trusted value.
+       * The backend verifies this token itself.
+       */
+      const idToken =
+        await firebaseUser.getIdToken();
+
+      /*
+       * Send only the conversation messages needed by AI.
+       */
+      const conversation = [
+        ...messages,
+        userMessage,
+      ]
+        .filter(
+          (item) =>
+            item &&
+            (item.role === "user" ||
+              item.role === "ai")
+        )
+        .map((item) => ({
+          role:
+            item.role === "ai"
+              ? "assistant"
+              : "user",
+          content: String(
+            item.text || ""
+          ),
+        }))
+        .slice(-10);
+
+      const response = await fetch(
+        `${API_URL}/ai/chat`,
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json",
+
+            Authorization:
+              `Bearer ${idToken}`,
+          },
+
+          body: JSON.stringify({
+            message,
+            messages: conversation,
+          }),
+        }
+      );
+
+      let data = null;
+
+      try {
+        data = await response.json();
+      } catch {
+        data = null;
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          data?.error ||
+            "CampusMart AI could not process your request."
+        );
+      }
+
+      const aiMessage = {
+        id: `ai-${Date.now()}`,
         role: "ai",
-        text: getDemoResponse(message),
+        text:
+          data?.reply ||
+          "I couldn't generate a response right now.",
+        products:
+          Array.isArray(data?.products)
+            ? data.products
+            : [],
+        gigs:
+          Array.isArray(data?.gigs)
+            ? data.gigs
+            : [],
       };
-      setMessages((prev) => [...prev, aiResponse]);
+
+      setMessages((prev) => [
+        ...prev,
+        aiMessage,
+      ]);
+    } catch (error) {
+      console.error(
+        "CampusMart AI error:",
+        error
+      );
+
+      let errorText =
+        "Sorry, I couldn't connect to CampusMart AI right now.";
+
+      const msg =
+        String(
+          error?.message || ""
+        ).toLowerCase();
+
+      if (
+        msg.includes("rate limit") ||
+        msg.includes("busy right now") ||
+        msg.includes("usage limit")
+      ) {
+        errorText =
+          "I'm a bit busy right now 😅 Please wait a minute and try again.";
+      } else if (
+        msg.includes("openai_api_key") ||
+        msg.includes("not available right now")
+      ) {
+        errorText =
+          "CampusMart AI is not available at the moment. Please try again later.";
+      } else if (
+        msg.includes("authentication") ||
+        msg.includes("log in")
+      ) {
+        errorText =
+          "Please log in again so I can help you.";
+      } else if (error?.message) {
+        // Keep short user-facing errors; hide long provider dumps
+        errorText =
+          error.message.length > 180
+            ? "Something went wrong on my side. Please try again in a moment."
+            : error.message;
+      }
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `error-${Date.now()}`,
+          role: "ai",
+          text: errorText,
+          products: [],
+          gigs: [],
+        },
+      ]);
+    } finally {
       setIsTyping(false);
-    }, 1200);
+      setSearchStatus("");
+    }
   };
 
-  // Temporary demo responses (later we’ll connect real AI)
-  const getDemoResponse = (message) => {
-    const lower = message.toLowerCase();
-
-    if (lower.includes("laptop") || lower.includes("macbook")) {
-      return "I found some popular laptops currently listed by students:\n\n• MacBook Air M1 – around ₦450,000\n• HP Pavilion – ₦280,000\n• Dell Inspiron – ₦220,000\n\nWould you like me to show you products under a specific budget?";
-    }
-
-    if (lower.includes("gig") || lower.includes("tutoring") || lower.includes("job")) {
-      return "Here are some active campus gigs you might like:\n\n• Math Tutoring – ₦3,000/session\n• Logo Design – ₦8,000\n• Phone Repair – Negotiable\n\nWant me to filter by category or location?";
-    }
-
-    if (lower.includes("how") && lower.includes("post")) {
-      return "To post a gig:\n\n1. Go to Campus Gigs\n2. Click “Post a Gig”\n3. Fill in the title, description, budget and deadline\n4. Submit\n\nStudents on your campus will be able to apply.";
-    }
-
-    return "Got it! I’m still learning, but I can help you with:\n\n• Finding products\n• Discovering campus gigs\n• Explaining how CampusMart works\n\nTry asking me something more specific 😊";
-  };
+  /*
+   * ---------------------------------------------------------
+   * KEYBOARD
+   * ---------------------------------------------------------
+   */
 
   const handleKeyDown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (
+      e.key === "Enter" &&
+      !e.shiftKey
+    ) {
       e.preventDefault();
+
       handleSend();
     }
   };
 
+  /*
+   * ---------------------------------------------------------
+   * PRODUCT NAVIGATION
+   * ---------------------------------------------------------
+   *
+   * These paths should match the product routes in your
+   * CampusMart App.jsx. If your exact routes are different,
+   * we will adjust them after testing.
+   */
+
+  const handleProductClick = (product) => {
+    if (!product?.id) {
+      return;
+    }
+
+    navigate(
+      `/products/${product.id}`
+    );
+  };
+
+  const handleSellerClick = (product) => {
+    if (!product?.sellerId) {
+      return;
+    }
+
+    navigate(
+      `/store/${product.sellerId}`
+    );
+  };
+
+  const handleGigClick = (gig) => {
+    if (!gig?.id) {
+      return;
+    }
+
+    navigate(
+      `/gigs/${gig.id}`
+    );
+  };
+
+  /*
+   * ---------------------------------------------------------
+   * PRODUCT CARD
+   * ---------------------------------------------------------
+   */
+
+  const ProductCard = ({ product }) => {
+    const image =
+      product?.image ||
+      product?.imageUrl ||
+      product?.imageURL ||
+      product?.photoURL ||
+      product?.thumbnail ||
+      "";
+
+    const price =
+      Number(
+        product?.price
+      );
+
+    const hasPrice =
+      Number.isFinite(price);
+
+    return (
+      <div className="mt-3 rounded-2xl border border-gray-200 bg-white overflow-hidden shadow-sm">
+        {image ? (
+          <img
+            src={image}
+            alt={
+              product?.name ||
+              "CampusMart product"
+            }
+            className="w-full h-40 object-cover"
+            onError={(e) => {
+              e.currentTarget.style.display =
+                "none";
+            }}
+          />
+        ) : (
+          <div className="h-32 bg-gray-100 flex items-center justify-center text-gray-400">
+            <FiShoppingBag
+              size={28}
+            />
+          </div>
+        )}
+
+        <div className="p-4">
+          <h3 className="font-semibold text-gray-800 text-sm line-clamp-2">
+            {product?.name ||
+              "CampusMart Product"}
+          </h3>
+
+          {hasPrice && (
+            <p className="mt-1 text-lg font-bold text-[#008236]">
+              ₦
+              {price.toLocaleString(
+                "en-NG"
+              )}
+            </p>
+          )}
+
+          {product?.sellerName && (
+            <p className="text-xs text-gray-500 mt-2">
+              Seller:{" "}
+              <span className="font-medium text-gray-700">
+                {product.sellerName}
+              </span>
+            </p>
+          )}
+
+          {product?.location && (
+            <div className="flex items-center gap-1 mt-1 text-xs text-gray-400">
+              <FiMapPin size={12} />
+              <span>
+                {product.location}
+              </span>
+            </div>
+          )}
+
+          <div className="flex gap-2 mt-4">
+            <button
+              type="button"
+              onClick={() =>
+                handleProductClick(
+                  product
+                )
+              }
+              className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-[#008236] hover:bg-[#006f2e] text-white text-xs font-semibold transition"
+            >
+              View & Buy
+              <FiExternalLink
+                size={13}
+              />
+            </button>
+
+            {product?.sellerId && (
+              <button
+                type="button"
+                onClick={() =>
+                  handleSellerClick(
+                    product
+                  )
+                }
+                className="px-3 py-2 rounded-xl border border-gray-200 text-gray-600 hover:bg-green-50 hover:text-green-700 hover:border-green-200 text-xs font-medium transition"
+              >
+                Seller
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  /*
+   * ---------------------------------------------------------
+   * GIG CARD
+   * ---------------------------------------------------------
+   */
+
+  const GigCard = ({ gig }) => {
+    const budget =
+      Number(
+        gig?.budget ??
+          gig?.price ??
+          gig?.amount
+      );
+
+    const hasBudget =
+      Number.isFinite(budget);
+
+    return (
+      <div className="mt-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-green-50 text-[#008236] flex items-center justify-center shrink-0">
+            <FiBriefcase
+              size={18}
+            />
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <h3 className="font-semibold text-gray-800 text-sm">
+              {gig?.title ||
+                gig?.name ||
+                "Campus Gig"}
+            </h3>
+
+            {gig?.description && (
+              <p className="text-xs text-gray-500 mt-1 line-clamp-3">
+                {gig.description}
+              </p>
+            )}
+
+            {hasBudget && (
+              <p className="text-sm font-bold text-[#008236] mt-2">
+                ₦
+                {budget.toLocaleString(
+                  "en-NG"
+                )}
+              </p>
+            )}
+
+            {gig?.location && (
+              <div className="flex items-center gap-1 text-xs text-gray-400 mt-1">
+                <FiMapPin
+                  size={12}
+                />
+                {gig.location}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() =>
+            handleGigClick(gig)
+          }
+          className="w-full mt-4 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-[#008236] hover:bg-[#006f2e] text-white text-xs font-semibold transition"
+        >
+          View Gig
+          <FiExternalLink
+            size={13}
+          />
+        </button>
+      </div>
+    );
+  };
+
+  /*
+   * ---------------------------------------------------------
+   * RENDER
+   * ---------------------------------------------------------
+   */
+
   return (
-    <CustomerLayout cartCount={cartCount}>
+    <CustomerLayout
+      cartCount={cartCount}
+    >
       <div className="max-w-3xl mx-auto h-[calc(100vh-140px)] flex flex-col">
-        {/* Header */}
+        {/* HEADER */}
         <div className="flex items-center gap-3 mb-5">
           <button
             type="button"
-            onClick={() => navigate(-1)}
+            onClick={() =>
+              navigate(-1)
+            }
             className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-green-50 hover:text-green-600 hover:border-green-200 transition"
+            aria-label="Go back"
           >
-            <FiArrowLeft size={18} />
+            <FiArrowLeft
+              size={18}
+            />
           </button>
 
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#008236] to-[#00a34a] text-white flex items-center justify-center shadow-md">
               <FiZap size={20} />
             </div>
+
             <div>
-              <h1 className="text-xl font-bold text-gray-800">CampusMartAI</h1>
-              <p className="text-xs text-gray-500">Your smart campus assistant</p>
+              <h1 className="text-xl font-bold text-gray-800">
+                CampusMart AI
+              </h1>
+
+              <p className="text-xs text-gray-500">
+                Your smart campus assistant
+              </p>
             </div>
           </div>
         </div>
 
-        {/* Chat Area */}
+        {/* CHAT */}
         <div className="flex-1 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-          {/* Messages */}
+          {/* MESSAGES */}
           <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex gap-3 ${
-                  msg.role === "user" ? "flex-row-reverse" : ""
-                }`}
-              >
-                {/* Avatar */}
-                <div
-                  className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
-                    msg.role === "ai"
-                      ? "bg-gradient-to-br from-[#008236] to-[#00a34a] text-white"
-                      : "bg-gray-100 text-gray-600"
-                  }`}
-                >
-                  {msg.role === "ai" ? <FiZap size={16} /> : <FiUser size={16} />}
-                </div>
-
-                {/* Bubble */}
-                <div
-                  className={`max-w-[80%] sm:max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-line ${
-                    msg.role === "ai"
-                      ? "bg-gray-50 text-gray-800 rounded-tl-sm"
-                      : "bg-[#008236] text-white rounded-tr-sm"
-                  }`}
-                >
-                  {msg.text}
-                </div>
-              </div>
-            ))}
-
-            {/* Typing indicator */}
-            {isTyping && (
+            {!historyLoaded && (
               <div className="flex gap-3">
                 <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#008236] to-[#00a34a] text-white flex items-center justify-center shrink-0">
                   <FiZap size={16} />
                 </div>
-                <div className="bg-gray-50 rounded-2xl rounded-tl-sm px-4 py-3 flex items-center gap-1.5">
-                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:0ms]" />
-                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:150ms]" />
-                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:300ms]" />
+                <div className="bg-gray-50 rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-gray-500">
+                  Loading your chat...
                 </div>
               </div>
             )}
 
-            <div ref={messagesEndRef} />
+            {historyLoaded &&
+              messages.map(
+              (msg) => (
+                <div
+                  key={msg.id}
+                  className={`flex gap-3 ${
+                    msg.role ===
+                    "user"
+                      ? "flex-row-reverse"
+                      : ""
+                  }`}
+                >
+                  {/* AVATAR */}
+                  <div
+                    className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
+                      msg.role ===
+                      "ai"
+                        ? "bg-gradient-to-br from-[#008236] to-[#00a34a] text-white"
+                        : "bg-gray-100 text-gray-600"
+                    }`}
+                  >
+                    {msg.role ===
+                    "ai" ? (
+                      <FiZap
+                        size={16}
+                      />
+                    ) : (
+                      <FiUser
+                        size={16}
+                      />
+                    )}
+                  </div>
+
+                  {/* CONTENT */}
+                  <div
+                    className={`max-w-[88%] sm:max-w-[80%] ${
+                      msg.role ===
+                      "user"
+                        ? "items-end"
+                        : ""
+                    }`}
+                  >
+                    <div
+                      className={`rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-line ${
+                        msg.role ===
+                        "ai"
+                          ? "bg-gray-50 text-gray-800 rounded-tl-sm"
+                          : "bg-[#008236] text-white rounded-tr-sm"
+                      }`}
+                    >
+                      {msg.text}
+                    </div>
+
+                    {/* PRODUCTS */}
+                    {msg.role ===
+                      "ai" &&
+                      Array.isArray(
+                        msg.products
+                      ) &&
+                      msg.products
+                        .length >
+                        0 && (
+                        <div className="space-y-3">
+                          {msg.products.map(
+                            (
+                              product,
+                              index
+                            ) => (
+                              <ProductCard
+                                key={
+                                  product?.id ||
+                                  `product-${index}`
+                                }
+                                product={
+                                  product
+                                }
+                              />
+                            )
+                          )}
+                        </div>
+                      )}
+
+                    {/* GIGS */}
+                    {msg.role ===
+                      "ai" &&
+                      Array.isArray(
+                        msg.gigs
+                      ) &&
+                      msg.gigs.length >
+                        0 && (
+                        <div className="space-y-3">
+                          {msg.gigs.map(
+                            (
+                              gig,
+                              index
+                            ) => (
+                              <GigCard
+                                key={
+                                  gig?.id ||
+                                  `gig-${index}`
+                                }
+                                gig={gig}
+                              />
+                            )
+                          )}
+                        </div>
+                      )}
+                  </div>
+                </div>
+              )
+            )}
+
+            {/* STATUS / TYPING */}
+            {isTyping && (
+              <div className="flex gap-3">
+                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#008236] to-[#00a34a] text-white flex items-center justify-center shrink-0">
+                  <FiZap
+                    size={16}
+                  />
+                </div>
+
+                <div className="bg-gray-50 rounded-2xl rounded-tl-sm px-4 py-3">
+                  <div className="text-xs text-gray-500 mb-2">
+                    {searchStatus ||
+                      "CampusMart AI is thinking..."}
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:0ms]" />
+                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:150ms]" />
+                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:300ms]" />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div
+              ref={messagesEndRef}
+            />
           </div>
 
-          {/* Suggested Prompts (only show when few messages) */}
-          {messages.length <= 2 && !isTyping && (
-            <div className="px-4 sm:px-6 pb-3">
-              <p className="text-xs text-gray-400 mb-2.5 font-medium">
-                Try asking:
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {suggestedPrompts.map((prompt) => (
-                  <button
-                    key={prompt.text}
-                    type="button"
-                    onClick={() => handleSend(prompt.text)}
-                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-gray-200 bg-white text-xs sm:text-sm text-gray-700 hover:border-green-300 hover:bg-green-50 hover:text-green-700 transition"
-                  >
-                    <span className="text-green-600">{prompt.icon}</span>
-                    {prompt.text}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* SUGGESTIONS */}
+          {historyLoaded &&
+            messages.length <=
+            1 &&
+            !isTyping && (
+              <div className="px-4 sm:px-6 pb-3">
+                <p className="text-xs text-gray-400 mb-2.5 font-medium">
+                  Try asking:
+                </p>
 
-          {/* Input */}
+                <div className="flex flex-wrap gap-2">
+                  {suggestedPrompts.map(
+                    (prompt) => (
+                      <button
+                        key={
+                          prompt.text
+                        }
+                        type="button"
+                        onClick={() =>
+                          handleSend(
+                            prompt.text
+                          )
+                        }
+                        className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-gray-200 bg-white text-xs sm:text-sm text-gray-700 hover:border-green-300 hover:bg-green-50 hover:text-green-700 transition"
+                      >
+                        <span className="text-green-600">
+                          {
+                            prompt.icon
+                          }
+                        </span>
+
+                        {
+                          prompt.text
+                        }
+                      </button>
+                    )
+                  )}
+                </div>
+              </div>
+            )}
+
+          {/* INPUT */}
           <div className="border-t border-gray-100 p-3 sm:p-4">
             <div className="flex items-end gap-2.5">
-              <div className="flex-1 relative">
+              <div className="flex-1">
                 <textarea
                   value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Ask CampusAI anything..."
+                  onChange={(e) =>
+                    setInput(
+                      e.target.value
+                    )
+                  }
+                  onKeyDown={
+                    handleKeyDown
+                  }
+                  placeholder="Ask CampusMart AI anything..."
                   rows={1}
-                  className="w-full resize-none px-4 py-3 pr-12 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition max-h-32"
+                  disabled={
+                    isTyping
+                  }
+                  className="w-full resize-none px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition max-h-32 disabled:bg-gray-50 disabled:cursor-not-allowed"
                 />
               </div>
 
               <button
                 type="button"
-                onClick={() => handleSend()}
-                disabled={!input.trim() || isTyping}
+                onClick={() =>
+                  handleSend()
+                }
+                disabled={
+                  !input.trim() ||
+                  isTyping
+                }
                 className="w-11 h-11 rounded-xl bg-[#008236] hover:bg-[#006f2e] disabled:bg-green-300 text-white flex items-center justify-center transition shadow-sm disabled:cursor-not-allowed shrink-0"
+                aria-label="Send message"
               >
                 {isTyping ? (
-                  <FiLoader size={18} className="animate-spin" />
+                  <FiLoader
+                    size={18}
+                    className="animate-spin"
+                  />
                 ) : (
-                  <FiSend size={18} />
+                  <FiSend
+                    size={18}
+                  />
                 )}
               </button>
             </div>
+
             <p className="text-[11px] text-gray-400 mt-2 text-center">
-              CampusAI can make mistakes. Double-check important info.
+              CampusMart AI uses live CampusMart data when available. Always double-check important information.
             </p>
           </div>
         </div>
