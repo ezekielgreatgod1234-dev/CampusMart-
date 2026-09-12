@@ -1219,12 +1219,7 @@ function AIAssistant({ cartCount = 0 }) {
 
           {/* INPUT */}
           <div className="border-t border-gray-100 p-3 sm:p-4">
-            {cooldownSecondsLeft > 0 && (
-              <p className="text-[11px] text-amber-600 mb-2 text-center">
-                CampusMart AI is at capacity — try again in{" "}
-                {cooldownSecondsLeft}s
-              </p>
-            )}
+            
 
             <div className="flex items-end gap-2.5">
               <div className="flex-1">
