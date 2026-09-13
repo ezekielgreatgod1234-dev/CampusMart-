@@ -54,10 +54,8 @@ export default defineConfig({
         clientsClaim: true,
         skipWaiting: true,
         // Default Workbox precache limit is 2 MB, which our main JS
-        // bundle exceeds. Raising this stops the build from failing
+        // bundle exceeded. Raising this stops the build from failing
         // with a PLUGIN_ERROR at the vite-plugin-pwa:build step.
-        // Still worth watching this number over time — if it keeps
-        // climbing, the manualChunks split below needs more buckets.
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB
       },
     }),
@@ -66,15 +64,25 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        // Splits big third-party libraries into their own chunks
-        // instead of one giant bundle. This is what actually shrinks
-        // assets/index-*.js below the precache limit, and it also
-        // means the browser can cache these vendor chunks separately
-        // (they rarely change) instead of re-downloading everything
-        // on every deploy.
-        manualChunks: {
-          vendor: ["react", "react-dom", "react-router-dom"],
-          firebase: ["firebase/app", "firebase/auth", "firebase/firestore"],
+        // This project builds with rolldown-vite, and Rolldown's
+        // manualChunks only accepts a FUNCTION (id) => chunkName,
+        // unlike regular Vite/Rollup which also accepts a plain
+        // object map. Passing an object here is what caused
+        // "TypeError: manualChunks is not a function".
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+
+          if (id.includes("firebase")) {
+            return "firebase";
+          }
+
+          if (
+            id.includes("react-router-dom") ||
+            id.includes("/react-dom/") ||
+            id.includes("/react/")
+          ) {
+            return "vendor";
+          }
         },
       },
     },
