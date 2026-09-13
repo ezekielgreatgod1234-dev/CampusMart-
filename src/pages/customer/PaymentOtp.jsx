@@ -117,7 +117,8 @@ function PaymentOTP({
           paymentMethod: "card",
           customer: formData,
           type: checkoutType,
-          status: "pending",
+          status: "Pending",
+          paymentStatus: "paid",
         });
       } else {
         order = {
@@ -134,14 +135,39 @@ function PaymentOTP({
 
       try {
         sessionStorage.setItem("lastOrder", JSON.stringify(order));
+
+        sessionStorage.setItem(
+          "campusmart_pending_payment",
+          JSON.stringify({
+            orderId: order?.id || order?.orderId || null,
+            reference:
+              order?.paystackReference ||
+              order?.reference ||
+              null,
+            savedAt: Date.now(),
+            order,
+          })
+        );
       } catch {
-        // ignore
+        // Ignore storage errors.
       }
 
-      navigate("/order-success", {
-        state: { order },
-        replace: true,
-      });
+      const savedOrderId =
+        order?.id ||
+        order?.orderId ||
+        "";
+
+      navigate(
+        savedOrderId
+          ? `/order-success?orderId=${encodeURIComponent(
+              String(savedOrderId)
+            )}`
+          : "/order-success",
+        {
+          state: { order },
+          replace: true,
+        }
+      );
     } catch (error) {
       console.error("Place order after OTP error:", error);
       setErrorMessage(

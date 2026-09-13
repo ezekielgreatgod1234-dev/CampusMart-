@@ -27,6 +27,8 @@ import {
   FiTrash2,
   FiX,
   FiCheck,
+  FiFileText,
+  FiExternalLink,
 } from "react-icons/fi";
 
 function Chat({
@@ -700,41 +702,141 @@ function Chat({
             const messageId = getMessageId(message, index);
             const selected = selectedMessageIds.includes(messageId);
 
+            const isReceiptMessage = message?.type === "receipt";
+
+            const receiptUrl =
+              message?.receiptUrl ||
+              (message?.orderId
+                ? `${window.location.origin}/receipt/${message.orderId}`
+                : "");
+
+            const openReceipt = (event) => {
+              event.stopPropagation();
+
+              if (!receiptUrl) return;
+
+              // Keep the receipt inside the SPA when possible.
+              if (receiptUrl.startsWith(window.location.origin)) {
+                const path = receiptUrl.replace(window.location.origin, "");
+                navigate(path);
+                return;
+              }
+
+              window.open(receiptUrl, "_blank", "noopener,noreferrer");
+            };
+
             return (
               <div
                 key={messageId}
                 className={`flex w-full ${mine ? "justify-end" : "justify-start"}`}
               >
-                <button
-                  type="button"
-                  onClick={() => toggleMessageSelection(messageId)}
-                  disabled={deleting}
-                  className={`
-                    max-w-[82%] sm:max-w-[65%] text-left px-3.5 py-2.5 sm:px-4 sm:py-3
-                    rounded-2xl transition
-                    ${selected ? "ring-2 ring-green-500 ring-offset-2" : ""}
-                    ${
-                      mine
-                        ? "bg-green-800 text-white rounded-br-md shadow-sm"
-                        : "bg-green-600 text-white rounded-bl-md shadow-md"
-                    }
-                  `}
-                >
-                  {selected && (
-                    <div className="flex justify-end mb-1">
-                      <span className="w-5 h-5 rounded-full bg-white text-green-600 flex items-center justify-center">
-                        <FiCheck size={13} />
-                      </span>
+                {isReceiptMessage ? (
+                  <div
+                    onClick={() => toggleMessageSelection(messageId)}
+                    className={`
+                      max-w-[88%] sm:max-w-[70%] rounded-2xl overflow-hidden
+                      cursor-pointer transition
+                      ${
+                        selected
+                          ? "ring-2 ring-green-500 ring-offset-2"
+                          : ""
+                      }
+                      ${
+                        mine
+                          ? "bg-green-800 text-white rounded-br-md shadow-sm"
+                          : "bg-green-600 text-white rounded-bl-md shadow-md"
+                      }
+                    `}
+                  >
+                    {selected && (
+                      <div className="flex justify-end px-3 pt-2">
+                        <span className="w-5 h-5 rounded-full bg-white text-green-600 flex items-center justify-center">
+                          <FiCheck size={13} />
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="p-3.5 sm:p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0">
+                          <FiFileText size={21} />
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-sm sm:text-base">
+                            {message.orderNumber
+                              ? `Receipt #${message.orderNumber}`
+                              : "CampusMart Receipt"}
+                          </p>
+
+                          <p className="text-xs text-green-100 mt-1">
+                            {message.text || "Payment receipt shared with you."}
+                          </p>
+
+                          {message.amount != null && (
+                            <p className="font-bold text-sm mt-2">
+                              ₦
+                              {Number(message.amount || 0).toLocaleString(
+                                "en-NG"
+                              )}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={openReceipt}
+                        disabled={!receiptUrl}
+                        className="
+                          mt-3 w-full h-10 rounded-xl bg-white text-green-700
+                          hover:bg-green-50 disabled:opacity-50
+                          flex items-center justify-center gap-2
+                          font-bold text-xs sm:text-sm transition
+                        "
+                      >
+                        <FiExternalLink size={15} />
+                        View & Download Receipt
+                      </button>
+
+                      <div className="flex items-center justify-end gap-0.5 text-[10px] mt-2 text-green-100">
+                        <span>{formatMessageTime(message)}</span>
+                        <MessageTicks message={message} />
+                      </div>
                     </div>
-                  )}
-                  <p className="text-sm leading-5 break-words whitespace-pre-wrap">
-                    {message.text}
-                  </p>
-                  <div className="flex items-center justify-end gap-0.5 text-[10px] mt-1 text-green-100">
-                    <span>{formatMessageTime(message)}</span>
-                    <MessageTicks message={message} />
                   </div>
-                </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => toggleMessageSelection(messageId)}
+                    disabled={deleting}
+                    className={`
+                      max-w-[82%] sm:max-w-[65%] text-left px-3.5 py-2.5 sm:px-4 sm:py-3
+                      rounded-2xl transition
+                      ${selected ? "ring-2 ring-green-500 ring-offset-2" : ""}
+                      ${
+                        mine
+                          ? "bg-green-800 text-white rounded-br-md shadow-sm"
+                          : "bg-green-600 text-white rounded-bl-md shadow-md"
+                      }
+                    `}
+                  >
+                    {selected && (
+                      <div className="flex justify-end mb-1">
+                        <span className="w-5 h-5 rounded-full bg-white text-green-600 flex items-center justify-center">
+                          <FiCheck size={13} />
+                        </span>
+                      </div>
+                    )}
+                    <p className="text-sm leading-5 break-words whitespace-pre-wrap">
+                      {message.text}
+                    </p>
+                    <div className="flex items-center justify-end gap-0.5 text-[10px] mt-1 text-green-100">
+                      <span>{formatMessageTime(message)}</span>
+                      <MessageTicks message={message} />
+                    </div>
+                  </button>
+                )}
               </div>
             );
           })}

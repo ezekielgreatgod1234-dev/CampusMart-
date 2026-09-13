@@ -90,6 +90,7 @@ import MyGigApplications from "./pages/customer/MyGigApplications";
 import AnnouncementBanner from "./components/AnnouncementBanner";
 
 import AIAssistant from "./pages/admin/AIAssistant";
+import Receipt from "./pages/customer/Receipt";
 
 const emptyProfile = {
   fullName: "",
@@ -2234,6 +2235,16 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+
+        <Route
+  path="/receipt/:id"
+  element={
+    <ProtectedRoute profileResolved={profileResolved}>
+      <Receipt />
+    </ProtectedRoute>
+  }
+/>
 
         <Route
           path="/admin-dashboard"

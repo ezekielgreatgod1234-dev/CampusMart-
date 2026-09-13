@@ -130,6 +130,14 @@ function Payment({ cartCount = 0, placeOrder }) {
             sellerId,
             orderId,
             productName: checkoutItems[0]?.name || "CampusMart Order",
+
+            // Keep the exact Firestore order ID in the Paystack callback URL.
+            // This lets OrderSuccess load the correct order even after
+            // Paystack redirects/reloads the browser.
+            callback_url:
+              `${window.location.origin}/order-success?orderId=${encodeURIComponent(
+                String(orderId)
+              )}`,
           }),
         }
       );
@@ -137,6 +145,66 @@ function Payment({ cartCount = 0, placeOrder }) {
       const data = await response.json();
 
       if (data.authorization_url) {
+        // =========================================
+        // SAVE PAYMENT CONTEXT BEFORE REDIRECT
+        // =========================================
+        // Paystack can reload the app without React location.state.
+        // Save both the order and the reference as a second recovery path.
+        const reference =
+          data.reference ||
+          data.data?.reference ||
+          "";
+
+        const pendingOrder = {
+          ...(order || {}),
+          id: orderId,
+          orderId,
+          items: checkoutItems,
+          total: amountNaira,
+          paymentMethod: "card",
+          type: checkoutType,
+          status: "Pending",
+          paymentStatus: "pending",
+          customer: {
+            ...(formData || {}),
+            email,
+          },
+          paystackReference: reference || null,
+        };
+
+        try {
+          sessionStorage.setItem(
+            "lastOrder",
+            JSON.stringify(pendingOrder)
+          );
+
+          sessionStorage.setItem(
+            "campusmart_pending_payment",
+            JSON.stringify({
+              orderId,
+              reference: reference || null,
+              savedAt: Date.now(),
+              order: pendingOrder,
+            })
+          );
+
+          if (reference) {
+            sessionStorage.setItem(
+              `campusmart_payment_${reference}`,
+              JSON.stringify({
+                orderId,
+                order: pendingOrder,
+                savedAt: Date.now(),
+              })
+            );
+          }
+        } catch (storageError) {
+          console.warn(
+            "Could not save payment recovery data:",
+            storageError
+          );
+        }
+
         // =========================================
         // 3. REDIRECT TO PAYSTACK
         // =========================================
