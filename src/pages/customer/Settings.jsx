@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import CustomerLayout from "../../layouts/CustomerLayout";
+import InstallHelpModal from "../../components/InstallHelpModal";
 import { useAuth } from "../../context/AuthContext";
 
 import {
@@ -65,6 +66,7 @@ function Settings({
   const [installPrompt, setInstallPrompt] = useState(null);
   const [isInstalled, setIsInstalled] = useState(false);
   const [installing, setInstalling] = useState(false);
+  const [showInstallHelp, setShowInstallHelp] = useState(false);
 
   useEffect(() => {
     const standalone =
@@ -101,8 +103,9 @@ function Settings({
 
   const handleInstallApp = async () => {
     if (!installPrompt) {
-      // On browsers that don't expose the install prompt, the browser's
-      // own install option can still be used.
+      // On browsers that don't expose the install prompt (e.g. iOS
+      // Safari, or localhost), show manual instructions instead.
+      setShowInstallHelp(true);
       return;
     }
 
@@ -1411,6 +1414,11 @@ function Settings({
           </div>
         </div>
       </div>
+
+      <InstallHelpModal
+        open={showInstallHelp}
+        onClose={() => setShowInstallHelp(false)}
+      />
     </CustomerLayout>
   );
 }

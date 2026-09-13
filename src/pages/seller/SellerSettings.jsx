@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../../context/AuthContext";
+import InstallHelpModal from "../../components/InstallHelpModal";
 
 import {
   FiGrid,
@@ -72,6 +73,7 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
 
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [isInstalled, setIsInstalled] = useState(false);
+  const [showInstallHelp, setShowInstallHelp] = useState(false);
 
   useEffect(() => {
     const checkInstalled = () => {
@@ -116,9 +118,9 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
     }
 
     if (!deferredPrompt) {
-      window.alert(
-        "CampusMart can be installed from your browser menu. On Chrome, use the Install CampusMart option or the install icon in the address bar. On iPhone/iPad, use Share → Add to Home Screen."
-      );
+      // On browsers that don't expose the install prompt (e.g. iOS
+      // Safari, or localhost), show manual instructions instead.
+      setShowInstallHelp(true);
       return;
     }
 
@@ -1865,6 +1867,11 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
           </div>
         </main>
       </div>
+
+      <InstallHelpModal
+        open={showInstallHelp}
+        onClose={() => setShowInstallHelp(false)}
+      />
     </div>
   );
 }
