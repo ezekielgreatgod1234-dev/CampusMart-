@@ -76,7 +76,7 @@ const InstallHelpModal = ({ open, onClose }) => {
               </InstallStep>
 
               <InstallStep number="2" icon={FiPlusSquare}>
-                Select the desktop screen and then tap<span className="font-semibold text-gray-800">"Install app"</span> or <span className="font-semibold text-gray-800">"Add to Home screen"</span>.
+                Select <span className="font-semibold text-gray-800">"Install app"</span> or <span className="font-semibold text-gray-800">"Add to Home screen"</span>.
               </InstallStep>
 
               <InstallStep number="3" icon={FiDownload}>
