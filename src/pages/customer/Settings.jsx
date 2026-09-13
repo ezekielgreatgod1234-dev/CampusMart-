@@ -22,6 +22,8 @@ import {
   FiEyeOff,
   FiFileText,
   FiBookOpen,
+  FiDownload,
+  FiSmartphone,
 } from "react-icons/fi";
 
 import {
@@ -51,93 +53,129 @@ function Settings({
   unreadMessages = 0,
 }) {
   const navigate = useNavigate();
-
   const { firebaseUser } = useAuth();
 
-  /* =======================================================
-     ACTIVE SECTION
-  ======================================================= */
-
-  const [activeSection, setActiveSection] =
-    useState("personal");
+  const [activeSection, setActiveSection] = useState("personal");
+  const [loading, setLoading] = useState(true);
 
   /* =======================================================
-     LOADING
+     PWA INSTALL
   ======================================================= */
 
-  const [loading, setLoading] =
-    useState(true);
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [isInstalled, setIsInstalled] = useState(false);
+  const [installing, setInstalling] = useState(false);
+
+  useEffect(() => {
+    const standalone =
+      window.matchMedia?.("(display-mode: standalone)")?.matches ||
+      window.navigator.standalone === true;
+
+    setIsInstalled(standalone);
+
+    const handleBeforeInstallPrompt = (event) => {
+      event.preventDefault();
+      setInstallPrompt(event);
+    };
+
+    const handleAppInstalled = () => {
+      setIsInstalled(true);
+      setInstallPrompt(null);
+      setInstalling(false);
+    };
+
+    window.addEventListener(
+      "beforeinstallprompt",
+      handleBeforeInstallPrompt
+    );
+    window.addEventListener("appinstalled", handleAppInstalled);
+
+    return () => {
+      window.removeEventListener(
+        "beforeinstallprompt",
+        handleBeforeInstallPrompt
+      );
+      window.removeEventListener("appinstalled", handleAppInstalled);
+    };
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (!installPrompt) {
+      // On browsers that don't expose the install prompt, the browser's
+      // own install option can still be used.
+      return;
+    }
+
+    try {
+      setInstalling(true);
+
+      await installPrompt.prompt();
+
+      const result = await installPrompt.userChoice;
+
+      if (result?.outcome === "accepted") {
+        setIsInstalled(true);
+      }
+    } catch (error) {
+      console.error("CampusMart installation error:", error);
+    } finally {
+      setInstalling(false);
+      setInstallPrompt(null);
+    }
+  };
 
   /* =======================================================
      PROFILE
   ======================================================= */
 
-  const [profile, setProfile] =
-    useState({
-      fullName: "",
-      email: "",
-      phone: "",
-      campus: "",
-      address: "",
-    });
+  const [profile, setProfile] = useState({
+    fullName: "",
+    email: "",
+    phone: "",
+    campus: "",
+    address: "",
+  });
 
-  /* =======================================================
-     PERSONAL INFORMATION
-  ======================================================= */
+  const [personalForm, setPersonalForm] = useState({
+    fullName: "",
+    email: "",
+    phone: "",
+    campus: "",
+  });
 
-  const [personalForm, setPersonalForm] =
-    useState({
-      fullName: "",
-      email: "",
-      phone: "",
-      campus: "",
-    });
-
-  const [personalSaved, setPersonalSaved] =
-    useState(false);
+  const [personalSaved, setPersonalSaved] = useState(false);
 
   /* =======================================================
      PASSWORD
   ======================================================= */
 
-  const [passwordForm, setPasswordForm] =
-    useState({
-      currentPassword: "",
-      newPassword: "",
-      confirmPassword: "",
-    });
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
 
-  const [passwordMessage, setPasswordMessage] =
-    useState("");
-
-  const [passwordUpdating, setPasswordUpdating] =
-    useState(false);
+  const [passwordMessage, setPasswordMessage] = useState("");
+  const [passwordUpdating, setPasswordUpdating] = useState(false);
 
   /* =======================================================
      PROFILE VISIBILITY
   ======================================================= */
 
-  const [profileVisibility, setProfileVisibility] =
-    useState("campus");
+  const [profileVisibility, setProfileVisibility] = useState("campus");
 
   /* =======================================================
      CONTACT FORM
   ======================================================= */
 
-  const [contactForm, setContactForm] =
-    useState({
-      subject: "",
-      message: "",
-    });
+  const [contactForm, setContactForm] = useState({
+    subject: "",
+    message: "",
+  });
 
-  const [contactSent, setContactSent] =
-    useState(false);
-
-  const [contactError, setContactError] =
-    useState("");
-
-  const [contactSending, setContactSending] =
-    useState(false);
+  const [contactSent, setContactSent] = useState(false);
+  const [contactError, setContactError] = useState("");
+  const [contactSending, setContactSending] = useState(false);
 
   /* =======================================================
      LOAD USER SETTINGS
@@ -153,71 +191,39 @@ function Settings({
       try {
         setLoading(true);
 
-        const userRef = doc(
-          db,
-          "users",
-          firebaseUser.uid
-        );
-
-        const userSnapshot =
-          await getDoc(userRef);
+        const userRef = doc(db, "users", firebaseUser.uid);
+        const userSnapshot = await getDoc(userRef);
 
         if (userSnapshot.exists()) {
-          const userData =
-            userSnapshot.data();
-
-          const savedProfile =
-            userData.profile || {};
-
-          const savedSettings =
-            userData.settings || {};
+          const userData = userSnapshot.data();
+          const savedProfile = userData.profile || {};
+          const savedSettings = userData.settings || {};
 
           const loadedProfile = {
-            fullName:
-              savedProfile.fullName || "",
-
+            fullName: savedProfile.fullName || "",
             email:
-              savedProfile.email ||
-              firebaseUser.email ||
-              "",
-
-            phone:
-              savedProfile.phone || "",
-
-            campus:
-              savedProfile.campus || "",
-
-            address:
-              savedProfile.address || "",
+              savedProfile.email || firebaseUser.email || "",
+            phone: savedProfile.phone || "",
+            campus: savedProfile.campus || "",
+            address: savedProfile.address || "",
           };
 
-          setProfile(
-            loadedProfile
-          );
+          setProfile(loadedProfile);
 
           setPersonalForm({
-            fullName:
-              loadedProfile.fullName,
-
-            email:
-              loadedProfile.email,
-
-            phone:
-              loadedProfile.phone,
-
-            campus:
-              loadedProfile.campus,
+            fullName: loadedProfile.fullName,
+            email: loadedProfile.email,
+            phone: loadedProfile.phone,
+            campus: loadedProfile.campus,
           });
 
           setProfileVisibility(
-            savedSettings.profileVisibility ||
-              "campus"
+            savedSettings.profileVisibility || "campus"
           );
         } else {
           const newProfile = {
             fullName: "",
-            email:
-              firebaseUser.email || "",
+            email: firebaseUser.email || "",
             phone: "",
             campus: "",
             address: "",
@@ -233,29 +239,19 @@ function Settings({
               profile: newProfile,
               settings: newSettings,
             },
-            {
-              merge: true,
-            }
+            { merge: true }
           );
 
-          setProfile(
-            newProfile
-          );
+          setProfile(newProfile);
 
           setPersonalForm({
             fullName: "",
-
-            email:
-              firebaseUser.email || "",
-
+            email: firebaseUser.email || "",
             phone: "",
-
             campus: "",
           });
 
-          setProfileVisibility(
-            "campus"
-          );
+          setProfileVisibility("campus");
         }
       } catch (error) {
         console.error(
@@ -274,50 +270,24 @@ function Settings({
      PASSWORD STRENGTH
   ======================================================= */
 
-  const getPasswordStrength = (
-    password
-  ) => {
-    if (!password) {
-      return "";
-    }
+  const getPasswordStrength = (password) => {
+    if (!password) return "";
 
     let score = 0;
+    if (password.length >= 8) score++;
+    if (/[A-Z]/.test(password)) score++;
+    if (/[a-z]/.test(password)) score++;
+    if (/[0-9]/.test(password)) score++;
+    if (/[^A-Za-z0-9]/.test(password)) score++;
 
-    if (password.length >= 8) {
-      score++;
-    }
-
-    if (/[A-Z]/.test(password)) {
-      score++;
-    }
-
-    if (/[a-z]/.test(password)) {
-      score++;
-    }
-
-    if (/[0-9]/.test(password)) {
-      score++;
-    }
-
-    if (/[^A-Za-z0-9]/.test(password)) {
-      score++;
-    }
-
-    if (score <= 2) {
-      return "Not strong enough";
-    }
-
-    if (score <= 4) {
-      return "Strong";
-    }
-
+    if (score <= 2) return "Not strong enough";
+    if (score <= 4) return "Strong";
     return "Very strong";
   };
 
-  const passwordStrength =
-    getPasswordStrength(
-      passwordForm.newPassword
-    );
+  const passwordStrength = getPasswordStrength(
+    passwordForm.newPassword
+  );
 
   /* =======================================================
      MENU
@@ -326,14 +296,12 @@ function Settings({
   const menuSections = [
     {
       title: "Account",
-
       items: [
         {
           id: "personal",
           label: "Personal Information",
           icon: FiUser,
         },
-
         {
           id: "password",
           label: "Change Password",
@@ -341,10 +309,8 @@ function Settings({
         },
       ],
     },
-
     {
       title: "Privacy & Security",
-
       items: [
         {
           id: "visibility",
@@ -353,23 +319,19 @@ function Settings({
         },
       ],
     },
-
     {
       title: "Support",
-
       items: [
         {
           id: "help",
           label: "Help",
           icon: FiHelpCircle,
         },
-
         {
           id: "faq",
           label: "FAQ",
           icon: FiMessageCircle,
         },
-
         {
           id: "contact",
           label: "Contact CampusMart",
@@ -377,21 +339,14 @@ function Settings({
         },
       ],
     },
-
-    /* =====================================================
-       LEGAL
-    ===================================================== */
-
     {
       title: "Legal",
-
       items: [
         {
           id: "terms",
           label: "Terms & Conditions",
           icon: FiFileText,
         },
-
         {
           id: "privacy",
           label: "Privacy Policy",
@@ -405,20 +360,13 @@ function Settings({
      PERSONAL INFORMATION CHANGE
   ======================================================= */
 
-  const handlePersonalChange = (
-    e
-  ) => {
-    const {
-      name,
-      value,
-    } = e.target;
+  const handlePersonalChange = (e) => {
+    const { name, value } = e.target;
 
-    setPersonalForm(
-      (current) => ({
-        ...current,
-        [name]: value,
-      })
-    );
+    setPersonalForm((current) => ({
+      ...current,
+      [name]: value,
+    }));
 
     setPersonalSaved(false);
   };
@@ -427,75 +375,51 @@ function Settings({
      SAVE PERSONAL INFORMATION
   ======================================================= */
 
-  const handlePersonalSave =
-    async () => {
-      if (!firebaseUser?.uid) {
-        return;
-      }
+  const handlePersonalSave = async () => {
+    if (!firebaseUser?.uid) return;
 
-      try {
-        const updatedProfile = {
-          ...profile,
-          ...personalForm,
-        };
+    try {
+      const updatedProfile = {
+        ...profile,
+        ...personalForm,
+      };
 
-        const userRef = doc(
-          db,
-          "users",
-          firebaseUser.uid
-        );
+      const userRef = doc(db, "users", firebaseUser.uid);
 
-        await setDoc(
-          userRef,
-          {
-            profile: updatedProfile,
-          },
-          {
-            merge: true,
-          }
-        );
+      await setDoc(
+        userRef,
+        { profile: updatedProfile },
+        { merge: true }
+      );
 
-        setProfile(
-          updatedProfile
-        );
+      setProfile(updatedProfile);
+      setPersonalSaved(true);
 
-        setPersonalSaved(true);
+      window.dispatchEvent(new Event("profileUpdated"));
 
-        window.dispatchEvent(
-          new Event("profileUpdated")
-        );
-
-        setTimeout(() => {
-          setPersonalSaved(false);
-        }, 3000);
-      } catch (error) {
-        console.error(
-          "Could not save personal information:",
-          error
-        );
-
+      setTimeout(() => {
         setPersonalSaved(false);
-      }
-    };
+      }, 3000);
+    } catch (error) {
+      console.error(
+        "Could not save personal information:",
+        error
+      );
+      setPersonalSaved(false);
+    }
+  };
 
   /* =======================================================
      PASSWORD CHANGE INPUT
   ======================================================= */
 
-  const handlePasswordChange = (
-    e
-  ) => {
-    const {
-      name,
-      value,
-    } = e.target;
+  const handlePasswordChange = (e) => {
+    const { name, value } = e.target;
 
-    setPasswordForm(
-      (current) => ({
-        ...current,
-        [name]: value,
-      })
-    );
+    setPasswordForm((current) => ({
+      ...current,
+      [name]: value,
+    }));
 
     setPasswordMessage("");
   };
@@ -504,227 +428,182 @@ function Settings({
      ACTUAL FIREBASE PASSWORD UPDATE
   ======================================================= */
 
-  const handlePasswordUpdate =
-    async () => {
-      setPasswordMessage("");
+  const handlePasswordUpdate = async () => {
+    setPasswordMessage("");
 
-      if (!firebaseUser) {
-        setPasswordMessage(
-          "Your account session has expired. Please log in again."
-        );
+    if (!firebaseUser) {
+      setPasswordMessage(
+        "Your account session has expired. Please log in again."
+      );
+      return;
+    }
 
-        return;
-      }
+    if (
+      !passwordForm.currentPassword ||
+      !passwordForm.newPassword ||
+      !passwordForm.confirmPassword
+    ) {
+      setPasswordMessage(
+        "Please fill in all password fields."
+      );
+      return;
+    }
 
-      if (
-        !passwordForm.currentPassword ||
-        !passwordForm.newPassword ||
-        !passwordForm.confirmPassword
-      ) {
-        setPasswordMessage(
-          "Please fill in all password fields."
-        );
+    if (passwordForm.newPassword.length < 8) {
+      setPasswordMessage(
+        "Your new password must contain at least 8 characters."
+      );
+      return;
+    }
 
-        return;
-      }
+    if (!/[A-Z]/.test(passwordForm.newPassword)) {
+      setPasswordMessage(
+        "Your new password must contain at least one uppercase letter."
+      );
+      return;
+    }
 
-      if (
-        passwordForm.newPassword.length < 8
-      ) {
-        setPasswordMessage(
-          "Your new password must contain at least 8 characters."
-        );
+    if (!/[0-9]/.test(passwordForm.newPassword)) {
+      setPasswordMessage(
+        "Your new password must contain at least one number."
+      );
+      return;
+    }
 
-        return;
-      }
+    if (
+      passwordForm.newPassword !==
+      passwordForm.confirmPassword
+    ) {
+      setPasswordMessage(
+        "New password and confirmation password do not match."
+      );
+      return;
+    }
 
-      if (
-        !/[A-Z]/.test(
-          passwordForm.newPassword
-        )
-      ) {
-        setPasswordMessage(
-          "Your new password must contain at least one uppercase letter."
-        );
+    if (!firebaseUser.email) {
+      setPasswordMessage(
+        "No email address is associated with this account."
+      );
+      return;
+    }
 
-        return;
-      }
+    const passwordProvider =
+      firebaseUser.providerData?.some(
+        (provider) =>
+          provider.providerId === "password"
+      );
 
-      if (
-        !/[0-9]/.test(
-          passwordForm.newPassword
-        )
-      ) {
-        setPasswordMessage(
-          "Your new password must contain at least one number."
-        );
+    if (!passwordProvider) {
+      setPasswordMessage(
+        "This account does not use email and password login. Please use the sign-in method you registered with."
+      );
+      return;
+    }
 
-        return;
-      }
+    try {
+      setPasswordUpdating(true);
 
-      if (
-        passwordForm.newPassword !==
-        passwordForm.confirmPassword
-      ) {
-        setPasswordMessage(
-          "New password and confirmation password do not match."
-        );
+      const credential = EmailAuthProvider.credential(
+        firebaseUser.email,
+        passwordForm.currentPassword
+      );
 
-        return;
-      }
+      await reauthenticateWithCredential(
+        firebaseUser,
+        credential
+      );
 
-      if (!firebaseUser.email) {
-        setPasswordMessage(
-          "No email address is associated with this account."
-        );
+      await updatePassword(
+        firebaseUser,
+        passwordForm.newPassword
+      );
 
-        return;
-      }
+      setPasswordForm({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
 
-      const passwordProvider =
-        firebaseUser.providerData?.some(
-          (provider) =>
-            provider.providerId ===
-            "password"
-        );
+      setPasswordMessage("success");
+    } catch (error) {
+      console.error("Password update error:", error);
 
-      if (!passwordProvider) {
-        setPasswordMessage(
-          "This account does not use email and password login. Please use the sign-in method you registered with."
-        );
-
-        return;
-      }
-
-      try {
-        setPasswordUpdating(true);
-
-        const credential =
-          EmailAuthProvider.credential(
-            firebaseUser.email,
-            passwordForm.currentPassword
+      switch (error.code) {
+        case "auth/wrong-password":
+        case "auth/invalid-credential":
+          setPasswordMessage(
+            "Your current password is incorrect."
           );
+          break;
 
-        await reauthenticateWithCredential(
-          firebaseUser,
-          credential
-        );
+        case "auth/requires-recent-login":
+          setPasswordMessage(
+            "For security, please log out and log in again before changing your password."
+          );
+          break;
 
-        await updatePassword(
-          firebaseUser,
-          passwordForm.newPassword
-        );
+        case "auth/weak-password":
+          setPasswordMessage(
+            "This password is too weak. Please choose a stronger password."
+          );
+          break;
 
-        setPasswordForm({
-          currentPassword: "",
-          newPassword: "",
-          confirmPassword: "",
-        });
+        case "auth/too-many-requests":
+          setPasswordMessage(
+            "Too many attempts. Please wait a while and try again."
+          );
+          break;
 
-        setPasswordMessage(
-          "success"
-        );
-      } catch (error) {
-        console.error(
-          "Password update error:",
-          error
-        );
-
-        switch (error.code) {
-          case "auth/wrong-password":
-          case "auth/invalid-credential":
-            setPasswordMessage(
-              "Your current password is incorrect."
-            );
-            break;
-
-          case "auth/requires-recent-login":
-            setPasswordMessage(
-              "For security, please log out and log in again before changing your password."
-            );
-            break;
-
-          case "auth/weak-password":
-            setPasswordMessage(
-              "This password is too weak. Please choose a stronger password."
-            );
-            break;
-
-          case "auth/too-many-requests":
-            setPasswordMessage(
-              "Too many attempts. Please wait a while and try again."
-            );
-            break;
-
-          default:
-            setPasswordMessage(
-              "Unable to update your password. Please try again."
-            );
-        }
-      } finally {
-        setPasswordUpdating(false);
+        default:
+          setPasswordMessage(
+            "Unable to update your password. Please try again."
+          );
       }
-    };
+    } finally {
+      setPasswordUpdating(false);
+    }
+  };
 
   /* =======================================================
      PROFILE VISIBILITY
   ======================================================= */
 
-  const handleVisibilityChange =
-    async (value) => {
-      if (!firebaseUser?.uid) {
-        return;
-      }
+  const handleVisibilityChange = async (value) => {
+    if (!firebaseUser?.uid) return;
 
-      try {
-        setProfileVisibility(
-          value
-        );
+    try {
+      setProfileVisibility(value);
 
-        const userRef = doc(
-          db,
-          "users",
-          firebaseUser.uid
-        );
+      const userRef = doc(db, "users", firebaseUser.uid);
 
-        await setDoc(
-          userRef,
-          {
-            settings: {
-              profileVisibility:
-                value,
-            },
+      await setDoc(
+        userRef,
+        {
+          settings: {
+            profileVisibility: value,
           },
-          {
-            merge: true,
-          }
-        );
-      } catch (error) {
-        console.error(
-          "Could not update profile visibility:",
-          error
-        );
-      }
-    };
+        },
+        { merge: true }
+      );
+    } catch (error) {
+      console.error(
+        "Could not update profile visibility:",
+        error
+      );
+    }
+  };
 
   /* =======================================================
      CONTACT INPUT
   ======================================================= */
 
-  const handleContactChange = (
-    e
-  ) => {
-    const {
-      name,
-      value,
-    } = e.target;
+  const handleContactChange = (e) => {
+    const { name, value } = e.target;
 
-    setContactForm(
-      (current) => ({
-        ...current,
-        [name]: value,
-      })
-    );
+    setContactForm((current) => ({
+      ...current,
+      [name]: value,
+    }));
 
     setContactSent(false);
     setContactError("");
@@ -734,93 +613,65 @@ function Settings({
      CONTACT SUBMIT
   ======================================================= */
 
-  const handleContactSubmit =
-    async () => {
-      setContactError("");
-      setContactSent(false);
+  const handleContactSubmit = async () => {
+    setContactError("");
+    setContactSent(false);
 
-      if (!firebaseUser?.uid) {
-        setContactError(
-          "Your account session has expired. Please log in again."
-        );
+    if (!firebaseUser?.uid) {
+      setContactError(
+        "Your account session has expired. Please log in again."
+      );
+      return;
+    }
 
-        return;
-      }
+    if (!contactForm.subject.trim()) {
+      setContactError("Please enter a subject.");
+      return;
+    }
 
-      if (
-        !contactForm.subject.trim()
-      ) {
-        setContactError(
-          "Please enter a subject."
-        );
+    if (!contactForm.message.trim()) {
+      setContactError("Please enter your message.");
+      return;
+    }
 
-        return;
-      }
+    try {
+      setContactSending(true);
 
-      if (
-        !contactForm.message.trim()
-      ) {
-        setContactError(
-          "Please enter your message."
-        );
+      await addDoc(collection(db, "supportMessages"), {
+        userId: firebaseUser.uid,
+        userName:
+          profile.fullName ||
+          personalForm.fullName ||
+          "CampusMart User",
+        userEmail:
+          firebaseUser.email ||
+          personalForm.email ||
+          "",
+        subject: contactForm.subject.trim(),
+        message: contactForm.message.trim(),
+        status: "unread",
+        createdAt: serverTimestamp(),
+      });
 
-        return;
-      }
+      setContactSent(true);
 
-      try {
-        setContactSending(true);
+      setContactForm({
+        subject: "",
+        message: "",
+      });
+    } catch (error) {
+      console.error(
+        "Could not send support message:",
+        error
+      );
 
-        await addDoc(
-          collection(
-            db,
-            "supportMessages"
-          ),
-          {
-            userId:
-              firebaseUser.uid,
-
-            userName:
-              profile.fullName ||
-              personalForm.fullName ||
-              "CampusMart User",
-
-            userEmail:
-              firebaseUser.email ||
-              personalForm.email ||
-              "",
-
-            subject:
-              contactForm.subject.trim(),
-
-            message:
-              contactForm.message.trim(),
-
-            status: "unread",
-
-            createdAt:
-              serverTimestamp(),
-          }
-        );
-
-        setContactSent(true);
-
-        setContactForm({
-          subject: "",
-          message: "",
-        });
-      } catch (error) {
-        console.error(
-          "Could not send support message:",
-          error
-        );
-
-        setContactError(
-          "We couldn't send your message. Please check your internet connection and try again."
-        );
-      } finally {
-        setContactSending(false);
-      }
-    };
+      setContactError(
+        "We couldn't send your message. Please check your internet connection and try again."
+      );
+    } finally {
+      setContactSending(false);
+    }
+  };
 
   /* =======================================================
      LOADING SCREEN
@@ -831,56 +682,15 @@ function Settings({
       <CustomerLayout
         cartCount={cartCount}
         wishlist={wishlist}
-        unreadMessages={
-          unreadMessages
-        }
+        unreadMessages={unreadMessages}
       >
-        <div
-          className="
-            min-h-screen
-            -m-4
-            sm:-m-6
-            lg:-m-8
-            p-4
-            sm:p-6
-            lg:p-8
-            bg-gray-50
-            text-gray-900
-          "
-        >
-          <div
-            className="
-              min-h-[60vh]
-              flex
-              items-center
-              justify-center
-            "
-          >
+        <div className="min-h-screen -m-4 sm:-m-6 lg:-m-8 p-4 sm:p-6 lg:p-8 bg-gray-50 text-gray-900">
+          <div className="min-h-[60vh] flex items-center justify-center">
             <div className="text-center">
-
-              <div
-                className="
-                  w-10
-                  h-10
-                  border-4
-                  border-green-100
-                  border-t-green-600
-                  rounded-full
-                  animate-spin
-                  mx-auto
-                "
-              />
-
-              <p
-                className="
-                  mt-4
-                  text-sm
-                  text-gray-500
-                "
-              >
+              <div className="w-10 h-10 border-4 border-green-100 border-t-green-600 rounded-full animate-spin mx-auto" />
+              <p className="mt-4 text-sm text-gray-500">
                 Loading your settings...
               </p>
-
             </div>
           </div>
         </div>
@@ -888,345 +698,186 @@ function Settings({
     );
   }
 
-  /* =======================================================
-     MAIN RENDER
-  ======================================================= */
-
   return (
     <CustomerLayout
       cartCount={cartCount}
       wishlist={wishlist}
-      unreadMessages={
-        unreadMessages
-      }
+      unreadMessages={unreadMessages}
     >
-      <div
-        className="
-          min-h-screen
-          -m-4
-          sm:-m-6
-          lg:-m-8
-          p-4
-          sm:p-6
-          lg:p-8
-          bg-gray-50
-          text-gray-900
-        "
-      >
+      <div className="min-h-screen -m-4 sm:-m-6 lg:-m-8 p-4 sm:p-6 lg:p-8 bg-gray-50 text-gray-900">
         <div className="space-y-6 max-w-[1500px] mx-auto">
-
-          {/* =================================================
-              HEADER
-          ================================================= */}
-
+          {/* HEADER */}
           <div>
-
             <button
               type="button"
-              onClick={() =>
-                navigate(
-                  "/dashboard"
-                )
-              }
-              className="
-                flex
-                items-center
-                gap-2
-                text-gray-500
-                hover:text-green-600
-                transition
-              "
+              onClick={() => navigate("/dashboard")}
+              className="flex items-center gap-2 text-gray-500 hover:text-green-600 transition"
             >
-              <FiArrowLeft
-                size={18}
-              />
-
-              <span>
-                Back to Dashboard
-              </span>
+              <FiArrowLeft size={18} />
+              <span>Back to Dashboard</span>
             </button>
 
             <div className="mt-5">
-
-              <h1
-                className="
-                  text-2xl
-                  sm:text-3xl
-                  font-bold
-                  text-gray-900
-                "
-              >
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
                 Settings
               </h1>
-
-              <p
-                className="
-                  mt-1
-                  text-gray-500
-                "
-              >
-                Manage your CampusMart account,
-                privacy and preferences.
+              <p className="mt-1 text-gray-500">
+                Manage your CampusMart account, privacy and preferences.
               </p>
-
             </div>
-
           </div>
 
-          {/* =================================================
-              SETTINGS LAYOUT
-          ================================================= */}
-
-          <div
-            className="
-              grid
-              grid-cols-1
-              lg:grid-cols-3
-              gap-6
-            "
-          >
-
-            {/* =================================================
-                SETTINGS MENU
-            ================================================= */}
-
-            <div
-              className="
-                bg-white
-                rounded-2xl
-                border
-                border-gray-100
-                p-4
-                h-fit
-                shadow-sm
-              "
-            >
-
-              <div
-                className="
-                  flex
-                  items-center
-                  gap-3
-                  px-3
-                  pb-4
-                  border-b
-                  border-gray-100
-                "
-              >
-
-                <div
-                  className="
-                    w-10
-                    h-10
-                    rounded-xl
-                    bg-green-50
-                    text-green-600
-                    flex
-                    items-center
-                    justify-center
-                  "
-                >
-                  <FiShield
-                    size={20}
-                  />
+          {/* SETTINGS LAYOUT */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* SETTINGS MENU */}
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 h-fit shadow-sm">
+              <div className="flex items-center gap-3 px-3 pb-4 border-b border-gray-100">
+                <div className="w-10 h-10 rounded-xl bg-green-50 text-green-600 flex items-center justify-center">
+                  <FiShield size={20} />
                 </div>
-
                 <div>
-
-                  <h2
-                    className="
-                      font-bold
-                      text-gray-800
-                    "
-                  >
+                  <h2 className="font-bold text-gray-800">
                     Settings
                   </h2>
-
-                  <p
-                    className="
-                      text-xs
-                      text-gray-500
-                    "
-                  >
+                  <p className="text-xs text-gray-500">
                     Account preferences
                   </p>
-
                 </div>
-
               </div>
 
               <div className="mt-4 space-y-5">
+                {/* INSTALL CAMPUSMART */}
+                <div>
+                  <p className="px-3 mb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                    App
+                  </p>
 
-                {menuSections.map(
-                  (section) => (
-                    <div
-                      key={
-                        section.title
-                      }
-                    >
-
-                      <p
-                        className="
-                          px-3
-                          mb-2
-                          text-[11px]
-                          font-semibold
-                          uppercase
-                          tracking-wider
-                          text-gray-400
-                        "
+                  <button
+                    type="button"
+                    onClick={handleInstallApp}
+                    disabled={isInstalled || !installPrompt || installing}
+                    className={`w-full flex items-center justify-between gap-3 px-3 py-3 rounded-xl text-left transition ${
+                      isInstalled
+                        ? "bg-green-50 text-green-600"
+                        : installPrompt
+                        ? "text-gray-600 hover:bg-gray-50 hover:text-green-600"
+                        : "text-gray-400 cursor-not-allowed"
+                    }`}
+                    title={
+                      isInstalled
+                        ? "CampusMart is already installed"
+                        : installPrompt
+                        ? "Install CampusMart"
+                        : "Install option is not currently available"
+                    }
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+                          isInstalled
+                            ? "bg-white text-green-600"
+                            : "bg-gray-50 text-gray-400"
+                        }`}
                       >
-                        {
-                          section.title
-                        }
-                      </p>
-
-                      <div className="space-y-1">
-
-                        {section.items.map(
-                          (item) => {
-
-                            const Icon =
-                              item.icon;
-
-                            const active =
-                              activeSection ===
-                              item.id;
-
-                            return (
-                              <button
-                                key={
-                                  item.id
-                                }
-                                type="button"
-                                onClick={() =>
-                                  setActiveSection(
-                                    item.id
-                                  )
-                                }
-                                className={`
-                                  w-full
-                                  flex
-                                  items-center
-                                  justify-between
-                                  gap-3
-                                  px-3
-                                  py-3
-                                  rounded-xl
-                                  text-left
-                                  transition
-
-                                  ${
-                                    active
-                                      ? `
-                                        bg-green-50
-                                        text-green-600
-                                      `
-                                      : `
-                                        text-gray-600
-                                        hover:bg-gray-50
-                                        hover:text-green-600
-                                      `
-                                  }
-                                `}
-                              >
-
-                                <div className="flex items-center gap-3">
-
-                                  <div
-                                    className={`
-                                      w-9
-                                      h-9
-                                      rounded-lg
-                                      flex
-                                      items-center
-                                      justify-center
-
-                                      ${
-                                        active
-                                          ? `
-                                            bg-white
-                                            text-green-600
-                                          `
-                                          : `
-                                            bg-gray-50
-                                            text-gray-400
-                                          `
-                                      }
-                                    `}
-                                  >
-                                    <Icon
-                                      size={
-                                        17
-                                      }
-                                    />
-                                  </div>
-
-                                  <span
-                                    className={`
-                                      text-sm
-                                      ${
-                                        active
-                                          ? "font-semibold"
-                                          : "font-medium"
-                                      }
-                                    `}
-                                  >
-                                    {
-                                      item.label
-                                    }
-                                  </span>
-
-                                </div>
-
-                                {active && (
-                                  <FiChevronRight
-                                    size={
-                                      16
-                                    }
-                                  />
-                                )}
-
-                              </button>
-                            );
-                          }
+                        {isInstalled ? (
+                          <FiCheck size={17} />
+                        ) : (
+                          <FiDownload size={17} />
                         )}
-
                       </div>
 
+                      <div>
+                        <span
+                          className={`block text-sm ${
+                            isInstalled
+                              ? "font-semibold"
+                              : "font-medium"
+                          }`}
+                        >
+                          {isInstalled
+                            ? "CampusMart Installed"
+                            : installing
+                            ? "Installing..."
+                            : "Install CampusMart"}
+                        </span>
+
+                        <span className="block mt-0.5 text-[11px] text-gray-400">
+                          {isInstalled
+                            ? "You can open CampusMart like an app."
+                            : "Add CampusMart to your device."}
+                        </span>
+                      </div>
                     </div>
-                  )
-                )}
 
+                    {!isInstalled && installPrompt && (
+                      <FiChevronRight size={16} />
+                    )}
+                  </button>
+                </div>
+
+                {menuSections.map((section) => (
+                  <div key={section.title}>
+                    <p className="px-3 mb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                      {section.title}
+                    </p>
+
+                    <div className="space-y-1">
+                      {section.items.map((item) => {
+                        const Icon = item.icon;
+                        const active =
+                          activeSection === item.id;
+
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() =>
+                              setActiveSection(item.id)
+                            }
+                            className={`w-full flex items-center justify-between gap-3 px-3 py-3 rounded-xl text-left transition ${
+                              active
+                                ? "bg-green-50 text-green-600"
+                                : "text-gray-600 hover:bg-gray-50 hover:text-green-600"
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div
+                                className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+                                  active
+                                    ? "bg-white text-green-600"
+                                    : "bg-gray-50 text-gray-400"
+                                }`}
+                              >
+                                <Icon size={17} />
+                              </div>
+
+                              <span
+                                className={`text-sm ${
+                                  active
+                                    ? "font-semibold"
+                                    : "font-medium"
+                                }`}
+                              >
+                                {item.label}
+                              </span>
+                            </div>
+
+                            {active && (
+                              <FiChevronRight size={16} />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
-
             </div>
 
-            {/* =================================================
-                CONTENT
-            ================================================= */}
-
-            <div
-              className="
-                lg:col-span-2
-                bg-white
-                rounded-2xl
-                border
-                border-gray-100
-                p-5
-                sm:p-6
-                shadow-sm
-              "
-            >
-
-              {/* =================================================
-                  PERSONAL INFORMATION
-              ================================================= */}
-
-              {activeSection ===
-                "personal" && (
+            {/* CONTENT */}
+            <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-5 sm:p-6 shadow-sm">
+              {activeSection === "personal" && (
                 <section>
-
                   <SettingsHeader
                     title="Personal Information"
                     description="Manage your personal details and account information."
@@ -1234,30 +885,15 @@ function Settings({
                   />
 
                   {personalSaved && (
-                    <SuccessMessage
-                      message="Your personal information has been saved successfully."
-                    />
+                    <SuccessMessage message="Your personal information has been saved successfully." />
                   )}
 
-                  <div
-                    className="
-                      mt-6
-                      grid
-                      grid-cols-1
-                      sm:grid-cols-2
-                      gap-5
-                    "
-                  >
-
+                  <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-5">
                     <SettingsInput
                       label="Full Name"
                       name="fullName"
-                      value={
-                        personalForm.fullName
-                      }
-                      onChange={
-                        handlePersonalChange
-                      }
+                      value={personalForm.fullName}
+                      onChange={handlePersonalChange}
                       icon={FiUser}
                     />
 
@@ -1265,12 +901,8 @@ function Settings({
                       label="Email Address"
                       name="email"
                       type="email"
-                      value={
-                        personalForm.email
-                      }
-                      onChange={
-                        handlePersonalChange
-                      }
+                      value={personalForm.email}
+                      onChange={handlePersonalChange}
                       icon={FiMail}
                     />
 
@@ -1278,83 +910,35 @@ function Settings({
                       label="Phone Number"
                       name="phone"
                       type="tel"
-                      value={
-                        personalForm.phone
-                      }
-                      onChange={
-                        handlePersonalChange
-                      }
+                      value={personalForm.phone}
+                      onChange={handlePersonalChange}
                       icon={FiUser}
                     />
 
                     <SettingsInput
                       label="Campus"
                       name="campus"
-                      value={
-                        personalForm.campus
-                      }
-                      onChange={
-                        handlePersonalChange
-                      }
+                      value={personalForm.campus}
+                      onChange={handlePersonalChange}
                       icon={FiEye}
                     />
-
                   </div>
 
-                  <div
-                    className="
-                      mt-6
-                      pt-5
-                      border-t
-                      border-gray-100
-                      flex
-                      justify-end
-                    "
-                  >
-
+                  <div className="mt-6 pt-5 border-t border-gray-100 flex justify-end">
                     <button
                       type="button"
-                      onClick={
-                        handlePersonalSave
-                      }
-                      className="
-                        flex
-                        items-center
-                        justify-center
-                        gap-2
-                        px-5
-                        py-3
-                        rounded-xl
-                        bg-green-600
-                        hover:bg-green-700
-                        text-white
-                        text-sm
-                        font-medium
-                        transition
-                      "
+                      onClick={handlePersonalSave}
+                      className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm font-medium transition"
                     >
-
-                      <FiSave
-                        size={16}
-                      />
-
+                      <FiSave size={16} />
                       Save Changes
-
                     </button>
-
                   </div>
-
                 </section>
               )}
 
-              {/* =================================================
-                  PASSWORD
-              ================================================= */}
-
-              {activeSection ===
-                "password" && (
+              {activeSection === "password" && (
                 <section>
-
                   <SettingsHeader
                     title="Change Password"
                     description="Update your password to keep your CampusMart account secure."
@@ -1362,207 +946,101 @@ function Settings({
                   />
 
                   <div className="mt-6 max-w-xl space-y-5">
-
                     <PasswordField
                       label="Current Password"
                       name="currentPassword"
-                      value={
-                        passwordForm.currentPassword
-                      }
-                      onChange={
-                        handlePasswordChange
-                      }
+                      value={passwordForm.currentPassword}
+                      onChange={handlePasswordChange}
                       placeholder="Enter your current password"
                     />
 
                     <PasswordField
                       label="New Password"
                       name="newPassword"
-                      value={
-                        passwordForm.newPassword
-                      }
-                      onChange={
-                        handlePasswordChange
-                      }
+                      value={passwordForm.newPassword}
+                      onChange={handlePasswordChange}
                       placeholder="Enter your new password"
                     />
 
                     {passwordForm.newPassword && (
                       <div className="mt-2">
-
                         <p
                           className={`text-xs font-semibold ${
-                            passwordStrength ===
-                            "Very strong"
+                            passwordStrength === "Very strong"
                               ? "text-green-600"
-                              : passwordStrength ===
-                                "Strong"
+                              : passwordStrength === "Strong"
                               ? "text-yellow-600"
                               : "text-red-500"
                           }`}
                         >
-                          {
-                            passwordStrength
-                          }
+                          {passwordStrength}
                         </p>
-
                       </div>
                     )}
 
                     <PasswordField
                       label="Confirm New Password"
                       name="confirmPassword"
-                      value={
-                        passwordForm.confirmPassword
-                      }
-                      onChange={
-                        handlePasswordChange
-                      }
+                      value={passwordForm.confirmPassword}
+                      onChange={handlePasswordChange}
                       placeholder="Confirm your new password"
                     />
 
-                    <div
-                      className="
-                        rounded-xl
-                        bg-gray-50
-                        border
-                        border-gray-100
-                        p-4
-                      "
-                    >
-
+                    <div className="rounded-xl bg-gray-50 border border-gray-100 p-4">
                       <div className="flex items-center gap-2">
-
-                        <FiKey
-                          className="text-green-600"
-                          size={16}
-                        />
-
-                        <p
-                          className="
-                            text-sm
-                            font-semibold
-                            text-gray-700
-                          "
-                        >
+                        <FiKey className="text-green-600" size={16} />
+                        <p className="text-sm font-semibold text-gray-700">
                           Password requirements
                         </p>
-
                       </div>
 
-                      <div
-                        className="
-                          mt-3
-                          grid
-                          grid-cols-1
-                          sm:grid-cols-2
-                          gap-2
-                        "
-                      >
-
+                      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <PasswordRequirement
-                          checked={
-                            passwordForm.newPassword.length >=
-                            8
-                          }
+                          checked={passwordForm.newPassword.length >= 8}
                           text="At least 8 characters"
                         />
-
                         <PasswordRequirement
-                          checked={
-                            /[A-Z]/.test(
-                              passwordForm.newPassword
-                            )
-                          }
+                          checked={/[A-Z]/.test(passwordForm.newPassword)}
                           text="One uppercase letter"
                         />
-
                         <PasswordRequirement
-                          checked={
-                            /[0-9]/.test(
-                              passwordForm.newPassword
-                            )
-                          }
+                          checked={/[0-9]/.test(passwordForm.newPassword)}
                           text="One number"
                         />
-
                         <PasswordRequirement
                           checked={
-                            passwordForm.newPassword.length >
-                              0 &&
+                            passwordForm.newPassword.length > 0 &&
                             passwordForm.newPassword ===
                               passwordForm.confirmPassword
                           }
                           text="Passwords match"
                         />
-
                       </div>
-
                     </div>
 
-                    {passwordMessage ===
-                    "success" ? (
-                      <SuccessMessage
-                        message="Your password has been updated successfully."
-                      />
+                    {passwordMessage === "success" ? (
+                      <SuccessMessage message="Your password has been updated successfully." />
                     ) : passwordMessage ? (
-                      <ErrorMessage
-                        message={
-                          passwordMessage
-                        }
-                      />
+                      <ErrorMessage message={passwordMessage} />
                     ) : null}
 
                     <button
                       type="button"
-                      onClick={
-                        handlePasswordUpdate
-                      }
-                      disabled={
-                        passwordUpdating
-                      }
-                      className="
-                        flex
-                        items-center
-                        justify-center
-                        gap-2
-                        px-5
-                        py-3
-                        rounded-xl
-                        bg-green-600
-                        hover:bg-green-700
-                        disabled:bg-green-300
-                        disabled:cursor-not-allowed
-                        text-white
-                        text-sm
-                        font-medium
-                        transition
-                      "
+                      onClick={handlePasswordUpdate}
+                      disabled={passwordUpdating}
+                      className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-green-600 hover:bg-green-700 disabled:bg-green-300 disabled:cursor-not-allowed text-white text-sm font-medium transition"
                     >
-
-                      <FiLock
-                        size={16}
-                      />
-
+                      <FiLock size={16} />
                       {passwordUpdating
                         ? "Updating Password..."
                         : "Update Password"}
-
                     </button>
-
                   </div>
-
                 </section>
               )}
 
-              {/* =================================================
-                  PROFILE VISIBILITY
-              ================================================= */}
-
-              {activeSection ===
-                "visibility" && (
+              {activeSection === "visibility" && (
                 <section>
-
                   <SettingsHeader
                     title="Profile Visibility"
                     description="Choose who can see your CampusMart profile."
@@ -1570,16 +1048,10 @@ function Settings({
                   />
 
                   <div className="mt-6 space-y-3">
-
                     <VisibilityCard
-                      active={
-                        profileVisibility ===
-                        "public"
-                      }
+                      active={profileVisibility === "public"}
                       onClick={() =>
-                        handleVisibilityChange(
-                          "public"
-                        )
+                        handleVisibilityChange("public")
                       }
                       title="Everyone"
                       description="Anyone on CampusMart can view your profile."
@@ -1587,14 +1059,9 @@ function Settings({
                     />
 
                     <VisibilityCard
-                      active={
-                        profileVisibility ===
-                        "campus"
-                      }
+                      active={profileVisibility === "campus"}
                       onClick={() =>
-                        handleVisibilityChange(
-                          "campus"
-                        )
+                        handleVisibilityChange("campus")
                       }
                       title="Campus Only"
                       description="Only students and users from your campus can view your profile."
@@ -1602,243 +1069,110 @@ function Settings({
                     />
 
                     <VisibilityCard
-                      active={
-                        profileVisibility ===
-                        "private"
-                      }
+                      active={profileVisibility === "private"}
                       onClick={() =>
-                        handleVisibilityChange(
-                          "private"
-                        )
+                        handleVisibilityChange("private")
                       }
                       title="Private"
                       description="Your profile will only be visible to you."
                       icon={FiLock}
                     />
-
                   </div>
 
-                  <div
-                    className="
-                      mt-5
-                      rounded-xl
-                      bg-green-50
-                      border
-                      border-green-100
-                      p-4
-                      flex
-                      gap-3
-                    "
-                  >
-
-                    <FiShield
-                      className="
-                        text-green-600
-                        mt-0.5
-                        shrink-0
-                      "
-                      size={18}
-                    />
-
-                    <p
-                      className="
-                        text-xs
-                        leading-5
-                        text-gray-600
-                      "
-                    >
-                      You can change your profile
-                      visibility at any time. Your
-                      account information remains
-                      protected.
+                  <div className="mt-5 rounded-xl bg-green-50 border border-green-100 p-4 flex gap-3">
+                    <FiShield className="text-green-600 mt-0.5 shrink-0" size={18} />
+                    <p className="text-xs leading-5 text-gray-600">
+                      You can change your profile visibility at any time.
+                      Your account information remains protected.
                     </p>
-
                   </div>
-
                 </section>
               )}
 
-              {/* =================================================
-                  HELP
-              ================================================= */}
-
-              {activeSection ===
-                "help" && (
+              {activeSection === "help" && (
                 <section>
-
                   <SettingsHeader
                     title="Help Center"
                     description="Need help using CampusMart? We're here for you."
                     icon={FiHelpCircle}
                   />
 
-                  <div
-                    className="
-                      mt-6
-                      grid
-                      grid-cols-1
-                      sm:grid-cols-2
-                      gap-4
-                    "
-                  >
-
+                  <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <SupportCard
-                      icon={
-                        FiMessageCircle
-                      }
+                      icon={FiMessageCircle}
                       title="Frequently Asked Questions"
                       description="Find answers to common CampusMart questions."
-                      onClick={() =>
-                        setActiveSection(
-                          "faq"
-                        )
-                      }
+                      onClick={() => setActiveSection("faq")}
                     />
 
                     <SupportCard
                       icon={FiMail}
                       title="Contact Support"
                       description="Send a message to the CampusMart support team."
-                      onClick={() =>
-                        setActiveSection(
-                          "contact"
-                        )
-                      }
+                      onClick={() => setActiveSection("contact")}
                     />
-
                   </div>
 
-                  <div
-                    className="
-                      mt-5
-                      rounded-2xl
-                      bg-green-50
-                      border
-                      border-green-100
-                      p-6
-                    "
-                  >
-
-                    <h3
-                      className="
-                        font-bold
-                        text-gray-800
-                      "
-                    >
+                  <div className="mt-5 rounded-2xl bg-green-50 border border-green-100 p-6">
+                    <h3 className="font-bold text-gray-800">
                       We're here to help.
                     </h3>
-
-                    <p
-                      className="
-                        mt-2
-                        text-sm
-                        text-gray-600
-                        leading-6
-                      "
-                    >
-                      If you're having trouble
-                      with an order, payment, account
-                      or seller, our support team can
-                      help you resolve the issue.
+                    <p className="mt-2 text-sm text-gray-600 leading-6">
+                      If you're having trouble with an order, payment,
+                      account or seller, our support team can help you
+                      resolve the issue.
                     </p>
-
                     <button
                       type="button"
-                      onClick={() =>
-                        setActiveSection(
-                          "contact"
-                        )
-                      }
-                      className="
-                        mt-5
-                        flex
-                        items-center
-                        gap-2
-                        px-5
-                        py-3
-                        rounded-xl
-                        bg-green-600
-                        hover:bg-green-700
-                        text-white
-                        text-sm
-                        font-medium
-                      "
+                      onClick={() => setActiveSection("contact")}
+                      className="mt-5 flex items-center gap-2 px-5 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm font-medium"
                     >
-
-                      <FiMail
-                        size={16}
-                      />
-
+                      <FiMail size={16} />
                       Contact Support
-
                     </button>
-
                   </div>
-
                 </section>
               )}
 
-              {/* =================================================
-                  FAQ
-              ================================================= */}
-
-              {activeSection ===
-                "faq" && (
+              {activeSection === "faq" && (
                 <section>
-
                   <SettingsHeader
                     title="Frequently Asked Questions"
                     description="Find answers to common CampusMart questions."
-                    icon={
-                      FiMessageCircle
-                    }
+                    icon={FiMessageCircle}
                   />
 
                   <div className="mt-6 space-y-3">
-
                     <FAQ
                       question="How do I place an order?"
                       answer="Browse products, open the product you want, add it to your cart and proceed to checkout."
                     />
-
                     <FAQ
                       question="How do I contact a seller?"
                       answer="Open the product you are interested in and use the messaging option to contact the seller."
                     />
-
                     <FAQ
                       question="How can I cancel an order?"
                       answer="Go to your Orders page, open the order and check whether cancellation is available for that order."
                     />
-
                     <FAQ
                       question="How do I change my profile information?"
                       answer="Open Settings, select Personal Information and update the information you want to change."
                     />
-
                     <FAQ
                       question="How do I change my password?"
                       answer="Open Settings, select Change Password and enter your current and new password."
                     />
-
                     <FAQ
                       question="Is CampusMart available on my campus?"
                       answer="CampusMart is designed to connect students and sellers within their campus community."
                     />
-
                   </div>
-
                 </section>
               )}
 
-              {/* =================================================
-                  CONTACT CAMPUSMART
-              ================================================= */}
-
-              {activeSection ===
-                "contact" && (
+              {activeSection === "contact" && (
                 <section>
-
                   <SettingsHeader
                     title="Contact CampusMart"
                     description="Have a question, complaint or suggestion? Send us a message."
@@ -1846,643 +1180,235 @@ function Settings({
                   />
 
                   {contactSent && (
-                    <SuccessMessage
-                      message="Your message has been sent to CampusMart support."
-                    />
+                    <SuccessMessage message="Your message has been sent to CampusMart support." />
                   )}
 
                   {contactError && (
-                    <div
-                      className="
-                        mt-5
-                        flex
-                        items-start
-                        gap-3
-                        rounded-xl
-                        border
-                        border-red-100
-                        bg-red-50
-                        p-4
-                      "
-                    >
-
-                      <FiAlertCircle
-                        className="
-                          text-red-500
-                          mt-0.5
-                          shrink-0
-                        "
-                        size={18}
-                      />
-
-                      <p
-                        className="
-                          text-sm
-                          text-red-600
-                        "
-                      >
+                    <div className="mt-5 flex items-start gap-3 rounded-xl border border-red-100 bg-red-50 p-4">
+                      <FiAlertCircle className="text-red-500 mt-0.5 shrink-0" size={18} />
+                      <p className="text-sm text-red-600">
                         {contactError}
                       </p>
-
                     </div>
                   )}
 
                   <div className="mt-6 max-w-2xl space-y-5">
-
                     <div>
-
-                      <label
-                        className="
-                          block
-                          text-sm
-                          font-medium
-                          text-gray-700
-                          mb-2
-                        "
-                      >
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
                         Subject
                       </label>
-
                       <input
                         type="text"
                         name="subject"
-                        value={
-                          contactForm.subject
-                        }
-                        onChange={
-                          handleContactChange
-                        }
-                        disabled={
-                          contactSending
-                        }
+                        value={contactForm.subject}
+                        onChange={handleContactChange}
+                        disabled={contactSending}
                         placeholder="What can we help you with?"
-                        className="
-                          w-full
-                          px-4
-                          py-3
-                          rounded-xl
-                          border
-                          border-gray-200
-                          bg-gray-50
-                          text-sm
-                          text-gray-800
-                          placeholder:text-gray-400
-                          outline-none
-                          focus:bg-white
-                          focus:border-green-500
-                          disabled:opacity-60
-                          transition
-                        "
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-800 placeholder:text-gray-400 outline-none focus:bg-white focus:border-green-500 disabled:opacity-60 transition"
                       />
-
                     </div>
 
                     <div>
-
-                      <label
-                        className="
-                          block
-                          text-sm
-                          font-medium
-                          text-gray-700
-                          mb-2
-                        "
-                      >
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
                         Message
                       </label>
-
                       <textarea
                         rows={6}
                         name="message"
-                        value={
-                          contactForm.message
-                        }
-                        onChange={
-                          handleContactChange
-                        }
-                        disabled={
-                          contactSending
-                        }
+                        value={contactForm.message}
+                        onChange={handleContactChange}
+                        disabled={contactSending}
                         placeholder="Write your message..."
-                        className="
-                          w-full
-                          px-4
-                          py-3
-                          rounded-xl
-                          border
-                          border-gray-200
-                          bg-gray-50
-                          text-sm
-                          text-gray-800
-                          placeholder:text-gray-400
-                          outline-none
-                          resize-none
-                          focus:bg-white
-                          focus:border-green-500
-                          disabled:opacity-60
-                          transition
-                        "
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-800 placeholder:text-gray-400 outline-none resize-none focus:bg-white focus:border-green-500 disabled:opacity-60 transition"
                       />
-
                     </div>
 
-                    <div
-                      className="
-                        flex
-                        justify-end
-                        pt-2
-                      "
-                    >
-
+                    <div className="flex justify-end pt-2">
                       <button
                         type="button"
-                        onClick={
-                          handleContactSubmit
-                        }
-                        disabled={
-                          contactSending
-                        }
-                        className="
-                          flex
-                          items-center
-                          justify-center
-                          gap-2
-                          px-5
-                          py-3
-                          rounded-xl
-                          bg-green-600
-                          hover:bg-green-700
-                          disabled:bg-green-300
-                          disabled:cursor-not-allowed
-                          text-white
-                          text-sm
-                          font-medium
-                          transition
-                        "
+                        onClick={handleContactSubmit}
+                        disabled={contactSending}
+                        className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-green-600 hover:bg-green-700 disabled:bg-green-300 disabled:cursor-not-allowed text-white text-sm font-medium transition"
                       >
-
-                        <FiSend
-                          size={16}
-                        />
-
-                        {contactSending
-                          ? "Sending..."
-                          : "Send Message"}
-
+                        <FiSend size={16} />
+                        {contactSending ? "Sending..." : "Send Message"}
                       </button>
-
                     </div>
-
                   </div>
-
                 </section>
               )}
 
-              {/* =================================================
-                  TERMS & CONDITIONS
-              ================================================= */}
-
-              {activeSection ===
-                "terms" && (
+              {activeSection === "terms" && (
                 <section>
-
                   <SettingsHeader
                     title="Terms & Conditions"
                     description="Please read the rules that apply when using CampusMart."
                     icon={FiFileText}
                   />
 
-                  <div
-                    className="
-                      mt-6
-                      space-y-6
-                      text-sm
-                      leading-7
-                      text-gray-600
-                    "
-                  >
-
-                    <LegalSection
-                      number="1"
-                      title="Acceptance of Terms"
-                    >
-                      By creating an account or using
-                      CampusMart, you agree to comply
-                      with these Terms & Conditions.
-                      If you do not agree with these
-                      terms, please do not use the
-                      platform.
+                  <div className="mt-6 space-y-6 text-sm leading-7 text-gray-600">
+                    <LegalSection number="1" title="Acceptance of Terms">
+                      By creating an account or using CampusMart, you agree
+                      to comply with these Terms & Conditions. If you do not
+                      agree with these terms, please do not use the platform.
                     </LegalSection>
 
-                    <LegalSection
-                      number="2"
-                      title="Using CampusMart"
-                    >
-                      CampusMart is a marketplace
-                      designed to help students and
-                      members of campus communities
-                      buy and sell products. You agree
-                      to use the platform responsibly
-                      and only for lawful purposes.
+                    <LegalSection number="2" title="Using CampusMart">
+                      CampusMart is a marketplace designed to help students
+                      and members of campus communities buy and sell products.
+                      You agree to use the platform responsibly and only for
+                      lawful purposes.
                     </LegalSection>
 
-                    <LegalSection
-                      number="3"
-                      title="Accounts"
-                    >
-                      You are responsible for providing
-                      accurate information when creating
-                      your account and for keeping your
-                      account credentials secure. You
-                      should not share your password with
-                      other people.
+                    <LegalSection number="3" title="Accounts">
+                      You are responsible for providing accurate information
+                      when creating your account and for keeping your account
+                      credentials secure. You should not share your password
+                      with other people.
                     </LegalSection>
 
-                    <LegalSection
-                      number="4"
-                      title="Buying and Selling"
-                    >
-                      Buyers and sellers are responsible
-                      for the information they provide
-                      about products, prices, availability
-                      and transactions. CampusMart does
-                      not permit fraudulent, illegal,
-                      dangerous or prohibited items.
+                    <LegalSection number="4" title="Buying and Selling">
+                      Buyers and sellers are responsible for the information
+                      they provide about products, prices, availability and
+                      transactions. CampusMart does not permit fraudulent,
+                      illegal, dangerous or prohibited items.
                     </LegalSection>
 
-                    <LegalSection
-                      number="5"
-                      title="Seller Responsibility"
-                    >
-                      Sellers must provide honest and
-                      accurate descriptions of their
-                      products. Sellers are responsible
-                      for fulfilling legitimate orders
-                      and communicating appropriately
-                      with buyers.
+                    <LegalSection number="5" title="Seller Responsibility">
+                      Sellers must provide honest and accurate descriptions of
+                      their products. Sellers are responsible for fulfilling
+                      legitimate orders and communicating appropriately with
+                      buyers.
                     </LegalSection>
 
-                    <LegalSection
-                      number="6"
-                      title="Buyer Responsibility"
-                    >
-                      Buyers should review product
-                      information carefully before making
-                      a purchase. Buyers are responsible
-                      for communicating with sellers and
-                      following CampusMart's applicable
-                      ordering and payment procedures.
+                    <LegalSection number="6" title="Buyer Responsibility">
+                      Buyers should review product information carefully before
+                      making a purchase. Buyers are responsible for communicating
+                      with sellers and following CampusMart's applicable ordering
+                      and payment procedures.
                     </LegalSection>
 
-                    <LegalSection
-                      number="7"
-                      title="Prohibited Activities"
-                    >
-                      Users must not use CampusMart for
-                      scams, impersonation, harassment,
-                      abuse, unauthorized access, spam,
-                      illegal transactions or activities
-                      that could harm other users or the
-                      platform.
+                    <LegalSection number="7" title="Prohibited Activities">
+                      Users must not use CampusMart for scams, impersonation,
+                      harassment, abuse, unauthorized access, spam, illegal
+                      transactions or activities that could harm other users or
+                      the platform.
                     </LegalSection>
 
-                    <LegalSection
-                      number="8"
-                      title="Content"
-                    >
-                      You are responsible for the content
-                      you post, including product
-                      descriptions, images and messages.
-                      Content must not violate applicable
-                      laws or the rights of other people.
+                    <LegalSection number="8" title="Content">
+                      You are responsible for the content you post, including
+                      product descriptions, images and messages. Content must
+                      not violate applicable laws or the rights of other people.
                     </LegalSection>
 
-                    <LegalSection
-                      number="9"
-                      title="Account Suspension"
-                    >
-                      CampusMart may restrict, suspend or
-                      terminate an account where there is
-                      a violation of these terms, misuse
-                      of the platform, fraudulent activity
-                      or conduct that creates a risk to
-                      other users.
+                    <LegalSection number="9" title="Account Suspension">
+                      CampusMart may restrict, suspend or terminate an account
+                      where there is a violation of these terms, misuse of the
+                      platform, fraudulent activity or conduct that creates a
+                      risk to other users.
                     </LegalSection>
 
-                    <LegalSection
-                      number="10"
-                      title="Changes to These Terms"
-                    >
-                      We may update these Terms &
-                      Conditions from time to time.
-                      Continued use of CampusMart after
-                      an update means that you accept the
-                      updated terms.
+                    <LegalSection number="10" title="Changes to These Terms">
+                      We may update these Terms & Conditions from time to time.
+                      Continued use of CampusMart after an update means that you
+                      accept the updated terms.
                     </LegalSection>
 
-                    <div
-                      className="
-                        rounded-2xl
-                        border
-                        border-green-100
-                        bg-green-50
-                        p-5
-                      "
-                    >
-                      <div className="flex items-start gap-3">
-
-                        <FiShield
-                          className="
-                            text-green-600
-                            mt-1
-                            shrink-0
-                          "
-                          size={18}
-                        />
-
-                        <div>
-
-                          <h3
-                            className="
-                              font-bold
-                              text-gray-800
-                            "
-                          >
-                            Questions about our terms?
-                          </h3>
-
-                          <p
-                            className="
-                              mt-1
-                              text-sm
-                              leading-6
-                              text-gray-600
-                            "
-                          >
-                            If you have questions about
-                            these Terms & Conditions,
-                            please contact the CampusMart
-                            support team.
-                          </p>
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setActiveSection(
-                                "contact"
-                              )
-                            }
-                            className="
-                              mt-4
-                              inline-flex
-                              items-center
-                              gap-2
-                              text-sm
-                              font-semibold
-                              text-green-600
-                              hover:text-green-700
-                            "
-                          >
-                            Contact CampusMart
-                            <FiChevronRight
-                              size={15}
-                            />
-                          </button>
-
-                        </div>
-
-                      </div>
-                    </div>
-
+                    <LegalContactBox
+                      title="Questions about our terms?"
+                      description="If you have questions about these Terms & Conditions, please contact the CampusMart support team."
+                      onClick={() => setActiveSection("contact")}
+                    />
                   </div>
-
                 </section>
               )}
 
-              {/* =================================================
-                  PRIVACY POLICY
-              ================================================= */}
-
-              {activeSection ===
-                "privacy" && (
+              {activeSection === "privacy" && (
                 <section>
-
                   <SettingsHeader
                     title="Privacy Policy"
                     description="Learn how CampusMart handles your information."
                     icon={FiBookOpen}
                   />
 
-                  <div
-                    className="
-                      mt-6
-                      space-y-6
-                      text-sm
-                      leading-7
-                      text-gray-600
-                    "
-                  >
-
-                    <LegalSection
-                      number="1"
-                      title="Information We Collect"
-                    >
-                      When you create and use a CampusMart
-                      account, we may collect information
-                      such as your name, email address,
-                      phone number, campus information,
-                      account details and information you
-                      provide while using the platform.
+                  <div className="mt-6 space-y-6 text-sm leading-7 text-gray-600">
+                    <LegalSection number="1" title="Information We Collect">
+                      When you create and use a CampusMart account, we may
+                      collect information such as your name, email address,
+                      phone number, campus information, account details and
+                      information you provide while using the platform.
                     </LegalSection>
 
-                    <LegalSection
-                      number="2"
-                      title="How We Use Your Information"
-                    >
-                      Your information may be used to
-                      create and manage your account,
-                      provide marketplace functionality,
-                      process orders, facilitate
-                      communication between users, provide
+                    <LegalSection number="2" title="How We Use Your Information">
+                      Your information may be used to create and manage your
+                      account, provide marketplace functionality, process
+                      orders, facilitate communication between users, provide
                       support and improve CampusMart.
                     </LegalSection>
 
-                    <LegalSection
-                      number="3"
-                      title="Account Information"
-                    >
-                      Your account information is associated
-                      with your CampusMart account. Some
-                      information may be displayed to other
-                      users depending on your profile
-                      visibility settings and the features
-                      you use.
+                    <LegalSection number="3" title="Account Information">
+                      Your account information is associated with your CampusMart
+                      account. Some information may be displayed to other users
+                      depending on your profile visibility settings and the
+                      features you use.
                     </LegalSection>
 
-                    <LegalSection
-                      number="4"
-                      title="Messages and Communications"
-                    >
-                      Messages sent through CampusMart may
-                      be stored so that the messaging
-                      features can operate and so that we
-                      can address support, safety or
-                      platform-related issues where
-                      appropriate.
+                    <LegalSection number="4" title="Messages and Communications">
+                      Messages sent through CampusMart may be stored so that the
+                      messaging features can operate and so that we can address
+                      support, safety or platform-related issues where appropriate.
                     </LegalSection>
 
-                    <LegalSection
-                      number="5"
-                      title="Firebase and Service Providers"
-                    >
-                      CampusMart uses third-party services
-                      such as Firebase to provide
-                      authentication, database and other
-                      technical services. Information
-                      required for these services may be
-                      processed by those providers according
-                      to their applicable policies.
+                    <LegalSection number="5" title="Firebase and Service Providers">
+                      CampusMart uses third-party services such as Firebase to
+                      provide authentication, database and other technical
+                      services. Information required for these services may be
+                      processed by those providers according to their applicable
+                      policies.
                     </LegalSection>
 
-                    <LegalSection
-                      number="6"
-                      title="Security"
-                    >
-                      We take reasonable steps to protect
-                      information associated with your
-                      CampusMart account. However, no
-                      internet service can guarantee
-                      absolute security.
+                    <LegalSection number="6" title="Security">
+                      We take reasonable steps to protect information associated
+                      with your CampusMart account. However, no internet service
+                      can guarantee absolute security.
                     </LegalSection>
 
-                    <LegalSection
-                      number="7"
-                      title="Your Choices"
-                    >
-                      You can update certain account
-                      information through Settings. You
-                      can also manage your profile
-                      visibility using the privacy controls
-                      provided by CampusMart.
+                    <LegalSection number="7" title="Your Choices">
+                      You can update certain account information through Settings.
+                      You can also manage your profile visibility using the privacy
+                      controls provided by CampusMart.
                     </LegalSection>
 
-                    <LegalSection
-                      number="8"
-                      title="Data Retention"
-                    >
-                      We may retain information for as long
-                      as reasonably necessary to provide
-                      CampusMart services, maintain security,
-                      resolve disputes, comply with
-                      applicable requirements and improve
+                    <LegalSection number="8" title="Data Retention">
+                      We may retain information for as long as reasonably necessary
+                      to provide CampusMart services, maintain security, resolve
+                      disputes, comply with applicable requirements and improve
                       the platform.
                     </LegalSection>
 
-                    <LegalSection
-                      number="9"
-                      title="Children and Minors"
-                    >
-                      CampusMart is intended for users who
-                      are legally permitted to use online
-                      marketplace services. If you are not
-                      legally permitted to use the service
-                      in your location, you should not create
-                      an account.
+                    <LegalSection number="9" title="Children and Minors">
+                      CampusMart is intended for users who are legally permitted to
+                      use online marketplace services. If you are not legally
+                      permitted to use the service in your location, you should not
+                      create an account.
                     </LegalSection>
 
-                    <LegalSection
-                      number="10"
-                      title="Changes to This Privacy Policy"
-                    >
-                      We may update this Privacy Policy as
-                      CampusMart develops. When changes are
-                      made, the updated version will be made
+                    <LegalSection number="10" title="Changes to This Privacy Policy">
+                      We may update this Privacy Policy as CampusMart develops.
+                      When changes are made, the updated version will be made
                       available through the platform.
                     </LegalSection>
 
-                    <div
-                      className="
-                        rounded-2xl
-                        border
-                        border-green-100
-                        bg-green-50
-                        p-5
-                      "
-                    >
-                      <div className="flex items-start gap-3">
-
-                        <FiShield
-                          className="
-                            text-green-600
-                            mt-1
-                            shrink-0
-                          "
-                          size={18}
-                        />
-
-                        <div>
-
-                          <h3
-                            className="
-                              font-bold
-                              text-gray-800
-                            "
-                          >
-                            Your privacy matters
-                          </h3>
-
-                          <p
-                            className="
-                              mt-1
-                              text-sm
-                              leading-6
-                              text-gray-600
-                            "
-                          >
-                            If you have questions about
-                            how your information is handled,
-                            you can contact the CampusMart
-                            support team.
-                          </p>
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setActiveSection(
-                                "contact"
-                              )
-                            }
-                            className="
-                              mt-4
-                              inline-flex
-                              items-center
-                              gap-2
-                              text-sm
-                              font-semibold
-                              text-green-600
-                              hover:text-green-700
-                            "
-                          >
-                            Contact CampusMart
-                            <FiChevronRight
-                              size={15}
-                            />
-                          </button>
-
-                        </div>
-
-                      </div>
-                    </div>
-
+                    <LegalContactBox
+                      title="Your privacy matters"
+                      description="If you have questions about how your information is handled, you can contact the CampusMart support team."
+                      onClick={() => setActiveSection("contact")}
+                    />
                   </div>
-
                 </section>
               )}
-
             </div>
-
           </div>
-
         </div>
       </div>
     </CustomerLayout>
@@ -2493,67 +1419,21 @@ function Settings({
    SETTINGS HEADER
 ========================================================= */
 
-const SettingsHeader = ({
-  title,
-  description,
-  icon: Icon,
-}) => {
-  return (
-    <div
-      className="
-        flex
-        items-start
-        gap-4
-        pb-5
-        border-b
-        border-gray-100
-      "
-    >
-
-      <div
-        className="
-          w-11
-          h-11
-          rounded-xl
-          bg-green-50
-          text-green-600
-          flex
-          items-center
-          justify-center
-          shrink-0
-        "
-      >
-        <Icon size={20} />
-      </div>
-
-      <div>
-
-        <h2
-          className="
-            text-xl
-            sm:text-2xl
-            font-bold
-            text-gray-800
-          "
-        >
-          {title}
-        </h2>
-
-        <p
-          className="
-            mt-1
-            text-sm
-            text-gray-500
-          "
-        >
-          {description}
-        </p>
-
-      </div>
-
+const SettingsHeader = ({ title, description, icon: Icon }) => (
+  <div className="flex items-start gap-4 pb-5 border-b border-gray-100">
+    <div className="w-11 h-11 rounded-xl bg-green-50 text-green-600 flex items-center justify-center shrink-0">
+      <Icon size={20} />
     </div>
-  );
-};
+    <div>
+      <h2 className="text-xl sm:text-2xl font-bold text-gray-800">
+        {title}
+      </h2>
+      <p className="mt-1 text-sm text-gray-500">
+        {description}
+      </p>
+    </div>
+  </div>
+);
 
 /* =========================================================
    SETTINGS INPUT
@@ -2566,64 +1446,26 @@ const SettingsInput = ({
   value,
   onChange,
   icon: Icon,
-}) => {
-  return (
-    <div>
-
-      <label
-        className="
-          block
-          text-sm
-          font-medium
-          text-gray-700
-          mb-2
-        "
-      >
-        {label}
-      </label>
-
-      <div className="relative">
-
-        <Icon
-          className="
-            absolute
-            left-3
-            top-1/2
-            -translate-y-1/2
-            text-gray-400
-          "
-          size={17}
-        />
-
-        <input
-          type={type}
-          name={name}
-          value={value}
-          onChange={onChange}
-          className="
-            w-full
-            pl-10
-            pr-4
-            py-3
-            rounded-xl
-            border
-            border-gray-200
-            bg-gray-50
-            text-sm
-            text-gray-700
-            outline-none
-            placeholder:text-gray-400
-            focus:bg-white
-            focus:border-green-500
-            transition
-          "
-        />
-
-      </div>
-
+}) => (
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-2">
+      {label}
+    </label>
+    <div className="relative">
+      <Icon
+        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+        size={17}
+      />
+      <input
+        type={type}
+        name={name}
+        value={value}
+        onChange={onChange}
+        className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-700 outline-none placeholder:text-gray-400 focus:bg-white focus:border-green-500 transition"
+      />
     </div>
-  );
-};
+  </div>
+);
 
 /* =========================================================
    PASSWORD FIELD
@@ -2636,94 +1478,34 @@ const PasswordField = ({
   onChange,
   placeholder,
 }) => {
-  const [show, setShow] =
-    useState(false);
+  const [show, setShow] = useState(false);
 
   return (
     <div>
-
-      <label
-        className="
-          mb-2
-          block
-          text-sm
-          font-medium
-          text-gray-700
-        "
-      >
+      <label className="mb-2 block text-sm font-medium text-gray-700">
         {label}
       </label>
 
       <div className="relative">
-
         <input
-          type={
-            show
-              ? "text"
-              : "password"
-          }
+          type={show ? "text" : "password"}
           name={name}
           value={value}
           onChange={onChange}
           placeholder={placeholder}
-          className="
-            w-full
-            rounded-xl
-            border
-            border-gray-200
-            bg-gray-50
-            px-4
-            py-3
-            pr-12
-            text-sm
-            text-gray-800
-            placeholder:text-gray-400
-            outline-none
-            focus:border-green-500
-            transition
-          "
+          className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 pr-12 text-sm text-gray-800 placeholder:text-gray-400 outline-none focus:border-green-500 transition"
         />
 
         <button
           type="button"
-          onClick={() =>
-            setShow(
-              (current) => !current
-            )
-          }
-          className="
-            absolute
-            right-3
-            top-1/2
-            -translate-y-1/2
-            text-gray-400
-            hover:text-green-600
-            transition
-          "
-          aria-label={
-            show
-              ? "Hide password"
-              : "Show password"
-          }
-          title={
-            show
-              ? "Hide password"
-              : "Show password"
-          }
+          onClick={() => setShow((current) => !current)}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-green-600 transition"
+          aria-label={show ? "Hide password" : "Show password"}
+          title={show ? "Hide password" : "Show password"}
         >
-          {show ? (
-            <FiEye
-              size={18}
-            />
-          ) : (
-            <FiEyeOff
-              size={18}
-            />
-          )}
+          {show ? <FiEye size={18} /> : <FiEyeOff size={18} />}
         </button>
-
       </div>
-
     </div>
   );
 };
@@ -2732,58 +1514,23 @@ const PasswordField = ({
    PASSWORD REQUIREMENT
 ========================================================= */
 
-const PasswordRequirement = ({
-  checked,
-  text,
-}) => {
-  return (
-    <div
-      className="
-        flex
-        items-center
-        gap-2
-        text-xs
-      "
+const PasswordRequirement = ({ checked, text }) => (
+  <div className="flex items-center gap-2 text-xs">
+    <span
+      className={`w-5 h-5 rounded-full flex items-center justify-center ${
+        checked
+          ? "bg-green-100 text-green-600"
+          : "bg-gray-200 text-gray-400"
+      }`}
     >
+      <FiCheck size={12} />
+    </span>
 
-      <span
-        className={`
-          w-5
-          h-5
-          rounded-full
-          flex
-          items-center
-          justify-center
-
-          ${
-            checked
-              ? `
-                bg-green-100
-                text-green-600
-              `
-              : `
-                bg-gray-200
-                text-gray-400
-              `
-          }
-        `}
-      >
-        <FiCheck size={12} />
-      </span>
-
-      <span
-        className={
-          checked
-            ? "text-green-600"
-            : "text-gray-500"
-        }
-      >
-        {text}
-      </span>
-
-    </div>
-  );
-};
+    <span className={checked ? "text-green-600" : "text-gray-500"}>
+      {text}
+    </span>
+  </div>
+);
 
 /* =========================================================
    VISIBILITY CARD
@@ -2795,123 +1542,48 @@ const VisibilityCard = ({
   title,
   description,
   icon: Icon,
-}) => {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`
-        w-full
-        flex
-        items-center
-        justify-between
-        gap-4
-        p-4
-        rounded-2xl
-        border
-        text-left
-        transition
-
-        ${
-          active
-            ? `
-              border-green-500
-              bg-green-50
-            `
-            : `
-              border-gray-100
-              bg-white
-              hover:border-gray-200
-              hover:bg-gray-50
-            `
-        }
-      `}
-    >
-
-      <div className="flex items-center gap-4">
-
-        <div
-          className={`
-            w-11
-            h-11
-            rounded-xl
-            flex
-            items-center
-            justify-center
-            shrink-0
-
-            ${
-              active
-                ? `
-                  bg-white
-                  text-green-600
-                `
-                : `
-                  bg-gray-50
-                  text-gray-400
-                `
-            }
-          `}
-        >
-          <Icon size={19} />
-        </div>
-
-        <div>
-
-          <h3
-            className="
-              text-sm
-              font-semibold
-              text-gray-800
-            "
-          >
-            {title}
-          </h3>
-
-          <p
-            className="
-              mt-1
-              text-xs
-              leading-5
-              text-gray-500
-            "
-          >
-            {description}
-          </p>
-
-        </div>
-
-      </div>
-
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`w-full flex items-center justify-between gap-4 p-4 rounded-2xl border text-left transition ${
+      active
+        ? "border-green-500 bg-green-50"
+        : "border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50"
+    }`}
+  >
+    <div className="flex items-center gap-4">
       <div
-        className={`
-          w-5
-          h-5
-          rounded-full
-          border
-          flex
-          items-center
-          justify-center
-          shrink-0
-
-          ${
-            active
-              ? "border-green-600 bg-green-600"
-              : "border-gray-300"
-          }
-        `}
+        className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
+          active
+            ? "bg-white text-green-600"
+            : "bg-gray-50 text-gray-400"
+        }`}
       >
-        {active && (
-          <FiCheck
-            className="text-white"
-            size={12}
-          />
-        )}
+        <Icon size={19} />
       </div>
 
-    </button>
-  );
-};
+      <div>
+        <h3 className="text-sm font-semibold text-gray-800">
+          {title}
+        </h3>
+        <p className="mt-1 text-xs leading-5 text-gray-500">
+          {description}
+        </p>
+      </div>
+    </div>
+
+    <div
+      className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${
+        active
+          ? "border-green-600 bg-green-600"
+          : "border-gray-300"
+      }`}
+    >
+      {active && <FiCheck className="text-white" size={12} />}
+    </div>
+  </button>
+);
 
 /* =========================================================
    SUPPORT CARD
@@ -2922,307 +1594,135 @@ const SupportCard = ({
   title,
   description,
   onClick,
-}) => {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="
-        p-5
-        rounded-2xl
-        border
-        border-gray-100
-        bg-white
-        text-left
-        hover:border-green-200
-        hover:bg-green-50
-        transition
-      "
-    >
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className="p-5 rounded-2xl border border-gray-100 bg-white text-left hover:border-green-200 hover:bg-green-50 transition"
+  >
+    <div className="w-11 h-11 rounded-xl bg-green-50 text-green-600 flex items-center justify-center">
+      <Icon size={20} />
+    </div>
 
-      <div
-        className="
-          w-11
-          h-11
-          rounded-xl
-          bg-green-50
-          text-green-600
-          flex
-          items-center
-          justify-center
-        "
-      >
-        <Icon size={20} />
-      </div>
+    <h3 className="mt-4 text-sm font-bold text-gray-800">
+      {title}
+    </h3>
 
-      <h3
-        className="
-          mt-4
-          text-sm
-          font-bold
-          text-gray-800
-        "
-      >
-        {title}
-      </h3>
+    <p className="mt-1 text-xs leading-5 text-gray-500">
+      {description}
+    </p>
 
-      <p
-        className="
-          mt-1
-          text-xs
-          leading-5
-          text-gray-500
-        "
-      >
-        {description}
-      </p>
-
-      <div
-        className="
-          mt-4
-          flex
-          items-center
-          gap-1
-          text-xs
-          font-semibold
-          text-green-600
-        "
-      >
-        Open
-
-        <FiChevronRight
-          size={14}
-        />
-      </div>
-
-    </button>
-  );
-};
+    <div className="mt-4 flex items-center gap-1 text-xs font-semibold text-green-600">
+      Open
+      <FiChevronRight size={14} />
+    </div>
+  </button>
+);
 
 /* =========================================================
    FAQ
 ========================================================= */
 
-const FAQ = ({
-  question,
-  answer,
-}) => {
-  return (
-    <details
-      className="
-        group
-        rounded-2xl
-        border
-        border-gray-100
-        bg-white
-        overflow-hidden
-      "
-    >
+const FAQ = ({ question, answer }) => (
+  <details className="group rounded-2xl border border-gray-100 bg-white overflow-hidden">
+    <summary className="flex items-center justify-between gap-4 cursor-pointer list-none p-5 text-sm font-semibold text-gray-800">
+      <span>{question}</span>
+      <FiChevronRight
+        size={18}
+        className="text-gray-400 transition group-open:rotate-90 shrink-0"
+      />
+    </summary>
 
-      <summary
-        className="
-          flex
-          items-center
-          justify-between
-          gap-4
-          cursor-pointer
-          list-none
-          p-5
-          text-sm
-          font-semibold
-          text-gray-800
-        "
-      >
-
-        <span>
-          {question}
-        </span>
-
-        <FiChevronRight
-          size={18}
-          className="
-            text-gray-400
-            transition
-            group-open:rotate-90
-            shrink-0
-          "
-        />
-
-      </summary>
-
-      <div
-        className="
-          px-5
-          pb-5
-          text-sm
-          leading-6
-          text-gray-500
-        "
-      >
-        {answer}
-      </div>
-
-    </details>
-  );
-};
+    <div className="px-5 pb-5 text-sm leading-6 text-gray-500">
+      {answer}
+    </div>
+  </details>
+);
 
 /* =========================================================
    LEGAL SECTION
 ========================================================= */
 
-const LegalSection = ({
-  number,
-  title,
-  children,
-}) => {
-  return (
-    <div>
-
-      <div className="flex items-start gap-3">
-
-        <div
-          className="
-            w-8
-            h-8
-            rounded-lg
-            bg-green-50
-            text-green-600
-            flex
-            items-center
-            justify-center
-            shrink-0
-            text-xs
-            font-bold
-          "
-        >
-          {number}
-        </div>
-
-        <div>
-
-          <h3
-            className="
-              text-base
-              font-bold
-              text-gray-800
-            "
-          >
-            {title}
-          </h3>
-
-          <p
-            className="
-              mt-2
-              text-sm
-              leading-7
-              text-gray-600
-            "
-          >
-            {children}
-          </p>
-
-        </div>
-
+const LegalSection = ({ number, title, children }) => (
+  <div>
+    <div className="flex items-start gap-3">
+      <div className="w-8 h-8 rounded-lg bg-green-50 text-green-600 flex items-center justify-center shrink-0 text-xs font-bold">
+        {number}
       </div>
 
+      <div>
+        <h3 className="text-base font-bold text-gray-800">
+          {title}
+        </h3>
+
+        <p className="mt-2 text-sm leading-7 text-gray-600">
+          {children}
+        </p>
+      </div>
     </div>
-  );
-};
+  </div>
+);
+
+/* =========================================================
+   LEGAL CONTACT BOX
+========================================================= */
+
+const LegalContactBox = ({
+  title,
+  description,
+  onClick,
+}) => (
+  <div className="rounded-2xl border border-green-100 bg-green-50 p-5">
+    <div className="flex items-start gap-3">
+      <FiShield className="text-green-600 mt-1 shrink-0" size={18} />
+
+      <div>
+        <h3 className="font-bold text-gray-800">{title}</h3>
+
+        <p className="mt-1 text-sm leading-6 text-gray-600">
+          {description}
+        </p>
+
+        <button
+          type="button"
+          onClick={onClick}
+          className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-green-600 hover:text-green-700"
+        >
+          Contact CampusMart
+          <FiChevronRight size={15} />
+        </button>
+      </div>
+    </div>
+  </div>
+);
 
 /* =========================================================
    SUCCESS MESSAGE
 ========================================================= */
 
-const SuccessMessage = ({
-  message,
-}) => {
-  return (
-    <div
-      className="
-        mt-5
-        flex
-        items-start
-        gap-3
-        rounded-xl
-        border
-        border-green-100
-        bg-green-50
-        p-4
-      "
-    >
-
-      <div
-        className="
-          w-7
-          h-7
-          rounded-full
-          bg-green-100
-          text-green-600
-          flex
-          items-center
-          justify-center
-          shrink-0
-        "
-      >
-        <FiCheck
-          size={15}
-        />
-      </div>
-
-      <p
-        className="
-          text-sm
-          text-green-700
-        "
-      >
-        {message}
-      </p>
-
+const SuccessMessage = ({ message }) => (
+  <div className="mt-5 flex items-start gap-3 rounded-xl border border-green-100 bg-green-50 p-4">
+    <div className="w-7 h-7 rounded-full bg-green-100 text-green-600 flex items-center justify-center shrink-0">
+      <FiCheck size={15} />
     </div>
-  );
-};
+
+    <p className="text-sm text-green-700">{message}</p>
+  </div>
+);
 
 /* =========================================================
    ERROR MESSAGE
 ========================================================= */
 
-const ErrorMessage = ({
-  message,
-}) => {
-  return (
-    <div
-      className="
-        flex
-        items-start
-        gap-3
-        rounded-xl
-        border
-        border-red-100
-        bg-red-50
-        p-4
-      "
-    >
+const ErrorMessage = ({ message }) => (
+  <div className="flex items-start gap-3 rounded-xl border border-red-100 bg-red-50 p-4">
+    <FiAlertCircle
+      className="text-red-500 mt-0.5 shrink-0"
+      size={18}
+    />
 
-      <FiAlertCircle
-        className="
-          text-red-500
-          mt-0.5
-          shrink-0
-        "
-        size={18}
-      />
-
-      <p
-        className="
-          text-sm
-          text-red-600
-        "
-      >
-        {message}
-      </p>
-
-    </div>
-  );
-};
+    <p className="text-sm text-red-600">{message}</p>
+  </div>
+);
 
 export default Settings;
