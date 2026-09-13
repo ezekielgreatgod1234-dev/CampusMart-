@@ -758,20 +758,16 @@ function Settings({
                   <button
                     type="button"
                     onClick={handleInstallApp}
-                    disabled={isInstalled || !installPrompt || installing}
+                    disabled={isInstalled || installing}
                     className={`w-full flex items-center justify-between gap-3 px-3 py-3 rounded-xl text-left transition ${
                       isInstalled
                         ? "bg-green-50 text-green-600"
-                        : installPrompt
-                        ? "text-gray-600 hover:bg-gray-50 hover:text-green-600"
-                        : "text-gray-400 cursor-not-allowed"
+                        : "text-gray-600 hover:bg-gray-50 hover:text-green-600"
                     }`}
                     title={
                       isInstalled
                         ? "CampusMart is already installed"
-                        : installPrompt
-                        ? "Install CampusMart"
-                        : "Install option is not currently available"
+                        : "Install CampusMart"
                     }
                   >
                     <div className="flex items-center gap-3">
@@ -812,7 +808,7 @@ function Settings({
                       </div>
                     </div>
 
-                    {!isInstalled && installPrompt && (
+                    {!isInstalled && (
                       <FiChevronRight size={16} />
                     )}
                   </button>

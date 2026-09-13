@@ -76,7 +76,7 @@ const InstallHelpModal = ({ open, onClose }) => {
               </InstallStep>
 
               <InstallStep number="2" icon={FiPlusSquare}>
-                Select <span className="font-semibold text-gray-800">"Install app"</span> or <span className="font-semibold text-gray-800">"Add to Home screen"</span>.
+                Select the desktop screen and then tap <span className="font-semibold text-gray-800">"Install app"</span> or <span className="font-semibold text-gray-800">"Add to Home screen"</span>.
               </InstallStep>
 
               <InstallStep number="3" icon={FiDownload}>
@@ -109,7 +109,7 @@ const InstallHelpModal = ({ open, onClose }) => {
           <div className="rounded-2xl border border-green-100 bg-green-50 p-4">
             <p className="text-xs leading-5 text-green-700">
               Once installed, CampusMart opens in its own window without browser
-              tabs or address bars — just like a native app.
+              tabs or address bars just like a native app.
             </p>
           </div>
         </div>
