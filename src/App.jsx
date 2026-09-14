@@ -133,28 +133,34 @@ function InstalledAppSplash() {
       aria-label="Loading CampusMart"
     >
       <div className="flex flex-col items-center justify-center px-6 text-center">
-        <div className="relative flex h-28 w-28 items-center justify-center rounded-[30px] bg-[#008236] shadow-[0_16px_45px_rgba(0,130,54,0.24)] overflow-hidden">
+        {/* Smaller logo – matches header CM style */}
+        <div className="relative flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-2xl bg-[#008236] shadow-[0_10px_28px_rgba(0,130,54,0.22)] overflow-hidden">
           <img
             src="/pwa-512x512.png"
             alt="CampusMart"
-            className="h-full w-full rounded-[30px] object-cover"
+            className="h-full w-full rounded-2xl object-cover"
             onError={(event) => {
               event.currentTarget.style.display = "none";
               const fallback = event.currentTarget.nextElementSibling;
               if (fallback) fallback.style.display = "flex";
             }}
           />
-          <div className="absolute inset-0 hidden items-center justify-center rounded-[30px] text-4xl font-black text-white" aria-hidden="true">
+          {/* Fallback CM – same bold style as header logo */}
+          <div
+            className="absolute inset-0 hidden items-center justify-center rounded-2xl text-white font-black tracking-tight"
+            style={{ fontSize: "1.65rem", letterSpacing: "-0.04em" }}
+            aria-hidden="true"
+          >
             CM
           </div>
         </div>
 
-        <h1 className="mt-6 text-2xl font-extrabold tracking-tight text-gray-900">
+        <h1 className="mt-5 text-xl sm:text-2xl font-extrabold tracking-tight text-gray-900">
           Campus<span className="text-[#008236]">Mart 2.0</span>
         </h1>
         <p className="mt-1 text-sm text-gray-500">Your Campus Marketplace</p>
 
-        <div className="mt-7 h-1.5 w-24 overflow-hidden rounded-full bg-green-100">
+        <div className="mt-6 h-1.5 w-20 overflow-hidden rounded-full bg-green-100">
           <div className="h-full w-1/2 animate-pulse rounded-full bg-[#008236]" />
         </div>
       </div>
