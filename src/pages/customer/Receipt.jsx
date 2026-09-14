@@ -1061,9 +1061,7 @@ function Receipt() {
             CampusMart 2.0
           </p>
 
-          <p className="text-xs text-gray-400 mt-1">
-            campusmart1234@gmail.com
-          </p>
+          
 
           <p className="text-xs text-gray-400 mt-2">
             Thank you for shopping on CampusMart.

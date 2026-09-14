@@ -1,4 +1,3 @@
-// SellerChat.jsx
 import {
   useEffect,
   useState,
@@ -33,6 +32,8 @@ import {
   FiCheck,
   FiArrowLeft,
   FiX,
+  FiFileText,
+  FiDownload,
 } from "react-icons/fi";
 
 import { db } from "../../context/firebase";
@@ -1902,6 +1903,150 @@ function SellerChat({
                       messageId
                     );
 
+                  const isReceipt =
+                    message?.type === "receipt" ||
+                    Boolean(message?.receiptUrl) ||
+                    Boolean(message?.orderId && String(message?.text || "").includes("Payment receipt"));
+
+                  const receiptOrderId =
+                    message?.orderId ||
+                    (message?.receiptUrl
+                      ? String(message.receiptUrl).split("/receipt/")[1]?.split(/[?#]/)[0]
+                      : null);
+
+                  // ===== RECEIPT CARD =====
+                  if (isReceipt && receiptOrderId) {
+                    return (
+                      <div
+                        key={
+                          message?.id ||
+                          `${getMessageTimestampMs(message)}-${index}`
+                        }
+                        className={`flex w-full ${
+                          mine
+                            ? "justify-end"
+                            : "justify-start"
+                        }`}
+                      >
+                        <div
+                          className={`
+                            max-w-[88%] sm:max-w-[70%]
+                            rounded-2xl border shadow-sm overflow-hidden
+                            ${
+                              selected
+                                ? "ring-2 ring-green-500 ring-offset-2"
+                                : ""
+                            }
+                            ${
+                              mine
+                                ? "bg-green-800 border-green-700 rounded-br-md"
+                                : "bg-white border-green-200 rounded-bl-md"
+                            }
+                          `}
+                        >
+                          <button
+                            type="button"
+                            onClick={() =>
+                              toggleMessageSelection(messageId)
+                            }
+                            disabled={deleting}
+                            className="w-full text-left p-3.5 sm:p-4"
+                          >
+                            {selected && (
+                              <div className="flex justify-end mb-2">
+                                <span className="w-5 h-5 rounded-full bg-white text-green-600 flex items-center justify-center">
+                                  <FiCheck size={13} />
+                                </span>
+                              </div>
+                            )}
+
+                            <div className="flex items-start gap-3">
+                              <div
+                                className={`
+                                  w-10 h-10 rounded-xl flex items-center justify-center shrink-0
+                                  ${
+                                    mine
+                                      ? "bg-white/15 text-white"
+                                      : "bg-green-50 text-[#008236]"
+                                  }
+                                `}
+                              >
+                                <FiFileText size={20} />
+                              </div>
+
+                              <div className="min-w-0 flex-1">
+                                <p
+                                  className={`text-sm font-bold ${
+                                    mine ? "text-white" : "text-gray-900"
+                                  }`}
+                                >
+                                  🧾 Payment receipt
+                                </p>
+
+                                <p
+                                  className={`text-xs mt-0.5 ${
+                                    mine ? "text-green-100" : "text-gray-500"
+                                  }`}
+                                >
+                                  Order #
+                                  {message?.orderNumber ||
+                                    String(receiptOrderId).slice(0, 8)}
+                                  {message?.amount != null
+                                    ? ` • ₦${Number(
+                                        message.amount || 0
+                                      ).toLocaleString("en-NG")}`
+                                    : ""}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div
+                              className={`
+                                flex items-center justify-end gap-0.5 text-[10px] mt-2
+                                ${mine ? "text-green-100" : "text-gray-400"}
+                              `}
+                            >
+                              <span>{formatMessageTime(message)}</span>
+                              <MessageTicks message={message} />
+                            </div>
+                          </button>
+
+                          {/* View & download — works for seller */}
+                          <div
+                            className={`px-3.5 sm:px-4 pb-3.5 sm:pb-4 ${
+                              mine ? "" : ""
+                            }`}
+                          >
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(
+                                  `/receipt/${encodeURIComponent(
+                                    String(receiptOrderId)
+                                  )}`
+                                );
+                              }}
+                              className={`
+                                w-full h-10 rounded-xl font-semibold text-sm
+                                flex items-center justify-center gap-2 transition
+                                ${
+                                  mine
+                                    ? "bg-white text-[#008236] hover:bg-green-50"
+                                    : "bg-[#008236] text-white hover:bg-[#006f2e]"
+                                }
+                              `}
+                            >
+                              <FiDownload size={16} />
+                              View & download receipt
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // ===== NORMAL TEXT BUBBLE =====
                   return (
                     <div
                       key={

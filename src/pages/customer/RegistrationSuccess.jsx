@@ -45,12 +45,12 @@ function RegistrationSuccess() {
                 <span className="font-semibold text-gray-800">{email}</span>
               </>
             ) : null}
-            . Please check your inbox and click the verification link before
-            logging in.
+            . Please check your inbox, spam/junks and click the verification link before
+            logging in, it expires in few seconds. 
           </p>
 
           <p className="mt-3 text-sm text-gray-400">
-            Don’t see the email? Check your spam or promotions folder.
+            Don’t see the email? Check your spam or promotions folder or You can send for another link in the login page.
           </p>
 
           <button
