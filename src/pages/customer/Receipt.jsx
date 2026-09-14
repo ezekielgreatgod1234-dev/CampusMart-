@@ -26,9 +26,15 @@ function Receipt() {
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState("");
+  const [viewerRole, setViewerRole] = useState(null);
 
+  // On-screen display (₦ works in the browser)
   const formatMoney = (amount) =>
     `₦${Number(amount || 0).toLocaleString("en-NG")}`;
+
+  // PDF-safe money (Helvetica has no ₦ — use NGN so nothing cuts off)
+  const formatMoneyPdf = (amount) =>
+    `NGN ${Number(amount || 0).toLocaleString("en-NG")}`;
 
   const getTimestamp = (value) => {
     if (!value) return null;
@@ -47,7 +53,6 @@ function Receipt() {
 
     if (typeof value === "string") {
       const date = new Date(value);
-
       if (!Number.isNaN(date.getTime())) {
         return date;
       }
@@ -59,30 +64,15 @@ function Receipt() {
     ) {
       return new Date(
         value.seconds * 1000 +
-          Math.floor(
-            Number(value.nanoseconds || 0) / 1000000
-          )
+          Math.floor(Number(value.nanoseconds || 0) / 1000000)
       );
     }
 
     return null;
   };
 
-  const formatDate = (value) => {
-    const date = getTimestamp(value);
-
-    if (!date) return "—";
-
-    return date.toLocaleDateString("en-NG", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-  };
-
   const formatDateTime = (value) => {
     const date = getTimestamp(value);
-
     if (!date) return "—";
 
     return date.toLocaleString("en-NG", {
@@ -100,11 +90,15 @@ function Receipt() {
     const loadOrder = async () => {
       if (!id || !firebaseUser?.uid) {
         setLoading(false);
+        if (!firebaseUser?.uid) {
+          setError("Please sign in to view this receipt.");
+        }
         return;
       }
 
       setLoading(true);
       setError("");
+      setViewerRole(null);
 
       try {
         const orderRef = doc(db, "orders", String(id));
@@ -119,19 +113,34 @@ function Receipt() {
           return;
         }
 
-        const data = snapshot.data();
-
-        /*
-         * Only the buyer or seller belonging to this order
-         * should be able to view the receipt.
-         */
+        const data = snapshot.data() || {};
         const currentUserId = String(firebaseUser.uid);
 
-        const isBuyer =
-          String(data.buyerId || "") === currentUserId;
+        const buyerId = String(data.buyerId || "");
+        const sellerId = String(
+          data.sellerId ||
+            data.sellerUid ||
+            data.seller?.uid ||
+            ""
+        );
 
+        const itemSellerIds = Array.isArray(data.items)
+          ? data.items
+              .map(
+                (item) =>
+                  item?.sellerId ||
+                  item?.sellerUid ||
+                  item?.seller?.uid ||
+                  ""
+              )
+              .filter(Boolean)
+              .map(String)
+          : [];
+
+        const isBuyer = buyerId === currentUserId;
         const isSeller =
-          String(data.sellerId || "") === currentUserId;
+          sellerId === currentUserId ||
+          itemSellerIds.includes(currentUserId);
 
         if (!isBuyer && !isSeller) {
           setOrder(null);
@@ -142,11 +151,11 @@ function Receipt() {
           return;
         }
 
+        setViewerRole(isSeller && !isBuyer ? "seller" : "buyer");
         setOrder({
           id: snapshot.id,
           ...data,
         });
-
         setLoading(false);
       } catch (err) {
         console.error("Receipt loading error:", err);
@@ -173,11 +182,11 @@ function Receipt() {
   );
 
   const orderNumber =
-    order?.orderNumber ||
-    order?.id ||
-    "CampusMart Order";
+    order?.orderNumber || order?.id || "CampusMart Order";
 
-  const total = Number(order?.total || 0);
+  const total = Number(
+    order?.total ?? order?.amount ?? order?.amountPaid ?? 0
+  );
 
   const downloadPDF = async () => {
     if (!order || downloading) return;
@@ -192,468 +201,281 @@ function Receipt() {
       });
 
       const pageWidth = 210;
+      const left = 18;
+      const right = pageWidth - 18;
+      const contentWidth = right - left;
 
-      let y = 20;
+      // Column layout (right-aligned money stays inside page)
+      const colItem = left + 2;
+      const colQty = 118;
+      const colPriceRight = 155;
+      const colTotalRight = right - 2;
 
-      /*
-       * HEADER
-       */
+      let y = 18;
+
+      // HEADER
       pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(24);
+      pdf.setFontSize(22);
       pdf.setTextColor(0, 130, 54);
+      pdf.text("CampusMart", left, y);
 
-      pdf.text("CampusMart", 20, y);
-
-      y += 9;
+      y += 7;
 
       pdf.setFontSize(10);
       pdf.setTextColor(100, 100, 100);
       pdf.setFont("helvetica", "normal");
-
-      pdf.text(
-        "Official Payment Receipt",
-        20,
-        y
-      );
-
-      y += 12;
-
-      pdf.setDrawColor(0, 130, 54);
-      pdf.setLineWidth(0.5);
-
-      pdf.line(
-        20,
-        y,
-        pageWidth - 20,
-        y
-      );
-
-      y += 12;
-
-      /*
-       * PAYMENT SUCCESS
-       */
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(15);
-      pdf.setTextColor(30, 30, 30);
-
-      pdf.text(
-        "PAYMENT SUCCESSFUL",
-        20,
-        y
-      );
-
-      y += 9;
-
-      pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(10);
-      pdf.setTextColor(80, 80, 80);
-
-      pdf.text(
-        "This receipt confirms that payment for the order below",
-        20,
-        y
-      );
-
-      y += 5;
-
-      pdf.text(
-        "was successfully recorded on CampusMart.",
-        20,
-        y
-      );
-
-      y += 13;
-
-      /*
-       * ORDER INFORMATION
-       */
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(11);
-      pdf.setTextColor(0, 130, 54);
-
-      pdf.text("ORDER INFORMATION", 20, y);
-
-      y += 8;
-
-      pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(10);
-      pdf.setTextColor(60, 60, 60);
-
-      pdf.text(
-        `Order Number: #${orderNumber}`,
-        20,
-        y
-      );
-
-      y += 6;
-
-      pdf.text(
-        `Order Date: ${formatDateTime(
-          order.createdAt || order.date
-        )}`,
-        20,
-        y
-      );
-
-      y += 6;
-
-      pdf.text(
-        `Payment Method: ${
-          order.paymentMethod || "Paystack"
-        }`,
-        20,
-        y
-      );
-
-      y += 6;
-
-      pdf.text(
-        `Payment Status: ${
-          order.paymentStatus || "paid"
-        }`,
-        20,
-        y
-      );
-
-      y += 6;
-
-      if (order.paystackReference) {
-        pdf.text(
-          `Payment Reference: ${String(
-            order.paystackReference
-          )}`,
-          20,
-          y
-        );
-
-        y += 6;
-      }
-
-      y += 8;
-
-      /*
-       * BUYER INFORMATION
-       */
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(11);
-      pdf.setTextColor(0, 130, 54);
-
-      pdf.text("CUSTOMER INFORMATION", 20, y);
-
-      y += 8;
-
-      pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(10);
-      pdf.setTextColor(60, 60, 60);
-
-      pdf.text(
-        `Name: ${
-          order.customer?.fullName ||
-          order.fullName ||
-          order.customerName ||
-          "CampusMart Customer"
-        }`,
-        20,
-        y
-      );
-
-      y += 6;
-
-      if (order.phone) {
-        pdf.text(
-          `Phone: ${order.phone}`,
-          20,
-          y
-        );
-
-        y += 6;
-      }
-
-      if (order.campus) {
-        pdf.text(
-          `Campus: ${order.campus}`,
-          20,
-          y
-        );
-
-        y += 6;
-      }
-
-      if (order.address) {
-        const address =
-          String(order.address);
-
-        const addressLines =
-          pdf.splitTextToSize(
-            `Address: ${address}`,
-            pageWidth - 40
-          );
-
-        pdf.text(
-          addressLines,
-          20,
-          y
-        );
-
-        y +=
-          addressLines.length * 5 +
-          1;
-      }
-
-      y += 9;
-
-      /*
-       * ITEMS TABLE
-       */
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(11);
-      pdf.setTextColor(0, 130, 54);
-
-      pdf.text("ORDER ITEMS", 20, y);
-
-      y += 8;
-
-      /*
-       * Table header
-       */
-      pdf.setFillColor(238, 248, 242);
-      pdf.rect(
-        20,
-        y - 5,
-        pageWidth - 40,
-        9,
-        "F"
-      );
-
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(9);
-      pdf.setTextColor(40, 40, 40);
-
-      pdf.text("Item", 23, y);
-      pdf.text("Qty", 125, y);
-      pdf.text("Price", 145, y);
-      pdf.text("Total", 177, y);
+      pdf.text("Official Payment Receipt", left, y);
 
       y += 10;
 
-      pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(9);
+      pdf.setDrawColor(0, 130, 54);
+      pdf.setLineWidth(0.6);
+      pdf.line(left, y, right, y);
 
-      items.forEach((item) => {
-        if (y > 265) {
-          pdf.addPage();
-          y = 20;
-        }
+      y += 10;
 
-        const name =
-          item?.name ||
-          item?.productName ||
-          "CampusMart Product";
-
-        const quantity =
-          Number(item?.quantity || 1);
-
-        const price = Number(
-          String(item?.price ?? 0).replace(
-            /₦|,/g,
-            ""
-          )
-        );
-
-        const lineTotal =
-          price * quantity;
-
-        const itemLines =
-          pdf.splitTextToSize(
-            name,
-            95
-          );
-
-        pdf.text(
-          itemLines,
-          23,
-          y
-        );
-
-        pdf.text(
-          String(quantity),
-          128,
-          y
-        );
-
-        pdf.text(
-          formatMoney(price),
-          145,
-          y
-        );
-
-        pdf.text(
-          formatMoney(lineTotal),
-          177,
-          y
-        );
-
-        y += Math.max(
-          7,
-          itemLines.length * 5
-        );
-
-        pdf.setDrawColor(
-          225,
-          225,
-          225
-        );
-
-        pdf.line(
-          20,
-          y - 3,
-          pageWidth - 20,
-          y - 3
-        );
-      });
-
-      y += 8;
-
-      /*
-       * TOTAL
-       */
-      pdf.setFillColor(0, 130, 54);
-
-      pdf.roundedRect(
-        20,
-        y,
-        pageWidth - 40,
-        18,
-        3,
-        3,
-        "F"
-      );
-
+      // PAYMENT SUCCESS
       pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(11);
-      pdf.setTextColor(255, 255, 255);
-
-      pdf.text(
-        "TOTAL PAID",
-        27,
-        y + 11
-      );
-
       pdf.setFontSize(14);
-
+      pdf.setTextColor(30, 30, 30);
       pdf.text(
-        formatMoney(total),
-        pageWidth - 27,
-        y + 11,
-        {
-          align: "right",
-        }
-      );
-
-      y += 31;
-
-      /*
-       * DELIVERY / ORDER STATUS
-       */
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(10);
-      pdf.setTextColor(0, 130, 54);
-
-      pdf.text(
-        "ORDER STATUS",
-        20,
+        viewerRole === "seller"
+          ? "PAYMENT RECEIVED"
+          : "PAYMENT SUCCESSFUL",
+        left,
         y
       );
 
       y += 7;
 
       pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(9);
+      pdf.setTextColor(80, 80, 80);
+
+      const intro =
+        viewerRole === "seller"
+          ? "This receipt confirms that the buyer has paid for the order below on CampusMart."
+          : "This receipt confirms that payment for the order below was successfully recorded on CampusMart.";
+
+      const introLines = pdf.splitTextToSize(intro, contentWidth);
+      pdf.text(introLines, left, y);
+      y += introLines.length * 4.5 + 8;
+
+      // ORDER INFORMATION
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(10);
+      pdf.setTextColor(0, 130, 54);
+      pdf.text("ORDER INFORMATION", left, y);
+
+      y += 7;
+
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(9);
       pdf.setTextColor(60, 60, 60);
 
-      pdf.text(
-        `Current Status: ${String(
-          order.status || "pending"
-        ).toUpperCase()}`,
-        20,
-        y
-      );
+      const orderInfo = [
+        `Order Number: #${orderNumber}`,
+        `Order Date: ${formatDateTime(order.createdAt || order.date)}`,
+        `Payment Method: ${order.paymentMethod || "Paystack"}`,
+        `Payment Status: ${order.paymentStatus || "paid"}`,
+      ];
+
+      if (order.paystackReference) {
+        orderInfo.push(
+          `Payment Reference: ${String(order.paystackReference)}`
+        );
+      }
+
+      orderInfo.forEach((line) => {
+        const lines = pdf.splitTextToSize(line, contentWidth);
+        pdf.text(lines, left, y);
+        y += lines.length * 4.5 + 1.5;
+      });
 
       y += 6;
 
-      pdf.text(
-        "Payment has been successfully verified.",
-        20,
-        y
-      );
+      // CUSTOMER INFORMATION
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(10);
+      pdf.setTextColor(0, 130, 54);
+      pdf.text("CUSTOMER INFORMATION", left, y);
 
-      y += 13;
+      y += 7;
 
-      /*
-       * FOOTER
-       */
-      pdf.setDrawColor(
-        220,
-        220,
-        220
-      );
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(9);
+      pdf.setTextColor(60, 60, 60);
 
-      pdf.line(
-        20,
-        y,
-        pageWidth - 20,
-        y
-      );
+      const customerLines = [
+        `Name: ${
+          order.customer?.fullName ||
+          order.fullName ||
+          order.customerName ||
+          "CampusMart Customer"
+        }`,
+      ];
+
+      if (order.phone) {
+        customerLines.push(`Phone: ${order.phone}`);
+      }
+
+      if (order.campus) {
+        customerLines.push(`Campus: ${order.campus}`);
+      }
+
+      if (order.address) {
+        customerLines.push(`Address: ${String(order.address)}`);
+      }
+
+      customerLines.forEach((line) => {
+        const lines = pdf.splitTextToSize(line, contentWidth);
+        pdf.text(lines, left, y);
+        y += lines.length * 4.5 + 1.5;
+      });
+
+      y += 7;
+
+      // ORDER ITEMS
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(10);
+      pdf.setTextColor(0, 130, 54);
+      pdf.text("ORDER ITEMS", left, y);
+
+      y += 6;
+
+      // Table header bar
+      const headerH = 8;
+      pdf.setFillColor(238, 248, 242);
+      pdf.rect(left, y - 5, contentWidth, headerH, "F");
+
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(8);
+      pdf.setTextColor(40, 40, 40);
+
+      pdf.text("Item", colItem, y);
+      pdf.text("Qty", colQty, y, { align: "center" });
+      pdf.text("Price", colPriceRight, y, { align: "right" });
+      pdf.text("Total", colTotalRight, y, { align: "right" });
 
       y += 8;
 
-      pdf.setFontSize(8);
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(8.5);
+      pdf.setTextColor(40, 40, 40);
+
+      items.forEach((item) => {
+        if (y > 260) {
+          pdf.addPage();
+          y = 20;
+        }
+
+        const name =
+          item?.name || item?.productName || "CampusMart Product";
+        const quantity = Number(item?.quantity || 1);
+        const price = Number(
+          String(item?.price ?? 0).replace(/₦|,/g, "")
+        );
+        const lineTotal = price * quantity;
+
+        // Item name can wrap; money stays on first line, right-aligned
+        const nameMaxWidth = colQty - colItem - 8;
+        const nameLines = pdf.splitTextToSize(name, nameMaxWidth);
+
+        pdf.text(nameLines, colItem, y);
+        pdf.text(String(quantity), colQty, y, { align: "center" });
+        pdf.text(formatMoneyPdf(price), colPriceRight, y, {
+          align: "right",
+        });
+        pdf.text(formatMoneyPdf(lineTotal), colTotalRight, y, {
+          align: "right",
+        });
+
+        y += Math.max(6, nameLines.length * 4.2) + 2;
+
+        pdf.setDrawColor(230, 230, 230);
+        pdf.setLineWidth(0.2);
+        pdf.line(left, y - 1.5, right, y - 1.5);
+      });
+
+      y += 8;
+
+      if (y > 250) {
+        pdf.addPage();
+        y = 20;
+      }
+
+      // TOTAL BAR
+      const totalBarH = 16;
+      pdf.setFillColor(0, 130, 54);
+      pdf.roundedRect(left, y, contentWidth, totalBarH, 2.5, 2.5, "F");
+
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(10);
+      pdf.setTextColor(255, 255, 255);
+      pdf.text("TOTAL PAID", left + 6, y + 10);
+
+      pdf.setFontSize(12);
+      pdf.text(formatMoneyPdf(total), right - 6, y + 10, {
+        align: "right",
+      });
+
+      y += totalBarH + 10;
+
+      // ORDER STATUS
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(9);
+      pdf.setTextColor(0, 130, 54);
+      pdf.text("ORDER STATUS", left, y);
+
+      y += 6;
+
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(9);
+      pdf.setTextColor(60, 60, 60);
+      pdf.text(
+        `Current Status: ${String(order.status || "pending").toUpperCase()}`,
+        left,
+        y
+      );
+      y += 5;
+      pdf.text("Payment has been successfully verified.", left, y);
+
+      y += 10;
+
+      // FOOTER
+      pdf.setDrawColor(220, 220, 220);
+      pdf.setLineWidth(0.3);
+      pdf.line(left, y, right, y);
+
+      y += 6;
+
+      pdf.setFontSize(7.5);
       pdf.setTextColor(120, 120, 120);
       pdf.setFont("helvetica", "normal");
 
-      pdf.text(
-        "CampusMart 2.0",
-        20,
-        y
-      );
+      pdf.text("CampusMart 2.0", left, y);
+      pdf.text("campusmart1234@gmail.com", right, y, {
+        align: "right",
+      });
 
-      pdf.text(
-        "campusmart1234@gmail.com",
-        pageWidth - 20,
-        y,
-        {
-          align: "right",
-        }
-      );
+      y += 4.5;
 
-      y += 5;
-
-      pdf.text(
-        "Thank you for shopping on CampusMart.",
-        20,
-        y
-      );
-
+      pdf.text("Thank you for shopping on CampusMart.", left, y);
       pdf.text(
         "Always meet in safe public places on campus.",
-        pageWidth - 20,
+        right,
         y,
-        {
-          align: "right",
-        }
+        { align: "right" }
       );
 
-      const filename = `CampusMart-Receipt-${String(
-        orderNumber
-      ).replace(/[^a-zA-Z0-9-_]/g, "")}.pdf`;
+      const filename = `CampusMart-Receipt-${String(orderNumber).replace(
+        /[^a-zA-Z0-9-_]/g,
+        ""
+      )}.pdf`;
 
       pdf.save(filename);
     } catch (err) {
-      console.error(
-        "Receipt PDF generation error:",
-        err
-      );
-
+      console.error("Receipt PDF generation error:", err);
       window.alert(
         "CampusMart could not create the PDF receipt. Please try again."
       );
@@ -667,7 +489,6 @@ function Receipt() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-5">
         <div className="text-center">
           <div className="w-12 h-12 mx-auto rounded-full border-4 border-green-100 border-t-green-600 animate-spin" />
-
           <p className="mt-4 text-sm text-gray-500">
             Loading your receipt...
           </p>
@@ -689,21 +510,22 @@ function Receipt() {
           </h1>
 
           <p className="text-sm text-gray-500 mt-2 leading-6">
-            {error ||
-              "This receipt could not be loaded."}
+            {error || "This receipt could not be loaded."}
           </p>
 
           <button
             type="button"
-            onClick={() => navigate("/orders")}
+            onClick={() => navigate(-1)}
             className="mt-6 h-11 px-5 rounded-xl bg-[#008236] hover:bg-[#006f2e] text-white font-semibold"
           >
-            Back to Orders
+            Go back
           </button>
         </div>
       </div>
     );
   }
+
+  const isSellerView = viewerRole === "seller";
 
   return (
     <div className="min-h-screen bg-gray-100 py-5 sm:py-10 px-3 sm:px-6">
@@ -726,10 +548,7 @@ function Receipt() {
         >
           {downloading ? (
             <>
-              <FiLoader
-                size={17}
-                className="animate-spin"
-              />
+              <FiLoader size={17} className="animate-spin" />
               Creating PDF...
             </>
           ) : (
@@ -750,20 +569,24 @@ function Receipt() {
               <h1 className="text-3xl font-black text-[#008236] tracking-tight">
                 CampusMart
               </h1>
-
               <p className="text-sm text-gray-500 mt-1">
                 Official Payment Receipt
               </p>
+              {isSellerView && (
+                <p className="text-xs text-green-700 mt-2 font-medium">
+                  Shared with you by the buyer
+                </p>
+              )}
             </div>
 
             <div className="flex items-center gap-2 text-[#008236]">
               <FiCheckCircle size={22} />
-
               <div>
                 <p className="font-bold text-sm">
-                  PAYMENT SUCCESSFUL
+                  {isSellerView
+                    ? "PAYMENT RECEIVED"
+                    : "PAYMENT SUCCESSFUL"}
                 </p>
-
                 <p className="text-xs text-gray-500">
                   Verified payment
                 </p>
@@ -779,7 +602,6 @@ function Receipt() {
               <p className="text-xs uppercase tracking-wide text-gray-400 font-semibold">
                 Order number
               </p>
-
               <p className="mt-1 font-bold text-gray-900">
                 #{orderNumber}
               </p>
@@ -789,12 +611,8 @@ function Receipt() {
               <p className="text-xs uppercase tracking-wide text-gray-400 font-semibold">
                 Order date
               </p>
-
               <p className="mt-1 font-semibold text-gray-800">
-                {formatDateTime(
-                  order.createdAt ||
-                    order.date
-                )}
+                {formatDateTime(order.createdAt || order.date)}
               </p>
             </div>
 
@@ -802,10 +620,8 @@ function Receipt() {
               <p className="text-xs uppercase tracking-wide text-gray-400 font-semibold">
                 Payment method
               </p>
-
               <p className="mt-1 font-semibold text-gray-800 capitalize">
-                {order.paymentMethod ||
-                  "Paystack"}
+                {order.paymentMethod || "Paystack"}
               </p>
             </div>
 
@@ -813,7 +629,6 @@ function Receipt() {
               <p className="text-xs uppercase tracking-wide text-gray-400 font-semibold">
                 Payment status
               </p>
-
               <span className="inline-flex mt-1 px-2.5 py-1 rounded-full bg-green-100 text-[#008236] text-xs font-bold">
                 PAID
               </span>
@@ -825,7 +640,6 @@ function Receipt() {
               <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide">
                 Payment reference
               </p>
-
               <p className="mt-1 text-xs sm:text-sm font-mono text-gray-700 break-all">
                 {order.paystackReference}
               </p>
@@ -842,10 +656,7 @@ function Receipt() {
 
             <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <p className="text-xs text-gray-400">
-                  Full name
-                </p>
-
+                <p className="text-xs text-gray-400">Full name</p>
                 <p className="text-sm font-semibold text-gray-800 mt-1">
                   {order.customer?.fullName ||
                     order.fullName ||
@@ -856,10 +667,7 @@ function Receipt() {
 
               {order.phone && (
                 <div>
-                  <p className="text-xs text-gray-400">
-                    Phone
-                  </p>
-
+                  <p className="text-xs text-gray-400">Phone</p>
                   <p className="text-sm font-semibold text-gray-800 mt-1">
                     {order.phone}
                   </p>
@@ -868,10 +676,7 @@ function Receipt() {
 
               {order.campus && (
                 <div>
-                  <p className="text-xs text-gray-400">
-                    Campus
-                  </p>
-
+                  <p className="text-xs text-gray-400">Campus</p>
                   <p className="text-sm font-semibold text-gray-800 mt-1">
                     {order.campus}
                   </p>
@@ -879,12 +684,9 @@ function Receipt() {
               )}
 
               {order.address && (
-                <div>
-                  <p className="text-xs text-gray-400">
-                    Address
-                  </p>
-
-                  <p className="text-sm font-semibold text-gray-800 mt-1">
+                <div className="sm:col-span-2">
+                  <p className="text-xs text-gray-400">Address</p>
+                  <p className="text-sm font-semibold text-gray-800 mt-1 break-words">
                     {order.address}
                   </p>
                 </div>
@@ -900,58 +702,36 @@ function Receipt() {
           </h2>
 
           <div className="mt-4 border border-gray-100 rounded-2xl overflow-hidden">
-            {/* DESKTOP HEADER */}
-            <div className="hidden sm:grid grid-cols-[1fr_80px_120px_120px] bg-gray-50 px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">
+            <div className="hidden sm:grid grid-cols-[minmax(0,1fr)_64px_110px_110px] bg-gray-50 px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">
               <span>Product</span>
-              <span>Qty</span>
-              <span>Price</span>
-              <span className="text-right">
-                Total
-              </span>
+              <span className="text-center">Qty</span>
+              <span className="text-right">Price</span>
+              <span className="text-right">Total</span>
             </div>
 
             {items.map((item, index) => {
               const price = Number(
-                String(
-                  item?.price ?? 0
-                ).replace(
-                  /₦|,/g,
-                  ""
-                )
+                String(item?.price ?? 0).replace(/₦|,/g, "")
               );
-
-              const quantity = Number(
-                item?.quantity || 1
-              );
-
-              const lineTotal =
-                price * quantity;
+              const quantity = Number(item?.quantity || 1);
+              const lineTotal = price * quantity;
 
               return (
                 <div
                   key={`${item?.id || index}`}
                   className="px-4 py-4 border-t border-gray-100 first:border-t-0"
                 >
-                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_80px_120px_120px] gap-2 sm:gap-4 items-center">
-                    <div className="flex items-center gap-3">
-                      {item?.image ||
-                      item?.imageUrl ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_64px_110px_110px] gap-2 sm:gap-3 items-center">
+                    <div className="flex items-center gap-3 min-w-0">
+                      {item?.image || item?.imageUrl ? (
                         <img
-                          src={
-                            item.image ||
-                            item.imageUrl
-                          }
-                          alt={
-                            item.name ||
-                            "Product"
-                          }
-                          className="w-12 h-12 rounded-xl object-cover border border-gray-100"
+                          src={item.image || item.imageUrl}
+                          alt={item.name || "Product"}
+                          className="w-12 h-12 rounded-xl object-cover border border-gray-100 shrink-0"
                         />
                       ) : (
-                        <div className="w-12 h-12 rounded-xl bg-green-50 text-[#008236] flex items-center justify-center">
-                          <FiPackage
-                            size={20}
-                          />
+                        <div className="w-12 h-12 rounded-xl bg-green-50 text-[#008236] flex items-center justify-center shrink-0">
+                          <FiPackage size={20} />
                         </div>
                       )}
 
@@ -961,44 +741,33 @@ function Receipt() {
                             item?.productName ||
                             "CampusMart Product"}
                         </p>
-
                         {item?.sellerName && (
                           <p className="text-xs text-gray-400 mt-1">
-                            Seller:{" "}
-                            {
-                              item.sellerName
-                            }
+                            Seller: {item.sellerName}
                           </p>
                         )}
                       </div>
                     </div>
 
-                    <div className="text-sm text-gray-600">
+                    <div className="text-sm text-gray-600 sm:text-center">
                       <span className="sm:hidden text-gray-400">
                         Qty:{" "}
                       </span>
-
                       {quantity}
                     </div>
 
-                    <div className="text-sm text-gray-700 font-medium">
+                    <div className="text-sm text-gray-700 font-medium sm:text-right tabular-nums">
                       <span className="sm:hidden text-gray-400">
                         Price:{" "}
                       </span>
-
-                      {formatMoney(
-                        price
-                      )}
+                      {formatMoney(price)}
                     </div>
 
-                    <div className="text-sm font-bold text-gray-900 sm:text-right">
+                    <div className="text-sm font-bold text-gray-900 sm:text-right tabular-nums">
                       <span className="sm:hidden text-gray-400">
                         Total:{" "}
                       </span>
-
-                      {formatMoney(
-                        lineTotal
-                      )}
+                      {formatMoney(lineTotal)}
                     </div>
                   </div>
                 </div>
@@ -1010,25 +779,19 @@ function Receipt() {
         {/* TOTAL */}
         <div className="px-5 sm:px-10 pb-8">
           <div className="rounded-2xl bg-[#008236] p-5 sm:p-6 text-white flex items-center justify-between gap-4">
-            <div>
+            <div className="min-w-0">
               <p className="text-sm font-medium text-green-100">
                 Total amount paid
               </p>
-
               <p className="text-xs text-green-100 mt-1">
                 {items.reduce(
-                  (sum, item) =>
-                    sum +
-                    Number(
-                      item?.quantity || 0
-                    ),
+                  (sum, item) => sum + Number(item?.quantity || 0),
                   0
                 )}{" "}
                 item(s)
               </p>
             </div>
-
-            <p className="text-2xl sm:text-3xl font-black">
+            <p className="text-2xl sm:text-3xl font-black tabular-nums shrink-0">
               {formatMoney(total)}
             </p>
           </div>
@@ -1040,16 +803,14 @@ function Receipt() {
             <div className="w-9 h-9 rounded-full bg-green-100 text-[#008236] flex items-center justify-center shrink-0">
               <FiShield size={18} />
             </div>
-
             <div>
               <p className="text-sm font-bold text-gray-800">
                 CampusMart payment receipt
               </p>
-
               <p className="text-xs text-gray-500 mt-1 leading-5">
-                This receipt confirms that payment for
-                this order was successfully recorded.
-                Keep it for your records.
+                {isSellerView
+                  ? "This receipt confirms that the buyer has paid for this order. You can download it for your records."
+                  : "This receipt confirms that payment for this order was successfully recorded. Keep it for your records."}
               </p>
             </div>
           </div>
@@ -1060,16 +821,11 @@ function Receipt() {
           <p className="text-sm font-bold text-[#008236]">
             CampusMart 2.0
           </p>
-
-          
-
           <p className="text-xs text-gray-400 mt-2">
             Thank you for shopping on CampusMart.
           </p>
-
           <p className="text-[11px] text-gray-400 mt-1">
-            Always meet in safe public places on
-            campus.
+            Always meet in safe public places on campus.
           </p>
         </div>
       </main>
