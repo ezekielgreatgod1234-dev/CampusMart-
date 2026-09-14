@@ -13,7 +13,11 @@ export default defineConfig({
         enabled: true,
       },
 
+      // Inject the webmanifest link + Apple touch icons automatically
+      injectRegister: "auto",
+
       manifest: {
+        id: "/",
         name: "CampusMart 2.0",
         short_name: "CampusMart",
         description:
@@ -21,32 +25,42 @@ export default defineConfig({
         theme_color: "#008236",
         background_color: "#ffffff",
 
+        // Critical: standalone removes the browser address bar & tabs
         display: "standalone",
+        display_override: ["standalone", "minimal-ui", "browser"],
 
         orientation: "portrait",
-
         scope: "/",
-
         start_url: "/app-start",
+
+        // Prefer a clean launch experience
+        lang: "en",
+        dir: "ltr",
+        categories: ["shopping", "lifestyle", "education"],
 
         icons: [
           {
             src: "/pwa-192x192.png",
             sizes: "192x192",
             type: "image/png",
+            purpose: "any",
           },
           {
             src: "/pwa-512x512.png",
             sizes: "512x512",
             type: "image/png",
+            purpose: "any",
           },
           {
             src: "/pwa-512x512.png",
             sizes: "512x512",
             type: "image/png",
-            purpose: "any maskable",
+            purpose: "maskable",
           },
         ],
+
+        // Help Chrome treat this as a proper installable app
+        prefer_related_applications: false,
       },
 
       workbox: {

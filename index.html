@@ -4,27 +4,43 @@
     <meta charset="UTF-8" />
 
     <!-- Prevent mobile browsers from applying dark mode -->
-    <meta name="color-scheme" content="light" />
+    <meta name="color-scheme" content="light only" />
 
-    <!-- Force the page to use light colors only -->
-    <meta name="theme-color" content="#ffffff" />
+    <!-- Brand theme color (status bar / title bar on installed PWA) -->
+    <meta name="theme-color" content="#008236" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#008236" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#008236" />
+
+    <!-- Make it feel like a real app on iOS / Android -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="CampusMart" />
+    <meta name="application-name" content="CampusMart" />
+
+    <!-- Reduce browser chrome / UI hints -->
+    <meta name="format-detection" content="telephone=no, email=no, address=no" />
 
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/pwa-192x192.png" />
 
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1.0"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no"
     />
 
     <title>CampusMart</title>
 
-    <!-- Force light mode before React loads -->
+    <!-- Force light mode + hide residual browser UI when in standalone -->
     <style>
       html,
       body {
         background: #ffffff !important;
         color: #111827 !important;
         color-scheme: only light !important;
+        margin: 0;
+        padding: 0;
+        overscroll-behavior: none;
       }
 
       html {
@@ -36,10 +52,12 @@
         margin: 0;
         background-color: #ffffff !important;
         color: #111827 !important;
+        -webkit-tap-highlight-color: transparent;
       }
 
       #root {
         min-height: 100vh;
+        min-height: 100dvh;
         background-color: #ffffff;
         color: #111827;
       }
@@ -49,6 +67,25 @@
       select,
       button {
         color-scheme: only light !important;
+      }
+
+      /* When installed as PWA (standalone), remove any residual browser-like feel */
+      @media all and (display-mode: standalone) {
+        html, body {
+          /* Full bleed, no bounce scroll that feels like a webpage */
+          overscroll-behavior: none;
+          -webkit-overflow-scrolling: touch;
+        }
+      }
+
+      /* iOS standalone */
+      @media all and (display-mode: standalone),
+             all and (-webkit-min-device-pixel-ratio: 0) {
+        body {
+          /* Safe area for notched devices */
+          padding: env(safe-area-inset-top) env(safe-area-inset-right)
+                   env(safe-area-inset-bottom) env(safe-area-inset-left);
+        }
       }
     </style>
   </head>

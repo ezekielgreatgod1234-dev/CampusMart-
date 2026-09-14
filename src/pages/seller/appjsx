@@ -90,6 +90,7 @@ import MyGigApplications from "./pages/customer/MyGigApplications";
 import AnnouncementBanner from "./components/AnnouncementBanner";
 
 import AIAssistant from "./pages/admin/AIAssistant";
+import Receipt from "./pages/customer/Receipt";
 
 const emptyProfile = {
   fullName: "",
@@ -104,6 +105,78 @@ const emptyProfile = {
 };
 
 const CUSTOMER_DATA_SAVE_DELAY = 800;
+
+function InstalledAppSplash() {
+  const navigate = useNavigate();
+  const [fadeOut, setFadeOut] = useState(false);
+
+  useEffect(() => {
+    const fadeTimer = window.setTimeout(() => {
+      setFadeOut(true);
+    }, 12000);
+
+    const loginTimer = window.setTimeout(() => {
+      navigate("/login", { replace: true });
+    }, 13000);
+
+    return () => {
+      window.clearTimeout(fadeTimer);
+      window.clearTimeout(loginTimer);
+    };
+  }, [navigate]);
+
+  return (
+    <div
+      className={`fixed inset-0 z-[99999] flex min-h-screen items-center justify-center bg-white transition-opacity duration-1000 ${
+        fadeOut ? "opacity-0" : "opacity-100"
+      }`}
+      aria-label="Loading CampusMart"
+    >
+      <div className="flex flex-col items-center justify-center px-6 text-center">
+        <div className="relative flex h-28 w-28 items-center justify-center rounded-[30px] bg-[#008236] shadow-[0_16px_45px_rgba(0,130,54,0.24)] overflow-hidden">
+          <img
+            src="/pwa-512x512.png"
+            alt="CampusMart"
+            className="h-full w-full rounded-[30px] object-cover"
+            onError={(event) => {
+              event.currentTarget.style.display = "none";
+              const fallback = event.currentTarget.nextElementSibling;
+              if (fallback) fallback.style.display = "flex";
+            }}
+          />
+          <div className="absolute inset-0 hidden items-center justify-center rounded-[30px] text-4xl font-black text-white" aria-hidden="true">
+            CM
+          </div>
+        </div>
+
+        <h1 className="mt-6 text-2xl font-extrabold tracking-tight text-gray-900">
+          Campus<span className="text-[#008236]">Mart 2.0</span>
+        </h1>
+        <p className="mt-1 text-sm text-gray-500">Your Campus Marketplace</p>
+
+        <div className="mt-7 h-1.5 w-24 overflow-hidden rounded-full bg-green-100">
+          <div className="h-full w-1/2 animate-pulse rounded-full bg-[#008236]" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PwaAwareHome() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const isStandalone =
+      window.matchMedia?.("(display-mode: standalone)")?.matches ||
+      window.navigator.standalone === true;
+
+    if (isStandalone) {
+      navigate("/app-start", { replace: true });
+    }
+  }, [navigate]);
+
+  return <Landing />;
+}
 
 function LoadingScreen({ text = "Loading CampusMart..." }) {
   return (
@@ -591,7 +664,6 @@ function App() {
   const location = useLocation();
 
   const [isOnline, setIsOnline] = useState(true);
-
   useEffect(() => {
     let startupTimer;
 
@@ -1736,6 +1808,7 @@ function App() {
 
   const publicPaths = [
     "/",
+    "/app-start",
     "/login",
     "/register",
     "/registration-success",
@@ -1752,13 +1825,15 @@ function App() {
       location.pathname.startsWith(`${path}/`)
   );
 
+  const showInternetRequired = !isOnline && location.pathname !== "/app-start";
+
   if (
     !isPublicPath &&
     (profileLoading || (firebaseUser && !profileResolved))
   ) {
     return (
       <>
-        {!isOnline && <InternetRequired />}
+        {showInternetRequired && <InternetRequired />}
         <LoadingScreen
           text={
             firebaseUser
@@ -1772,10 +1847,11 @@ function App() {
 
   return (
     <>
-      {!isOnline && <InternetRequired />}
+      {showInternetRequired && <InternetRequired />}
 
       <Routes>
-        <Route path="/" element={<Landing />} />
+        <Route path="/app-start" element={<InstalledAppSplash />} />
+        <Route path="/" element={<PwaAwareHome />} />
 
         <Route
           path="/login"
@@ -2234,6 +2310,16 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+
+        <Route
+  path="/receipt/:id"
+  element={
+    <ProtectedRoute profileResolved={profileResolved}>
+      <Receipt />
+    </ProtectedRoute>
+  }
+/>
 
         <Route
           path="/admin-dashboard"
