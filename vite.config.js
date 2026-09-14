@@ -38,25 +38,25 @@ export default defineConfig({
         categories: ["shopping", "lifestyle", "education"],
 
         icons: [
-          {
-            src: "/pwa-192x192.png",
-            sizes: "192x192",
-            type: "image/png",
-            purpose: "any",
-          },
-          {
-            src: "/pwa-512x512.png",
-            sizes: "512x512",
-            type: "image/png",
-            purpose: "any",
-          },
-          {
-            src: "/pwa-512x512.png",
-            sizes: "512x512",
-            type: "image/png",
-            purpose: "maskable",
-          },
-        ],
+  {
+    src: "/pwa-192x192.png",
+    sizes: "192x192",
+    type: "image/png",
+    purpose: "any",
+  },
+  {
+    src: "/pwa-512x512.png",
+    sizes: "512x512",
+    type: "image/png",
+    purpose: "any",
+  },
+  {
+    src: "/pwa-512x512-maskable.png",
+    sizes: "512x512",
+    type: "image/png",
+    purpose: "maskable",
+  },
+],
 
         prefer_related_applications: false,
       },
