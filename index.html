@@ -6,7 +6,7 @@
     <!-- Prevent mobile browsers from applying dark mode -->
     <meta name="color-scheme" content="light only" />
 
-    <!-- Brand theme color (status bar / title bar on installed PWA) -->
+    <!-- Brand theme color = title bar color when Window Controls Overlay is active -->
     <meta name="theme-color" content="#008236" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#008236" media="(prefers-color-scheme: dark)" />
     <meta name="theme-color" content="#008236" />
@@ -31,7 +31,6 @@
 
     <title>CampusMart</title>
 
-    <!-- Force light mode + hide residual browser UI when in standalone -->
     <style>
       html,
       body {
@@ -69,20 +68,58 @@
         color-scheme: only light !important;
       }
 
-      /* When installed as PWA (standalone), remove any residual browser-like feel */
+      /* =========================================================
+         WINDOW CONTROLS OVERLAY – makes your green header the top bar
+         ========================================================= */
+
+      /* When running as installed PWA with WCO, the system title bar
+         disappears and your content can draw into that area. */
+      @media (display-mode: window-controls-overlay) {
+        /* Your main top header (the green CampusMart bar) should use these */
+        .campusmart-titlebar,
+        header.top-header,
+        .app-topbar {
+          position: fixed;
+          left: env(titlebar-area-x, 0);
+          top: env(titlebar-area-y, 0);
+          width: env(titlebar-area-width, 100%);
+          height: env(titlebar-area-height, 48px);
+          background-color: #008236 !important;
+          z-index: 9999;
+
+          /* Make the whole bar draggable so users can move the window */
+          -webkit-app-region: drag;
+          app-region: drag;
+        }
+
+        /* Interactive elements must NOT be draggable */
+        .campusmart-titlebar a,
+        .campusmart-titlebar button,
+        .campusmart-titlebar input,
+        .campusmart-titlebar select,
+        .campusmart-titlebar [role="button"],
+        header.top-header a,
+        header.top-header button,
+        header.top-header input,
+        .app-topbar a,
+        .app-topbar button,
+        .app-topbar input {
+          -webkit-app-region: no-drag;
+          app-region: no-drag;
+        }
+      }
+
+      /* Fallback for normal standalone (no WCO) */
       @media all and (display-mode: standalone) {
         html, body {
-          /* Full bleed, no bounce scroll that feels like a webpage */
           overscroll-behavior: none;
           -webkit-overflow-scrolling: touch;
         }
       }
 
-      /* iOS standalone */
-      @media all and (display-mode: standalone),
-             all and (-webkit-min-device-pixel-ratio: 0) {
+      /* Safe area for notched phones */
+      @media all and (display-mode: standalone) {
         body {
-          /* Safe area for notched devices */
           padding: env(safe-area-inset-top) env(safe-area-inset-right)
                    env(safe-area-inset-bottom) env(safe-area-inset-left);
         }

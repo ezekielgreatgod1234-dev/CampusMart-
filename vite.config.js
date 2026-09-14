@@ -13,7 +13,6 @@ export default defineConfig({
         enabled: true,
       },
 
-      // Inject the webmanifest link + Apple touch icons automatically
       injectRegister: "auto",
 
       manifest: {
@@ -25,15 +24,15 @@ export default defineConfig({
         theme_color: "#008236",
         background_color: "#ffffff",
 
-        // Critical: standalone removes the browser address bar & tabs
+        // standalone = no address bar
+        // window-controls-overlay = your content draws into the title bar area
         display: "standalone",
-        display_override: ["standalone", "minimal-ui", "browser"],
+        display_override: ["window-controls-overlay", "standalone", "minimal-ui"],
 
         orientation: "portrait",
         scope: "/",
         start_url: "/app-start",
 
-        // Prefer a clean launch experience
         lang: "en",
         dir: "ltr",
         categories: ["shopping", "lifestyle", "education"],
@@ -59,7 +58,6 @@ export default defineConfig({
           },
         ],
 
-        // Help Chrome treat this as a proper installable app
         prefer_related_applications: false,
       },
 
@@ -67,9 +65,6 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,
-        // Default Workbox precache limit is 2 MB, which our main JS
-        // bundle exceeded. Raising this stops the build from failing
-        // with a PLUGIN_ERROR at the vite-plugin-pwa:build step.
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB
       },
     }),
@@ -78,11 +73,6 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        // This project builds with rolldown-vite, and Rolldown's
-        // manualChunks only accepts a FUNCTION (id) => chunkName,
-        // unlike regular Vite/Rollup which also accepts a plain
-        // object map. Passing an object here is what caused
-        // "TypeError: manualChunks is not a function".
         manualChunks(id) {
           if (!id.includes("node_modules")) return;
 
