@@ -8,6 +8,9 @@ import {
   FiLoader,
   FiPackage,
   FiShield,
+  FiX,
+  FiExternalLink,
+  FiRefreshCw,
 } from "react-icons/fi";
 
 import { doc, getDoc } from "firebase/firestore";
@@ -24,15 +27,19 @@ function Receipt() {
 
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState("");
   const [viewerRole, setViewerRole] = useState(null);
 
-  // On-screen display (₦ works in the browser)
+  // Download UI state (CampusMart modal — not browser chrome)
+  const [downloadStatus, setDownloadStatus] = useState("idle"); // idle | loading | done | error
+  const [downloadError, setDownloadError] = useState("");
+  const [pdfUrl, setPdfUrl] = useState(null);
+  const [pdfFileName, setPdfFileName] = useState("");
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
+
   const formatMoney = (amount) =>
     `₦${Number(amount || 0).toLocaleString("en-NG")}`;
 
-  // PDF-safe money (Helvetica has no ₦ — use NGN so nothing cuts off)
   const formatMoneyPdf = (amount) =>
     `NGN ${Number(amount || 0).toLocaleString("en-NG")}`;
 
@@ -176,6 +183,15 @@ function Receipt() {
     };
   }, [id, firebaseUser?.uid]);
 
+  // Cleanup blob URL
+  useEffect(() => {
+    return () => {
+      if (pdfUrl) {
+        URL.revokeObjectURL(pdfUrl);
+      }
+    };
+  }, [pdfUrl]);
+
   const items = useMemo(
     () => (Array.isArray(order?.items) ? order.items : []),
     [order]
@@ -188,299 +204,338 @@ function Receipt() {
     order?.total ?? order?.amount ?? order?.amountPaid ?? 0
   );
 
-  const downloadPDF = async () => {
-    if (!order || downloading) return;
+  const buildPdfBlob = () => {
+    const pdf = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+    });
 
-    setDownloading(true);
+    const pageWidth = 210;
+    const left = 18;
+    const right = pageWidth - 18;
+    const contentWidth = right - left;
 
-    try {
-      const pdf = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: "a4",
-      });
+    const colItem = left + 2;
+    const colQty = 118;
+    const colPriceRight = 155;
+    const colTotalRight = right - 2;
 
-      const pageWidth = 210;
-      const left = 18;
-      const right = pageWidth - 18;
-      const contentWidth = right - left;
+    let y = 18;
 
-      // Column layout (right-aligned money stays inside page)
-      const colItem = left + 2;
-      const colQty = 118;
-      const colPriceRight = 155;
-      const colTotalRight = right - 2;
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(22);
+    pdf.setTextColor(0, 130, 54);
+    pdf.text("CampusMart", left, y);
 
-      let y = 18;
+    y += 7;
 
-      // HEADER
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(22);
-      pdf.setTextColor(0, 130, 54);
-      pdf.text("CampusMart", left, y);
+    pdf.setFontSize(10);
+    pdf.setTextColor(100, 100, 100);
+    pdf.setFont("helvetica", "normal");
+    pdf.text("Official Payment Receipt", left, y);
 
-      y += 7;
+    y += 10;
 
-      pdf.setFontSize(10);
-      pdf.setTextColor(100, 100, 100);
-      pdf.setFont("helvetica", "normal");
-      pdf.text("Official Payment Receipt", left, y);
+    pdf.setDrawColor(0, 130, 54);
+    pdf.setLineWidth(0.6);
+    pdf.line(left, y, right, y);
 
-      y += 10;
+    y += 10;
 
-      pdf.setDrawColor(0, 130, 54);
-      pdf.setLineWidth(0.6);
-      pdf.line(left, y, right, y);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(14);
+    pdf.setTextColor(30, 30, 30);
+    pdf.text(
+      viewerRole === "seller"
+        ? "PAYMENT RECEIVED"
+        : "PAYMENT SUCCESSFUL",
+      left,
+      y
+    );
 
-      y += 10;
+    y += 7;
 
-      // PAYMENT SUCCESS
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(14);
-      pdf.setTextColor(30, 30, 30);
-      pdf.text(
-        viewerRole === "seller"
-          ? "PAYMENT RECEIVED"
-          : "PAYMENT SUCCESSFUL",
-        left,
-        y
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(9);
+    pdf.setTextColor(80, 80, 80);
+
+    const intro =
+      viewerRole === "seller"
+        ? "This receipt confirms that the buyer has paid for the order below on CampusMart."
+        : "This receipt confirms that payment for the order below was successfully recorded on CampusMart.";
+
+    const introLines = pdf.splitTextToSize(intro, contentWidth);
+    pdf.text(introLines, left, y);
+    y += introLines.length * 4.5 + 8;
+
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(10);
+    pdf.setTextColor(0, 130, 54);
+    pdf.text("ORDER INFORMATION", left, y);
+
+    y += 7;
+
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(9);
+    pdf.setTextColor(60, 60, 60);
+
+    const orderInfo = [
+      `Order Number: #${orderNumber}`,
+      `Order Date: ${formatDateTime(order.createdAt || order.date)}`,
+      `Payment Method: ${order.paymentMethod || "Paystack"}`,
+      `Payment Status: ${order.paymentStatus || "paid"}`,
+    ];
+
+    if (order.paystackReference) {
+      orderInfo.push(
+        `Payment Reference: ${String(order.paystackReference)}`
       );
+    }
 
-      y += 7;
+    orderInfo.forEach((line) => {
+      const lines = pdf.splitTextToSize(line, contentWidth);
+      pdf.text(lines, left, y);
+      y += lines.length * 4.5 + 1.5;
+    });
 
-      pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(9);
-      pdf.setTextColor(80, 80, 80);
+    y += 6;
 
-      const intro =
-        viewerRole === "seller"
-          ? "This receipt confirms that the buyer has paid for the order below on CampusMart."
-          : "This receipt confirms that payment for the order below was successfully recorded on CampusMart.";
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(10);
+    pdf.setTextColor(0, 130, 54);
+    pdf.text("CUSTOMER INFORMATION", left, y);
 
-      const introLines = pdf.splitTextToSize(intro, contentWidth);
-      pdf.text(introLines, left, y);
-      y += introLines.length * 4.5 + 8;
+    y += 7;
 
-      // ORDER INFORMATION
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(10);
-      pdf.setTextColor(0, 130, 54);
-      pdf.text("ORDER INFORMATION", left, y);
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(9);
+    pdf.setTextColor(60, 60, 60);
 
-      y += 7;
+    const customerLines = [
+      `Name: ${
+        order.customer?.fullName ||
+        order.fullName ||
+        order.customerName ||
+        "CampusMart Customer"
+      }`,
+    ];
 
-      pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(9);
-      pdf.setTextColor(60, 60, 60);
+    if (order.phone) {
+      customerLines.push(`Phone: ${order.phone}`);
+    }
 
-      const orderInfo = [
-        `Order Number: #${orderNumber}`,
-        `Order Date: ${formatDateTime(order.createdAt || order.date)}`,
-        `Payment Method: ${order.paymentMethod || "Paystack"}`,
-        `Payment Status: ${order.paymentStatus || "paid"}`,
-      ];
+    if (order.campus) {
+      customerLines.push(`Campus: ${order.campus}`);
+    }
 
-      if (order.paystackReference) {
-        orderInfo.push(
-          `Payment Reference: ${String(order.paystackReference)}`
-        );
-      }
+    if (order.address) {
+      customerLines.push(`Address: ${String(order.address)}`);
+    }
 
-      orderInfo.forEach((line) => {
-        const lines = pdf.splitTextToSize(line, contentWidth);
-        pdf.text(lines, left, y);
-        y += lines.length * 4.5 + 1.5;
-      });
+    customerLines.forEach((line) => {
+      const lines = pdf.splitTextToSize(line, contentWidth);
+      pdf.text(lines, left, y);
+      y += lines.length * 4.5 + 1.5;
+    });
 
-      y += 6;
+    y += 7;
 
-      // CUSTOMER INFORMATION
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(10);
-      pdf.setTextColor(0, 130, 54);
-      pdf.text("CUSTOMER INFORMATION", left, y);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(10);
+    pdf.setTextColor(0, 130, 54);
+    pdf.text("ORDER ITEMS", left, y);
 
-      y += 7;
+    y += 6;
 
-      pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(9);
-      pdf.setTextColor(60, 60, 60);
+    const headerH = 8;
+    pdf.setFillColor(238, 248, 242);
+    pdf.rect(left, y - 5, contentWidth, headerH, "F");
 
-      const customerLines = [
-        `Name: ${
-          order.customer?.fullName ||
-          order.fullName ||
-          order.customerName ||
-          "CampusMart Customer"
-        }`,
-      ];
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(8);
+    pdf.setTextColor(40, 40, 40);
 
-      if (order.phone) {
-        customerLines.push(`Phone: ${order.phone}`);
-      }
+    pdf.text("Item", colItem, y);
+    pdf.text("Qty", colQty, y, { align: "center" });
+    pdf.text("Price", colPriceRight, y, { align: "right" });
+    pdf.text("Total", colTotalRight, y, { align: "right" });
 
-      if (order.campus) {
-        customerLines.push(`Campus: ${order.campus}`);
-      }
+    y += 8;
 
-      if (order.address) {
-        customerLines.push(`Address: ${String(order.address)}`);
-      }
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(8.5);
+    pdf.setTextColor(40, 40, 40);
 
-      customerLines.forEach((line) => {
-        const lines = pdf.splitTextToSize(line, contentWidth);
-        pdf.text(lines, left, y);
-        y += lines.length * 4.5 + 1.5;
-      });
-
-      y += 7;
-
-      // ORDER ITEMS
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(10);
-      pdf.setTextColor(0, 130, 54);
-      pdf.text("ORDER ITEMS", left, y);
-
-      y += 6;
-
-      // Table header bar
-      const headerH = 8;
-      pdf.setFillColor(238, 248, 242);
-      pdf.rect(left, y - 5, contentWidth, headerH, "F");
-
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(8);
-      pdf.setTextColor(40, 40, 40);
-
-      pdf.text("Item", colItem, y);
-      pdf.text("Qty", colQty, y, { align: "center" });
-      pdf.text("Price", colPriceRight, y, { align: "right" });
-      pdf.text("Total", colTotalRight, y, { align: "right" });
-
-      y += 8;
-
-      pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(8.5);
-      pdf.setTextColor(40, 40, 40);
-
-      items.forEach((item) => {
-        if (y > 260) {
-          pdf.addPage();
-          y = 20;
-        }
-
-        const name =
-          item?.name || item?.productName || "CampusMart Product";
-        const quantity = Number(item?.quantity || 1);
-        const price = Number(
-          String(item?.price ?? 0).replace(/₦|,/g, "")
-        );
-        const lineTotal = price * quantity;
-
-        // Item name can wrap; money stays on first line, right-aligned
-        const nameMaxWidth = colQty - colItem - 8;
-        const nameLines = pdf.splitTextToSize(name, nameMaxWidth);
-
-        pdf.text(nameLines, colItem, y);
-        pdf.text(String(quantity), colQty, y, { align: "center" });
-        pdf.text(formatMoneyPdf(price), colPriceRight, y, {
-          align: "right",
-        });
-        pdf.text(formatMoneyPdf(lineTotal), colTotalRight, y, {
-          align: "right",
-        });
-
-        y += Math.max(6, nameLines.length * 4.2) + 2;
-
-        pdf.setDrawColor(230, 230, 230);
-        pdf.setLineWidth(0.2);
-        pdf.line(left, y - 1.5, right, y - 1.5);
-      });
-
-      y += 8;
-
-      if (y > 250) {
+    items.forEach((item) => {
+      if (y > 260) {
         pdf.addPage();
         y = 20;
       }
 
-      // TOTAL BAR
-      const totalBarH = 16;
-      pdf.setFillColor(0, 130, 54);
-      pdf.roundedRect(left, y, contentWidth, totalBarH, 2.5, 2.5, "F");
+      const name =
+        item?.name || item?.productName || "CampusMart Product";
+      const quantity = Number(item?.quantity || 1);
+      const price = Number(
+        String(item?.price ?? 0).replace(/₦|,/g, "")
+      );
+      const lineTotal = price * quantity;
 
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(10);
-      pdf.setTextColor(255, 255, 255);
-      pdf.text("TOTAL PAID", left + 6, y + 10);
+      const nameMaxWidth = colQty - colItem - 8;
+      const nameLines = pdf.splitTextToSize(name, nameMaxWidth);
 
-      pdf.setFontSize(12);
-      pdf.text(formatMoneyPdf(total), right - 6, y + 10, {
+      pdf.text(nameLines, colItem, y);
+      pdf.text(String(quantity), colQty, y, { align: "center" });
+      pdf.text(formatMoneyPdf(price), colPriceRight, y, {
+        align: "right",
+      });
+      pdf.text(formatMoneyPdf(lineTotal), colTotalRight, y, {
         align: "right",
       });
 
-      y += totalBarH + 10;
+      y += Math.max(6, nameLines.length * 4.2) + 2;
 
-      // ORDER STATUS
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(9);
-      pdf.setTextColor(0, 130, 54);
-      pdf.text("ORDER STATUS", left, y);
+      pdf.setDrawColor(230, 230, 230);
+      pdf.setLineWidth(0.2);
+      pdf.line(left, y - 1.5, right, y - 1.5);
+    });
 
-      y += 6;
+    y += 8;
 
-      pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(9);
-      pdf.setTextColor(60, 60, 60);
-      pdf.text(
-        `Current Status: ${String(order.status || "pending").toUpperCase()}`,
-        left,
-        y
-      );
-      y += 5;
-      pdf.text("Payment has been successfully verified.", left, y);
+    if (y > 250) {
+      pdf.addPage();
+      y = 20;
+    }
 
-      y += 10;
+    const totalBarH = 16;
+    pdf.setFillColor(0, 130, 54);
+    pdf.roundedRect(left, y, contentWidth, totalBarH, 2.5, 2.5, "F");
 
-      // FOOTER
-      pdf.setDrawColor(220, 220, 220);
-      pdf.setLineWidth(0.3);
-      pdf.line(left, y, right, y);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(10);
+    pdf.setTextColor(255, 255, 255);
+    pdf.text("TOTAL PAID", left + 6, y + 10);
 
-      y += 6;
+    pdf.setFontSize(12);
+    pdf.text(formatMoneyPdf(total), right - 6, y + 10, {
+      align: "right",
+    });
 
-      pdf.setFontSize(7.5);
-      pdf.setTextColor(120, 120, 120);
-      pdf.setFont("helvetica", "normal");
+    y += totalBarH + 10;
 
-      pdf.text("CampusMart 2.0", left, y);
-      pdf.text("campusmart1234@gmail.com", right, y, {
-        align: "right",
-      });
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(9);
+    pdf.setTextColor(0, 130, 54);
+    pdf.text("ORDER STATUS", left, y);
 
-      y += 4.5;
+    y += 6;
 
-      pdf.text("Thank you for shopping on CampusMart.", left, y);
-      pdf.text(
-        "Always meet in safe public places on campus.",
-        right,
-        y,
-        { align: "right" }
-      );
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(9);
+    pdf.setTextColor(60, 60, 60);
+    pdf.text(
+      `Current Status: ${String(order.status || "pending").toUpperCase()}`,
+      left,
+      y
+    );
+    y += 5;
+    pdf.text("Payment has been successfully verified.", left, y);
 
+    y += 10;
+
+    pdf.setDrawColor(220, 220, 220);
+    pdf.setLineWidth(0.3);
+    pdf.line(left, y, right, y);
+
+    y += 6;
+
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(120, 120, 120);
+    pdf.setFont("helvetica", "normal");
+
+    pdf.text("CampusMart 2.0", left, y);
+    pdf.text("campusmart1234@gmail.com", right, y, {
+      align: "right",
+    });
+
+    y += 4.5;
+
+    pdf.text("Thank you for shopping on CampusMart.", left, y);
+    pdf.text(
+      "Always meet in safe public places on campus.",
+      right,
+      y,
+      { align: "right" }
+    );
+
+    return pdf.output("blob");
+  };
+
+  const triggerFileDownload = (url, filename) => {
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+
+  const downloadPDF = async () => {
+    if (!order || downloadStatus === "loading") return;
+
+    setShowDownloadModal(true);
+    setDownloadStatus("loading");
+    setDownloadError("");
+
+    try {
+      // Small delay so the CampusMart modal is visible
+      await new Promise((r) => setTimeout(r, 400));
+
+      const blob = buildPdfBlob();
       const filename = `CampusMart-Receipt-${String(orderNumber).replace(
         /[^a-zA-Z0-9-_]/g,
         ""
       )}.pdf`;
 
-      pdf.save(filename);
+      if (pdfUrl) {
+        URL.revokeObjectURL(pdfUrl);
+      }
+
+      const url = URL.createObjectURL(blob);
+      setPdfUrl(url);
+      setPdfFileName(filename);
+
+      // Still saves to device (browser bar may appear — unavoidable)
+      triggerFileDownload(url, filename);
+
+      setDownloadStatus("done");
     } catch (err) {
       console.error("Receipt PDF generation error:", err);
-      window.alert(
+      setDownloadError(
         "CampusMart could not create the PDF receipt. Please try again."
       );
-    } finally {
-      setDownloading(false);
+      setDownloadStatus("error");
+    }
+  };
+
+  const openPdfInNewTab = () => {
+    if (!pdfUrl) return;
+    window.open(pdfUrl, "_blank", "noopener,noreferrer");
+  };
+
+  const downloadAgain = () => {
+    if (!pdfUrl || !pdfFileName) {
+      downloadPDF();
+      return;
+    }
+    triggerFileDownload(pdfUrl, pdfFileName);
+  };
+
+  const closeDownloadModal = () => {
+    setShowDownloadModal(false);
+    if (downloadStatus === "error") {
+      setDownloadStatus("idle");
+      setDownloadError("");
     }
   };
 
@@ -543,10 +598,10 @@ function Receipt() {
         <button
           type="button"
           onClick={downloadPDF}
-          disabled={downloading}
+          disabled={downloadStatus === "loading"}
           className="h-10 px-4 rounded-xl bg-[#008236] hover:bg-[#006f2e] disabled:bg-green-300 text-white font-semibold flex items-center gap-2"
         >
-          {downloading ? (
+          {downloadStatus === "loading" ? (
             <>
               <FiLoader size={17} className="animate-spin" />
               Creating PDF...
@@ -554,7 +609,7 @@ function Receipt() {
           ) : (
             <>
               <FiDownload size={17} />
-              Download PDF
+              Download Reciept
             </>
           )}
         </button>
@@ -562,7 +617,6 @@ function Receipt() {
 
       {/* RECEIPT PAPER */}
       <main className="max-w-4xl mx-auto bg-white shadow-xl rounded-sm overflow-hidden">
-        {/* HEADER */}
         <div className="px-5 sm:px-10 py-7 border-b border-gray-100">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-5">
             <div>
@@ -595,7 +649,6 @@ function Receipt() {
           </div>
         </div>
 
-        {/* ORDER INFO */}
         <div className="px-5 sm:px-10 py-7">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div>
@@ -647,7 +700,6 @@ function Receipt() {
           )}
         </div>
 
-        {/* CUSTOMER */}
         <div className="px-5 sm:px-10 pb-7">
           <div className="rounded-2xl bg-green-50 border border-green-100 p-5">
             <h2 className="text-sm font-bold text-[#008236] uppercase tracking-wide">
@@ -695,7 +747,6 @@ function Receipt() {
           </div>
         </div>
 
-        {/* ITEMS */}
         <div className="px-5 sm:px-10 pb-8">
           <h2 className="text-lg font-bold text-gray-900">
             Order items
@@ -776,7 +827,6 @@ function Receipt() {
           </div>
         </div>
 
-        {/* TOTAL */}
         <div className="px-5 sm:px-10 pb-8">
           <div className="rounded-2xl bg-[#008236] p-5 sm:p-6 text-white flex items-center justify-between gap-4">
             <div className="min-w-0">
@@ -797,7 +847,6 @@ function Receipt() {
           </div>
         </div>
 
-        {/* SECURITY */}
         <div className="px-5 sm:px-10 pb-8">
           <div className="flex items-start gap-3 rounded-2xl bg-gray-50 border border-gray-100 p-4">
             <div className="w-9 h-9 rounded-full bg-green-100 text-[#008236] flex items-center justify-center shrink-0">
@@ -816,7 +865,6 @@ function Receipt() {
           </div>
         </div>
 
-        {/* FOOTER */}
         <div className="border-t border-gray-100 px-5 sm:px-10 py-6 text-center">
           <p className="text-sm font-bold text-[#008236]">
             CampusMart 2.0
@@ -829,6 +877,152 @@ function Receipt() {
           </p>
         </div>
       </main>
+
+      {/* =====================================================
+          CAMPUSMART DOWNLOAD MODAL
+         ===================================================== */}
+      {showDownloadModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => {
+              if (downloadStatus !== "loading") closeDownloadModal();
+            }}
+          />
+
+          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="bg-[#008236] px-6 py-5 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
+                  {downloadStatus === "done" ? (
+                    <FiCheckCircle size={22} className="text-white" />
+                  ) : downloadStatus === "error" ? (
+                    <FiX size={22} className="text-white" />
+                  ) : (
+                    <FiDownload size={22} className="text-white" />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-lg font-bold text-white truncate">
+                    {downloadStatus === "loading" && "Preparing PDF"}
+                    {downloadStatus === "done" && "Download ready"}
+                    {downloadStatus === "error" && "Download failed"}
+                    {downloadStatus === "idle" && "Download receipt"}
+                  </h3>
+                  <p className="text-xs text-green-100 mt-0.5">
+                    CampusMart official receipt
+                  </p>
+                </div>
+              </div>
+
+              {downloadStatus !== "loading" && (
+                <button
+                  type="button"
+                  onClick={closeDownloadModal}
+                  className="w-9 h-9 rounded-lg hover:bg-white/10 flex items-center justify-center text-white shrink-0"
+                >
+                  <FiX size={20} />
+                </button>
+              )}
+            </div>
+
+            {/* Body */}
+            <div className="px-6 py-5">
+              {downloadStatus === "loading" && (
+                <div className="text-center py-2">
+                  <div className="w-12 h-12 mx-auto rounded-full border-4 border-green-100 border-t-[#008236] animate-spin" />
+                  <p className="mt-4 text-sm font-semibold text-gray-800">
+                    Creating your CampusMart receipt…
+                  </p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Please wait a moment.
+                  </p>
+                  <div className="mt-4 h-2 rounded-full bg-green-100 overflow-hidden">
+                    <div className="h-full w-2/3 rounded-full bg-[#008236] animate-pulse" />
+                  </div>
+                </div>
+              )}
+
+              {downloadStatus === "done" && (
+                <div>
+                  <div className="rounded-xl bg-green-50 border border-green-100 p-4 flex gap-3">
+                    <FiCheckCircle
+                      className="text-[#008236] shrink-0 mt-0.5"
+                      size={18}
+                    />
+                    <div>
+                      <p className="text-sm font-semibold text-[#008236]">
+                        PDF created successfully
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1 break-all">
+                        {pdfFileName || "CampusMart receipt"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="mt-4 text-sm text-gray-600 leading-relaxed">
+                    Your receipt was saved to your device. You can open it in a
+                    new tab or download it again.
+                  </p>
+
+                  <div className="mt-5 flex flex-col gap-3">
+                    <button
+                      type="button"
+                      onClick={openPdfInNewTab}
+                      className="h-11 rounded-xl bg-[#008236] hover:bg-[#006f2e] text-white text-sm font-semibold flex items-center justify-center gap-2"
+                    >
+                      <FiExternalLink size={16} />
+                      Open PDF in new tab
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={downloadAgain}
+                      className="h-11 rounded-xl border border-green-200 text-[#008236] text-sm font-semibold hover:bg-green-50 flex items-center justify-center gap-2"
+                    >
+                      <FiRefreshCw size={16} />
+                      Download again
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={closeDownloadModal}
+                      className="h-11 rounded-xl border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {downloadStatus === "error" && (
+                <div>
+                  <div className="rounded-xl bg-red-50 border border-red-100 p-4 text-sm text-red-600">
+                    {downloadError || "Something went wrong."}
+                  </div>
+                  <div className="mt-5 flex flex-col sm:flex-row gap-3">
+                    <button
+                      type="button"
+                      onClick={closeDownloadModal}
+                      className="flex-1 h-11 rounded-xl border border-gray-200 text-sm font-semibold"
+                    >
+                      Close
+                    </button>
+                    <button
+                      type="button"
+                      onClick={downloadPDF}
+                      className="flex-1 h-11 rounded-xl bg-[#008236] text-white text-sm font-semibold"
+                    >
+                      Try again
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
