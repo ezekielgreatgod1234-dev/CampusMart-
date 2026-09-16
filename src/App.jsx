@@ -510,26 +510,6 @@ function getMessageTimestamp(message) {
   return 0;
 }
 
-function sortMessagesChronologically(messages) {
-  if (!Array.isArray(messages)) return [];
-
-  return messages
-    .map((message, index) => ({
-      message,
-      index,
-      timestamp: getMessageTimestamp(message),
-    }))
-    .sort((a, b) => {
-      if (a.timestamp > 0 && b.timestamp > 0) {
-        if (a.timestamp !== b.timestamp) return a.timestamp - b.timestamp;
-        return a.index - b.index;
-      }
-      if (a.timestamp > 0 && b.timestamp === 0) return -1;
-      if (a.timestamp === 0 && b.timestamp > 0) return 1;
-      return a.index - b.index;
-    })
-    .map((item) => item.message);
-}
 
 async function formatConversation(conversationDoc, currentUserId) {
   const data = conversationDoc.data();
@@ -611,10 +591,18 @@ async function formatConversation(conversationDoc, currentUserId) {
     return true;
   });
 
-  const sortedVisibleMessages = sortMessagesChronologically(visibleMessages);
+  // Trust the array order Firestore already stored (sendMessage always
+  // appends via a transaction, so it's already chronological). Re-sorting
+  // by timestamp here reintroduces the exact bug already fixed in
+  // Chat.jsx/SellerChat.jsx: sortMessagesChronologically always placed any
+  // message WITH a valid timestamp above any message without one,
+  // regardless of actual send order — which is why messages could appear
+  // scattered, especially on mobile where this fallback data is visible
+  // for longer before the live Firestore listener takes over.
+  const orderedVisibleMessages = visibleMessages;
   const lastVisibleMessage =
-    sortedVisibleMessages.length > 0
-      ? sortedVisibleMessages[sortedVisibleMessages.length - 1]
+    orderedVisibleMessages.length > 0
+      ? orderedVisibleMessages[orderedVisibleMessages.length - 1]
       : null;
 
   const lastMessage =
@@ -646,8 +634,8 @@ async function formatConversation(conversationDoc, currentUserId) {
     time: displayTime,
     unread: unreadCount,
     online: data.onlineStatus?.[otherParticipantId] === true,
-    conversation: sortedVisibleMessages,
-    allMessages: sortedVisibleMessages,
+    conversation: orderedVisibleMessages,
+    allMessages: orderedVisibleMessages,
     productId: data.productId || null,
     productName: data.productName || "",
     buyerId: data.buyerId || null,
@@ -1636,10 +1624,11 @@ function App() {
             );
           });
 
-          const sortedMessages = sortMessagesChronologically(visibleMessages);
+          // Trust array order instead of re-sorting (see formatConversation
+          // for why sortMessagesChronologically can misplace messages).
           const lastMessage =
-            sortedMessages.length > 0
-              ? sortedMessages[sortedMessages.length - 1]
+            visibleMessages.length > 0
+              ? visibleMessages[visibleMessages.length - 1]
               : null;
 
           transaction.update(conversationRef, {
@@ -1677,10 +1666,11 @@ function App() {
           return true;
         });
 
-        const sortedVisible = sortMessagesChronologically(visibleForCurrentUser);
+        // Trust array order instead of re-sorting (see formatConversation
+        // for why sortMessagesChronologically can misplace messages).
         const lastMessage =
-          sortedVisible.length > 0
-            ? sortedVisible[sortedVisible.length - 1]
+          visibleForCurrentUser.length > 0
+            ? visibleForCurrentUser[visibleForCurrentUser.length - 1]
             : null;
 
         transaction.update(conversationRef, {
