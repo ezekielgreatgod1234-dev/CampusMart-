@@ -1026,38 +1026,6 @@ function SellerChat({
           conversationId,
           text
         );
-
-        // Push notify the other participant (buyer)
-        try {
-          if (
-            otherParticipantId &&
-            firebaseUser
-          ) {
-            const idToken =
-              await firebaseUser.getIdToken();
-
-            await fetch(
-              "https://campusbackend-1.onrender.com/notify-new-message",
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${idToken}`,
-                },
-                body: JSON.stringify({
-                  recipientId: otherParticipantId,
-                  senderName: sellerFullName || "Seller",
-                  preview: text.slice(0, 100),
-                }),
-              }
-            );
-          }
-        } catch (notifyErr) {
-          console.warn(
-            "Message push notify skipped:",
-            notifyErr
-          );
-        }
       } catch (error) {
         console.error(
           "Seller send message error:",

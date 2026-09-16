@@ -192,21 +192,10 @@ function Chat({
     null;
 
   // =====================================================
-  // MESSAGES — TRUST FIRESTORE ARRAY ORDER DIRECTLY.
-  //
-  // Every message is appended to this array in the order it
-  // was actually sent — that array order IS the source of
-  // truth for chronology.
-  //
-  // This used to be re-sorted by createdAt/createdAtMs as a
-  // "safety net", but that's what caused newer messages to
-  // jump above older ones: if the sender's device clock is
-  // even slightly off, or a message is missing a timestamp
-  // field, re-sorting can flip two messages relative to each
-  // other even though Firestore already stored them in the
-  // right order. Trusting the array order avoids that.
-  // (SellerChat.jsx already works this way — this brings the
-  // buyer side in line with it.)
+  // MESSAGES — TRUST FIRESTORE ARRAY ORDER
+  // sendMessage always appends, so the array is already
+  // chronological. Re-sorting by timestamp can scramble
+  // order when some messages have missing/bad timestamps.
   // =====================================================
 
   const chatMessages =
@@ -214,7 +203,28 @@ function Chat({
       ? liveConversation.messages
       : fallbackPerson?.conversation || [];
 
-  const orderedChatMessages = chatMessages;
+  // Stable chronological order:
+  // 1) Prefer valid timestamps
+  // 2) If timestamps equal or missing, keep original array index
+  //    (array index = real send order)
+  const orderedChatMessages = chatMessages
+    .map((message, index) => ({
+      message,
+      index,
+      timestamp: getMessageTimestampMs(message),
+    }))
+    .sort((a, b) => {
+      const aHas = a.timestamp > 0;
+      const bHas = b.timestamp > 0;
+
+      if (aHas && bHas && a.timestamp !== b.timestamp) {
+        return a.timestamp - b.timestamp;
+      }
+
+      // Same timestamp or missing → preserve send order
+      return a.index - b.index;
+    })
+    .map((item) => item.message);
 
   const isMyMessage = (message) => {
     if (!message || !firebaseUser?.uid) return false;
@@ -517,35 +527,6 @@ function Chat({
       if (!success) {
         setMessageText(text);
         console.error("Failed to send message");
-      } else {
-        // Push notify the other participant (seller / other user)
-        try {
-          if (otherParticipantId && firebaseUser) {
-            const idToken = await firebaseUser.getIdToken();
-            const myName =
-              firebaseUser.displayName ||
-              firebaseUser.email?.split("@")[0] ||
-              "Buyer";
-
-            await fetch(
-              "https://campusbackend-1.onrender.com/notify-new-message",
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${idToken}`,
-                },
-                body: JSON.stringify({
-                  recipientId: otherParticipantId,
-                  senderName: myName,
-                  preview: text.slice(0, 100),
-                }),
-              }
-            );
-          }
-        } catch (notifyErr) {
-          console.warn("Message push notify skipped:", notifyErr);
-        }
       }
     } catch (error) {
       console.error("Customer send message error:", error);
