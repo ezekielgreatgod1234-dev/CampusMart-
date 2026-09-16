@@ -19,7 +19,6 @@ import {
   FiShoppingCart,
   FiTag,
   FiCheck,
-  FiUser,
   FiX,
 } from "react-icons/fi";
 
@@ -28,7 +27,6 @@ import { auth, db } from "./firebase";
 const ADMIN_EMAIL = "campusmart1234@gmail.com";
 const SESSION_DURATION_MS = 60 * 60 * 1000;
 const SESSION_KEY = "campusmart_session_expires_at";
-
 const SAVED_ACCOUNTS_KEY = "campusmart_saved_accounts";
 
 function loadSavedAccounts() {
@@ -62,6 +60,7 @@ function saveAccountToDevice({ email, fullName, photoURL }) {
     photoURL: photoURL || null,
     lastUsed: Date.now(),
   });
+
   localStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify(list.slice(0, 8)));
 }
 
@@ -71,7 +70,6 @@ function removeSavedAccount(email) {
   localStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify(list));
   return list;
 }
-
 
 function Login() {
   const navigate = useNavigate();
@@ -92,32 +90,40 @@ function Login() {
   const [selectedSavedEmail, setSelectedSavedEmail] = useState("");
   const [showOtherAccount, setShowOtherAccount] = useState(false);
 
+  // Show password only after tapping an account OR using another account
+  // OR when there are no saved accounts (normal login)
+  const showPasswordField =
+    showOtherAccount ||
+    savedAccounts.length === 0 ||
+    !!selectedSavedEmail;
+
   useEffect(() => {
     const accounts = loadSavedAccounts();
     setSavedAccounts(accounts);
 
     if (location.state?.registeredEmail) {
+      // Coming from registration → full form
       setShowOtherAccount(true);
+      setSelectedSavedEmail("");
       setFormData((current) => ({
         ...current,
         email: location.state.registeredEmail,
+        password: "",
       }));
     } else if (accounts.length > 0) {
-      setSelectedSavedEmail(accounts[0].email);
-      setFormData((current) => ({
-        ...current,
-        email: accounts[0].email,
-      }));
+      // Show list only — do NOT auto-select, so password stays hidden
+      setShowOtherAccount(false);
+      setSelectedSavedEmail("");
+      setFormData({ email: "", password: "" });
     } else {
       setShowOtherAccount(true);
+      setSelectedSavedEmail("");
     }
-  }, []);
+  }, [location.state?.registeredEmail]);
 
   useEffect(() => {
     if (location.state?.justRegistered) {
-      setSuccess(
-        "Account created! Please verify your email, then log in."
-      );
+      setSuccess("Account created! Please verify your email, then log in.");
     }
   }, [location.state]);
 
@@ -162,15 +168,14 @@ function Login() {
     localStorage.removeItem(SESSION_KEY);
   };
 
-
   const selectSavedAccount = (account) => {
     setSelectedSavedEmail(account.email);
-    setFormData((current) => ({
-      ...current,
+    setFormData({
       email: account.email,
       password: "",
-    }));
+    });
     setShowOtherAccount(false);
+    setShowPassword(false);
     setError("");
   };
 
@@ -178,6 +183,7 @@ function Login() {
     setSelectedSavedEmail("");
     setShowOtherAccount(true);
     setFormData({ email: "", password: "" });
+    setShowPassword(false);
     setError("");
   };
 
@@ -186,11 +192,12 @@ function Login() {
     e.stopPropagation();
     const next = removeSavedAccount(email);
     setSavedAccounts(next);
+
     if (selectedSavedEmail === email) {
-      if (next.length > 0) {
-        selectSavedAccount(next[0]);
-      } else {
-        handleUseAnotherAccount();
+      setSelectedSavedEmail("");
+      setFormData({ email: "", password: "" });
+      if (next.length === 0) {
+        setShowOtherAccount(true);
       }
     }
   };
@@ -220,10 +227,8 @@ function Login() {
       const user = userCredential.user;
       const userEmail = (user.email || "").toLowerCase();
 
-      // Refresh so emailVerified is current
       await user.reload();
 
-      // Block unverified emails (except super admin if you want)
       if (!user.emailVerified && userEmail !== ADMIN_EMAIL.toLowerCase()) {
         try {
           await sendEmailVerification(user, {
@@ -269,14 +274,26 @@ function Login() {
         return;
       }
 
-      if (
-        accountStatus === "disabled" ||
-        accountStatus === "suspended"
-      ) {
+      if (accountStatus === "disabled" || accountStatus === "suspended") {
         await forceSignOut();
         navigate("/account-disabled", { replace: true });
         return;
       }
+
+      // Save account on this device (never store password)
+      saveAccountToDevice({
+        email: userEmail,
+        fullName:
+          userData?.fullName ||
+          userData?.displayName ||
+          user.displayName ||
+          "",
+        photoURL:
+          userData?.profileImage ||
+          userData?.photoURL ||
+          user.photoURL ||
+          null,
+      });
 
       startSession();
 
@@ -314,6 +331,7 @@ function Login() {
 
   return (
     <div className="auth-page min-h-screen bg-[#f7faf8] flex">
+      {/* LEFT BRAND */}
       <div className="hidden lg:flex lg:w-[46%] xl:w-[48%] bg-[#073b2f] text-white relative overflow-hidden">
         <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-green-500/10" />
         <div className="absolute -bottom-40 -right-40 w-[500px] h-[500px] rounded-full bg-green-400/10" />
@@ -373,6 +391,7 @@ function Login() {
         </div>
       </div>
 
+      {/* LOGIN SIDE */}
       <div className="flex-1 min-h-screen flex items-center justify-center px-5 py-10 sm:px-8">
         <div className="w-full max-w-[500px]">
           <div className="mb-8">
@@ -398,7 +417,9 @@ function Login() {
               Log in to CampusMart
             </h2>
             <p className="mt-3 text-gray-500">
-              Access your account and continue where you left off.
+              {savedAccounts.length > 0 && !showOtherAccount && !selectedSavedEmail
+                ? "Tap an account to continue"
+                : "Access your account and continue where you left off."}
             </p>
           </div>
 
@@ -421,7 +442,7 @@ function Login() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Saved accounts on this device */}
+            {/* Saved accounts list */}
             {savedAccounts.length > 0 && !showOtherAccount && (
               <div className="space-y-3">
                 <p className="text-sm font-bold text-gray-700">
@@ -429,8 +450,7 @@ function Login() {
                 </p>
                 <div className="space-y-2">
                   {savedAccounts.map((account) => {
-                    const selected =
-                      selectedSavedEmail === account.email;
+                    const selected = selectedSavedEmail === account.email;
                     const initial = (
                       account.fullName ||
                       account.email ||
@@ -493,7 +513,7 @@ function Login() {
               </div>
             )}
 
-            {/* Email field — hidden when picking a saved account */}
+            {/* Email — only for "another account" or no saved accounts */}
             {(showOtherAccount || savedAccounts.length === 0) && (
               <div>
                 <label
@@ -523,9 +543,9 @@ function Login() {
                     type="button"
                     onClick={() => {
                       setShowOtherAccount(false);
-                      if (savedAccounts[0]) {
-                        selectSavedAccount(savedAccounts[0]);
-                      }
+                      setSelectedSavedEmail("");
+                      setFormData({ email: "", password: "" });
+                      setShowPassword(false);
                     }}
                     className="mt-2 text-xs font-semibold text-green-700 hover:text-green-800"
                   >
@@ -535,7 +555,7 @@ function Login() {
               </div>
             )}
 
-            {/* Show which account is selected when using saved list */}
+            {/* Selected account hint */}
             {savedAccounts.length > 0 &&
               !showOtherAccount &&
               selectedSavedEmail && (
@@ -547,66 +567,79 @@ function Login() {
                 </p>
               )}
 
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label
-                  htmlFor="password"
-                  className="text-sm font-bold text-gray-700"
-                >
-                  Password
-                </label>
-                <button
-                  type="button"
-                  onClick={() => navigate("/forgot-password")}
-                  className="text-sm font-medium text-green-600 hover:text-green-700 transition"
-                >
-                  Forgot Password?
-                </button>
-              </div>
+            {/* Password — hidden until account is tapped or "another account" */}
+            {showPasswordField && (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label
+                    htmlFor="password"
+                    className="text-sm font-bold text-gray-700"
+                  >
+                    Password
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/forgot-password")}
+                    className="text-sm font-medium text-green-600 hover:text-green-700 transition"
+                  >
+                    Forgot Password?
+                  </button>
+                </div>
 
-              <div className="relative">
-                <FiLock
-                  size={18}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
-                />
-                <input
-                  id="password"
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  value={formData.password}
-                  onChange={handleChange}
-                  placeholder="Enter your password"
-                  autoComplete="current-password"
-                  className="w-full h-13 rounded-xl border border-gray-200 bg-white pl-11 pr-12 text-sm outline-none focus:border-green-500 focus:ring-4 focus:ring-green-50 transition"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((c) => !c)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-green-600 transition"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                >
-                  {showPassword ? <FiEye size={18} /> : <FiEyeOff size={18} />}
-                </button>
+                <div className="relative">
+                  <FiLock
+                    size={18}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                  />
+                  <input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    value={formData.password}
+                    onChange={handleChange}
+                    placeholder="Enter your password"
+                    autoComplete="current-password"
+                    autoFocus={!!selectedSavedEmail}
+                    className="w-full h-13 rounded-xl border border-gray-200 bg-white pl-11 pr-12 text-sm outline-none focus:border-green-500 focus:ring-4 focus:ring-green-50 transition"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((c) => !c)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-green-600 transition"
+                    aria-label={
+                      showPassword ? "Hide password" : "Show password"
+                    }
+                  >
+                    {showPassword ? (
+                      <FiEye size={18} />
+                    ) : (
+                      <FiEyeOff size={18} />
+                    )}
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full h-13 rounded-xl bg-green-600 text-white font-bold text-sm flex items-center justify-center gap-2 hover:bg-green-700 active:bg-green-800 transition shadow-lg shadow-green-600/10 disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {loading ? (
-                <>
-                  <span className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                  Logging in...
-                </>
-              ) : (
-                <>
-                  Log in
-                  <FiArrowRight size={18} />
-                </>
-              )}
-            </button>
+            {/* Log in button — only when password field is visible */}
+            {showPasswordField && (
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full h-13 rounded-xl bg-green-600 text-white font-bold text-sm flex items-center justify-center gap-2 hover:bg-green-700 active:bg-green-800 transition shadow-lg shadow-green-600/10 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {loading ? (
+                  <>
+                    <span className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                    Logging in...
+                  </>
+                ) : (
+                  <>
+                    Log in
+                    <FiArrowRight size={18} />
+                  </>
+                )}
+              </button>
+            )}
           </form>
 
           <div className="flex items-center gap-4 my-7">
