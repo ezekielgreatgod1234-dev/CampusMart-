@@ -1,12 +1,8 @@
 import { initializeApp } from "firebase/app";
-
 import { getAuth } from "firebase/auth";
-
 import { getFirestore } from "firebase/firestore";
-
-import {
-  getDatabase,
-} from "firebase/database";
+import { getDatabase } from "firebase/database";
+import { getMessaging, isSupported } from "firebase/messaging";
 
 // =====================================================
 // FIREBASE CONFIG
@@ -41,14 +37,30 @@ export const db = getFirestore(app);
 
 // =====================================================
 // REALTIME DATABASE
-//
-// Used for:
-// - Real online/offline status
-// - Presence detection
-// - Last seen
 // =====================================================
 
 export const realtimeDb = getDatabase(app);
+
+// =====================================================
+// CLOUD MESSAGING (push notifications)
+// =====================================================
+
+let messaging = null;
+
+export async function getFirebaseMessaging() {
+  if (typeof window === "undefined") return null;
+  if (messaging) return messaging;
+
+  try {
+    const supported = await isSupported();
+    if (!supported) return null;
+    messaging = getMessaging(app);
+    return messaging;
+  } catch (err) {
+    console.warn("Firebase Messaging not available:", err);
+    return null;
+  }
+}
 
 // =====================================================
 // EXPORT APP

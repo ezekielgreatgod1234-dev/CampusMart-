@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../../context/AuthContext";
 import InstallHelpModal from "../../components/InstallHelpModal";
+import { enableCampusMartPush } from "../../utils/pushNotifications";
 
 import {
   FiGrid,
@@ -31,6 +32,7 @@ import {
   FiFileText,
   FiBookOpen,
   FiDownload,
+  FiBell,
 } from "react-icons/fi";
 
 import {
@@ -66,6 +68,10 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
   const [newOrdersCount, setNewOrdersCount] = useState(0);
   const [activeSection, setActiveSection] = useState("personal");
   const [loading, setLoading] = useState(true);
+
+  const [pushStatus, setPushStatus] = useState("");
+  const [pushLoading, setPushLoading] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
 
   /* =======================================================
      PWA INSTALL
@@ -391,6 +397,7 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
           setProfileVisibility(
             savedSettings.profileVisibility || "campus"
           );
+          setNotificationsEnabled(userData.notificationsEnabled === true);
         } else {
           const newProfile = {
             fullName: firebaseUser.displayName || "",
@@ -426,6 +433,7 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
           });
 
           setProfileVisibility("campus");
+          setNotificationsEnabled(false);
         }
       } catch (error) {
         console.error("Could not load seller settings:", error);
@@ -489,6 +497,11 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
           label: isInstalled ? "CampusMart Installed" : "Install CampusMart",
           icon: FiDownload,
           action: "install",
+        },
+        {
+          id: "notifications",
+          label: "Notifications",
+          icon: FiBell,
         },
       ],
     },
@@ -778,6 +791,61 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
       );
     } catch (error) {
       console.error("Could not update profile visibility:", error);
+    }
+  };
+
+  /* =======================================================
+     NOTIFICATIONS (push)
+  ======================================================= */
+
+  const handleEnableNotifications = async () => {
+    if (!firebaseUser?.uid) {
+      setPushStatus("Please log in again.");
+      return;
+    }
+
+    setPushLoading(true);
+    setPushStatus("");
+
+    try {
+      const result = await enableCampusMartPush(firebaseUser.uid);
+      if (result.ok) {
+        setNotificationsEnabled(true);
+        setPushStatus("Notifications enabled for this device.");
+      } else {
+        setPushStatus("Permission not granted.");
+      }
+    } catch (error) {
+      console.error(error);
+      setPushStatus(error.message || "Could not enable notifications.");
+    } finally {
+      setPushLoading(false);
+    }
+  };
+
+  const handleDisableNotifications = async () => {
+    if (!firebaseUser?.uid) return;
+
+    setPushLoading(true);
+    setPushStatus("");
+
+    try {
+      await setDoc(
+        doc(db, "users", firebaseUser.uid),
+        {
+          fcmToken: null,
+          notificationsEnabled: false,
+          fcmTokenUpdatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+      setNotificationsEnabled(false);
+      setPushStatus("Notifications disabled on this device.");
+    } catch (error) {
+      console.error(error);
+      setPushStatus(error.message || "Could not disable notifications.");
+    } finally {
+      setPushLoading(false);
     }
   };
 
@@ -1539,6 +1607,69 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
                       description="Your profile is hidden from other users."
                       icon={FiLock}
                     />
+                  </div>
+                </section>
+              )}
+
+              {activeSection === "notifications" && (
+                <section>
+                  <SettingsHeader
+                    title="Notifications"
+                    description="Get alerts for new orders, buyer messages, and CampusMart updates on this device."
+                    icon={FiBell}
+                  />
+
+                  <div className="mt-6 rounded-2xl border border-gray-100 bg-gray-50 p-5">
+                    <div className="flex items-start gap-3">
+                      <div className="w-11 h-11 rounded-xl bg-green-50 text-[#008236] flex items-center justify-center shrink-0 border border-green-100">
+                        <FiBell size={20} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold text-gray-900">
+                          Push notifications
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1 leading-5">
+                          Stay informed when buyers order, message you, or when
+                          CampusMart posts an update — even if the app is closed.
+                        </p>
+                        <p className="text-xs mt-2 font-medium text-gray-600">
+                          Status:{" "}
+                          <span
+                            className={
+                              notificationsEnabled
+                                ? "text-[#008236]"
+                                : "text-gray-500"
+                            }
+                          >
+                            {notificationsEnabled ? "Enabled" : "Not enabled"}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+
+                    {notificationsEnabled ? (
+                      <button
+                        type="button"
+                        onClick={handleDisableNotifications}
+                        disabled={pushLoading}
+                        className="mt-5 h-11 px-5 rounded-xl border border-gray-200 bg-white text-gray-700 text-sm font-semibold hover:bg-gray-50 disabled:opacity-60"
+                      >
+                        {pushLoading ? "Updating..." : "Disable notifications"}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleEnableNotifications}
+                        disabled={pushLoading}
+                        className="mt-5 h-11 px-5 rounded-xl bg-[#008236] hover:bg-[#006f2e] disabled:opacity-60 text-white text-sm font-semibold"
+                      >
+                        {pushLoading ? "Enabling..." : "Enable notifications"}
+                      </button>
+                    )}
+
+                    {pushStatus && (
+                      <p className="mt-3 text-xs text-gray-600">{pushStatus}</p>
+                    )}
                   </div>
                 </section>
               )}
