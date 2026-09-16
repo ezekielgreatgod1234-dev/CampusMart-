@@ -19,6 +19,8 @@ import {
   FiShoppingCart,
   FiTag,
   FiCheck,
+  FiUser,
+  FiX,
 } from "react-icons/fi";
 
 import { auth, db } from "./firebase";
@@ -26,6 +28,50 @@ import { auth, db } from "./firebase";
 const ADMIN_EMAIL = "campusmart1234@gmail.com";
 const SESSION_DURATION_MS = 60 * 60 * 1000;
 const SESSION_KEY = "campusmart_session_expires_at";
+
+const SAVED_ACCOUNTS_KEY = "campusmart_saved_accounts";
+
+function loadSavedAccounts() {
+  try {
+    const raw = localStorage.getItem(SAVED_ACCOUNTS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((a) => a && typeof a.email === "string" && a.email.includes("@"))
+      .map((a) => ({
+        email: String(a.email).trim().toLowerCase(),
+        fullName: String(a.fullName || "").trim(),
+        photoURL: a.photoURL || null,
+        lastUsed: Number(a.lastUsed) || 0,
+      }))
+      .sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+  } catch {
+    return [];
+  }
+}
+
+function saveAccountToDevice({ email, fullName, photoURL }) {
+  const cleanEmail = String(email || "").trim().toLowerCase();
+  if (!cleanEmail) return;
+
+  const list = loadSavedAccounts().filter((a) => a.email !== cleanEmail);
+  list.unshift({
+    email: cleanEmail,
+    fullName: String(fullName || "").trim(),
+    photoURL: photoURL || null,
+    lastUsed: Date.now(),
+  });
+  localStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify(list.slice(0, 8)));
+}
+
+function removeSavedAccount(email) {
+  const clean = String(email || "").trim().toLowerCase();
+  const list = loadSavedAccounts().filter((a) => a.email !== clean);
+  localStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify(list));
+  return list;
+}
+
 
 function Login() {
   const navigate = useNavigate();
@@ -41,6 +87,31 @@ function Login() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const [savedAccounts, setSavedAccounts] = useState([]);
+  const [selectedSavedEmail, setSelectedSavedEmail] = useState("");
+  const [showOtherAccount, setShowOtherAccount] = useState(false);
+
+  useEffect(() => {
+    const accounts = loadSavedAccounts();
+    setSavedAccounts(accounts);
+
+    if (location.state?.registeredEmail) {
+      setShowOtherAccount(true);
+      setFormData((current) => ({
+        ...current,
+        email: location.state.registeredEmail,
+      }));
+    } else if (accounts.length > 0) {
+      setSelectedSavedEmail(accounts[0].email);
+      setFormData((current) => ({
+        ...current,
+        email: accounts[0].email,
+      }));
+    } else {
+      setShowOtherAccount(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (location.state?.justRegistered) {
@@ -89,6 +160,39 @@ function Login() {
       // ignore
     }
     localStorage.removeItem(SESSION_KEY);
+  };
+
+
+  const selectSavedAccount = (account) => {
+    setSelectedSavedEmail(account.email);
+    setFormData((current) => ({
+      ...current,
+      email: account.email,
+      password: "",
+    }));
+    setShowOtherAccount(false);
+    setError("");
+  };
+
+  const handleUseAnotherAccount = () => {
+    setSelectedSavedEmail("");
+    setShowOtherAccount(true);
+    setFormData({ email: "", password: "" });
+    setError("");
+  };
+
+  const handleRemoveSavedAccount = (e, email) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const next = removeSavedAccount(email);
+    setSavedAccounts(next);
+    if (selectedSavedEmail === email) {
+      if (next.length > 0) {
+        selectSavedAccount(next[0]);
+      } else {
+        handleUseAnotherAccount();
+      }
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -317,30 +421,131 @@ function Login() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label
-                htmlFor="email"
-                className="block text-sm font-bold text-gray-700 mb-2"
-              >
-                Email address
-              </label>
-              <div className="relative">
-                <FiMail
-                  size={18}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
-                />
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  placeholder="you@example.com"
-                  autoComplete="email"
-                  className="w-full h-13 rounded-xl border border-gray-200 bg-white pl-11 pr-4 text-sm outline-none focus:border-green-500 focus:ring-4 focus:ring-green-50 transition"
-                />
+            {/* Saved accounts on this device */}
+            {savedAccounts.length > 0 && !showOtherAccount && (
+              <div className="space-y-3">
+                <p className="text-sm font-bold text-gray-700">
+                  Choose an account
+                </p>
+                <div className="space-y-2">
+                  {savedAccounts.map((account) => {
+                    const selected =
+                      selectedSavedEmail === account.email;
+                    const initial = (
+                      account.fullName ||
+                      account.email ||
+                      "U"
+                    )
+                      .charAt(0)
+                      .toUpperCase();
+
+                    return (
+                      <button
+                        key={account.email}
+                        type="button"
+                        onClick={() => selectSavedAccount(account)}
+                        className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition ${
+                          selected
+                            ? "border-green-500 bg-green-50 ring-2 ring-green-100"
+                            : "border-gray-200 bg-white hover:border-green-200 hover:bg-green-50/40"
+                        }`}
+                      >
+                        {account.photoURL ? (
+                          <img
+                            src={account.photoURL}
+                            alt=""
+                            className="w-11 h-11 rounded-full object-cover border border-green-100"
+                          />
+                        ) : (
+                          <div className="w-11 h-11 rounded-full bg-green-100 text-green-700 flex items-center justify-center font-bold text-sm">
+                            {initial}
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-gray-900 truncate">
+                            {account.fullName || "CampusMart user"}
+                          </p>
+                          <p className="text-xs text-gray-500 truncate">
+                            {account.email}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          title="Remove from this device"
+                          onClick={(e) =>
+                            handleRemoveSavedAccount(e, account.email)
+                          }
+                          className="w-8 h-8 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 flex items-center justify-center shrink-0"
+                        >
+                          <FiX size={16} />
+                        </button>
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleUseAnotherAccount}
+                  className="w-full h-11 rounded-xl border border-dashed border-gray-300 text-sm font-semibold text-gray-600 hover:border-green-400 hover:text-green-700 hover:bg-green-50 transition"
+                >
+                  Use another account
+                </button>
               </div>
-            </div>
+            )}
+
+            {/* Email field — hidden when picking a saved account */}
+            {(showOtherAccount || savedAccounts.length === 0) && (
+              <div>
+                <label
+                  htmlFor="email"
+                  className="block text-sm font-bold text-gray-700 mb-2"
+                >
+                  Email address
+                </label>
+                <div className="relative">
+                  <FiMail
+                    size={18}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                  />
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    placeholder="you@example.com"
+                    autoComplete="username"
+                    className="w-full h-13 rounded-xl border border-gray-200 bg-white pl-11 pr-4 text-sm outline-none focus:border-green-500 focus:ring-4 focus:ring-green-50 transition"
+                  />
+                </div>
+                {savedAccounts.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowOtherAccount(false);
+                      if (savedAccounts[0]) {
+                        selectSavedAccount(savedAccounts[0]);
+                      }
+                    }}
+                    className="mt-2 text-xs font-semibold text-green-700 hover:text-green-800"
+                  >
+                    ← Back to saved accounts
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Show which account is selected when using saved list */}
+            {savedAccounts.length > 0 &&
+              !showOtherAccount &&
+              selectedSavedEmail && (
+                <p className="text-xs text-gray-500 -mt-1">
+                  Signing in as{" "}
+                  <span className="font-semibold text-gray-700">
+                    {selectedSavedEmail}
+                  </span>
+                </p>
+              )}
 
             <div>
               <div className="flex items-center justify-between mb-2">

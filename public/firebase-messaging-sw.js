@@ -1,7 +1,7 @@
 /* public/firebase-messaging-sw.js */
-
 /* eslint-disable no-undef */
 /* global importScripts, firebase */
+
 importScripts(
   "https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"
 );
@@ -21,13 +21,50 @@ firebase.initializeApp({
 const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
-  const title = payload.notification?.title || "CampusMart";
+  const title =
+    payload.notification?.title ||
+    payload.data?.title ||
+    "CampusMart";
+
+  const body =
+    payload.notification?.body ||
+    payload.data?.body ||
+    "You have a new update";
+
   const options = {
-    body: payload.notification?.body || "You have a new update",
+    body,
     icon: "/pwa-192x192.png",
     badge: "/pwa-192x192.png",
+    tag: payload.data?.type || "campusmart",
+    renotify: true,
+    vibrate: [120, 80, 120],
     data: payload.data || {},
+    requireInteraction: false,
   };
 
-  self.registration.showNotification(title, options);
+  return self.registration.showNotification(title, options);
+});
+
+// Open app when user taps the notification
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const path = event.notification.data?.path || "/";
+  const url = new URL(path, self.location.origin).href;
+
+  event.waitUntil(
+    clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((windowClients) => {
+        for (const client of windowClients) {
+          if (client.url.includes(self.location.origin) && "focus" in client) {
+            client.focus();
+            if (client.navigate) client.navigate(url);
+            return;
+          }
+        }
+        if (clients.openWindow) {
+          return clients.openWindow(url);
+        }
+      })
+  );
 });
