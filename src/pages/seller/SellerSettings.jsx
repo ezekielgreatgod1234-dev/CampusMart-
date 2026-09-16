@@ -1630,7 +1630,7 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
                         </p>
                         <p className="text-xs text-gray-500 mt-1 leading-5">
                           Stay informed when buyers order, message you, or when
-                          CampusMart posts an update — even if the app is closed.
+                          CampusMart posts an update even if the app is closed.
                         </p>
                         <p className="text-xs mt-2 font-medium text-gray-600">
                           Status:{" "}

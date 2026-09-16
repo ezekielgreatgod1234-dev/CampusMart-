@@ -527,6 +527,35 @@ function Chat({
       if (!success) {
         setMessageText(text);
         console.error("Failed to send message");
+      } else {
+        // Push notify the other participant (seller / other user)
+        try {
+          if (otherParticipantId && firebaseUser) {
+            const idToken = await firebaseUser.getIdToken();
+            const myName =
+              firebaseUser.displayName ||
+              firebaseUser.email?.split("@")[0] ||
+              "Buyer";
+
+            await fetch(
+              "https://campusbackend-1.onrender.com/notify-new-message",
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${idToken}`,
+                },
+                body: JSON.stringify({
+                  recipientId: otherParticipantId,
+                  senderName: myName,
+                  preview: text.slice(0, 100),
+                }),
+              }
+            );
+          }
+        } catch (notifyErr) {
+          console.warn("Message push notify skipped:", notifyErr);
+        }
       }
     } catch (error) {
       console.error("Customer send message error:", error);

@@ -97,6 +97,15 @@ function AdminDashboard() {
   const [tickerTargetLoading, setTickerTargetLoading] = useState(false);
 
   // =========================================================
+  // FEATURE / APP UPDATE PUSH
+  // =========================================================
+
+  const [featureTitle, setFeatureTitle] = useState("");
+  const [featureBody, setFeatureBody] = useState("");
+  const [featureSending, setFeatureSending] = useState(false);
+  const [featureStatus, setFeatureStatus] = useState("");
+
+  // =========================================================
   // ACCESS CONTROL
   // =========================================================
 
@@ -703,6 +712,52 @@ function AdminDashboard() {
         setTickerTargetLoading(false);
       }
     };
+
+  // =========================================================
+  // FEATURE PUSH (new features on CampusMart)
+  // =========================================================
+
+  const handleSendFeaturePush = async () => {
+    setFeatureStatus("");
+
+    const title = featureTitle.trim() || "New on CampusMart";
+    const body = featureBody.trim();
+
+    if (!body) {
+      setFeatureStatus("Enter a message about the new feature.");
+      return;
+    }
+
+    if (!firebaseUser) {
+      setFeatureStatus("Not signed in.");
+      return;
+    }
+
+    try {
+      setFeatureSending(true);
+
+      const data = await adminApiRequest("/admin/notify-feature", {
+        title,
+        body,
+      });
+
+      setFeatureStatus(
+        `Push sent to ${data.sent || 0} device(s)${
+          data.failed ? ` (${data.failed} failed)` : ""
+        }.`
+      );
+
+      setFeatureTitle("");
+      setFeatureBody("");
+    } catch (error) {
+      console.error("Feature push error:", error);
+      setFeatureStatus(
+        error?.message || "Could not send feature push."
+      );
+    } finally {
+      setFeatureSending(false);
+    }
+  };
 
   // =========================================================
   // SEND EMAIL ANNOUNCEMENT
@@ -1822,6 +1877,110 @@ function AdminDashboard() {
                   Clear user's ticker
                 </button>
               )}
+
+            </div>
+
+          </div>
+
+          {/* FEATURE / APP UPDATE PUSH */}
+
+          <div className="mt-6 bg-white rounded-2xl border border-gray-100 p-5 sm:p-6 shadow-sm">
+
+            <div className="flex items-start gap-3 mb-5">
+
+              <div className="w-11 h-11 rounded-xl bg-green-50 text-[#008236] flex items-center justify-center flex-shrink-0 border border-green-100">
+                <FiVolume2 size={20} />
+              </div>
+
+              <div>
+
+                <h2 className="text-sm font-bold text-gray-900">
+                  New feature push
+                </h2>
+
+                <p className="text-xs text-gray-500 mt-1 max-w-md">
+                  Send a phone/desktop notification to users who enabled
+                  push — e.g. “Check out this new feature on CampusMart”.
+                </p>
+
+              </div>
+
+            </div>
+
+            {featureStatus && (
+              <div
+                className={`mb-4 rounded-xl border px-4 py-3 text-sm flex gap-2 ${
+                  featureStatus.toLowerCase().includes("sent") ||
+                  featureStatus.toLowerCase().includes("push sent")
+                    ? "bg-green-50 border-green-100 text-green-700"
+                    : "bg-red-50 border-red-100 text-red-600"
+                }`}
+              >
+                {featureStatus.toLowerCase().includes("sent") ? (
+                  <FiCheckCircle size={16} className="shrink-0 mt-0.5" />
+                ) : (
+                  <FiAlertCircle size={16} className="shrink-0 mt-0.5" />
+                )}
+                <span>{featureStatus}</span>
+              </div>
+            )}
+
+            <div className="space-y-4">
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Title
+                </label>
+                <input
+                  type="text"
+                  value={featureTitle}
+                  onChange={(e) => {
+                    setFeatureTitle(e.target.value);
+                    setFeatureStatus("");
+                  }}
+                  placeholder="e.g. New on CampusMart"
+                  className="w-full h-11 px-4 rounded-xl border border-gray-200 bg-gray-50 text-sm outline-none focus:border-[#008236] focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Message
+                </label>
+                <textarea
+                  rows={3}
+                  value={featureBody}
+                  onChange={(e) => {
+                    setFeatureBody(e.target.value);
+                    setFeatureStatus("");
+                  }}
+                  placeholder="e.g. Check out this new feature on CampusMart — open the app to try Gigs and more."
+                  maxLength={180}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm outline-none focus:border-[#008236] focus:bg-white resize-none"
+                />
+                <div className="mt-1 text-right text-[10px] text-gray-400">
+                  {featureBody.length}/180
+                </div>
+              </div>
+
+              <button
+                type="button"
+                disabled={featureSending}
+                onClick={handleSendFeaturePush}
+                className="h-11 px-5 rounded-xl bg-[#008236] hover:bg-[#006f2e] disabled:opacity-60 text-white text-sm font-semibold inline-flex items-center justify-center gap-2 transition"
+              >
+                {featureSending ? (
+                  <>
+                    <FiRefreshCw className="animate-spin" size={16} />
+                    Sending push...
+                  </>
+                ) : (
+                  <>
+                    <FiSend size={16} />
+                    Send feature notification
+                  </>
+                )}
+              </button>
 
             </div>
 
