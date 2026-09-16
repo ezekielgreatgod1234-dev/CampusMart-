@@ -23,14 +23,31 @@ export async function enableCampusMartPush(userId) {
     return { ok: false, error: "Permission not granted" };
   }
 
-  // Ensure service worker is registered
-  if ("serviceWorker" in navigator) {
-    try {
-      await navigator.serviceWorker.register("/firebase-messaging-sw.js");
-      await navigator.serviceWorker.ready;
-    } catch (err) {
-      console.warn("SW register:", err);
-    }
+  if (!("serviceWorker" in navigator)) {
+    return { ok: false, error: "Service workers not supported on this browser" };
+  }
+
+  // IMPORTANT: capture the exact registration for firebase-messaging-sw.js
+  // and hand it to getToken() explicitly below. If we instead rely on
+  // navigator.serviceWorker.ready, we get back whichever service worker
+  // happens to control this page's scope — on many phones (especially if
+  // the app is installed as a PWA or has any other SW registered at "/"),
+  // that ends up being a *different* service worker than
+  // firebase-messaging-sw.js. Desktop testing tends to only ever have the
+  // one SW registered, so this bug hides there and only shows up on mobile.
+  let registration;
+  try {
+    registration = await navigator.serviceWorker.register(
+      "/firebase-messaging-sw.js",
+      { updateViaCache: "none" } // don't let mobile browsers serve a stale cached SW
+    );
+    // Force a check for a newer firebase-messaging-sw.js on every enable —
+    // mobile browsers are much more aggressive about caching the old one.
+    await registration.update().catch(() => {});
+    await navigator.serviceWorker.ready;
+  } catch (err) {
+    console.error("SW register failed:", err);
+    return { ok: false, error: "Could not register the notification service worker" };
   }
 
   const messaging = await getFirebaseMessaging();
@@ -47,7 +64,23 @@ export async function enableCampusMartPush(userId) {
     console.warn("VITE_FIREBASE_VAPID_KEY is missing");
   }
 
-  const token = await getToken(messaging, vapidKey ? { vapidKey } : undefined);
+  let token;
+  try {
+    token = await getToken(messaging, {
+      ...(vapidKey ? { vapidKey } : {}),
+      serviceWorkerRegistration: registration,
+    });
+  } catch (err) {
+    console.error("getToken failed:", err?.code || err?.message);
+    return {
+      ok: false,
+      error:
+        err?.code === "messaging/permission-blocked"
+          ? "Notifications are blocked for this site at the OS/browser level"
+          : err?.message || "Could not get FCM token",
+    };
+  }
+
   if (!token) {
     return { ok: false, error: "Could not get FCM token" };
   }
@@ -89,10 +122,13 @@ export async function disableCampusMartPush(userId) {
           import.meta.env.VITE_FIREBASE_VAPID_KEY ||
           import.meta.env.VITE_VAPID_KEY ||
           "";
-        currentToken = await getToken(
-          messaging,
-          vapidKey ? { vapidKey } : undefined
+        const registration = await navigator.serviceWorker.getRegistration(
+          "/firebase-messaging-sw.js"
         );
+        currentToken = await getToken(messaging, {
+          ...(vapidKey ? { vapidKey } : {}),
+          ...(registration ? { serviceWorkerRegistration: registration } : {}),
+        });
       } catch (_) {}
     }
 
