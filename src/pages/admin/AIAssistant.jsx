@@ -593,7 +593,7 @@ function AIAssistant({ cartCount = 0 }) {
           msg.includes("no longer available"))
       ) {
         errorText =
-          "CampusMart AI is temporarily unavailable. Please try again later.";
+          "CampusMart AI is coming soon. Please stay tuned.";
       } else if (
         msg.includes("authentication") ||
         msg.includes("log in") ||
