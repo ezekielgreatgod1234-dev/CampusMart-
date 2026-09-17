@@ -255,8 +255,7 @@ function AIAssistant({ cartCount = 0 }) {
       {
         id: `limit-${Date.now()}`,
         role: "ai",
-        text:
-          "CampusMart AI is temporarily unavailable due to its current usage capacity. Please try again shortly.",
+        text: "CampusMart AI is coming soon. Please stay tuned.",
         products: [],
         gigs: [],
       },
