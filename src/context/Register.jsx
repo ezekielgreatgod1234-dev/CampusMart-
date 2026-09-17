@@ -31,12 +31,12 @@ import {
 import { auth, db } from "./firebase";
 
 // =========================================================
-// WELCOME NOTIFICATION (background only)
+// WELCOME NOTIFICATION (in-app only — not email)
 // =========================================================
 async function sendWelcomeNotification(userId, userEmail, fullName) {
   if (!userId) return;
 
-  let title = "Welcome to CampusMart 👋";
+  let title = "Welcome to CampusMart";
   let body =
     "Thanks for joining CampusMart! Browse products, chat sellers, and enjoy secure campus shopping.";
   let enabled = true;
@@ -180,7 +180,6 @@ function Register() {
 
     try {
       setLoading(true);
-      console.log("1. Creating auth user...");
 
       const userCredential = await createUserWithEmailAndPassword(
         auth,
@@ -188,14 +187,11 @@ function Register() {
         password
       );
       const user = userCredential.user;
-      console.log("2. Auth user created:", user.uid);
 
       await updateProfile(user, {
         displayName: fullName,
       });
-      console.log("3. Profile name updated");
 
-      // Required Firestore write
       await setDoc(doc(db, "users", user.uid), {
         id: user.uid,
         fullName,
@@ -209,14 +205,13 @@ function Register() {
         isSeller: role === "seller",
         isVerifiedSeller: false,
         emailVerified: false,
+        welcomeEmailSent: false,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         termsAccepted: true,
         termsAcceptedAt: serverTimestamp(),
       });
-      console.log("4. users doc saved");
 
-      // Public profile – do not block registration
       setDoc(
         doc(db, "publicProfiles", user.uid),
         {
@@ -235,15 +230,11 @@ function Register() {
         { merge: true }
       ).catch((err) => console.warn("publicProfiles:", err));
 
-      // =====================================================
-      // Firebase verification email (NOT Brevo)
-      // Longer timeout so Firebase has time to send
-      // =====================================================
+      // Firebase verification email only (welcome email is sent AFTER verification)
       let verificationSent = false;
       let verificationError = "";
 
       try {
-        console.log("5. Sending verification email...");
         await Promise.race([
           sendEmailVerification(user, {
             url: `${window.location.origin}/login`,
@@ -254,7 +245,6 @@ function Register() {
           ),
         ]);
         verificationSent = true;
-        console.log("6. Verification email sent");
       } catch (err) {
         console.warn("Verification email failed:", err);
         verificationError =
@@ -263,9 +253,7 @@ function Register() {
             : "Verification email could not be sent. You can resend it after login.";
       }
 
-      console.log("7. Signing out...");
       await signOut(auth);
-      console.log("8. Navigating to success");
 
       navigate("/registration-success", {
         replace: true,
@@ -276,13 +264,8 @@ function Register() {
         },
       });
 
-      // Background only – NEVER await these
+      // In-app notification only (NOT the welcome email)
       sendWelcomeNotification(user.uid, email, fullName).catch(() => {});
-      fetch("https://campusbackend-1.onrender.com/send-welcome-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, fullName }),
-      }).catch(() => {});
     } catch (err) {
       console.error("Registration error:", err);
       setError(getFirebaseErrorMessage(err));

@@ -29,6 +29,39 @@ const SESSION_DURATION_MS = 60 * 60 * 1000;
 const SESSION_KEY = "campusmart_session_expires_at";
 const SAVED_ACCOUNTS_KEY = "campusmart_saved_accounts";
 
+// Backend base URL (same server that exposes /send-welcome-email)
+const API_BASE_URL = String(
+  import.meta.env?.VITE_API_URL ||
+    import.meta.env?.VITE_BACKEND_URL ||
+    "http://localhost:5000"
+).replace(/\/+$/, "");
+
+// =========================================================
+// WELCOME EMAIL
+// Sent ONLY after the user has verified their email address.
+// The backend also double-checks verification and keeps a
+// welcomeEmailSent flag, so this can never send twice.
+// =========================================================
+async function sendWelcomeEmailIfNeeded(user, userData) {
+  try {
+    if (!user || !user.emailVerified) return;
+    if (userData?.welcomeEmailSent === true) return;
+
+    const token = await user.getIdToken();
+
+    await fetch(`${API_BASE_URL}/send-welcome-email`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({}),
+    });
+  } catch (err) {
+    console.warn("Welcome email request failed:", err);
+  }
+}
+
 function loadSavedAccounts() {
   try {
     const raw = localStorage.getItem(SAVED_ACCOUNTS_KEY);
@@ -296,6 +329,10 @@ function Login() {
       });
 
       startSession();
+
+      // Email is verified at this point, so this is the right
+      // moment to send the welcome email (runs in background).
+      sendWelcomeEmailIfNeeded(user, userData);
 
       const isHardcodedAdmin = userEmail === ADMIN_EMAIL.toLowerCase();
       const isAdmin =

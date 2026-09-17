@@ -575,7 +575,7 @@ function AIAssistant({ cartCount = 0 }) {
         applyAiCooldown();
 
         errorText =
-          "CampusMart AI is temporarily unavailable due to its current usage capacity. Please try again shortly.";
+          "CampusMart AI is coming soon. Please stay tuned.";
       } else if (
         msg.includes("gemini_api_key") ||
         msg.includes("api key") ||
@@ -593,7 +593,7 @@ function AIAssistant({ cartCount = 0 }) {
           msg.includes("no longer available"))
       ) {
         errorText =
-          "CampusMart AI is coming soon. Please stay tuned.";
+          "CampusMart AI is temporarily unavailable. Please try again later.";
       } else if (
         msg.includes("authentication") ||
         msg.includes("log in") ||
