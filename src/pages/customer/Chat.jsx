@@ -192,10 +192,23 @@ function Chat({
     null;
 
   // =====================================================
-  // MESSAGES — TRUST FIRESTORE ARRAY ORDER
-  // sendMessage always appends, so the array is already
-  // chronological. Re-sorting by timestamp can scramble
-  // order when some messages have missing/bad timestamps.
+  // MESSAGES — USE FIRESTORE ARRAY ORDER DIRECTLY.
+  //
+  // Every message is appended to this array inside a
+  // transaction (read current array -> push new message ->
+  // write it back), so the array is ALREADY in the exact
+  // order messages were actually sent — it is the single
+  // source of truth for chronology.
+  //
+  // This used to re-sort the array by createdAt/createdAtMs.
+  // That's what caused messages to scatter: if the sender's
+  // device clock is even slightly off, or a message written
+  // by a different app version has a timestamp in a
+  // different shape/units, re-sorting can flip two messages
+  // relative to each other even though Firestore had already
+  // stored them in the correct order. Trusting the array
+  // order avoids that entirely. (Mirrors the same fix in
+  // SellerChat.jsx — keep both in sync if this changes.)
   // =====================================================
 
   const chatMessages =
@@ -203,28 +216,7 @@ function Chat({
       ? liveConversation.messages
       : fallbackPerson?.conversation || [];
 
-  // Stable chronological order:
-  // 1) Prefer valid timestamps
-  // 2) If timestamps equal or missing, keep original array index
-  //    (array index = real send order)
-  const orderedChatMessages = chatMessages
-    .map((message, index) => ({
-      message,
-      index,
-      timestamp: getMessageTimestampMs(message),
-    }))
-    .sort((a, b) => {
-      const aHas = a.timestamp > 0;
-      const bHas = b.timestamp > 0;
-
-      if (aHas && bHas && a.timestamp !== b.timestamp) {
-        return a.timestamp - b.timestamp;
-      }
-
-      // Same timestamp or missing → preserve send order
-      return a.index - b.index;
-    })
-    .map((item) => item.message);
+  const orderedChatMessages = chatMessages;
 
   const isMyMessage = (message) => {
     if (!message || !firebaseUser?.uid) return false;
