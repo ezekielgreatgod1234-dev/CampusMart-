@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
 import {
@@ -14,7 +14,7 @@ import {
   FiMenu,
   FiChevronDown,
   FiX,
-  FiBell,
+  
   FiArrowLeft,
   FiCreditCard,
   FiCheckCircle,
@@ -35,6 +35,8 @@ import {
 import { db } from "../../context/firebase";
 import { useAuth } from "../../context/AuthContext";
 
+const BACKEND_URL = "https://campusbackend-1.onrender.com";
+
 // =====================================================
 // HASH PIN
 // =====================================================
@@ -47,28 +49,65 @@ async function hashPin(pin) {
 }
 
 // Common Nigerian banks + codes (Paystack)
-const BANKS = [
+const FALLBACK_BANKS = [
+  { name: "9 Payment Service Bank", code: "120001" },
   { name: "Access Bank", code: "044" },
+  { name: "Access Bank (Diamond)", code: "063" },
+  { name: "ALAT by Wema", code: "035" },
+  { name: "Carbon", code: "565" },
+  { name: "CEMCS Microfinance Bank", code: "50823" },
   { name: "Citibank Nigeria", code: "023" },
   { name: "Ecobank Nigeria", code: "050" },
+  { name: "Ekondo Microfinance Bank", code: "562" },
+  { name: "Eyowo", code: "50126" },
+  { name: "Fairmoney Microfinance Bank", code: "51318" },
   { name: "Fidelity Bank", code: "070" },
   { name: "First Bank of Nigeria", code: "011" },
   { name: "First City Monument Bank", code: "214" },
+  { name: "FSDH Merchant Bank", code: "501" },
+  { name: "Globus Bank", code: "103" },
+  { name: "GoMoney", code: "100022" },
   { name: "Guaranty Trust Bank", code: "058" },
+  { name: "Hackman Microfinance Bank", code: "51251" },
+  { name: "Hasal Microfinance Bank", code: "50383" },
   { name: "Heritage Bank", code: "030" },
+  { name: "Ibile Microfinance Bank", code: "51244" },
+  { name: "Jaiz Bank", code: "301" },
   { name: "Keystone Bank", code: "082" },
+  { name: "Kuda Bank", code: "50211" },
+  { name: "Lagos Building Investment Company Plc.", code: "90052" },
+  { name: "Lotus Bank", code: "303" },
+  { name: "Mint Finex MFB", code: "50304" },
+  { name: "Moniepoint MFB", code: "50515" },
+  { name: "NPF Microfinance Bank", code: "552" },
+  { name: "Opay", code: "100004" },
+  { name: "Paga", code: "100002" },
+  { name: "PalmPay", code: "100033" },
+  { name: "Parallex Bank", code: "104" },
+  { name: "Parkway - ReadyCash", code: "311" },
+  { name: "PayAttitude Online", code: "110002" },
+  { name: "Petra Microfinance Bank", code: "50746" },
   { name: "Polaris Bank", code: "076" },
+  { name: "PremiumTrust Bank", code: "105" },
+  { name: "Providus Bank", code: "101" },
+  { name: "QuickFund Microfinance Bank", code: "51293" },
+  { name: "Rand Merchant Bank", code: "502" },
+  { name: "Rubies MFB", code: "125" },
+  { name: "Safe Haven MFB", code: "951113" },
+  { name: "Sparkle Microfinance Bank", code: "51310" },
   { name: "Stanbic IBTC Bank", code: "221" },
   { name: "Standard Chartered Bank", code: "068" },
   { name: "Sterling Bank", code: "232" },
+  { name: "Suntrust Bank", code: "100" },
+  { name: "TAJ Bank", code: "302" },
+  { name: "TCF MFB", code: "51211" },
+  { name: "Titan Trust Bank", code: "102" },
   { name: "Union Bank of Nigeria", code: "032" },
   { name: "United Bank for Africa", code: "033" },
   { name: "Unity Bank", code: "215" },
+  { name: "VFD Microfinance Bank", code: "566" },
   { name: "Wema Bank", code: "035" },
-  { name: "Zenith Bank", code: "057" },
-  { name: "Kuda Bank", code: "50211" },
-  { name: "Opay", code: "100004" },
-  { name: "PalmPay", code: "100033" },
+  { name: "Zenith Bank", code: "057" }
 ];
 
 function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
@@ -81,6 +120,11 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
   const [amount, setAmount] = useState("");
   const [bankName, setBankName] = useState("");
   const [bankCode, setBankCode] = useState("");
+  const [bankDropdownOpen, setBankDropdownOpen] = useState(false);
+  const [bankSearch, setBankSearch] = useState("");
+  const bankDropdownRef = useRef(null);
+  const [banks, setBanks] = useState(FALLBACK_BANKS);
+  const [banksLoading, setBanksLoading] = useState(true);
   const [accountNumber, setAccountNumber] = useState("");
   const [accountName, setAccountName] = useState("");
   const [formError, setFormError] = useState("");
@@ -103,6 +147,9 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
   const [showPin, setShowPin] = useState(false);
   const [showConfirmPin, setShowConfirmPin] = useState(false);
   const [pendingWithdrawal, setPendingWithdrawal] = useState(null);
+
+  // Pending orders badge (optional live count)
+  const [newOrdersCount, setNewOrdersCount] = useState(0);
 
   const sellerFullName =
     profile?.fullName ||
@@ -154,10 +201,66 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
     return () => unsub();
   }, [firebaseUser?.uid]);
 
+  // =====================================================
+  // Load banks from Paystack (via backend)
+  // =====================================================
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadBanks() {
+      setBanksLoading(true);
+      try {
+        const response = await fetch(`${BACKEND_URL}/banks`, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+        });
+        const result = await response.json().catch(() => ({}));
+        const list = Array.isArray(result.banks) ? result.banks : [];
+
+        if (!cancelled && result.success && list.length > 0) {
+          const cleaned = list
+            .map((b) => ({
+              name: String(b.name || "").trim(),
+              code: String(b.code || "").trim(),
+            }))
+            .filter((b) => b.name && b.code);
+
+          // de-dupe by code+name
+          const seen = new Set();
+          const unique = [];
+          for (const b of cleaned) {
+            const key = `${b.code}|${b.name.toLowerCase()}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            unique.push(b);
+          }
+          unique.sort((a, c) =>
+            a.name.localeCompare(c.name, "en", { sensitivity: "base" })
+          );
+          setBanks(unique);
+        }
+      } catch (err) {
+        console.warn("Could not load banks from server, using fallback list", err);
+      } finally {
+        if (!cancelled) setBanksLoading(false);
+      }
+    }
+
+    loadBanks();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const menuItems = [
     { label: "Dashboard", icon: FiGrid, path: "/seller-dashboard" },
     { label: "Products", icon: FiPackage, path: "/seller/products" },
-    { label: "Orders", icon: FiShoppingBag, path: "/seller/orders" },
+    {
+      label: "Orders",
+      icon: FiShoppingBag,
+      path: "/seller/orders",
+      badge: newOrdersCount,
+    },
     {
       label: "Messages",
       icon: FiMessageCircle,
@@ -212,9 +315,42 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
     availableBalance,
   ];
 
+
+  const filteredBanks = banks.filter((b) => {
+    const q = bankSearch.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      b.name.toLowerCase().includes(q) ||
+      String(b.code).includes(q)
+    );
+  });
+
+  useEffect(() => {
+    if (!bankDropdownOpen) return undefined;
+    const onDocClick = (e) => {
+      if (
+        bankDropdownRef.current &&
+        !bankDropdownRef.current.contains(e.target)
+      ) {
+        setBankDropdownOpen(false);
+        setBankSearch("");
+      }
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [bankDropdownOpen]);
+
+  const selectBank = (bank) => {
+    setBankCode(bank.code);
+    setBankName(bank.name);
+    setBankDropdownOpen(false);
+    setBankSearch("");
+    if (formError) setFormError("");
+  };
+
   const handleBankChange = (e) => {
     const code = e.target.value;
-    const bank = BANKS.find((b) => b.code === code);
+    const bank = banks.find((b) => b.code === code);
     setBankCode(code);
     setBankName(bank ? bank.name : "");
     if (formError) setFormError("");
@@ -252,11 +388,11 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
       setFormError("Please select your bank.");
       return;
     }
-    if (!accountNumber.trim() || accountNumber.trim().length < 10) {
+    if (!accountNumber.trim() || accountNumber.trim().length !== 10) {
       setFormError("Please enter a valid 10-digit account number.");
       return;
     }
-    if (!accountName.trim()) {
+    if (!accountName.trim() || accountName.trim().length < 3) {
       setFormError("Please enter the account name.");
       return;
     }
@@ -288,23 +424,23 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
     setPinSubmitting(true);
 
     try {
-      const response = await fetch(
-        "https://campusbackend-1.onrender.com/process-withdrawal",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            sellerId: firebaseUser.uid,
-            amount: data.numericAmount,
-            bankName: data.bankName,
-            bankCode: data.bankCode,
-            accountNumber: data.accountNumber,
-            accountName: data.accountName,
-          }),
-        }
-      );
+      const token = await firebaseUser.getIdToken();
+
+      const response = await fetch(`${BACKEND_URL}/process-withdrawal`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          sellerId: firebaseUser.uid,
+          amount: data.numericAmount,
+          bankName: data.bankName,
+          bankCode: data.bankCode,
+          accountNumber: data.accountNumber,
+          accountName: data.accountName,
+        }),
+      });
 
       const result = await response.json();
 
@@ -434,24 +570,8 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
           </button>
 
           <div className="flex items-center gap-3 pr-10">
-           <div
-              className="
-                w-10
-                h-10
-                min-w-[40px]
-                rounded-xl
-                bg-[#006f2e]
-                flex
-                items-center
-                justify-center
-                shadow-lg
-                shadow-black/30
-                border
-                border-white/10
-                flex-shrink-0
-              "
-            >
-             <span className="text-white text-[16px] font-black tracking-tight">
+            <div className="w-10 h-10 min-w-[40px] rounded-xl bg-[#006f2e] flex items-center justify-center shadow-lg shadow-black/30 border border-white/10 flex-shrink-0">
+              <span className="text-white text-[16px] font-black tracking-tight">
                 CM
               </span>
             </div>
@@ -566,17 +686,7 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
           </div>
 
           <div className="ml-auto flex items-center gap-0.5 sm:gap-2">
-            <button
-              type="button"
-              onClick={handleNotifications}
-              aria-label="Notifications"
-              className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-full hover:bg-white/10 active:bg-white/20 flex items-center justify-center transition flex-shrink-0"
-            >
-              <FiBell size={20} />
-              <span className="absolute -top-0.5 -right-0.5 min-w-[17px] h-[17px] px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
-                5
-              </span>
-            </button>
+            
 
             <button
               type="button"
@@ -703,6 +813,7 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
                   </div>
                 )}
 
+                {/* Amount */}
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-2">
                     Amount to withdraw
@@ -757,25 +868,110 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
                   </div>
                 </div>
 
-                <div>
+                {/* Bank — custom CampusMart green dropdown (not OS blue) */}
+                <div ref={bankDropdownRef}>
                   <label className="block text-xs font-semibold text-gray-700 mb-2">
                     Bank
                   </label>
-                  <select
-                    value={bankCode}
-                    onChange={handleBankChange}
-                    disabled={submitting}
-                    className="w-full h-12 px-3.5 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-800 outline-none focus:border-[#008236] focus:ring-4 focus:ring-green-50 transition disabled:opacity-60"
-                  >
-                    <option value="">Select your bank</option>
-                    {BANKS.map((bank) => (
-                      <option key={bank.code} value={bank.code}>
-                        {bank.name}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      disabled={submitting}
+                      onClick={() => {
+                        if (submitting) return;
+                        setBankDropdownOpen((o) => !o);
+                        setBankSearch("");
+                      }}
+                      className={`
+                        w-full h-12 pl-3.5 pr-11 rounded-xl border text-sm text-left
+                        outline-none transition disabled:opacity-60 flex items-center
+                        ${
+                          bankCode
+                            ? "border-[#008236] bg-green-50 text-gray-900 font-semibold ring-2 ring-green-100"
+                            : "border-gray-200 bg-gray-50 text-gray-500 hover:border-green-300"
+                        }
+                        focus:border-[#008236] focus:ring-4 focus:ring-green-50
+                      `}
+                    >
+                      <span className="truncate">
+                        {bankName || "Select your bank"}
+                      </span>
+                      <span
+                        className={`absolute right-3.5 top-1/2 -translate-y-1/2 text-[#008236] transition ${
+                          bankDropdownOpen ? "rotate-180" : ""
+                        }`}
+                      >
+                        <FiChevronDown size={18} />
+                      </span>
+                    </button>
+
+                    {bankDropdownOpen && (
+                      <div className="absolute z-30 mt-2 w-full rounded-2xl border border-green-100 bg-white shadow-xl shadow-green-900/10 overflow-hidden">
+                        <div className="bg-[#008236] px-3.5 py-2.5">
+                          <p className="text-xs font-bold text-white">
+                            Select your bank
+                          </p>
+                          <p className="text-[10px] text-green-100 mt-0.5">
+                            {banksLoading
+                              ? "Loading banks…"
+                              : `${banks.length} banks · commercial, digital & MFB`}
+                          </p>
+                        </div>
+
+                        <div className="p-2 border-b border-green-50">
+                          <input
+                            type="text"
+                            value={bankSearch}
+                            onChange={(e) => setBankSearch(e.target.value)}
+                            placeholder="Search bank…"
+                            autoFocus
+                            className="w-full h-10 px-3 rounded-xl border border-green-100 bg-green-50/50 text-sm outline-none focus:border-[#008236] focus:ring-2 focus:ring-green-100"
+                          />
+                        </div>
+
+                        <ul className="max-h-56 overflow-y-auto py-1">
+                          {filteredBanks.length === 0 ? (
+                            <li className="px-3.5 py-3 text-xs text-gray-400 text-center">
+                              No bank matches your search
+                            </li>
+                          ) : (
+                            filteredBanks.map((bank) => {
+                              const selected = bankCode === bank.code;
+                              return (
+                                <li key={`${bank.code}-${bank.name}`}>
+                                  <button
+                                    type="button"
+                                    onClick={() => selectBank(bank)}
+                                    className={`
+                                      w-full text-left px-3.5 py-2.5 text-sm transition flex items-center justify-between gap-2
+                                      ${
+                                        selected
+                                          ? "bg-[#008236] text-white font-semibold"
+                                          : "text-gray-700 hover:bg-green-50 hover:text-[#008236]"
+                                      }
+                                    `}
+                                  >
+                                    <span className="truncate">{bank.name}</span>
+                                    {selected && (
+                                      <FiCheckCircle size={15} className="flex-shrink-0" />
+                                    )}
+                                  </button>
+                                </li>
+                              );
+                            })
+                          )}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                  {bankName && !bankDropdownOpen && (
+                    <p className="mt-1.5 text-[11px] text-[#008236] font-medium">
+                      {bankName} selected
+                    </p>
+                  )}
                 </div>
 
+                {/* Account number — typed manually, no auto-verification */}
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-2">
                     Account number
@@ -786,16 +982,17 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
                     maxLength={10}
                     value={accountNumber}
                     onChange={(e) => {
-                      const value = e.target.value.replace(/\D/g, "");
+                      const value = e.target.value.replace(/\D/g, "").slice(0, 10);
                       setAccountNumber(value);
                       if (formError) setFormError("");
                     }}
                     disabled={submitting}
                     placeholder="10-digit NUBAN"
-                    className="w-full h-12 px-3.5 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-800 outline-none focus:border-[#008236] focus:ring-4 focus:ring-green-50 transition disabled:opacity-60"
+                    className="w-full h-12 px-3.5 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-800 outline-none transition disabled:opacity-60 focus:border-[#008236] focus:ring-4 focus:ring-green-50"
                   />
                 </div>
 
+                {/* Account name — typed manually, no auto-verification */}
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-2">
                     Account name
@@ -809,12 +1006,26 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
                     }}
                     disabled={submitting}
                     placeholder="Name on the bank account"
-                    className="w-full h-12 px-3.5 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-800 outline-none focus:border-[#008236] focus:ring-4 focus:ring-green-50 transition disabled:opacity-60"
+                    className="w-full h-12 px-3.5 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-800 outline-none transition disabled:opacity-60 focus:border-[#008236] focus:ring-4 focus:ring-green-50"
                   />
                 </div>
 
+                <div className="rounded-xl bg-green-50 border border-green-200 px-4 py-3 text-xs text-green-800 leading-5 flex items-start gap-2.5">
+                  <FiAlertCircle
+                    size={16}
+                    className="flex-shrink-0 mt-0.5 text-green-600"
+                  />
+                  <span>
+                    <strong>Double-check before you request a withdrawal.</strong> Your
+                    account number and account name are{" "}
+                    <strong>not automatically verified</strong>. Please make
+                    sure they match your bank account exactly if they don't,
+                    your money may be sent to the wrong account and we may not
+                    be able to reverse or recover it.
+                  </span>
+                </div>
+
                 <div className="rounded-xl bg-green-50 border border-green-100 px-4 py-3 text-xs text-gray-600 leading-5">
-                  Real money will be sent to your bank account via Paystack.
                   Minimum amount is ₦1,000. You will be asked for your payment
                   PIN before the transfer is made.
                 </div>
@@ -832,7 +1043,9 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
                   <button
                     type="submit"
                     disabled={
-                      submitting || loadingBalance || availableBalance < 1000
+                      submitting ||
+                      loadingBalance ||
+                      availableBalance < 1000
                     }
                     className="h-12 px-5 rounded-xl bg-[#008236] text-white text-sm font-semibold flex items-center justify-center gap-2 hover:bg-[#006f2e] active:bg-[#005f28] transition shadow-sm disabled:opacity-60 disabled:cursor-not-allowed sm:flex-[1.4]"
                   >
