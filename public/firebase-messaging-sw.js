@@ -20,45 +20,74 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
+function absUrl(path) {
+  try {
+    return new URL(path, self.location.origin).href;
+  } catch {
+    return path;
+  }
+}
+
 messaging.onBackgroundMessage((payload) => {
   const title =
-    payload.notification?.title ||
-    payload.data?.title ||
+    (payload.notification && payload.notification.title) ||
+    (payload.data && payload.data.title) ||
     "CampusMart";
 
   const body =
-    payload.notification?.body ||
-    payload.data?.body ||
+    (payload.notification && payload.notification.body) ||
+    (payload.data && payload.data.body) ||
     "You have a new update";
 
+  const data = payload.data || {};
+
   const options = {
-    body,
-    icon: "/pwa-192x192.png",
-    badge: "/pwa-192x192.png",
-    tag: payload.data?.type || "campusmart",
+    body: String(body),
+    // Mobile browsers often fail with relative icon paths
+    icon: absUrl("/pwa-192x192.png"),
+    badge: absUrl("/pwa-192x192.png"),
+    image: payload.notification && payload.notification.image
+      ? payload.notification.image
+      : undefined,
+    tag: String(data.type || data.tag || "campusmart"),
     renotify: true,
-    vibrate: [120, 80, 120],
-    data: payload.data || {},
+    vibrate: [200, 100, 200],
+    data: data,
     requireInteraction: false,
+    silent: false,
   };
 
-  return self.registration.showNotification(title, options);
+  return self.registration.showNotification(String(title), options);
 });
 
-// Open app when user taps the notification
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const path = event.notification.data?.path || "/";
-  const url = new URL(path, self.location.origin).href;
+
+  const path =
+    (event.notification.data && event.notification.data.path) || "/";
+  let url;
+  try {
+    url = new URL(path, self.location.origin).href;
+  } catch {
+    url = self.location.origin + "/";
+  }
 
   event.waitUntil(
     clients
       .matchAll({ type: "window", includeUncontrolled: true })
       .then((windowClients) => {
         for (const client of windowClients) {
-          if (client.url.includes(self.location.origin) && "focus" in client) {
+          if (
+            client.url &&
+            client.url.indexOf(self.location.origin) === 0 &&
+            "focus" in client
+          ) {
             client.focus();
-            if (client.navigate) client.navigate(url);
+            if ("navigate" in client) {
+              try {
+                client.navigate(url);
+              } catch (_) {}
+            }
             return;
           }
         }
@@ -67,4 +96,9 @@ self.addEventListener("notificationclick", (event) => {
         }
       })
   );
+});
+
+// Keep SW alive / claim clients so mobile actually uses this worker
+self.addEventListener("activate", (event) => {
+  event.waitUntil(self.clients.claim());
 });
