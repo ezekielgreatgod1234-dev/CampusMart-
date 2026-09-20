@@ -8,6 +8,7 @@ import {
   FiHeart,
   FiUser,
   FiX,
+  FiChevronRight,
 } from "react-icons/fi";
 
 import { useNavigate } from "react-router-dom";
@@ -28,21 +29,61 @@ const DEFAULT_PROFILE = {
   profileImage: null,
 };
 
-function extractSellerIdFromSearch(raw) {
+// Meta-style small green verified check mark
+function VerifiedBadge({ size = 12 }) {
+  const s = Number(size) || 12;
+  return (
+    <span
+      className="inline-flex items-center justify-center flex-shrink-0"
+      title="Verified seller"
+      aria-label="Verified seller"
+    >
+      <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="12" fill="#008236" />
+        <path
+          d="M7.2 12.3l2.7 2.7 6.5-6.5"
+          stroke="#fff"
+          strokeWidth="2.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </span>
+  );
+}
+
+// =========================================================
+// LINK / ID PARSING — supports product links, store/profile
+// links, or a raw Firebase UID pasted directly into search.
+// =========================================================
+function extractLinkTarget(raw) {
   const input = String(raw || "").trim();
   if (!input) return null;
+
+  const productMatch = input.match(
+    /(?:https?:\/\/[^/\s]+)?\/products\/([A-Za-z0-9_-]+)(?:[/?#]|$)/i
+  );
+  if (productMatch?.[1]) {
+    return { type: "product", id: productMatch[1] };
+  }
 
   const storeMatch = input.match(
     /(?:https?:\/\/[^/\s]+)?\/store\/([A-Za-z0-9_-]+)(?:[/?#]|$)/i
   );
-  if (storeMatch?.[1]) return storeMatch[1];
+  if (storeMatch?.[1]) {
+    return { type: "profile", id: storeMatch[1] };
+  }
 
   const profileMatch = input.match(
     /(?:https?:\/\/[^/\s]+)?\/(?:seller|profile)\/([A-Za-z0-9_-]+)(?:[/?#]|$)/i
   );
-  if (profileMatch?.[1]) return profileMatch[1];
+  if (profileMatch?.[1]) {
+    return { type: "profile", id: profileMatch[1] };
+  }
 
-  if (/^[A-Za-z0-9]{20,36}$/.test(input)) return input;
+  if (/^[A-Za-z0-9]{20,36}$/.test(input)) {
+    return { type: "profile", id: input };
+  }
 
   return null;
 }
@@ -66,20 +107,23 @@ function isSellerProfile(data = {}) {
   );
 }
 
-async function findSellersByName(query) {
+// =========================================================
+// NAME SEARCH — searches ALL people (buyers + sellers), not
+// just sellers, and tags every match with whether they also
+// hold a seller role so the dropdown can show a "Seller" tag.
+// =========================================================
+async function findPeopleByName(query) {
   const needle = String(query || "").trim().toLowerCase();
   if (!needle) return [];
 
   const collectMatches = (docs) => {
     const rows = docs.map((d) => ({ id: d.id, ...(d.data() || {}) }));
 
-    const sellers = rows.filter((p) => isSellerProfile(p));
-    const pool = sellers.length > 0 ? sellers : rows;
-
-    const withNames = pool
+    const withNames = rows
       .map((p) => ({
         ...p,
         _name: getDisplayName(p).toLowerCase(),
+        _isSeller: isSellerProfile(p),
       }))
       .filter((p) => p._name);
 
@@ -92,21 +136,33 @@ async function findSellersByName(query) {
     return withNames.filter((p) => p._name.includes(needle));
   };
 
+  // De-dupe by id, in case a person shows up in both collections
+  const dedupe = (list) => {
+    const seen = new Map();
+    for (const person of list) {
+      if (!seen.has(person.id)) seen.set(person.id, person);
+    }
+    return Array.from(seen.values());
+  };
+
+  let results = [];
+
   try {
     const publicSnap = await getDocs(collection(db, "publicProfiles"));
-    const fromPublic = collectMatches(publicSnap.docs);
-    if (fromPublic.length) return fromPublic;
+    results = collectMatches(publicSnap.docs);
   } catch (err) {
     console.warn("publicProfiles search failed:", err);
   }
 
   try {
     const usersSnap = await getDocs(collection(db, "users"));
-    return collectMatches(usersSnap.docs);
+    const fromUsers = collectMatches(usersSnap.docs);
+    results = dedupe([...results, ...fromUsers]);
   } catch (err) {
     console.warn("users search failed:", err);
-    return [];
   }
+
+  return results;
 }
 
 function Navbar({
@@ -123,9 +179,9 @@ function Navbar({
   const [profile, setProfile] = useState(DEFAULT_PROFILE);
   const [searching, setSearching] = useState(false);
 
-  // Multiple seller matches → dropdown
-  const [sellerSuggestions, setSellerSuggestions] = useState([]);
-  const [showSellerDropdown, setShowSellerDropdown] = useState(false);
+  // Matching people (buyers and/or sellers) → dropdown
+  const [peopleSuggestions, setPeopleSuggestions] = useState([]);
+  const [showPeopleDropdown, setShowPeopleDropdown] = useState(false);
 
   const wishlistCount = wishlist.length;
 
@@ -172,63 +228,87 @@ function Navbar({
         searchWrapRef.current &&
         !searchWrapRef.current.contains(e.target)
       ) {
-        setShowSellerDropdown(false);
+        setShowPeopleDropdown(false);
       }
     };
     document.addEventListener("mousedown", onPointerDown);
     return () => document.removeEventListener("mousedown", onPointerDown);
   }, []);
 
-  const openSellerStore = (sellerId) => {
-    if (!sellerId) return;
-    setShowSellerDropdown(false);
-    setSellerSuggestions([]);
+  const closeDropdown = () => {
+    setShowPeopleDropdown(false);
+    setPeopleSuggestions([]);
+  };
+
+  // Every person — buyer or seller — has a public profile page at
+  // /store/:id. For sellers it shows their storefront and products;
+  // for buyers it shows their profile info.
+  const openPersonProfile = (personId) => {
+    if (!personId) return;
+    closeDropdown();
     setSearch("");
-    navigate(`/store/${encodeURIComponent(sellerId)}`);
+    navigate(`/store/${encodeURIComponent(personId)}`);
+  };
+
+  const openProduct = (productId) => {
+    if (!productId) return;
+    closeDropdown();
+    setSearch("");
+    navigate(`/products/${encodeURIComponent(productId)}`);
+  };
+
+  // Selecting a person from the dropdown always opens their
+  // public profile, whether they're a buyer or a seller.
+  const handleSelectPerson = (person) => {
+    if (!person) return;
+    openPersonProfile(person.id);
   };
 
   const handleSearch = async (e) => {
     e.preventDefault();
 
     const trimmedSearch = search.trim();
-    setSellerSuggestions([]);
-    setShowSellerDropdown(false);
+    closeDropdown();
 
     if (!trimmedSearch) {
       navigate("/browse-products");
       return;
     }
 
-    // 1) Store / profile link or raw UID
-    const sellerIdFromLink = extractSellerIdFromSearch(trimmedSearch);
-    if (sellerIdFromLink) {
-      openSellerStore(sellerIdFromLink);
+    // 1) Pasted link (product / store / seller / profile) or raw UID
+    const linkTarget = extractLinkTarget(trimmedSearch);
+    if (linkTarget?.type === "product") {
+      openProduct(linkTarget.id);
+      return;
+    }
+    if (linkTarget?.type === "profile") {
+      openPersonProfile(linkTarget.id);
       return;
     }
 
-    // 2) Seller name search
+    // 2) Search by person's name — buyers and sellers alike
     try {
       setSearching(true);
-      const matches = await findSellersByName(trimmedSearch);
+      const matches = await findPeopleByName(trimmedSearch);
 
       if (matches.length === 1) {
-        openSellerStore(matches[0].id);
+        openPersonProfile(matches[0].id);
         return;
       }
 
       if (matches.length > 1) {
-        // Option C: show dropdown — user picks
-        setSellerSuggestions(matches.slice(0, 12));
-        setShowSellerDropdown(true);
+        setPeopleSuggestions(matches.slice(0, 12));
+        setShowPeopleDropdown(true);
+        setSearching(false);
         return;
       }
     } catch (err) {
-      console.error("Seller name search error:", err);
+      console.error("People search error:", err);
     } finally {
       setSearching(false);
     }
 
-    // 3) Product search
+    // 3) Fall back to product search
     navigate(
       `/browse-products?search=${encodeURIComponent(trimmedSearch)}`
     );
@@ -255,10 +335,9 @@ function Navbar({
                 value={search}
                 onChange={(e) => {
                   setSearch(e.target.value);
-                  setShowSellerDropdown(false);
-                  setSellerSuggestions([]);
+                  closeDropdown();
                 }}
-                placeholder="Search products, seller name, or paste link..."
+                placeholder="Search products, buyer or seller name, or paste a link..."
                 disabled={searching}
                 className="
                   w-full
@@ -283,19 +362,21 @@ function Navbar({
               )}
             </form>
 
-            {/* Option C: multiple sellers with same / similar name */}
-            {showSellerDropdown && sellerSuggestions.length > 1 && (
+            {/* Styled dropdown — one or more matching people, each
+                with photo, full name, campus and a Seller tag when
+                that person also has a seller role. */}
+            {showPeopleDropdown && peopleSuggestions.length > 0 && (
               <div
                 className="
                   absolute
                   left-0
                   right-0
-                  top-[calc(100%+8px)]
+                  top-[calc(100%+10px)]
                   z-50
                   bg-white
                   text-gray-800
                   rounded-2xl
-                  shadow-xl
+                  shadow-[0_20px_45px_rgba(0,0,0,0.18)]
                   border
                   border-gray-100
                   overflow-hidden
@@ -303,14 +384,13 @@ function Navbar({
               >
                 <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-2 bg-gray-50">
                   <p className="text-xs font-semibold text-gray-600">
-                    {sellerSuggestions.length} sellers found — choose one
+                    {peopleSuggestions.length === 1
+                      ? "1 person found"
+                      : `${peopleSuggestions.length} people found — choose one`}
                   </p>
                   <button
                     type="button"
-                    onClick={() => {
-                      setShowSellerDropdown(false);
-                      setSellerSuggestions([]);
-                    }}
+                    onClick={closeDropdown}
                     className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-200 hover:text-gray-700"
                     aria-label="Close"
                   >
@@ -318,35 +398,39 @@ function Navbar({
                   </button>
                 </div>
 
-                <ul className="max-h-72 overflow-y-auto py-1">
-                  {sellerSuggestions.map((seller) => {
-                    const name =
-                      getDisplayName(seller) || "CampusMart Seller";
-                    const campus = seller.campus || seller.school || "";
+                <ul className="max-h-80 overflow-y-auto py-1.5">
+                  {peopleSuggestions.map((person) => {
+                    const name = getDisplayName(person) || "CampusMart User";
+                    const campus = person.campus || person.school || "";
                     const image =
-                      seller.profileImage ||
-                      seller.photoURL ||
-                      seller.avatar ||
+                      person.profileImage ||
+                      person.photoURL ||
+                      person.avatar ||
                       null;
+                    const seller = person._isSeller;
+                    const verified = person.isVerifiedSeller === true;
 
                     return (
-                      <li key={seller.id}>
+                      <li key={person.id} className="px-1.5">
                         <button
                           type="button"
-                          onClick={() => openSellerStore(seller.id)}
+                          onClick={() => handleSelectPerson(person)}
                           className="
                             w-full
                             flex
                             items-center
                             gap-3
-                            px-4
+                            px-3
                             py-3
+                            rounded-xl
                             text-left
-                            hover:bg-green-50
                             transition
+                            cursor-pointer
+                            hover:bg-green-50
+                            active:bg-green-100
                           "
                         >
-                          <div className="w-10 h-10 rounded-full bg-green-100 text-[#008236] flex items-center justify-center overflow-hidden shrink-0 font-bold">
+                          <div className="w-11 h-11 rounded-full bg-green-100 text-[#008236] flex items-center justify-center overflow-hidden shrink-0 font-bold border border-green-100">
                             {image ? (
                               <img
                                 src={image}
@@ -359,19 +443,42 @@ function Navbar({
                           </div>
 
                           <div className="min-w-0 flex-1">
-                            <p className="text-sm font-semibold text-gray-900 truncate">
-                              {name}
-                            </p>
-                            <p className="text-xs text-gray-500 truncate">
-                              {campus
-                                ? campus
-                                : "CampusMart seller"}
-                              {seller.isVerifiedSeller ? " · Verified" : ""}
-                            </p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className="text-sm font-bold text-gray-900 truncate">
+                                {name}
+                              </p>
+                              {verified && <VerifiedBadge size={13} />}
+                            </div>
+
+                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                              <span
+                                className={`
+                                  text-[10px]
+                                  font-semibold
+                                  px-2
+                                  py-0.5
+                                  rounded-full
+                                  ${
+                                    seller
+                                      ? "bg-green-50 text-[#008236] border border-green-100"
+                                      : "bg-blue-50 text-blue-600 border border-blue-100"
+                                  }
+                                `}
+                              >
+                                {seller ? "Seller" : "Buyer"}
+                              </span>
+
+                              {campus && (
+                                <span className="text-xs text-gray-500 truncate">
+                                  {campus}
+                                </span>
+                              )}
+                            </div>
                           </div>
 
-                          <span className="text-xs font-semibold text-[#008236] shrink-0">
-                            View
+                          <span className="flex items-center gap-1 text-xs font-semibold text-[#008236] shrink-0">
+                            {seller ? "View store" : "View profile"}
+                            <FiChevronRight size={14} />
                           </span>
                         </button>
                       </li>
@@ -379,16 +486,14 @@ function Navbar({
                   })}
                 </ul>
 
-                <div className="border-t border-gray-100 px-4 py-2 bg-gray-50">
+                <div className="border-t border-gray-100 px-4 py-2.5 bg-gray-50">
                   <button
                     type="button"
                     onClick={() => {
-                      setShowSellerDropdown(false);
-                      setSellerSuggestions([]);
+                      const term = search.trim();
+                      closeDropdown();
                       navigate(
-                        `/browse-products?search=${encodeURIComponent(
-                          search.trim()
-                        )}`
+                        `/browse-products?search=${encodeURIComponent(term)}`
                       );
                     }}
                     className="text-xs font-semibold text-gray-600 hover:text-[#008236]"
