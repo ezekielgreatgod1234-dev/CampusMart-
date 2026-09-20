@@ -22,17 +22,13 @@ import {
   FiEye,
   FiEyeOff,
   FiArrowRight,
-  FiCheck,
-  FiTag,
   FiShoppingCart,
   FiShield,
+  FiTag,
 } from "react-icons/fi";
 
 import { auth, db } from "./firebase";
 
-// =========================================================
-// WELCOME NOTIFICATION (in-app only — not email)
-// =========================================================
 async function sendWelcomeNotification(userId, userEmail, fullName) {
   if (!userId) return;
 
@@ -90,7 +86,6 @@ function Register() {
     email: "",
     password: "",
     confirmPassword: "",
-    role: "buyer",
   });
 
   const [agreeToTerms, setAgreeToTerms] = useState(false);
@@ -102,14 +97,6 @@ function Register() {
     setFormData((current) => ({
       ...current,
       [name]: value,
-    }));
-    setError("");
-  };
-
-  const selectRole = (role) => {
-    setFormData((current) => ({
-      ...current,
-      role,
     }));
     setError("");
   };
@@ -144,7 +131,9 @@ function Register() {
     const email = formData.email.trim().toLowerCase();
     const password = formData.password;
     const confirmPassword = formData.confirmPassword;
-    const role = formData.role;
+
+    // Everyone registers as buyer. Store can be created later in Settings.
+    const role = "buyer";
 
     if (!fullName || !email || !password || !confirmPassword) {
       setError("Please fill in all required fields.");
@@ -163,11 +152,6 @@ function Register() {
 
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
-      return;
-    }
-
-    if (!["buyer", "seller"].includes(role)) {
-      setError("Please select whether you want to buy or sell.");
       return;
     }
 
@@ -201,11 +185,14 @@ function Register() {
         address: "",
         bio: "",
         profileImage: null,
-        role,
-        isSeller: role === "seller",
+        role: "buyer",
+        isSeller: false,
+        hasStore: false,
         isVerifiedSeller: false,
         emailVerified: false,
         welcomeEmailSent: false,
+        availableBalance: 0,
+        totalEarnings: 0,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         termsAccepted: true,
@@ -218,8 +205,9 @@ function Register() {
           fullName,
           displayName: fullName,
           email,
-          role,
-          isSeller: role === "seller",
+          role: "buyer",
+          isSeller: false,
+          hasStore: false,
           isVerifiedSeller: false,
           profileImage: null,
           bio: "",
@@ -230,7 +218,6 @@ function Register() {
         { merge: true }
       ).catch((err) => console.warn("publicProfiles:", err));
 
-      // Firebase verification email only (welcome email is sent AFTER verification)
       let verificationSent = false;
       let verificationError = "";
 
@@ -264,7 +251,6 @@ function Register() {
         },
       });
 
-      // In-app notification only (NOT the welcome email)
       sendWelcomeNotification(user.uid, email, fullName).catch(() => {});
     } catch (err) {
       console.error("Registration error:", err);
@@ -276,7 +262,6 @@ function Register() {
 
   return (
     <div className="auth-page min-h-screen bg-[#f7faf8] flex">
-      {/* LEFT SIDE */}
       <div className="hidden lg:flex lg:w-[46%] xl:w-[48%] bg-[#073b2f] text-white relative overflow-hidden">
         <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-green-500/10" />
         <div className="absolute -bottom-40 -right-40 w-[500px] h-[500px] rounded-full bg-green-400/10" />
@@ -307,8 +292,8 @@ function Register() {
             </h1>
 
             <p className="mt-6 text-lg leading-8 text-green-50/70 max-w-md">
-              Buy affordable items from fellow students or turn things you no
-              longer need into cash.
+              Create one account to shop as a buyer. When you are ready, open a
+              store from Settings and start selling — same account.
             </p>
 
             <div className="mt-10 space-y-5">
@@ -317,9 +302,9 @@ function Register() {
                   <FiShoppingCart className="text-green-400" size={21} />
                 </div>
                 <div>
-                  <p className="font-bold">Find great deals</p>
+                  <p className="font-bold">Start as a buyer</p>
                   <p className="text-sm text-green-100/60">
-                    Shop directly from students around you.
+                    Browse and buy from students around you.
                   </p>
                 </div>
               </div>
@@ -329,9 +314,9 @@ function Register() {
                   <FiTag className="text-green-400" size={21} />
                 </div>
                 <div>
-                  <p className="font-bold">Sell your items</p>
+                  <p className="font-bold">Open a store anytime</p>
                   <p className="text-sm text-green-100/60">
-                    List your unused items and reach buyers.
+                    Create your store later from Settings — no new account.
                   </p>
                 </div>
               </div>
@@ -356,7 +341,6 @@ function Register() {
         </div>
       </div>
 
-      {/* RIGHT SIDE */}
       <div className="flex-1 min-h-screen flex items-center justify-center px-5 py-10 sm:px-8">
         <div className="w-full max-w-[500px]">
           <div className="mb-8">
@@ -382,7 +366,8 @@ function Register() {
               Create your account
             </h2>
             <p className="mt-3 text-gray-500">
-              Join CampusMart and start buying or selling on campus.
+              You will join as a buyer. You can create your store later from
+              Settings.
             </p>
           </div>
 
@@ -445,73 +430,7 @@ function Register() {
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-3">
-                What do you want to do?
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  disabled={loading}
-                  onClick={() => selectRole("buyer")}
-                  className={`relative text-left rounded-xl border-2 p-4 transition ${
-                    formData.role === "buyer"
-                      ? "border-green-500 bg-green-50"
-                      : "border-gray-200 bg-white hover:border-green-200"
-                  }`}
-                >
-                  {formData.role === "buyer" && (
-                    <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-green-600 text-white flex items-center justify-center">
-                      <FiCheck size={12} />
-                    </div>
-                  )}
-                  <div
-                    className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                      formData.role === "buyer"
-                        ? "bg-green-600 text-white"
-                        : "bg-gray-100 text-gray-500"
-                    }`}
-                  >
-                    <FiShoppingCart size={19} />
-                  </div>
-                  <p className="mt-3 font-bold text-sm text-gray-900">Buyer</p>
-                  <p className="mt-1 text-xs leading-5 text-gray-500">
-                    I want to find and buy products.
-                  </p>
-                </button>
-
-                <button
-                  type="button"
-                  disabled={loading}
-                  onClick={() => selectRole("seller")}
-                  className={`relative text-left rounded-xl border-2 p-4 transition ${
-                    formData.role === "seller"
-                      ? "border-green-500 bg-green-50"
-                      : "border-gray-200 bg-white hover:border-green-200"
-                  }`}
-                >
-                  {formData.role === "seller" && (
-                    <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-green-600 text-white flex items-center justify-center">
-                      <FiCheck size={12} />
-                    </div>
-                  )}
-                  <div
-                    className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                      formData.role === "seller"
-                        ? "bg-green-600 text-white"
-                        : "bg-gray-100 text-gray-500"
-                    }`}
-                  >
-                    <FiTag size={19} />
-                  </div>
-                  <p className="mt-3 font-bold text-sm text-gray-900">Seller</p>
-                  <p className="mt-1 text-xs leading-5 text-gray-500">
-                    I want to list and sell products.
-                  </p>
-                </button>
-              </div>
-            </div>
-
+           
             <div>
               <label
                 htmlFor="password"

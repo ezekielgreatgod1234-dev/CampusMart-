@@ -964,9 +964,9 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
                       <span className="w-1.5 h-1.5 rounded-full bg-green-300" />
                       Dashboard
                     </div>
-                    <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-                      Welcome back, {sellerFirstName}
-                    </h1>
+                    <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+                  Welcome back, {sellerFirstName}
+                </h1>
                     <p className="text-sm sm:text-base text-green-50 mt-1.5 max-w-xl">
                       Live overview of your orders, products, and earnings.
                     </p>

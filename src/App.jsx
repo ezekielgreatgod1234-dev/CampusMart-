@@ -201,6 +201,24 @@ function getUserRole(profile) {
     .toLowerCase();
 }
 
+// A profile can access the seller dashboard either the old way
+// (role === "seller", from accounts created before dual-mode
+// buyer/seller accounts existed) or the new way — a buyer account
+// that used "Create Store" in Settings, which sets isSeller/hasStore
+// but deliberately leaves role as "buyer" so the same account can
+// still shop.
+function canAccessSellerArea(profile) {
+  if (!profile) return false;
+
+  const role = getUserRole(profile);
+
+  return (
+    role === "seller" ||
+    profile.isSeller === true ||
+    profile.hasStore === true
+  );
+}
+
 function isAdminUser(profile) {
   if (!profile) return false;
 
@@ -423,23 +441,27 @@ function SellerRoute({ children, profile, profileResolved }) {
 
   const role = getUserRole(profile);
 
-  if (isAdminUser(profile) && (role === "seller" || role === "admin")) {
+  // Admins can always view seller pages.
+  if (isAdminUser(profile)) {
     return children;
   }
 
-  if (role !== "seller") {
-    if (role === "buyer") {
-      return <Navigate to="/dashboard" replace />;
-    }
-
-    if (role === "admin") {
-      return <Navigate to="/admin-dashboard" replace />;
-    }
-
-    return <LoadingScreen text="Preparing your account..." />;
+  // A buyer account that created a store via Settings (isSeller/
+  // hasStore) — or a legacy account with role === "seller" — can
+  // access the seller dashboard.
+  if (canAccessSellerArea(profile)) {
+    return children;
   }
 
-  return children;
+  if (role === "buyer") {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  if (role === "admin") {
+    return <Navigate to="/admin-dashboard" replace />;
+  }
+
+  return <LoadingScreen text="Preparing your account..." />;
 }
 
 function getMessageTimestamp(message) {

@@ -190,6 +190,7 @@ function AdminUsers() {
   const isSeller = (user) => {
     return (
       user?.isSeller === true ||
+      user?.hasStore === true ||
       user?.accountType === "seller" ||
       user?.role === "seller" ||
       user?.userType === "seller" ||
@@ -726,18 +727,17 @@ function AdminUsers() {
                               {verified && <VerifiedBadge size={14} />}
                             </p>
 
-                            <span
-                              className={`
-                                text-[10px] font-semibold px-2 py-0.5 rounded-full
-                                ${
-                                  seller
-                                    ? "bg-green-50 text-[#008236]"
-                                    : "bg-blue-50 text-blue-600"
-                                }
-                              `}
-                            >
-                              {seller ? "Seller" : "Buyer"}
+                            {/* Every account gets the default Buyer tag */}
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">
+                              Buyer
                             </span>
+
+                            {/* Sellers additionally get the Seller tag alongside Buyer */}
+                            {seller && (
+                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-50 text-[#008236]">
+                                Seller
+                              </span>
+                            )}
 
                             {superAdmin ? (
                               <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
@@ -933,7 +933,7 @@ function AdminUsers() {
               <p className="text-sm text-gray-500 mt-2 leading-relaxed">
                 Are you sure you want to permanently delete{" "}
                 <span className="font-semibold text-gray-800">
-                  “{deleteTargetName}”
+                  "{deleteTargetName}"
                 </span>
                 ?
               </p>

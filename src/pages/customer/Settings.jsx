@@ -25,6 +25,8 @@ import {
   FiBookOpen,
   FiDownload,
   FiBell,
+  FiShoppingBag,
+  FiRefreshCw,
 } from "react-icons/fi";
 
 import {
@@ -89,6 +91,9 @@ function Settings({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
   const [pushStatus, setPushStatus] = useState("");
   const [pushLoading, setPushLoading] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [hasStore, setHasStore] = useState(false);
+  const [creatingStore, setCreatingStore] = useState(false);
+  const [storeMessage, setStoreMessage] = useState("");
 
   useEffect(() => {
     const standalone =
@@ -161,6 +166,11 @@ function Settings({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
           });
           setProfileVisibility(s.profileVisibility || "campus");
           setNotificationsEnabled(d.notificationsEnabled === true);
+          setHasStore(
+            d.hasStore === true ||
+              d.isSeller === true ||
+              d.role === "seller"
+          );
         } else {
           const loaded = {
             fullName: "",
@@ -212,6 +222,7 @@ function Settings({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
       items: [
         { id: "personal", label: "Personal Information", icon: FiUser },
         { id: "password", label: "Change Password", icon: FiLock },
+        { id: "store", label: "My Store", icon: FiShoppingBag },
       ],
     },
     {
@@ -367,6 +378,46 @@ function Settings({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
       setPushStatus(e.message || "Could not disable notifications.");
     } finally {
       setPushLoading(false);
+    }
+  };
+
+  const handleCreateStore = async () => {
+    if (!firebaseUser?.uid) {
+      setStoreMessage("Please log in again.");
+      return;
+    }
+    setCreatingStore(true);
+    setStoreMessage("");
+    try {
+      await setDoc(
+        doc(db, "users", firebaseUser.uid),
+        {
+          hasStore: true,
+          isSeller: true,
+          // keep role as buyer for dual access; isSeller marks store
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+      await setDoc(
+        doc(db, "publicProfiles", firebaseUser.uid),
+        {
+          hasStore: true,
+          isSeller: true,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      ).catch(() => {});
+      setHasStore(true);
+      setStoreMessage("Store created. Opening seller dashboard…");
+      setTimeout(() => {
+        navigate("/seller-dashboard");
+      }, 600);
+    } catch (e) {
+      console.error(e);
+      setStoreMessage(e.message || "Could not create store. Try again.");
+    } finally {
+      setCreatingStore(false);
     }
   };
 
@@ -588,6 +639,79 @@ function Settings({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
                       </button>
                     )}
                     {pushStatus && <p className="mt-3 text-xs text-gray-600">{pushStatus}</p>}
+                  </div>
+                </section>
+              )}
+
+
+              {activeSection === "store" && (
+                <section>
+                  <Header
+                    title="My Store"
+                    desc="Open a CampusMart store on this same account. No new login needed."
+                    icon={FiShoppingBag}
+                  />
+                  <div className="mt-6 rounded-2xl border border-green-100 bg-green-50/50 p-5">
+                    {hasStore ? (
+                      <>
+                        <p className="text-sm font-bold text-gray-900">
+                          Your store is active
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1 leading-5">
+                          You can switch between buyer shopping and your seller
+                          dashboard anytime. Buyers use the main dashboard; sellers
+                          use Your Store.
+                        </p>
+                        <div className="mt-5 flex flex-col sm:flex-row gap-3">
+                          <button
+                            type="button"
+                            onClick={() => navigate("/seller-dashboard")}
+                            className="h-11 px-5 rounded-xl bg-[#008236] text-white text-sm font-semibold hover:bg-[#006f2e]"
+                          >
+                            Go to seller dashboard
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => navigate("/dashboard")}
+                            className="h-11 px-5 rounded-xl border border-gray-200 bg-white text-gray-700 text-sm font-semibold hover:bg-gray-50"
+                          >
+                            Back to buyer dashboard
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm font-bold text-gray-900">
+                          Create your store
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1 leading-5">
+                          List products, receive orders, and withdraw earnings —
+                          all on this account. You stay a buyer and can return to
+                          shopping anytime.
+                        </p>
+                        <button
+                          type="button"
+                          disabled={creatingStore}
+                          onClick={handleCreateStore}
+                          className="mt-5 h-11 px-5 rounded-xl bg-[#008236] text-white text-sm font-semibold hover:bg-[#006f2e] disabled:opacity-60 flex items-center gap-2"
+                        >
+                          {creatingStore ? (
+                            <>
+                              <FiRefreshCw className="animate-spin" size={16} />
+                              Creating store…
+                            </>
+                          ) : (
+                            <>
+                              <FiShoppingBag size={16} />
+                              Create store
+                            </>
+                          )}
+                        </button>
+                      </>
+                    )}
+                    {storeMessage && (
+                      <p className="mt-3 text-xs text-gray-600">{storeMessage}</p>
+                    )}
                   </div>
                 </section>
               )}

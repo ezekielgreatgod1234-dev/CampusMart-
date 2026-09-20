@@ -57,7 +57,7 @@ function SellerPromotions({ unreadMessages = 0, profile = {} }) {
   const [availableBalance, setAvailableBalance] = useState(0);
 
   const [selectedProductIds, setSelectedProductIds] = useState([]);
-  const [selectedPlanId, setSelectedPlanId] = useState("7days");
+  const [selectedPlanId, setSelectedPlanId] = useState("1month");
   const [submitting, setSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [formError, setFormError] = useState("");
@@ -106,28 +106,28 @@ function SellerPromotions({ unreadMessages = 0, profile = {} }) {
 
   const boostPlans = [
     {
-      id: "3days",
-      label: "3 Days",
-      days: 3,
-      price: 1500,
-      badge: null,
-      description: "Quick boost for weekend sales",
-    },
-    {
-      id: "7days",
-      label: "7 Days",
-      days: 7,
-      price: 3000,
-      badge: "Popular",
-      description: "Best value for weekly visibility",
-    },
-    {
-      id: "14days",
-      label: "14 Days",
-      days: 14,
+      id: "1month",
+      label: "1 Month",
+      days: 30,
       price: 5000,
+      badge: null,
+      description: "Full month at the top of listings",
+    },
+    {
+      id: "2months",
+      label: "2 Months",
+      days: 60,
+      price: 9000,
+      badge: "Popular",
+      description: "Best balance of cost and reach",
+    },
+    {
+      id: "3months",
+      label: "3 Months",
+      days: 90,
+      price: 12000,
       badge: "Best value",
-      description: "Maximum reach on campus",
+      description: "Maximum long-term campus visibility",
     },
   ];
 
@@ -928,7 +928,7 @@ function SellerPromotions({ unreadMessages = 0, profile = {} }) {
 
                   <div>
                     <label className="block text-xs font-semibold text-gray-700 mb-2">
-                      Boost duration (per product)
+                      Boost duration (monthly · per product)
                     </label>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       {boostPlans.map((plan) => {

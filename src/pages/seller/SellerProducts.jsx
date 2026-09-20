@@ -293,6 +293,11 @@ function SellerProducts({ unreadMessages = 0, profile = {} }) {
   // Pending orders count for sidebar Orders badge
   const [newOrdersCount, setNewOrdersCount] = useState(0);
 
+  // mine = own products | others = marketplace browse (view only)
+  const [productTab, setProductTab] = useState("mine");
+  const [otherProducts, setOtherProducts] = useState([]);
+  const [otherLoading, setOtherLoading] = useState(false);
+
   // =====================================================
   // LIVE SALES FROM ORDERS + PENDING ORDERS BADGE
   // =====================================================
@@ -350,6 +355,62 @@ function SellerProducts({ unreadMessages = 0, profile = {} }) {
 
     return () => unsubscribe();
   }, [firebaseUser?.uid]);
+
+
+  // =====================================================
+  // OTHER SELLERS' PRODUCTS (view only in seller mode)
+  // =====================================================
+  useEffect(() => {
+    if (!firebaseUser?.uid || productTab !== "others") {
+      return undefined;
+    }
+
+    setOtherLoading(true);
+    const unsub = onSnapshot(
+      collection(db, "products"),
+      (snapshot) => {
+        const list = snapshot.docs
+          .map((d) => {
+            const data = d.data() || {};
+            return {
+              id: d.id,
+              name: data.name || "",
+              category: data.category || "Other",
+              price: Number(data.price) || 0,
+              status: data.status || "Active",
+              image: data.image || "",
+              description: data.description || "",
+              sellerId: data.sellerId || "",
+              sellerName: data.sellerName || "Seller",
+              isVerifiedSeller: data.isVerifiedSeller === true,
+              isPromoted: data.isPromoted === true,
+              createdAt: data.createdAt || null,
+            };
+          })
+          .filter(
+            (p) =>
+              p.sellerId &&
+              p.sellerId !== firebaseUser.uid &&
+              String(p.status || "Active").toLowerCase() !== "deleted"
+          )
+          .sort((a, b) => {
+            if (a.isPromoted && !b.isPromoted) return -1;
+            if (!a.isPromoted && b.isPromoted) return 1;
+            const at = a.createdAt?.seconds || 0;
+            const bt = b.createdAt?.seconds || 0;
+            return bt - at;
+          });
+        setOtherProducts(list);
+        setOtherLoading(false);
+      },
+      (err) => {
+        console.error(err);
+        setOtherProducts([]);
+        setOtherLoading(false);
+      }
+    );
+    return () => unsub();
+  }, [firebaseUser?.uid, productTab]);
 
   // =====================================================
   // FIRESTORE PRODUCT LISTENER
@@ -1012,7 +1073,8 @@ const sellerImage =
   // =====================================================
 
   const filteredProducts = useMemo(() => {
-    return products.filter((product) => {
+    const source = productTab === "others" ? otherProducts : products;
+    return source.filter((product) => {
       const search =
         searchTerm
           .trim()
@@ -1047,6 +1109,8 @@ const sellerImage =
     });
   }, [
     products,
+    otherProducts,
+    productTab,
     searchTerm,
     selectedCategory,
     selectedStatus,
@@ -1074,6 +1138,9 @@ const sellerImage =
     ).length;
 
   // Prefer order-derived sales, fall back to product.sales field
+  const isOwnProduct = (product) =>
+    !product?.sellerId || product.sellerId === firebaseUser?.uid;
+
   const getSoldCount = (product) =>
     Number(soldByProductId[product?.id]) ||
     Number(product?.sales) ||
@@ -1998,6 +2065,38 @@ const sellerImage =
             </div>
           )}
 
+
+          {/* MY PRODUCTS / OTHER SELLERS TABS */}
+          <div className="mb-5 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setProductTab("mine")}
+              className={`h-10 px-4 rounded-xl text-sm font-semibold transition ${
+                productTab === "mine"
+                  ? "bg-[#008236] text-white"
+                  : "bg-white border border-gray-200 text-gray-600 hover:border-green-200 hover:text-[#008236]"
+              }`}
+            >
+              My products
+            </button>
+            <button
+              type="button"
+              onClick={() => setProductTab("others")}
+              className={`h-10 px-4 rounded-xl text-sm font-semibold transition ${
+                productTab === "others"
+                  ? "bg-[#008236] text-white"
+                  : "bg-white border border-gray-200 text-gray-600 hover:border-green-200 hover:text-[#008236]"
+              }`}
+            >
+              Other sellers
+            </button>
+            {productTab === "others" && (
+              <p className="text-xs text-gray-500 w-full sm:w-auto sm:ml-2">
+                View only, switch to buyer dashboard for more details on each product and to purchase.
+              </p>
+            )}
+          </div>
+
           {/* STATISTICS */}
 
           <section
@@ -2381,6 +2480,7 @@ const sellerImage =
                     <button
                       type="button"
                       onClick={handleAddProduct}
+                    style={{ display: productTab === "others" ? "none" : undefined }}
                       className="
                         mt-5
                         h-11
@@ -2428,15 +2528,19 @@ const sellerImage =
                         <th className="px-4 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                           Price
                         </th>
-                        <th className="px-4 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                          Sales
-                        </th>
+                        {productTab !== "others" && (
+                          <th className="px-4 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                            Sales
+                          </th>
+                        )}
                         <th className="px-4 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                           Status
                         </th>
-                        <th className="px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">
-                          Actions
-                        </th>
+                        {productTab !== "others" && (
+                          <th className="px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">
+                            Actions
+                          </th>
+                        )}
                       </tr>
                     </thead>
 
@@ -2492,9 +2596,38 @@ const sellerImage =
                                   >
                                     {product.name}
                                   </p>
-                                  <p className="text-[10px] text-gray-400 mt-1">
-                                    ID: {product.id}
-                                  </p>
+                                  {productTab !== "others" && (
+                                    <p className="text-[10px] text-gray-400 mt-1">
+                                      ID: {product.id}
+                                    </p>
+                                  )}
+                                  {productTab === "others" && (
+                                    <span
+                                      className="
+                                        inline-flex
+                                        items-center
+                                        gap-1
+                                        mt-1.5
+                                        px-2
+                                        py-0.5
+                                        rounded-full
+                                        bg-green-50
+                                        border
+                                        border-green-100
+                                        text-[10px]
+                                        font-semibold
+                                        text-[#008236]
+                                        max-w-full
+                                        truncate
+                                      "
+                                      title={`Sold by ${product.sellerName || "Seller"}`}
+                                    >
+                                      <FiUser size={10} className="flex-shrink-0" />
+                                      <span className="truncate">
+                                        {product.sellerName || "Seller"}
+                                      </span>
+                                    </span>
+                                  )}
                                 </div>
                               </div>
                             </td>
@@ -2524,14 +2657,16 @@ const sellerImage =
                               </p>
                             </td>
 
-                            <td className="px-4 py-4">
-                              <p className="text-sm font-semibold text-gray-700">
-                                {getSoldCount(product)}
-                              </p>
-                              <p className="text-[10px] text-gray-400 mt-0.5">
-                                sold
-                              </p>
-                            </td>
+                            {productTab !== "others" && (
+                              <td className="px-4 py-4">
+                                <p className="text-sm font-semibold text-gray-700">
+                                  {getSoldCount(product)}
+                                </p>
+                                <p className="text-[10px] text-gray-400 mt-0.5">
+                                  sold
+                                </p>
+                              </td>
+                            )}
 
                             <td className="px-4 py-4">
                               <span
@@ -2552,6 +2687,7 @@ const sellerImage =
                               </span>
                             </td>
 
+                            {productTab !== "others" && (
                             <td className="px-5 py-4">
                               <div className="flex items-center justify-end gap-1">
                                 <button
@@ -2696,6 +2832,7 @@ const sellerImage =
                                 </div>
                               </div>
                             </td>
+                            )}
                           </tr>
                         )
                       )}
@@ -2778,183 +2915,216 @@ const sellerImage =
                             <p className="text-[10px] text-[#008236] font-semibold mt-1">
                               {product.category}
                             </p>
-                          </div>
-
-                          <div className="relative">
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                setOpenMenu(
-                                  openMenu === product.id
-                                    ? null
-                                    : product.id
-                                );
-                              }}
-                              className="
-                                w-8
-                                h-8
-                                rounded-lg
-                                text-gray-400
-                                hover:bg-green-50
-                                hover:text-[#008236]
-                                flex
-                                items-center
-                                justify-center
-                              "
-                            >
-                              <FiMoreVertical size={16} />
-                            </button>
-
-                            {openMenu === product.id && (
-                              <div
-                                onClick={(event) =>
-                                  event.stopPropagation()
-                                }
+                            {productTab === "others" && (
+                              <span
                                 className="
-                                  absolute
-                                  right-0
-                                  top-9
-                                  z-30
-                                  w-36
-                                  bg-white
+                                  inline-flex
+                                  items-center
+                                  gap-1
+                                  mt-1.5
+                                  px-2
+                                  py-0.5
+                                  rounded-full
+                                  bg-gray-50
                                   border
-                                  border-green-100
-                                  rounded-xl
-                                  shadow-xl
-                                  p-1
+                                  border-gray-200
+                                  text-[10px]
+                                  font-semibold
+                                  text-gray-600
+                                  max-w-full
+                                  truncate
                                 "
+                                title={`Sold by ${product.sellerName || "Seller"}`}
                               >
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleEditProduct(product)
-                                  }
-                                  className="
-                                    w-full
-                                    flex
-                                    items-center
-                                    gap-2
-                                    px-3
-                                    py-2.5
-                                    rounded-lg
-                                    text-xs
-                                    hover:bg-green-50
-                                    hover:text-[#008236]
-                                    text-left
-                                  "
-                                >
-                                  <FiEdit2 size={14} />
-                                  Edit
-                                </button>
-
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setDeleteProduct(product);
-                                    setOpenMenu(null);
-                                  }}
-                                  className="
-                                    w-full
-                                    flex
-                                    items-center
-                                    gap-2
-                                    px-3
-                                    py-2.5
-                                    rounded-lg
-                                    text-xs
-                                    text-red-500
-                                    hover:bg-red-50
-                                    text-left
-                                  "
-                                >
-                                  <FiTrash2 size={14} />
-                                  Delete
-                                </button>
-                              </div>
+                                <FiUser size={10} className="flex-shrink-0" />
+                                <span className="truncate">
+                                  {product.sellerName || "Seller"}
+                                </span>
+                              </span>
                             )}
                           </div>
+
+                          {productTab !== "others" && (
+                            <div className="relative">
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setOpenMenu(
+                                    openMenu === product.id
+                                      ? null
+                                      : product.id
+                                  );
+                                }}
+                                className="
+                                  w-8
+                                  h-8
+                                  rounded-lg
+                                  text-gray-400
+                                  hover:bg-green-50
+                                  hover:text-[#008236]
+                                  flex
+                                  items-center
+                                  justify-center
+                                "
+                              >
+                                <FiMoreVertical size={16} />
+                              </button>
+
+                              {openMenu === product.id && (
+                                <div
+                                  onClick={(event) =>
+                                    event.stopPropagation()
+                                  }
+                                  className="
+                                    absolute
+                                    right-0
+                                    top-9
+                                    z-30
+                                    w-36
+                                    bg-white
+                                    border
+                                    border-green-100
+                                    rounded-xl
+                                    shadow-xl
+                                    p-1
+                                  "
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleEditProduct(product)
+                                    }
+                                    className="
+                                      w-full
+                                      flex
+                                      items-center
+                                      gap-2
+                                      px-3
+                                      py-2.5
+                                      rounded-lg
+                                      text-xs
+                                      hover:bg-green-50
+                                      hover:text-[#008236]
+                                      text-left
+                                    "
+                                  >
+                                    <FiEdit2 size={14} />
+                                    Edit
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setDeleteProduct(product);
+                                      setOpenMenu(null);
+                                    }}
+                                    className="
+                                      w-full
+                                      flex
+                                      items-center
+                                      gap-2
+                                      px-3
+                                      py-2.5
+                                      rounded-lg
+                                      text-xs
+                                      text-red-500
+                                      hover:bg-red-50
+                                      text-left
+                                    "
+                                  >
+                                    <FiTrash2 size={14} />
+                                    Delete
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
 
                         <p className="text-lg font-bold text-gray-800 mt-3">
                           {formatNaira(product.price)}
                         </p>
 
-                        <div className="grid grid-cols-2 gap-2 mt-4">
-                          <div className="bg-green-50 rounded-xl p-3 border border-green-100">
-                            <p className="text-[9px] text-[#008236] uppercase font-semibold">
-                              Sales
-                            </p>
-                            <p className="text-sm font-bold text-gray-700 mt-1">
-                              {getSoldCount(product)}
-                            </p>
+                        {productTab !== "others" && (
+                          <div className="grid grid-cols-2 gap-2 mt-4">
+                            <div className="bg-green-50 rounded-xl p-3 border border-green-100">
+                              <p className="text-[9px] text-[#008236] uppercase font-semibold">
+                                Sales
+                              </p>
+                              <p className="text-sm font-bold text-gray-700 mt-1">
+                                {getSoldCount(product)}
+                              </p>
+                            </div>
+
+                            <div className="bg-green-50 rounded-xl p-3 border border-green-100">
+                              <p className="text-[9px] text-[#008236] uppercase font-semibold">
+                                Product ID
+                              </p>
+                              <p className="text-[10px] font-semibold text-gray-600 mt-1 truncate">
+                                {product.id}
+                              </p>
+                            </div>
                           </div>
+                        )}
 
-                          <div className="bg-green-50 rounded-xl p-3 border border-green-100">
-                            <p className="text-[9px] text-[#008236] uppercase font-semibold">
-                              Product ID
-                            </p>
-                            <p className="text-[10px] font-semibold text-gray-600 mt-1 truncate">
-                              {product.id}
-                            </p>
+                        {productTab !== "others" && (
+                          <div className="flex items-center gap-2 mt-3">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleEditProduct(product)
+                              }
+                              className="
+                                flex-1
+                                h-10
+                                rounded-xl
+                                border
+                                border-green-200
+                                text-[#008236]
+                                bg-green-50/50
+                                text-xs
+                                font-semibold
+                                flex
+                                items-center
+                                justify-center
+                                gap-2
+                                hover:bg-green-50
+                                transition
+                              "
+                            >
+                              <FiEdit2 size={14} />
+                              Edit
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDeleteProduct(product)
+                              }
+                              className="
+                                flex-1
+                                h-10
+                                rounded-xl
+                                border
+                                border-red-100
+                                text-red-600
+                                bg-red-50/40
+                                text-xs
+                                font-semibold
+                                flex
+                                items-center
+                                justify-center
+                                gap-2
+                                hover:bg-red-50
+                                transition
+                              "
+                            >
+                              <FiTrash2 size={14} />
+                              Delete
+                            </button>
                           </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 mt-3">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleEditProduct(product)
-                            }
-                            className="
-                              flex-1
-                              h-10
-                              rounded-xl
-                              border
-                              border-green-200
-                              text-[#008236]
-                              bg-green-50/50
-                              text-xs
-                              font-semibold
-                              flex
-                              items-center
-                              justify-center
-                              gap-2
-                              hover:bg-green-50
-                              transition
-                            "
-                          >
-                            <FiEdit2 size={14} />
-                            Edit
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setDeleteProduct(product)
-                            }
-                            className="
-                              flex-1
-                              h-10
-                              rounded-xl
-                              border
-                              border-red-100
-                              text-red-600
-                              bg-red-50/40
-                              text-xs
-                              font-semibold
-                              flex
-                              items-center
-                              justify-center
-                              gap-2
-                              hover:bg-red-50
-                              transition
-                            "
-                          >
-                            <FiTrash2 size={14} />
-                            Delete
-                          </button>
-                        </div>
+                        )}
                       </div>
                     </div>
                   ))}

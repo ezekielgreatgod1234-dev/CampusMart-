@@ -33,6 +33,7 @@ import {
   FiBookOpen,
   FiDownload,
   FiBell,
+  FiRefreshCw,
 } from "react-icons/fi";
 
 import {
@@ -485,6 +486,11 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
           id: "password",
           label: "Change Password",
           icon: FiLock,
+        },
+        {
+          id: "buyer-mode",
+          label: "Switch to Buyer",
+          icon: FiRefreshCw,
         },
       ],
     },
@@ -1570,6 +1576,50 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
                     >
                       <FiLock size={16} />
                       {passwordUpdating ? "Updating..." : "Update Password"}
+                    </button>
+                  </div>
+                </section>
+              )}
+
+              {activeSection === "buyer-mode" && (
+                <section>
+                  <SettingsHeader
+                    title="Switch to Buyer"
+                    description="Jump over to the buyer side of CampusMart to browse, chat with sellers, and place orders."
+                    icon={FiRefreshCw}
+                  />
+
+                  <div className="mt-6 rounded-2xl border border-gray-100 bg-gray-50 p-5">
+                    <div className="flex items-start gap-3">
+                      <div className="w-11 h-11 rounded-xl bg-green-50 text-[#008236] flex items-center justify-center shrink-0 border border-green-100">
+                        <FiShoppingBag size={20} />
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold text-gray-900">
+                          Buyer mode
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1 leading-5">
+                          You'll be taken to your buyer dashboard where you can
+                          shop products, track orders, and message sellers. Your
+                          seller account and store stay exactly as they are
+                          you can switch back any time from your buyer profile.
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => navigate("/dashboard")}
+                      className="
+                        mt-5 h-11 px-5 rounded-xl bg-[#008236]
+                        hover:bg-[#006f2e] active:bg-[#005f28] transition
+                        text-white text-sm font-semibold
+                        flex items-center justify-center gap-2
+                      "
+                    >
+                      <FiRefreshCw size={16} />
+                      Switch to Buyer
                     </button>
                   </div>
                 </section>
