@@ -386,7 +386,7 @@ function Navbar({
                   <p className="text-xs font-semibold text-gray-600">
                     {peopleSuggestions.length === 1
                       ? "1 person found"
-                      : `${peopleSuggestions.length} people found — choose one`}
+                      : `${peopleSuggestions.length} persons found `}
                   </p>
                   <button
                     type="button"
