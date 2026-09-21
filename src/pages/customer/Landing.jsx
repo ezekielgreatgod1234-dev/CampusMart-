@@ -26,6 +26,8 @@ import {
   FiMap,
   FiMenu,
   FiX,
+  FiCreditCard,
+
 } from "react-icons/fi";
 
 function Landing() {
@@ -161,7 +163,7 @@ function Landing() {
   const products = [
     {
       name: "MacBook Air M2",
-      location: "UNN, Enugu",
+      location: "ABSU, Uturu",
       price: "₦650,000",
       badge: "FEATURED",
       image:
@@ -169,7 +171,7 @@ function Landing() {
     },
     {
       name: "Nike Air Force 1",
-      location: "UNILAG, Lagos",
+      location: "ABSU, Uturu",
       price: "₦35,000",
       badge: "NEW",
       image:
@@ -185,7 +187,7 @@ function Landing() {
     },
     {
       name: "Engineering Maths Book",
-      location: "OAU, Ile-Ife",
+      location: "ABSU, Uturu",
       price: "₦4,500",
       badge: "NEW",
       image:
@@ -193,7 +195,7 @@ function Landing() {
     },
     {
       name: "JBL Headphones",
-      location: "UDUS, Sokoto",
+      location: "ABSU, Uturu",
       price: "₦28,000",
       badge: "FEATURED",
       image:
@@ -201,7 +203,7 @@ function Landing() {
     },
     {
       name: "Foldable Study Lamp",
-      location: "FUTO, Owerri",
+      location: "ABSU, Uturu",
       price: "₦6,000",
       badge: "NEW",
       image:
@@ -245,25 +247,37 @@ function Landing() {
       number: "1",
       icon: <FiUserPlus size={32} />,
       title: "Create Account",
-      text: "Sign up using your school email or phone number.",
+      text: "Sign up with your email and verify it to activate your CampusMart account.",
     },
     {
       number: "2",
       icon: <FiShoppingBag size={32} />,
       title: "List or Browse",
-      text: "List your item for sale or browse items on campus.",
+      text: "Browse products on campus or list your own items for sale.",
     },
     {
       number: "3",
-      icon: <FiMessageCircle size={32} />,
-      title: "Chat & Connect",
-      text: "Message the seller or buyer directly in the app.",
+      icon: <FiBriefcase size={32} />,
+      title: "Become a Seller",
+      text: "Open Settings → My Store → Create store, then open your seller dashboard.",
     },
     {
       number: "4",
+      icon: <FiMessageCircle size={32} />,
+      title: "Chat & Agree",
+      text: "Message the seller about a product in the app and agree on the payment method before you pay.",
+    },
+    {
+      number: "5",
+      icon: <FiCreditCard size={32} />,
+      title: "Pay with Paystack",
+      text: "Pay securely in the app via Paystack, get your receipt, and share it with the seller to confirm payment.",
+    },
+    {
+      number: "6",
       icon: <FiCheckCircle size={32} />,
       title: "Meet & Complete",
-      text: "Meet safely on campus and complete your transaction.",
+      text: "Meet safely on campus and complete your order with confidence.",
     },
   ];
 
@@ -617,12 +631,20 @@ function Landing() {
 
               <div className="mt-7 sm:mt-8 flex items-center gap-4">
                 <div className="flex -space-x-3">
-                  {[1, 2, 3, 4, 5].map((item) => (
+                  {[
+                    "https://images.unsplash.com/photo-1463453091185-61582044d556?auto=format&fit=crop&w=120&h=120&q=80&crop=faces",
+                    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT0wWx2D-fr1htAvVNBROWLrH3p82pR7Xmf4d425sy7QQ&s=10",
+                    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRYAVfZHy8TNSobEfFVRgQ5sh9GXnJwh2lPEYqaEFC_CQ&s=10",
+                    "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=120&h=120&q=80&crop=faces",
+                    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQlwKtwJRGG9qiBagzHVjpNqVXpMAjq4Itr3-4Q-doYng&s=10",
+                  ].map((src, i) => (
                     <img
-                      key={item}
-                      src={`https://i.pravatar.cc/80?img=${item + 10}`}
-                      alt=""
-                      className="w-8 h-8 sm:w-9 sm:h-9 rounded-full border-2 border-white object-cover"
+                      key={i}
+                      src={src}
+                      alt="CampusMart student"
+                      className="w-8 h-8 sm:w-9 sm:h-9 rounded-full border-2 border-white object-cover bg-green-100"
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
                     />
                   ))}
                 </div>
@@ -971,20 +993,17 @@ function Landing() {
             </p>
           </div>
 
-          <div className="mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 lg:gap-5">
-            {steps.map((step, index) => (
-              <div key={step.title} className="relative text-center">
-                {index !== steps.length - 1 && (
-                  <div className="hidden lg:block absolute top-10 left-[65%] w-[70%] border-t-2 border-dashed border-green-200" />
-                )}
-                <div className="relative mx-auto w-20 h-20 rounded-full bg-green-50 text-green-600 flex items-center justify-center">
+          <div className="mt-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10 lg:gap-8">
+            {steps.map((step) => (
+              <div key={step.title} className="relative text-center px-2">
+                <div className="relative mx-auto w-20 h-20 rounded-full bg-green-50 text-green-600 flex items-center justify-center shadow-sm border border-green-100">
                   {step.icon}
                   <span className="absolute -top-1 -left-2 w-7 h-7 rounded-full bg-green-600 text-white text-xs font-bold flex items-center justify-center border-4 border-white">
                     {step.number}
                   </span>
                 </div>
-                <h3 className="mt-6 font-bold text-lg">{step.title}</h3>
-                <p className="mt-3 text-sm text-gray-500 leading-6 max-w-[230px] mx-auto">
+                <h3 className="mt-6 font-bold text-lg text-gray-900">{step.title}</h3>
+                <p className="mt-3 text-sm text-gray-500 leading-6 max-w-[260px] mx-auto">
                   {step.text}
                 </p>
               </div>

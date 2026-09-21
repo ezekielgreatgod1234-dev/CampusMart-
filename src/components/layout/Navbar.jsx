@@ -6,7 +6,6 @@ import {
   FiMessageCircle,
   FiShoppingCart,
   FiHeart,
-  FiUser,
   FiX,
   FiChevronRight,
 } from "react-icons/fi";
@@ -29,7 +28,6 @@ const DEFAULT_PROFILE = {
   profileImage: null,
 };
 
-// Meta-style small green verified check mark
 function VerifiedBadge({ size = 12 }) {
   const s = Number(size) || 12;
   return (
@@ -52,10 +50,6 @@ function VerifiedBadge({ size = 12 }) {
   );
 }
 
-// =========================================================
-// LINK / ID PARSING — supports product links, store/profile
-// links, or a raw Firebase UID pasted directly into search.
-// =========================================================
 function extractLinkTarget(raw) {
   const input = String(raw || "").trim();
   if (!input) return null;
@@ -94,75 +88,113 @@ function getDisplayName(data = {}) {
   ).trim();
 }
 
-function isSellerProfile(data = {}) {
-  const role = String(data.role || "").trim().toLowerCase();
-  return (
-    role === "seller" ||
-    data.isSeller === true ||
-    (Array.isArray(data.roles) &&
-      data.roles
-        .map(String)
-        .map((r) => r.toLowerCase())
-        .includes("seller"))
-  );
+function getProfileImage(data = {}) {
+  const img =
+    data.profileImage ||
+    data.photoURL ||
+    data.avatar ||
+    data.profilePicture ||
+    data.imageUrl ||
+    data.image ||
+    null;
+  if (!img || typeof img !== "string") return null;
+  const t = img.trim();
+  if (!t || t === "null" || t === "undefined") return null;
+  return t;
 }
 
-// =========================================================
-// NAME SEARCH — searches ALL people (buyers + sellers), not
-// just sellers, and tags every match with whether they also
-// hold a seller role so the dropdown can show a "Seller" tag.
-// =========================================================
+/**
+ * Seller badge ONLY if they opened a store / are marked seller
+ * on publicProfiles (what search can actually read).
+ * Everyone else = Buyer.
+ */
+function hasOpenedStore(data = {}) {
+  if (data.hasStore === true) return true;
+  if (data.isSeller === true) return true;
+  if (data.storeCreated === true) return true;
+
+  const role = String(data.role || "").trim().toLowerCase();
+  if (role === "seller") return true;
+
+  if (
+    Array.isArray(data.roles) &&
+    data.roles.some(
+      (r) => String(r).trim().toLowerCase() === "seller"
+    )
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Search publicProfiles (readable by all signed-in users).
+ * users/ is usually private — other people cannot read it,
+ * so seller flags must live on publicProfiles.
+ */
 async function findPeopleByName(query) {
   const needle = String(query || "").trim().toLowerCase();
   if (!needle) return [];
 
-  const collectMatches = (docs) => {
-    const rows = docs.map((d) => ({ id: d.id, ...(d.data() || {}) }));
-
-    const withNames = rows
-      .map((p) => ({
-        ...p,
-        _name: getDisplayName(p).toLowerCase(),
-        _isSeller: isSellerProfile(p),
-      }))
-      .filter((p) => p._name);
-
-    const exact = withNames.filter((p) => p._name === needle);
-    if (exact.length) return exact;
-
-    const starts = withNames.filter((p) => p._name.startsWith(needle));
-    if (starts.length) return starts;
-
-    return withNames.filter((p) => p._name.includes(needle));
-  };
-
-  // De-dupe by id, in case a person shows up in both collections
-  const dedupe = (list) => {
-    const seen = new Map();
-    for (const person of list) {
-      if (!seen.has(person.id)) seen.set(person.id, person);
-    }
-    return Array.from(seen.values());
-  };
-
-  let results = [];
-
+  let docs = [];
   try {
     const publicSnap = await getDocs(collection(db, "publicProfiles"));
-    results = collectMatches(publicSnap.docs);
+    docs = publicSnap.docs;
   } catch (err) {
     console.warn("publicProfiles search failed:", err);
+    return [];
   }
 
+  // Best-effort merge from users (only works if rules allow list read)
   try {
     const usersSnap = await getDocs(collection(db, "users"));
-    const fromUsers = collectMatches(usersSnap.docs);
-    results = dedupe([...results, ...fromUsers]);
-  } catch (err) {
-    console.warn("users search failed:", err);
+    const byId = new Map(docs.map((d) => [d.id, { id: d.id, ...(d.data() || {}) }]));
+    usersSnap.docs.forEach((d) => {
+      const u = { id: d.id, ...(d.data() || {}) };
+      const prev = byId.get(d.id) || { id: d.id };
+      byId.set(d.id, {
+        ...prev,
+        ...u,
+        // Prefer store flags from either source
+        hasStore: prev.hasStore === true || u.hasStore === true,
+        isSeller: prev.isSeller === true || u.isSeller === true,
+        role: hasOpenedStore(u) ? (u.role || prev.role) : (prev.role || u.role),
+        fullName: getDisplayName(prev) || getDisplayName(u),
+        profileImage: getProfileImage(prev) || getProfileImage(u),
+        photoURL: prev.photoURL || u.photoURL,
+        campus: prev.campus || u.campus || prev.school || u.school,
+        isVerifiedSeller:
+          prev.isVerifiedSeller === true || u.isVerifiedSeller === true,
+      });
+    });
+    docs = Array.from(byId.values()).map((row) => ({
+      id: row.id,
+      data: () => row,
+    }));
+  } catch {
+    // Expected when rules block listing users — publicProfiles only
   }
 
-  return results;
+  const rows = docs.map((d) => {
+    const data = typeof d.data === "function" ? d.data() : d;
+    const id = d.id || data.id;
+    return {
+      id,
+      ...data,
+      _name: getDisplayName(data).toLowerCase(),
+      _hasStore: hasOpenedStore(data),
+      _image: getProfileImage(data),
+    };
+  }).filter((p) => p._name);
+
+  const exact = rows.filter((p) => p._name === needle);
+  if (exact.length) return exact;
+
+  const starts = rows.filter((p) => p._name.startsWith(needle));
+  if (starts.length) return starts;
+
+  return rows.filter((p) => p._name.includes(needle));
 }
 
 function Navbar({
@@ -179,7 +211,6 @@ function Navbar({
   const [profile, setProfile] = useState(DEFAULT_PROFILE);
   const [searching, setSearching] = useState(false);
 
-  // Matching people (buyers and/or sellers) → dropdown
   const [peopleSuggestions, setPeopleSuggestions] = useState([]);
   const [showPeopleDropdown, setShowPeopleDropdown] = useState(false);
 
@@ -199,6 +230,8 @@ function Navbar({
             ...DEFAULT_PROFILE,
             ...data,
             email: data.email || firebaseUser.email || "",
+            profileImage:
+              getProfileImage(data) || firebaseUser.photoURL || null,
           });
           return;
         }
@@ -221,7 +254,6 @@ function Navbar({
     firebaseUser?.photoURL,
   ]);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const onPointerDown = (e) => {
       if (
@@ -232,7 +264,11 @@ function Navbar({
       }
     };
     document.addEventListener("mousedown", onPointerDown);
-    return () => document.removeEventListener("mousedown", onPointerDown);
+    document.addEventListener("touchstart", onPointerDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("touchstart", onPointerDown);
+    };
   }, []);
 
   const closeDropdown = () => {
@@ -240,9 +276,6 @@ function Navbar({
     setPeopleSuggestions([]);
   };
 
-  // Every person — buyer or seller — has a public profile page at
-  // /store/:id. For sellers it shows their storefront and products;
-  // for buyers it shows their profile info.
   const openPersonProfile = (personId) => {
     if (!personId) return;
     closeDropdown();
@@ -257,8 +290,6 @@ function Navbar({
     navigate(`/products/${encodeURIComponent(productId)}`);
   };
 
-  // Selecting a person from the dropdown always opens their
-  // public profile, whether they're a buyer or a seller.
   const handleSelectPerson = (person) => {
     if (!person) return;
     openPersonProfile(person.id);
@@ -275,7 +306,6 @@ function Navbar({
       return;
     }
 
-    // 1) Pasted link (product / store / seller / profile) or raw UID
     const linkTarget = extractLinkTarget(trimmedSearch);
     if (linkTarget?.type === "product") {
       openProduct(linkTarget.id);
@@ -286,7 +316,6 @@ function Navbar({
       return;
     }
 
-    // 2) Search by person's name — buyers and sellers alike
     try {
       setSearching(true);
       const matches = await findPeopleByName(trimmedSearch);
@@ -308,16 +337,15 @@ function Navbar({
       setSearching(false);
     }
 
-    // 3) Fall back to product search
     navigate(
       `/browse-products?search=${encodeURIComponent(trimmedSearch)}`
     );
   };
 
   return (
-    <header className="bg-green-800 text-white">
-      <div className="h-20 px-4 sm:px-6 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-4 flex-1 min-w-0">
+    <header className="bg-green-800 text-white relative z-40">
+      <div className="h-20 px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-4">
+        <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
@@ -326,9 +354,12 @@ function Navbar({
             <FiMenu className="text-2xl" />
           </button>
 
-          <div ref={searchWrapRef} className="relative flex-1 max-w-md">
+          <div
+            ref={searchWrapRef}
+            className="relative flex-1 min-w-0 max-w-none sm:max-w-md"
+          >
             <form onSubmit={handleSearch} className="relative">
-              <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-green-200 pointer-events-none" />
+              <FiSearch className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-green-200 pointer-events-none" />
 
               <input
                 type="text"
@@ -337,7 +368,7 @@ function Navbar({
                   setSearch(e.target.value);
                   closeDropdown();
                 }}
-                placeholder="Search products, buyer or seller name, or paste a link..."
+                placeholder="Search name, product, or paste a link…"
                 disabled={searching}
                 className="
                   w-full
@@ -346,7 +377,7 @@ function Navbar({
                   placeholder-green-200
                   rounded-full
                   py-2.5
-                  pl-11
+                  pl-10 sm:pl-11
                   pr-10
                   outline-none
                   border
@@ -354,6 +385,7 @@ function Navbar({
                   focus:ring-2
                   focus:ring-green-400
                   disabled:opacity-70
+                  text-sm
                 "
               />
 
@@ -362,31 +394,36 @@ function Navbar({
               )}
             </form>
 
-            {/* Styled dropdown — one or more matching people, each
-                with photo, full name, campus and a Seller tag when
-                that person also has a seller role. */}
             {showPeopleDropdown && peopleSuggestions.length > 0 && (
               <div
                 className="
-                  absolute
-                  left-0
-                  right-0
-                  top-[calc(100%+10px)]
-                  z-50
+                  fixed
+                  left-3
+                  right-3
+                  top-[4.75rem]
+                  z-[60]
+                  sm:absolute
+                  sm:left-0
+                  sm:right-0
+                  sm:top-[calc(100%+10px)]
+                  sm:w-full
                   bg-white
                   text-gray-800
                   rounded-2xl
-                  shadow-[0_20px_45px_rgba(0,0,0,0.18)]
+                  shadow-[0_20px_50px_rgba(0,0,0,0.22)]
                   border
                   border-gray-100
                   overflow-hidden
+                  max-h-[min(70vh,420px)]
+                  flex
+                  flex-col
                 "
               >
-                <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-2 bg-gray-50">
+                <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-2 bg-gray-50 shrink-0">
                   <p className="text-xs font-semibold text-gray-600">
                     {peopleSuggestions.length === 1
                       ? "1 person found"
-                      : `${peopleSuggestions.length} persons found `}
+                      : `${peopleSuggestions.length} people found`}
                   </p>
                   <button
                     type="button"
@@ -398,20 +435,19 @@ function Navbar({
                   </button>
                 </div>
 
-                <ul className="max-h-80 overflow-y-auto py-1.5">
+                <ul className="overflow-y-auto py-1.5 flex-1 overscroll-contain">
                   {peopleSuggestions.map((person) => {
-                    const name = getDisplayName(person) || "CampusMart User";
+                    const name =
+                      getDisplayName(person) || "CampusMart User";
                     const campus = person.campus || person.school || "";
                     const image =
-                      person.profileImage ||
-                      person.photoURL ||
-                      person.avatar ||
-                      null;
-                    const seller = person._isSeller;
-                    const verified = person.isVerifiedSeller === true;
+                      person._image || getProfileImage(person) || null;
+                    const isStoreOwner = Boolean(person._hasStore);
+                    const verified =
+                      isStoreOwner && person.isVerifiedSeller === true;
 
                     return (
-                      <li key={person.id} className="px-1.5">
+                      <li key={person.id} className="px-2">
                         <button
                           type="button"
                           onClick={() => handleSelectPerson(person)}
@@ -436,48 +472,46 @@ function Navbar({
                                 src={image}
                                 alt={name}
                                 className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = "none";
+                                }}
                               />
                             ) : (
-                              <FiUser size={18} />
+                              <span className="text-sm font-bold">
+                                {name.charAt(0).toUpperCase() || "U"}
+                              </span>
                             )}
                           </div>
 
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5 flex-wrap">
+                            <div className="flex items-center gap-1.5 min-w-0">
                               <p className="text-sm font-bold text-gray-900 truncate">
                                 {name}
                               </p>
                               {verified && <VerifiedBadge size={13} />}
                             </div>
 
-                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                              <span
-                                className={`
-                                  text-[10px]
-                                  font-semibold
-                                  px-2
-                                  py-0.5
-                                  rounded-full
-                                  ${
-                                    seller
-                                      ? "bg-green-50 text-[#008236] border border-green-100"
-                                      : "bg-blue-50 text-blue-600 border border-blue-100"
-                                  }
-                                `}
-                              >
-                                {seller ? "Seller" : "Buyer"}
-                              </span>
-
-                              {campus && (
-                                <span className="text-xs text-gray-500 truncate">
-                                  {campus}
+                            <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                              {isStoreOwner ? (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-50 text-[#008236] border border-green-200">
+                                  Seller
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-100">
+                                  Buyer
                                 </span>
                               )}
+
+                              {campus ? (
+                                <span className="text-xs text-gray-500 truncate max-w-[140px]">
+                                  {campus}
+                                </span>
+                              ) : null}
                             </div>
                           </div>
 
-                          <span className="flex items-center gap-1 text-xs font-semibold text-[#008236] shrink-0">
-                            {seller ? "View store" : "View profile"}
+                          <span className="hidden sm:flex items-center gap-0.5 text-xs font-semibold text-[#008236] shrink-0">
+                            {isStoreOwner ? "View store" : "View profile"}
                             <FiChevronRight size={14} />
                           </span>
                         </button>
@@ -486,7 +520,7 @@ function Navbar({
                   })}
                 </ul>
 
-                <div className="border-t border-gray-100 px-4 py-2.5 bg-gray-50">
+                <div className="border-t border-gray-100 px-4 py-3 bg-gray-50 shrink-0">
                   <button
                     type="button"
                     onClick={() => {
@@ -496,7 +530,7 @@ function Navbar({
                         `/browse-products?search=${encodeURIComponent(term)}`
                       );
                     }}
-                    className="text-xs font-semibold text-gray-600 hover:text-[#008236]"
+                    className="text-xs font-semibold text-gray-600 hover:text-[#008236] text-left w-full"
                   >
                     Search products for “{search.trim()}” instead
                   </button>
@@ -506,11 +540,11 @@ function Navbar({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-4 shrink-0">
           <button
             type="button"
             onClick={() => navigate("/cart")}
-            className="relative w-11 h-11 rounded-full flex items-center justify-center hover:bg-green-700"
+            className="relative w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center hover:bg-green-700"
             title="Cart"
           >
             <FiShoppingCart className="text-xl" />
@@ -524,7 +558,7 @@ function Navbar({
           <button
             type="button"
             onClick={() => navigate("/wishlist")}
-            className="relative w-11 h-11 rounded-full flex items-center justify-center hover:bg-green-700"
+            className="relative w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center hover:bg-green-700"
             title="Wishlist"
           >
             <FiHeart className="text-xl" />
@@ -552,9 +586,9 @@ function Navbar({
           <button
             type="button"
             onClick={() => navigate("/profile")}
-            className="flex items-center gap-3 bg-green-700 px-3 py-2 rounded-full hover:bg-green-600 transition"
+            className="flex items-center gap-2 sm:gap-3 bg-green-700 px-2 sm:px-3 py-1.5 sm:py-2 rounded-full hover:bg-green-600 transition"
           >
-            <div className="w-9 h-9 rounded-full bg-white text-green-700 flex items-center justify-center overflow-hidden font-bold">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white text-green-700 flex items-center justify-center overflow-hidden font-bold">
               {profile.profileImage ? (
                 <img
                   src={profile.profileImage}
@@ -573,7 +607,7 @@ function Navbar({
                 {profile.fullName || "GreatGod"}
               </h3>
               <p className="text-xs text-green-200">
-                {profile.role || "Customer"}
+                {hasOpenedStore(profile) ? "Seller" : "Buyer"}
               </p>
             </div>
           </button>

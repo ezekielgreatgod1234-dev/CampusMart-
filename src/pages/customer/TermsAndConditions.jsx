@@ -32,9 +32,41 @@ function TermsAndConditions() {
               to="/"
               className="flex items-center gap-2.5"
             >
-              <div className="w-10 h-10 rounded-xl bg-green-600 text-white flex items-center justify-center shadow-sm">
-                <FiShoppingCart size={21} />
-              </div>
+               <div
+          className="
+            w-11
+            h-11
+
+            rounded-xl
+
+            bg-[#008236]
+
+            flex
+            items-center
+            justify-center
+
+            shadow-xl
+            shadow-black/50
+
+            border
+            border-white/10
+
+            flex-shrink-0
+          "
+        >
+          <span
+            className="
+              text-white
+              text-[17px]
+              font-black
+              tracking-tight
+
+              drop-shadow-sm
+            "
+          >
+            CM
+          </span>
+        </div>
 
               <div className="text-xl font-extrabold tracking-tight">
                 Campus
@@ -769,9 +801,41 @@ function TermsAndConditions() {
               to="/"
               className="flex items-center gap-2.5"
             >
-              <div className="w-9 h-9 rounded-lg bg-green-600 flex items-center justify-center">
-                <FiShoppingCart size={19} />
-              </div>
+             <div
+          className="
+            w-11
+            h-11
+
+            rounded-xl
+
+            bg-[#008236]
+
+            flex
+            items-center
+            justify-center
+
+            shadow-xl
+            shadow-black/50
+
+            border
+            border-white/10
+
+            flex-shrink-0
+          "
+        >
+          <span
+            className="
+              text-white
+              text-[17px]
+              font-black
+              tracking-tight
+
+              drop-shadow-sm
+            "
+          >
+            CM
+          </span>
+        </div>
 
               <span className="text-lg font-black">
                 Campus
