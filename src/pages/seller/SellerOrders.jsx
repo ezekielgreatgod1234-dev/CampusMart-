@@ -7,6 +7,7 @@ import {
   query,
   where,
   orderBy,
+  limit,
   doc,
   updateDoc,
   serverTimestamp,
@@ -135,10 +136,12 @@ function SellerOrders({
     setLoading(true);
 
     const ordersRef = collection(db, "orders");
+    // FREE-TIER: cap live listener size
     const q = query(
       ordersRef,
       where("sellerId", "==", firebaseUser.uid),
-      orderBy("createdAt", "desc")
+      orderBy("createdAt", "desc"),
+      limit(40)
     );
 
     const applyDocs = (snapshot) => {
@@ -158,7 +161,8 @@ function SellerOrders({
 
         const fallbackQ = query(
           ordersRef,
-          where("sellerId", "==", firebaseUser.uid)
+          where("sellerId", "==", firebaseUser.uid),
+          limit(40)
         );
 
         onSnapshot(

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
 import {
@@ -9,6 +9,11 @@ import {
   doc,
   updateDoc,
   getDoc,
+  query,
+  where,
+  orderBy,
+  limit,
+  serverTimestamp,
 } from "firebase/firestore";
 
 import {
@@ -34,26 +39,26 @@ import {
   FiAlertCircle,
   FiVolume2,
   FiUser,
+  FiCheck,
+  FiExternalLink,
 } from "react-icons/fi";
 
 import { db } from "../../context/firebase";
 import { useAuth } from "../../context/AuthContext";
 
 const ADMIN_EMAIL = "campusmart1234@gmail.com";
-
 const BACKEND_URL = "https://campusbackend-1.onrender.com";
 
 function AdminDashboard() {
   const navigate = useNavigate();
   const location = useLocation();
-
   const { firebaseUser } = useAuth();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
   const [loading, setLoading] = useState(true);
   const [allowed, setAllowed] = useState(false);
 
+  // Stats
   const [totalUsers, setTotalUsers] = useState(0);
   const [totalProducts, setTotalProducts] = useState(0);
   const [totalOrders, setTotalOrders] = useState(0);
@@ -62,18 +67,18 @@ function AdminDashboard() {
   const [pendingWithdrawals, setPendingWithdrawals] = useState(0);
   const [unreadSupportCount, setUnreadSupportCount] = useState(0);
 
-  // =========================================================
-  // RESET STATES
-  // =========================================================
+  // Delivery confirmations (buyer approved goods)
+  const [confirmations, setConfirmations] = useState([]);
+  const [confirmationsLoading, setConfirmationsLoading] = useState(true);
+  const [confirmActionId, setConfirmActionId] = useState(null);
+  const [confirmMsg, setConfirmMsg] = useState("");
 
+  // Reset
   const [isResetting, setIsResetting] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
-  // =========================================================
-  // EMAIL ANNOUNCEMENT STATES
-  // =========================================================
-
+  // Email announcement
   const [annTitle, setAnnTitle] = useState("");
   const [annBody, setAnnBody] = useState("");
   const [annMode, setAnnMode] = useState("all");
@@ -84,10 +89,7 @@ function AdminDashboard() {
   const [annSuccess, setAnnSuccess] = useState("");
   const [bannerActive, setBannerActive] = useState(false);
 
-  // =========================================================
-  // TICKER STATES
-  // =========================================================
-
+  // Ticker
   const [tickerMessage, setTickerMessage] = useState("");
   const [tickerActive, setTickerActive] = useState(false);
   const [tickerSaving, setTickerSaving] = useState(false);
@@ -96,19 +98,15 @@ function AdminDashboard() {
   const [tickerEmail, setTickerEmail] = useState("");
   const [tickerTargetLoading, setTickerTargetLoading] = useState(false);
 
-  // =========================================================
-  // FEATURE / APP UPDATE PUSH
-  // =========================================================
-
+  // Feature push
   const [featureTitle, setFeatureTitle] = useState("");
   const [featureBody, setFeatureBody] = useState("");
   const [featureSending, setFeatureSending] = useState(false);
   const [featureStatus, setFeatureStatus] = useState("");
 
   // =========================================================
-  // ACCESS CONTROL
+  // ACCESS
   // =========================================================
-
   useEffect(() => {
     if (!firebaseUser) {
       setAllowed(false);
@@ -117,238 +115,158 @@ function AdminDashboard() {
     }
 
     const email = (firebaseUser.email || "").toLowerCase().trim();
-
-    const isMainAdmin =
-      email === ADMIN_EMAIL.toLowerCase();
-
-    if (isMainAdmin) {
+    if (email === ADMIN_EMAIL.toLowerCase()) {
       setAllowed(true);
       setLoading(false);
       return;
     }
 
-    const checkAccess = async () => {
+    (async () => {
       try {
-        const snap = await getDoc(
-          doc(db, "users", firebaseUser.uid)
-        );
-
+        const snap = await getDoc(doc(db, "users", firebaseUser.uid));
         if (!snap.exists()) {
           setAllowed(false);
           return;
         }
-
         const data = snap.data() || {};
-
         const isAdmin =
           data.role === "admin" ||
           data.isAdmin === true ||
-          (Array.isArray(data.roles) &&
-            data.roles.includes("admin"));
-
+          (Array.isArray(data.roles) && data.roles.includes("admin"));
         setAllowed(isAdmin);
-      } catch (error) {
-        console.error(
-          "Could not check admin role:",
-          error
-        );
-
+      } catch {
         setAllowed(false);
       } finally {
         setLoading(false);
       }
-    };
-
-    checkAccess();
+    })();
   }, [firebaseUser]);
 
   // =========================================================
-  // LIVE ADMIN STATS
+  // STATS — one-shot getDocs (free-tier friendly)
   // =========================================================
-
   useEffect(() => {
     if (!allowed) return;
+    let cancelled = false;
 
-    // USERS
-    const unsubUsers = onSnapshot(
-      collection(db, "users"),
-      (snap) => {
-        setTotalUsers(snap.size);
-      },
-      (error) => {
-        console.error(
-          "Could not load users:",
-          error
-        );
-      }
-    );
+    const loadStats = async () => {
+      try {
+        const [
+          usersSnap,
+          productsSnap,
+          ordersSnap,
+          feesSnap,
+          withdrawalsSnap,
+          supportSnap,
+        ] = await Promise.all([
+          getDocs(query(collection(db, "users"), limit(500))),
+          getDocs(query(collection(db, "products"), limit(500))),
+          getDocs(query(collection(db, "orders"), limit(300))),
+          getDocs(query(collection(db, "platformFees"), limit(300))),
+          getDocs(query(collection(db, "withdrawals"), limit(100))),
+          getDocs(query(collection(db, "supportMessages"), limit(100))),
+        ]);
 
-    // PRODUCTS
-    const unsubProducts = onSnapshot(
-      collection(db, "products"),
-      (snap) => {
-        setTotalProducts(snap.size);
-      },
-      (error) => {
-        console.error(
-          "Could not load products:",
-          error
-        );
-      }
-    );
+        if (cancelled) return;
 
-    // ORDERS
-    const unsubOrders = onSnapshot(
-      collection(db, "orders"),
-      (snap) => {
-        setTotalOrders(snap.size);
+        setTotalUsers(usersSnap.size);
+        setTotalProducts(productsSnap.size);
+        setTotalOrders(ordersSnap.size);
 
         let revenue = 0;
-
-        snap.forEach((d) => {
+        ordersSnap.forEach((d) => {
           const data = d.data() || {};
-
           const amount =
             Number(data.total) ||
             Number(data.amount) ||
             Number(data.amountPaid) ||
             0;
-
-          const paymentStatus = String(
-            data.paymentStatus || ""
-          ).toLowerCase();
-
-          const status = String(
-            data.status || ""
-          ).toLowerCase();
-
+          const paymentStatus = String(data.paymentStatus || "").toLowerCase();
+          const status = String(data.status || "").toLowerCase();
           if (
             paymentStatus === "paid" ||
             status === "paid" ||
             status === "delivered" ||
-            status === "pending"
+            status === "pending" ||
+            status === "completed"
           ) {
             revenue += amount;
           }
         });
-
         setTotalRevenue(revenue);
-      },
-      (error) => {
-        console.error(
-          "Could not load orders:",
-          error
-        );
-      }
-    );
 
-    // PLATFORM FEES
-    const unsubFees = onSnapshot(
-      collection(db, "platformFees"),
-      (snap) => {
         let fees = 0;
-
-        snap.forEach((d) => {
-          fees += Number(
-            d.data()?.platformFee
-          ) || 0;
+        feesSnap.forEach((d) => {
+          fees += Number(d.data()?.platformFee) || 0;
         });
-
         setPlatformFees(fees);
-      },
-      (error) => {
-        console.error(
-          "Could not load platform fees:",
-          error
-        );
-      }
-    );
 
-    // WITHDRAWALS
-    const unsubWithdrawals = onSnapshot(
-      collection(db, "withdrawals"),
-      (snap) => {
         let pending = 0;
-
-        snap.forEach((d) => {
-          const status = String(
-            d.data()?.status || ""
-          ).toLowerCase();
-
-          if (
-            status === "pending" ||
-            status === "processing"
-          ) {
-            pending += 1;
-          }
+        withdrawalsSnap.forEach((d) => {
+          const status = String(d.data()?.status || "").toLowerCase();
+          if (status === "pending" || status === "processing") pending += 1;
         });
-
         setPendingWithdrawals(pending);
-      },
-      (error) => {
-        console.error(
-          "Could not load withdrawals:",
-          error
-        );
-      }
-    );
 
-    // SUPPORT
-    const unsubSupport = onSnapshot(
-      collection(db, "supportMessages"),
-      (snap) => {
         let unread = 0;
-
-        snap.forEach((d) => {
+        supportSnap.forEach((d) => {
           const data = d.data() || {};
-
           const isRead =
             data.read === true ||
             data.isRead === true ||
-            String(data.status || "").toLowerCase() ===
-              "read" ||
-            String(data.status || "").toLowerCase() ===
-              "resolved";
-
-          if (!isRead) {
-            unread += 1;
-          }
+            ["read", "resolved"].includes(
+              String(data.status || "").toLowerCase()
+            );
+          if (!isRead) unread += 1;
         });
+        setUnreadSupportCount(unread);
+      } catch (error) {
+        console.error("Admin stats load error:", error);
+      }
+    };
 
+    loadStats();
+    return () => {
+      cancelled = true;
+    };
+  }, [allowed]);
+
+  // Live support badge only
+  useEffect(() => {
+    if (!allowed) return;
+    const unsub = onSnapshot(
+      query(collection(db, "supportMessages"), limit(80)),
+      (snap) => {
+        let unread = 0;
+        snap.forEach((d) => {
+          const data = d.data() || {};
+          const isRead =
+            data.read === true ||
+            data.isRead === true ||
+            ["read", "resolved"].includes(
+              String(data.status || "").toLowerCase()
+            );
+          if (!isRead) unread += 1;
+        });
         setUnreadSupportCount(unread);
       },
-      (error) => {
-        console.error(
-          "Could not load support messages:",
-          error
-        );
-      }
+      () => {}
     );
+    return () => unsub();
+  }, [allowed]);
 
-    // EMAIL BANNER
+  // Banner + ticker settings (small docs)
+  useEffect(() => {
+    if (!allowed) return;
+
     const unsubBanner = onSnapshot(
       doc(db, "settings", "liveBanner"),
       (snap) => {
-        if (!snap.exists()) {
-          setBannerActive(false);
-          return;
-        }
-
-        setBannerActive(
-          snap.data()?.active === true
-        );
+        setBannerActive(snap.exists() && snap.data()?.active === true);
       },
-      (error) => {
-        console.error(
-          "Could not load banner:",
-          error
-        );
-
-        setBannerActive(false);
-      }
+      () => setBannerActive(false)
     );
 
-    // GLOBAL TICKER
     const unsubTicker = onSnapshot(
       doc(db, "settings", "liveTicker"),
       (snap) => {
@@ -356,756 +274,513 @@ function AdminDashboard() {
           setTickerActive(false);
           return;
         }
-
         const data = snap.data() || {};
-
-        setTickerActive(
-          data.active === true
-        );
-
-        if (
-          typeof data.message === "string"
-        ) {
-          setTickerMessage(
-            data.message
-          );
-        }
+        setTickerActive(data.active === true);
+        if (typeof data.message === "string") setTickerMessage(data.message);
       },
-      (error) => {
-        console.error(
-          "Could not load global ticker:",
-          error
-        );
-
-        setTickerActive(false);
-      }
+      () => setTickerActive(false)
     );
 
     return () => {
-      unsubUsers();
-      unsubProducts();
-      unsubOrders();
-      unsubFees();
-      unsubWithdrawals();
-      unsubSupport();
       unsubBanner();
       unsubTicker();
     };
   }, [allowed]);
 
   // =========================================================
-  // ADMIN TOKEN
+  // DELIVERY CONFIRMATIONS (buyer approved goods)
   // =========================================================
+  useEffect(() => {
+    if (!allowed) return;
 
-  const getAdminToken = async () => {
-    if (!firebaseUser) {
-      throw new Error(
-        "You are not signed in."
+    setConfirmationsLoading(true);
+
+    let q;
+    try {
+      q = query(
+        collection(db, "deliveryConfirmations"),
+        orderBy("createdAt", "desc"),
+        limit(40)
       );
+    } catch {
+      q = query(collection(db, "deliveryConfirmations"), limit(40));
     }
 
-    return await firebaseUser.getIdToken(true);
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const list = snap.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+        }));
+        // Client sort if orderBy missing
+        list.sort((a, b) => {
+          const aT =
+            a.createdAt?.toMillis?.() ||
+            a.createdAt?.seconds * 1000 ||
+            0;
+          const bT =
+            b.createdAt?.toMillis?.() ||
+            b.createdAt?.seconds * 1000 ||
+            0;
+          return bT - aT;
+        });
+        setConfirmations(list);
+        setConfirmationsLoading(false);
+      },
+      (error) => {
+        console.error("deliveryConfirmations listener:", error);
+        // Fallback without orderBy
+        getDocs(query(collection(db, "deliveryConfirmations"), limit(40)))
+          .then((snap) => {
+            setConfirmations(
+              snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+            );
+            setConfirmationsLoading(false);
+          })
+          .catch(() => {
+            setConfirmations([]);
+            setConfirmationsLoading(false);
+          });
+      }
+    );
+
+    return () => unsub();
+  }, [allowed]);
+
+  const pendingConfirmations = useMemo(
+    () =>
+      confirmations.filter((c) => {
+        const s = String(c.status || "pending_admin_review").toLowerCase();
+        return (
+          s === "pending_admin_review" ||
+          s === "pending" ||
+          s === "awaiting_admin"
+        );
+      }),
+    [confirmations]
+  );
+
+  const formatNaira = (n) =>
+    `₦${Number(n || 0).toLocaleString("en-NG")}`;
+
+  const formatDate = (value) => {
+    if (!value) return "—";
+    try {
+      const ms =
+        typeof value?.toMillis === "function"
+          ? value.toMillis()
+          : value?.seconds
+            ? value.seconds * 1000
+            : Date.parse(value);
+      if (!ms || Number.isNaN(ms)) return "—";
+      return new Date(ms).toLocaleString([], {
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
+    } catch {
+      return "—";
+    }
+  };
+
+  // Admin approves buyer confirmation → order marked, ready for seller payout
+  const handleApproveConfirmation = async (item) => {
+    if (!item?.id || confirmActionId) return;
+    setConfirmMsg("");
+    setConfirmActionId(item.id);
+
+    try {
+      // 1. Mark confirmation reviewed
+      await updateDoc(doc(db, "deliveryConfirmations", item.id), {
+        status: "approved",
+        approvedAt: serverTimestamp(),
+        approvedBy: firebaseUser?.uid || null,
+        approvedByEmail: firebaseUser?.email || null,
+        updatedAt: serverTimestamp(),
+      });
+
+      // 2. Update order if we have orderId
+      if (item.orderId) {
+        try {
+          await updateDoc(doc(db, "orders", String(item.orderId)), {
+            buyerConfirmedDelivery: true,
+            adminApprovedDelivery: true,
+            adminApprovedDeliveryAt: serverTimestamp(),
+            payoutEligible: true,
+            updatedAt: serverTimestamp(),
+          });
+        } catch (err) {
+          console.warn("Order update optional:", err?.message);
+        }
+      }
+
+      // 3. If seller has pending withdrawals, leave them for Withdrawals page
+      //    but set a note flag on confirmation
+      setConfirmMsg(
+        "Delivery approved. Order is payout-eligible. Review seller withdrawal under Withdrawals."
+      );
+    } catch (error) {
+      console.error("Approve confirmation error:", error);
+      setConfirmMsg(
+        error?.message || "Could not approve this confirmation."
+      );
+    } finally {
+      setConfirmActionId(null);
+    }
+  };
+
+  const handleDismissConfirmation = async (item) => {
+    if (!item?.id || confirmActionId) return;
+    setConfirmMsg("");
+    setConfirmActionId(item.id);
+    try {
+      await updateDoc(doc(db, "deliveryConfirmations", item.id), {
+        status: "dismissed",
+        dismissedAt: serverTimestamp(),
+        dismissedBy: firebaseUser?.uid || null,
+        updatedAt: serverTimestamp(),
+      });
+      setConfirmMsg("Confirmation dismissed.");
+    } catch (error) {
+      setConfirmMsg(error?.message || "Could not dismiss.");
+    } finally {
+      setConfirmActionId(null);
+    }
   };
 
   // =========================================================
-  // SECURE ADMIN BACKEND REQUEST
+  // ADMIN API HELPERS
   // =========================================================
+  const getAdminToken = async () => {
+    if (!firebaseUser) throw new Error("You are not signed in.");
+    return await firebaseUser.getIdToken(true);
+  };
 
-  const adminApiRequest = async (
-    endpoint,
-    body = {}
-  ) => {
+  const adminApiRequest = async (endpoint, body = {}) => {
     const token = await getAdminToken();
-
     let response;
-
     try {
-      response = await fetch(
-        `${BACKEND_URL}${endpoint}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(body),
-        }
-      );
-    } catch (networkError) {
-      console.error(
-        "Backend network error:",
-        networkError
-      );
-
+      response = await fetch(`${BACKEND_URL}${endpoint}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+    } catch {
       throw new Error(
-        "Could not connect to the CampusMart server. Check your internet connection or make sure the Render backend is running."
+        "Could not connect to the CampusMart server. Check Render backend."
       );
     }
 
     const rawText = await response.text();
-
     let data = {};
-
     try {
-      data = rawText
-        ? JSON.parse(rawText)
-        : {};
+      data = rawText ? JSON.parse(rawText) : {};
     } catch {
       data = {};
     }
 
     if (!response.ok) {
       const serverMessage =
-        data?.error ||
-        data?.message ||
-        rawText?.trim();
-
+        data?.error || data?.message || rawText?.trim();
       if (response.status === 404) {
         throw new Error(
-          "The ticker endpoint was not found on the CampusMart backend. Deploy the updated server.js to Render."
+          "Endpoint not found. Deploy the updated backend to Render."
         );
       }
-
       if (response.status === 401) {
         throw new Error(
-          serverMessage ||
-            "Your admin login session is invalid or expired. Sign in again."
+          serverMessage || "Session invalid. Sign in again."
         );
       }
-
       if (response.status === 403) {
         throw new Error(
-          serverMessage ||
-            "You do not have administrator permission."
+          serverMessage || "You do not have administrator permission."
         );
       }
-
       throw new Error(
-        serverMessage ||
-          `Server request failed (${response.status}).`
+        serverMessage || `Server request failed (${response.status}).`
       );
     }
-
     return data;
   };
 
-  // =========================================================
-  // PUBLISH TICKER
-  // =========================================================
-
+  // Ticker handlers
   const handlePublishTicker = async () => {
     setTickerStatus("");
-
     const msg = tickerMessage.trim();
-
     if (!msg) {
-      setTickerStatus(
-        "Enter a message for the ticker."
-      );
+      setTickerStatus("Enter a message for the ticker.");
       return;
     }
-
     if (msg.length > 500) {
-      setTickerStatus(
-        "Ticker message cannot exceed 500 characters."
-      );
+      setTickerStatus("Ticker message cannot exceed 500 characters.");
       return;
     }
-
-    if (!firebaseUser) {
-      setTickerStatus("Not signed in.");
+    const normalizedEmail = tickerEmail.trim().toLowerCase();
+    if (tickerMode === "single" && !normalizedEmail) {
+      setTickerStatus("Enter the account email.");
       return;
     }
-
-    const normalizedEmail =
-      tickerEmail.trim().toLowerCase();
-
-    if (
-      tickerMode === "single" &&
-      !normalizedEmail
-    ) {
-      setTickerStatus(
-        "Enter the account email."
-      );
-      return;
-    }
-
     try {
       setTickerSaving(true);
-
-      if (tickerMode === "single") {
-        setTickerTargetLoading(true);
-      }
-
-      const payload = {
-        mode: tickerMode,
-        message: msg,
-      };
-
-      if (tickerMode === "single") {
-        payload.email = normalizedEmail;
-      }
-
-      console.log(
-        "CampusMart: Publishing ticker:",
-        {
-          mode: tickerMode,
-          email:
-            tickerMode === "single"
-              ? normalizedEmail
-              : undefined,
-        }
-      );
-
-      const data =
-        await adminApiRequest(
-          "/admin/publish-ticker",
-          payload
-        );
-
-      // GLOBAL
+      if (tickerMode === "single") setTickerTargetLoading(true);
+      const payload = { mode: tickerMode, message: msg };
+      if (tickerMode === "single") payload.email = normalizedEmail;
+      const data = await adminApiRequest("/admin/publish-ticker", payload);
       if (tickerMode === "all") {
         setTickerActive(true);
-
+        setTickerStatus("News ticker is now live for all buyers and sellers.");
+      } else {
         setTickerStatus(
-          "News ticker is now live for all buyers and sellers."
+          `Private ticker sent to ${data?.email || normalizedEmail}.`
         );
-
-        console.log(
-          "CampusMart: Global ticker published successfully."
-        );
-      }
-
-      // PRIVATE
-      else {
-        const targetEmail =
-          data?.email ||
-          normalizedEmail;
-
-        const targetUid =
-          data?.uid || "";
-
-        setTickerStatus(
-          `Private ticker sent successfully to ${targetEmail}.`
-        );
-
-        console.log(
-          "CampusMart: Private ticker published securely:",
-          {
-            targetEmail,
-            targetUid,
-          }
-        );
-
         setTickerEmail("");
       }
     } catch (error) {
-      console.error(
-        "CampusMart ticker publish error:",
-        error
-      );
-
-      setTickerStatus(
-        error?.message ||
-          "Could not publish ticker."
-      );
+      setTickerStatus(error?.message || "Could not publish ticker.");
     } finally {
       setTickerSaving(false);
       setTickerTargetLoading(false);
     }
   };
 
-  // =========================================================
-  // CLEAR GLOBAL TICKER
-  // =========================================================
-
   const handleClearTicker = async () => {
     setTickerStatus("");
-
-    if (!firebaseUser) {
-      setTickerStatus("Not signed in.");
-      return;
-    }
-
     try {
       setTickerSaving(true);
-
-      await adminApiRequest(
-        "/admin/clear-ticker",
-        {
-          mode: "all",
-        }
-      );
-
+      await adminApiRequest("/admin/clear-ticker", { mode: "all" });
       setTickerActive(false);
-
-      setTickerStatus(
-        "Global news ticker cleared."
-      );
+      setTickerStatus("Global news ticker cleared.");
     } catch (error) {
-      console.error(
-        "Could not clear global ticker:",
-        error
-      );
-
-      setTickerStatus(
-        error?.message ||
-          "Could not clear global ticker."
-      );
+      setTickerStatus(error?.message || "Could not clear global ticker.");
     } finally {
       setTickerSaving(false);
     }
   };
 
-  // =========================================================
-  // CLEAR PRIVATE TICKER
-  // =========================================================
-
-  const handleClearPrivateTicker =
-    async () => {
-      setTickerStatus("");
-
-      const email =
-        tickerEmail.trim().toLowerCase();
-
-      if (!email) {
-        setTickerStatus(
-          "Enter the account email whose ticker you want to clear."
-        );
-        return;
-      }
-
-      if (!firebaseUser) {
-        setTickerStatus("Not signed in.");
-        return;
-      }
-
-      try {
-        setTickerSaving(true);
-        setTickerTargetLoading(true);
-
-        await adminApiRequest(
-          "/admin/clear-ticker",
-          {
-            mode: "single",
-            email,
-          }
-        );
-
-        setTickerStatus(
-          `Private ticker cleared for ${email}.`
-        );
-
-        setTickerEmail("");
-      } catch (error) {
-        console.error(
-          "Could not clear private ticker:",
-          error
-        );
-
-        setTickerStatus(
-          error?.message ||
-            "Could not clear private ticker."
-        );
-      } finally {
-        setTickerSaving(false);
-        setTickerTargetLoading(false);
-      }
-    };
-
-  // =========================================================
-  // FEATURE PUSH (new features on CampusMart)
-  // =========================================================
+  const handleClearPrivateTicker = async () => {
+    setTickerStatus("");
+    const email = tickerEmail.trim().toLowerCase();
+    if (!email) {
+      setTickerStatus("Enter the account email whose ticker you want to clear.");
+      return;
+    }
+    try {
+      setTickerSaving(true);
+      setTickerTargetLoading(true);
+      await adminApiRequest("/admin/clear-ticker", {
+        mode: "single",
+        email,
+      });
+      setTickerStatus(`Private ticker cleared for ${email}.`);
+      setTickerEmail("");
+    } catch (error) {
+      setTickerStatus(error?.message || "Could not clear private ticker.");
+    } finally {
+      setTickerSaving(false);
+      setTickerTargetLoading(false);
+    }
+  };
 
   const handleSendFeaturePush = async () => {
     setFeatureStatus("");
-
     const title = featureTitle.trim() || "New on CampusMart";
     const body = featureBody.trim();
-
     if (!body) {
       setFeatureStatus("Enter a message about the new feature.");
       return;
     }
-
-    if (!firebaseUser) {
-      setFeatureStatus("Not signed in.");
-      return;
-    }
-
     try {
       setFeatureSending(true);
-
       const data = await adminApiRequest("/admin/notify-feature", {
         title,
         body,
       });
-
       setFeatureStatus(
         `Push sent to ${data.sent || 0} device(s)${
           data.failed ? ` (${data.failed} failed)` : ""
         }.`
       );
-
       setFeatureTitle("");
       setFeatureBody("");
     } catch (error) {
-      console.error("Feature push error:", error);
-      setFeatureStatus(
-        error?.message || "Could not send feature push."
-      );
+      setFeatureStatus(error?.message || "Could not send feature push.");
     } finally {
       setFeatureSending(false);
     }
   };
 
-  // =========================================================
-  // SEND EMAIL ANNOUNCEMENT
-  // =========================================================
-
-  const handleSendAnnouncement =
-    async (e) => {
-      e.preventDefault();
-
-      setAnnError("");
-      setAnnSuccess("");
-
-      if (
-        !annTitle.trim() ||
-        !annBody.trim()
-      ) {
-        setAnnError(
-          "Title and message are required."
-        );
-        return;
-      }
-
-      if (
-        annMode === "single" &&
-        !annEmail.trim()
-      ) {
-        setAnnError(
-          "Enter the recipient email."
-        );
-        return;
-      }
-
-      if (!firebaseUser) {
-        setAnnError("Not signed in.");
-        return;
-      }
-
+  const handleSendAnnouncement = async (e) => {
+    e.preventDefault();
+    setAnnError("");
+    setAnnSuccess("");
+    if (!annTitle.trim() || !annBody.trim()) {
+      setAnnError("Title and message are required.");
+      return;
+    }
+    if (annMode === "single" && !annEmail.trim()) {
+      setAnnError("Enter the recipient email.");
+      return;
+    }
+    try {
+      setAnnSending(true);
+      const token = await firebaseUser.getIdToken(true);
+      const res = await fetch(`${BACKEND_URL}/send-announcement-email`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          title: annTitle.trim(),
+          body: annBody.trim(),
+          mode: annMode,
+          email:
+            annMode === "single"
+              ? annEmail.trim().toLowerCase()
+              : undefined,
+          showBanner,
+        }),
+      });
+      const rawText = await res.text();
+      let data = {};
       try {
-        setAnnSending(true);
-
-        const token =
-          await firebaseUser.getIdToken(true);
-
-        const res = await fetch(
-          `${BACKEND_URL}/send-announcement-email`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type":
-                "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              title: annTitle.trim(),
-              body: annBody.trim(),
-              mode: annMode,
-              email:
-                annMode === "single"
-                  ? annEmail
-                      .trim()
-                      .toLowerCase()
-                  : undefined,
-              showBanner,
-            }),
-          }
-        );
-
-        const rawText = await res.text();
-
-        let data = {};
-
-        try {
-          data = rawText
-            ? JSON.parse(rawText)
-            : {};
-        } catch {
-          data = {};
-        }
-
-        if (!res.ok) {
-          throw new Error(
-            data?.error ||
-              data?.message ||
-              rawText ||
-              `Send failed (${res.status})`
-          );
-        }
-
-        if (annMode === "single") {
-          setAnnSuccess(
-            `Email sent to ${annEmail.trim()}${
-              showBanner
-                ? " · In-app banner activated"
-                : ""
-            }`
-          );
-        } else {
-          setAnnSuccess(
-            `Emails sent: ${
-              data.sent || 0
-            }${
-              data.failed
-                ? ` (${data.failed} failed)`
-                : ""
-            }${
-              showBanner
-                ? " · Banner activated for logged-in users"
-                : ""
-            }`
-          );
-        }
-
-        setAnnTitle("");
-        setAnnBody("");
-        setAnnEmail("");
-      } catch (error) {
-        console.error(
-          "Announcement error:",
-          error
-        );
-
-        setAnnError(
-          error?.message ||
-            "Could not send announcement."
-        );
-      } finally {
-        setAnnSending(false);
+        data = rawText ? JSON.parse(rawText) : {};
+      } catch {
+        data = {};
       }
-    };
-
-  // =========================================================
-  // CLEAR EMAIL BANNER
-  // =========================================================
-
-  const handleClearBanner =
-    async () => {
-      setAnnError("");
-      setAnnSuccess("");
-
-      if (!firebaseUser) {
-        setAnnError("Not signed in.");
-        return;
-      }
-
-      try {
-        const token =
-          await firebaseUser.getIdToken(true);
-
-        const res = await fetch(
-          `${BACKEND_URL}/clear-live-banner`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type":
-                "application/json",
-            },
-            body: JSON.stringify({}),
-          }
+      if (!res.ok) {
+        throw new Error(
+          data?.error || data?.message || rawText || `Send failed (${res.status})`
         );
-
-        const rawText = await res.text();
-
-        let data = {};
-
-        try {
-          data = rawText
-            ? JSON.parse(rawText)
-            : {};
-        } catch {
-          data = {};
-        }
-
-        if (!res.ok) {
-          throw new Error(
-            data?.error ||
-              data?.message ||
-              rawText ||
-              `Failed (${res.status})`
-          );
-        }
-
+      }
+      if (annMode === "single") {
         setAnnSuccess(
-          "In-app banner cleared."
+          `Email sent to ${annEmail.trim()}${
+            showBanner ? " · In-app banner activated" : ""
+          }`
         );
-      } catch (error) {
-        console.error(
-          "Could not clear banner:",
-          error
-        );
-
-        setAnnError(
-          error?.message ||
-            "Could not clear banner."
+      } else {
+        setAnnSuccess(
+          `Emails sent: ${data.sent || 0}${
+            data.failed ? ` (${data.failed} failed)` : ""
+          }${showBanner ? " · Banner activated" : ""}`
         );
       }
-    };
+      setAnnTitle("");
+      setAnnBody("");
+      setAnnEmail("");
+    } catch (error) {
+      setAnnError(error?.message || "Could not send announcement.");
+    } finally {
+      setAnnSending(false);
+    }
+  };
 
-  // =========================================================
-  // RESET ALL TRANSACTIONS
-  // =========================================================
+  const handleClearBanner = async () => {
+    setAnnError("");
+    setAnnSuccess("");
+    try {
+      const token = await firebaseUser.getIdToken(true);
+      const res = await fetch(`${BACKEND_URL}/clear-live-banner`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({}),
+      });
+      const rawText = await res.text();
+      let data = {};
+      try {
+        data = rawText ? JSON.parse(rawText) : {};
+      } catch {
+        data = {};
+      }
+      if (!res.ok) {
+        throw new Error(
+          data?.error || data?.message || rawText || `Failed (${res.status})`
+        );
+      }
+      setAnnSuccess("In-app banner cleared.");
+    } catch (error) {
+      setAnnError(error?.message || "Could not clear banner.");
+    }
+  };
 
-  const handleResetAllTransactions =
-    async () => {
-      setIsResetting(true);
-      setShowResetConfirm(false);
+  const handleResetAllTransactions = async () => {
+    setIsResetting(true);
+    setShowResetConfirm(false);
+    try {
+      const ordersSnap = await getDocs(collection(db, "orders"));
+      await Promise.all(ordersSnap.docs.map((d) => deleteDoc(d.ref)));
 
       try {
-        // DELETE ORDERS
-        const ordersSnap =
-          await getDocs(
-            collection(db, "orders")
-          );
-
-        await Promise.all(
-          ordersSnap.docs.map(
-            (d) => deleteDoc(d.ref)
-          )
-        );
-
-        // DELETE EARNINGS
-        const earningsSnap =
-          await getDocs(
-            collection(db, "earnings")
-          );
-
-        await Promise.all(
-          earningsSnap.docs.map(
-            (d) => deleteDoc(d.ref)
-          )
-        );
-
-        // DELETE PLATFORM FEES
-        try {
-          const feesSnap =
-            await getDocs(
-              collection(
-                db,
-                "platformFees"
-              )
-            );
-
-          await Promise.all(
-            feesSnap.docs.map(
-              (d) => deleteDoc(d.ref)
-            )
-          );
-        } catch (error) {
-          console.warn(
-            "Could not clear platform fees:",
-            error
-          );
-        }
-
-        // RESET SELLER BALANCES
-        const usersSnap =
-          await getDocs(
-            collection(db, "users")
-          );
-
-        await Promise.all(
-          usersSnap.docs.map(
-            async (userDoc) => {
-              const data =
-                userDoc.data() || {};
-
-              if (
-                data.availableBalance !==
-                  undefined ||
-                data.totalEarnings !==
-                  undefined ||
-                data.role === "seller" ||
-                data.isSeller === true
-              ) {
-                await updateDoc(
-                  userDoc.ref,
-                  {
-                    availableBalance: 0,
-                    totalEarnings: 0,
-                    totalSalesGross: 0,
-                    totalPlatformFees: 0,
-                  }
-                );
-              }
-            }
-          )
-        );
-
-        setShowSuccessModal(true);
-      } catch (error) {
-        console.error(
-          "Reset failed:",
-          error
-        );
-
-        alert(
-          "Reset failed. Check the console for details.\n\nError: " +
-            (error?.message ||
-              "Unknown error")
-        );
-      } finally {
-        setIsResetting(false);
+        const earningsSnap = await getDocs(collection(db, "earnings"));
+        await Promise.all(earningsSnap.docs.map((d) => deleteDoc(d.ref)));
+      } catch {
+        /* optional */
       }
-    };
+
+      try {
+        const feesSnap = await getDocs(collection(db, "platformFees"));
+        await Promise.all(feesSnap.docs.map((d) => deleteDoc(d.ref)));
+      } catch {
+        /* optional */
+      }
+
+      const usersSnap = await getDocs(collection(db, "users"));
+      await Promise.all(
+        usersSnap.docs.map(async (userDoc) => {
+          const data = userDoc.data() || {};
+          if (
+            data.availableBalance !== undefined ||
+            data.totalEarnings !== undefined ||
+            data.role === "seller" ||
+            data.isSeller === true ||
+            data.hasStore === true
+          ) {
+            await updateDoc(userDoc.ref, {
+              availableBalance: 0,
+              totalEarnings: 0,
+              totalSalesGross: 0,
+              totalPlatformFees: 0,
+            });
+          }
+        })
+      );
+
+      setShowSuccessModal(true);
+    } catch (error) {
+      alert(
+        "Reset failed.\n\nError: " + (error?.message || "Unknown error")
+      );
+    } finally {
+      setIsResetting(false);
+    }
+  };
 
   // =========================================================
-  // FORMAT NAIRA
+  // MENU
   // =========================================================
-
-  const formatNaira = (n) =>
-    `₦${Number(n || 0).toLocaleString(
-      "en-NG"
-    )}`;
-
-  // =========================================================
-  // ADMIN MENU
-  // =========================================================
-
   const menuItems = [
-    {
-      label: "Overview",
-      icon: FiGrid,
-      path: "/admin-dashboard",
-    },
-    {
-      label: "Users",
-      icon: FiUsers,
-      path: "/admin/users",
-    },
-    {
-      label: "Products",
-      icon: FiPackage,
-      path: "/admin/products",
-    },
-    {
-      label: "Orders",
-      icon: FiShoppingBag,
-      path: "/admin/orders",
-    },
-    {
-      label: "Platform Fees",
-      icon: FiDollarSign,
-      path: "/admin/fees",
-    },
+    { label: "Overview", icon: FiGrid, path: "/admin-dashboard" },
+    { label: "Users", icon: FiUsers, path: "/admin/users" },
+    { label: "Products", icon: FiPackage, path: "/admin/products" },
+    { label: "Orders", icon: FiShoppingBag, path: "/admin/orders" },
     {
       label: "Withdrawals",
       icon: FiCreditCard,
       path: "/admin/withdrawals",
+      badge: pendingWithdrawals,
+    },
+    {
+      label: "Fees",
+      icon: FiDollarSign,
+      path: "/admin/fees",
     },
     {
       label: "Payments",
@@ -1113,26 +788,21 @@ function AdminDashboard() {
       path: "/admin/payments",
     },
     {
-      label: "Support Messages",
+      label: "Support",
       icon: FiMessageCircle,
-      path: "/admin/support-messages",
+      path: "/admin/support-message",
       badge: unreadSupportCount,
     },
   ];
 
   const isActive = (path) => {
-    if (
-      path === "/admin-dashboard"
-    ) {
+    if (path === "/admin-dashboard") {
       return (
-        location.pathname ===
-        "/admin-dashboard"
+        location.pathname === "/admin-dashboard" ||
+        location.pathname === "/admin"
       );
     }
-
-    return location.pathname.startsWith(
-      path
-    );
+    return location.pathname.startsWith(path);
   };
 
   const handleNavigation = (path) => {
@@ -1145,52 +815,34 @@ function AdminDashboard() {
     navigate("/logout");
   };
 
-  // =========================================================
-  // LOADING
-  // =========================================================
-
   if (loading) {
     return (
-      <div className="h-screen w-full flex items-center justify-center bg-gray-50">
+      <div className="min-h-[100dvh] flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="w-10 h-10 mx-auto rounded-full border-4 border-green-100 border-t-green-600 animate-spin" />
-
-          <p className="mt-4 text-sm text-gray-500">
-            Checking access...
-          </p>
+          <p className="text-sm text-gray-500 mt-4">Loading admin…</p>
         </div>
       </div>
     );
   }
 
-  // =========================================================
-  // ACCESS DENIED
-  // =========================================================
-
-  if (!firebaseUser || !allowed) {
+  if (!allowed) {
     return (
-      <div className="h-screen w-full flex items-center justify-center bg-gray-50 px-4">
-        <div className="max-w-sm text-center bg-white rounded-2xl border border-gray-100 p-8 shadow-sm">
+      <div className="min-h-[100dvh] flex items-center justify-center bg-gray-50 p-6">
+        <div className="bg-white rounded-2xl border border-gray-100 p-8 max-w-md text-center shadow-sm">
           <div className="w-14 h-14 mx-auto rounded-full bg-red-50 text-red-500 flex items-center justify-center mb-4">
-            <FiShield size={24} />
+            <FiShield size={26} />
           </div>
-
-          <h1 className="text-xl font-bold text-gray-800">
-            Access Denied
-          </h1>
-
+          <h1 className="text-xl font-bold text-gray-900">Access denied</h1>
           <p className="text-sm text-gray-500 mt-2">
-            You do not have
-            permission to view
-            the Admin Dashboard.
+            This area is for CampusMart administrators only.
           </p>
-
           <button
             type="button"
             onClick={() => navigate("/")}
-            className="mt-6 h-11 px-6 rounded-xl bg-[#008236] text-white text-sm font-semibold hover:bg-[#006f2e] transition"
+            className="mt-6 h-11 px-5 rounded-xl bg-[#008236] text-white text-sm font-semibold"
           >
-            Go Home
+            Go home
           </button>
         </div>
       </div>
@@ -1198,669 +850,525 @@ function AdminDashboard() {
   }
 
   return (
-    <div className="h-screen w-full bg-gray-50 text-gray-800 font-sans overflow-hidden">
-
-      {/* MOBILE OVERLAY */}
-
+    <div className="h-[100dvh] w-full bg-gray-50 text-gray-800 font-sans overflow-hidden flex flex-col">
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() =>
-            setSidebarOpen(false)
-          }
+          onClick={() => setSidebarOpen(false)}
         />
       )}
 
       {/* SIDEBAR */}
-
       <aside
         className={`
           fixed inset-y-0 left-0 z-50
-          w-[291px]
-          bg-[#008236]
-          text-white
-          flex flex-col
-          h-screen
-          transition-transform
-          duration-300
-          ease-in-out
-          ${
-            sidebarOpen
-              ? "translate-x-0"
-              : "-translate-x-full lg:translate-x-0"
-          }
+          w-[280px] bg-[#008236] text-white flex flex-col h-[100dvh]
+          shadow-2xl lg:shadow-none transition-transform duration-300
+          ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
         `}
       >
-        <div className="relative px-5 pt-6 pb-4">
-
+        <div className="relative px-5 pt-5 pb-4">
           <button
             type="button"
-            onClick={() =>
-              setSidebarOpen(false)
-            }
+            onClick={() => setSidebarOpen(false)}
             className="lg:hidden absolute top-3 right-3 w-9 h-9 rounded-lg hover:bg-white/10 flex items-center justify-center"
           >
-            <FiX size={21} />
+            <FiX size={20} />
           </button>
-
           <div className="flex items-center gap-3">
-
-            <div className="w-10 h-10 rounded-xl bg-[#006f2e] flex items-center justify-center border border-white/10">
-              <span className="text-white text-[16px] font-black">
-                CM
-              </span>
+            <div className="w-10 h-10 rounded-xl bg-[#006f2e] flex items-center justify-center border border-white/10 font-black">
+              CM
             </div>
-
             <div>
-              <h1 className="text-[22px] font-extrabold leading-none">
-                Campus
-                <span className="text-green-300">
-                  Mart
-                </span>
+              <h1 className="text-xl font-extrabold leading-none">
+                Campus<span className="text-green-300">Mart</span>
               </h1>
-
-              <p className="text-[10px] text-green-100 mt-1">
-                Admin Panel
-              </p>
+              <p className="text-[10px] text-green-100 mt-1">Admin panel</p>
             </div>
-
           </div>
         </div>
 
-        <nav className="flex-1 px-4 py-3 overflow-y-auto flex flex-col gap-1">
-
-          {menuItems.map(
-            ({
-              label,
-              icon: Icon,
-              path,
-              badge,
-            }) => {
-              const active =
-                isActive(path);
-
-              return (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() =>
-                    handleNavigation(
-                      path
-                    )
+        <nav className="flex-1 px-3 py-2 overflow-y-auto space-y-1">
+          {menuItems.map(({ label, icon: Icon, path, badge }) => {
+            const active = isActive(path);
+            return (
+              <button
+                key={label}
+                type="button"
+                onClick={() => handleNavigation(path)}
+                className={`
+                  w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-left
+                  ${
+                    active
+                      ? "bg-white text-[#008236] font-semibold"
+                      : "text-white hover:bg-white/10"
                   }
-                  className={`
-                    w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-left transition
-                    ${
-                      active
-                        ? "bg-white text-[#008236] font-semibold"
-                        : "text-white hover:bg-white/10"
-                    }
-                  `}
-                >
-                  <Icon
-                    size={18}
-                    className="flex-shrink-0"
-                  />
-
-                  <span className="flex-1 text-[14px]">
-                    {label}
+                `}
+              >
+                <Icon size={18} className="shrink-0" />
+                <span className="flex-1 text-sm">{label}</span>
+                {badge > 0 && (
+                  <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                    {badge > 99 ? "99+" : badge}
                   </span>
-
-                  {badge > 0 && (
-                    <span className="min-w-[20px] h-[20px] px-1.5 rounded-full text-[10px] font-bold flex items-center justify-center flex-shrink-0 bg-red-500 text-white">
-                      {badge > 99
-                        ? "99+"
-                        : badge}
-                    </span>
-                  )}
-                </button>
-              );
-            }
-          )}
-
+                )}
+              </button>
+            );
+          })}
         </nav>
 
-        <div className="px-4 pb-5">
-
+        <div className="px-3 pb-4">
           <button
             type="button"
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-white hover:bg-white/10 transition"
+            className="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-white hover:bg-white/10"
           >
             <FiLogOut size={18} />
-
-            <span className="text-[14px]">
-              Logout
-            </span>
+            <span className="text-sm">Logout</span>
           </button>
-
         </div>
       </aside>
 
       {/* MAIN */}
-
-      <div className="min-w-0 flex flex-col h-screen lg:ml-[291px]">
-
-        <header className="min-h-[70px] bg-[#007233] text-white flex items-center px-4 sm:px-6 lg:px-8 gap-3 flex-shrink-0">
-
+      <div className="min-w-0 flex flex-col h-[100dvh] w-full lg:ml-[280px] lg:w-[calc(100%-280px)]">
+        <header className="min-h-[64px] bg-[#007233] text-white flex items-center px-3 sm:px-6 gap-3 shrink-0">
           <button
             type="button"
-            onClick={() =>
-              setSidebarOpen(true)
-            }
+            onClick={() => setSidebarOpen(true)}
             className="lg:hidden w-10 h-10 rounded-lg hover:bg-white/10 flex items-center justify-center"
           >
             <FiMenu size={22} />
           </button>
-
           <div>
-            <p className="text-sm font-semibold">
-              Admin Dashboard
-            </p>
-
+            <p className="text-sm font-semibold">Overview</p>
             <p className="text-[11px] text-green-100">
-              Platform overview &
-              control
+              CampusMart control center
             </p>
           </div>
-
+          <div className="ml-auto flex items-center gap-2">
+            {pendingConfirmations.length > 0 && (
+              <span className="hidden sm:inline-flex items-center gap-1.5 h-8 px-3 rounded-full bg-white/15 text-xs font-semibold">
+                <FiCheckCircle size={14} />
+                {pendingConfirmations.length} delivery to review
+              </span>
+            )}
+            <div className="w-9 h-9 rounded-full bg-white/15 flex items-center justify-center">
+              <FiUser size={18} />
+            </div>
+          </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6">
-
-          {/* HERO */}
-
-          <div className="mb-6 rounded-2xl bg-gradient-to-r from-[#007233] to-[#008f3f] p-6 text-white shadow-lg">
-
-            <p className="text-xs text-green-100 font-medium">
-              Overview
-            </p>
-
-            <h1 className="text-2xl sm:text-3xl font-bold mt-1">
-              CampusMart Admin
-            </h1>
-
-            <p className="text-sm text-green-100 mt-2 max-w-xl">
-              Track users, orders,
-              revenue and platform
-              fees in real time.
-            </p>
-
-          </div>
-
+        <main className="flex-1 overflow-y-auto px-3 sm:px-6 py-5 space-y-6">
           {/* STATS */}
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-
+          <section className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
             <StatCard
-              label="Total Users"
+              label="Users"
               value={totalUsers}
               icon={FiUsers}
               color="text-blue-600"
               bg="bg-blue-50"
             />
-
             <StatCard
-              label="Total Products"
+              label="Products"
               value={totalProducts}
               icon={FiPackage}
               color="text-purple-600"
               bg="bg-purple-50"
             />
-
             <StatCard
-              label="Total Orders"
+              label="Orders"
               value={totalOrders}
               icon={FiShoppingBag}
               color="text-orange-600"
               bg="bg-orange-50"
             />
-
             <StatCard
-              label="Total Revenue"
-              value={formatNaira(
-                totalRevenue
-              )}
+              label="Revenue"
+              value={formatNaira(totalRevenue)}
               icon={FiTrendingUp}
               color="text-emerald-600"
               bg="bg-emerald-50"
             />
-
             <StatCard
-              label="CampusMart Fees (5%)"
-              value={formatNaira(
-                platformFees
-              )}
+              label="Platform fees"
+              value={formatNaira(platformFees)}
               icon={FiDollarSign}
               color="text-[#008236]"
               bg="bg-green-50"
             />
-
             <StatCard
-              label="Pending Withdrawals"
-              value={
-                pendingWithdrawals
-              }
+              label="Pending withdrawals"
+              value={pendingWithdrawals}
               icon={FiClock}
               color="text-amber-600"
               bg="bg-amber-50"
             />
+          </section>
 
-          </div>
-
-          {/* SUPPORT */}
-
-          <div className="mt-6 bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-
-            <div className="flex items-center justify-between gap-4">
-
-              <div className="flex items-center gap-3">
-
-                <div className="relative w-11 h-11 rounded-xl bg-green-50 text-[#008236] flex items-center justify-center">
-
-                  <FiMessageCircle
-                    size={21}
-                  />
-
-                  {unreadSupportCount >
-                    0 && (
-                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
-                      {unreadSupportCount >
-                      99
-                        ? "99+"
-                        : unreadSupportCount}
-                    </span>
-                  )}
-
-                </div>
-
-                <div>
-
-                  <h2 className="text-sm font-bold text-gray-900">
-                    Support Messages
-                  </h2>
-
-                  <p className="text-xs text-gray-500 mt-1">
-                    {unreadSupportCount >
-                    0
-                      ? `${unreadSupportCount} new message${
-                          unreadSupportCount ===
-                          1
-                            ? ""
-                            : "s"
-                        }`
-                      : "View and manage messages from users."}
-                  </p>
-
-                </div>
-
-              </div>
-
-              <button
-                type="button"
-                onClick={() =>
-                  navigate(
-                    "/admin/support-messages"
-                  )
-                }
-                className="h-10 px-4 rounded-xl bg-[#008236] text-white text-sm font-semibold hover:bg-[#006f2e] transition flex items-center gap-2"
-              >
-                <FiMessageCircle
-                  size={16}
-                />
-                Open
-              </button>
-
-            </div>
-
-          </div>
-
-          {/* =================================================
-              TICKER
-             ================================================= */}
-
-          <div className="mt-6 bg-white rounded-2xl border border-green-200 p-5 sm:p-6 shadow-sm">
-
-            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-5">
-
+          {/* =====================================================
+              1. BUYER DELIVERY CONFIRMATIONS
+          ====================================================== */}
+          <section className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="flex items-start gap-3">
-
-                <div className="w-11 h-11 rounded-xl bg-green-50 text-[#008236] flex items-center justify-center flex-shrink-0 border border-green-100">
-                  <FiVolume2
-                    size={20}
-                  />
+                <div className="w-11 h-11 rounded-xl bg-green-50 text-[#008236] flex items-center justify-center border border-green-100 shrink-0">
+                  <FiCheckCircle size={20} />
                 </div>
-
                 <div>
-
                   <h2 className="text-sm font-bold text-gray-900">
-                    In-app news ticker
+                    Buyer delivery confirmations
                   </h2>
-
-                  <p className="text-xs text-gray-500 mt-1 max-w-md">
-                    Send a scrolling
-                    notification to
-                    every buyer and
-                    seller or to one
-                    specific CampusMart
-                    account.
+                  <p className="text-xs text-gray-500 mt-0.5 max-w-xl">
+                    When a buyer taps <strong>Approve goods delivered</strong>,
+                    it appears here. Approve so the order is payout-eligible,
+                    then process the seller&apos;s withdrawal.
                   </p>
-
                 </div>
-
               </div>
-
-              <div
-                className={`
-                  self-start px-3 py-1.5 rounded-full text-[11px] font-semibold
-                  ${
-                    tickerActive
-                      ? "bg-green-50 text-[#008236] border border-green-100"
+              <div className="flex items-center gap-2">
+                <span
+                  className={`px-3 py-1 rounded-full text-[11px] font-semibold ${
+                    pendingConfirmations.length > 0
+                      ? "bg-amber-50 text-amber-700 border border-amber-100"
                       : "bg-gray-50 text-gray-500 border border-gray-100"
-                  }
-                `}
-              >
-                Global ticker:{" "}
-                {tickerActive
-                  ? "Live"
-                  : "Off"}
+                  }`}
+                >
+                  {pendingConfirmations.length} pending
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleNavigation("/admin/withdrawals")}
+                  className="h-9 px-3 rounded-xl text-xs font-semibold bg-[#008236] text-white hover:bg-[#006f2e] inline-flex items-center gap-1.5"
+                >
+                  <FiCreditCard size={14} />
+                  Withdrawals
+                </button>
               </div>
-
             </div>
 
-            {/* TICKER STATUS */}
-
-            {tickerStatus && (
-              <div
-                className={`mb-4 rounded-xl px-4 py-3 text-sm flex items-start gap-2 ${
-                  tickerStatus
-                    .toLowerCase()
-                    .includes("successfully") ||
-                  tickerStatus
-                    .toLowerCase()
-                    .includes("live") ||
-                  tickerStatus
-                    .toLowerCase()
-                    .includes("cleared")
-                    ? "bg-green-50 border border-green-100 text-green-700"
-                    : "bg-red-50 border border-red-100 text-red-600"
-                }`}
-              >
-
-                {tickerStatus
-                  .toLowerCase()
-                  .includes("successfully") ||
-                tickerStatus
-                  .toLowerCase()
-                  .includes("live") ||
-                tickerStatus
-                  .toLowerCase()
-                  .includes("cleared") ? (
-                  <FiCheckCircle
-                    size={17}
-                    className="mt-0.5 flex-shrink-0"
-                  />
-                ) : (
-                  <FiAlertCircle
-                    size={17}
-                    className="mt-0.5 flex-shrink-0"
-                  />
-                )}
-
-                <span>
-                  {tickerStatus}
-                </span>
-
+            {confirmMsg && (
+              <div className="mx-5 mt-4 rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-800 flex gap-2">
+                <FiCheckCircle size={16} className="shrink-0 mt-0.5" />
+                {confirmMsg}
               </div>
             )}
 
-            {/* TARGET TYPE */}
-
-            <div className="mb-5">
-
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Who should receive
-                this ticker?
-              </label>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTickerMode("all");
-                    setTickerStatus("");
-                  }}
-                  className={`
-                    p-4 rounded-xl border text-left transition
-                    ${
-                      tickerMode === "all"
-                        ? "border-[#008236] bg-green-50"
-                        : "border-gray-200 bg-white hover:bg-gray-50"
-                    }
-                  `}
-                >
-
-                  <div className="flex items-center gap-3">
-
-                    <div
-                      className={`
-                        w-10 h-10 rounded-xl flex items-center justify-center
-                        ${
-                          tickerMode === "all"
-                            ? "bg-[#008236] text-white"
-                            : "bg-gray-100 text-gray-500"
-                        }
-                      `}
-                    >
-                      <FiUsers
-                        size={18}
-                      />
-                    </div>
-
-                    <div>
-
-                      <p className="text-sm font-bold text-gray-900">
-                        Everyone
-                      </p>
-
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        All buyers &
-                        sellers
-                      </p>
-
-                    </div>
-
+            <div className="p-5">
+              {confirmationsLoading ? (
+                <div className="py-10 text-center">
+                  <div className="w-9 h-9 mx-auto rounded-full border-4 border-green-100 border-t-green-600 animate-spin" />
+                  <p className="text-sm text-gray-500 mt-3">Loading…</p>
+                </div>
+              ) : confirmations.length === 0 ? (
+                <div className="py-10 text-center">
+                  <div className="w-12 h-12 mx-auto rounded-full bg-green-50 text-[#008236] flex items-center justify-center mb-3">
+                    <FiCheck size={22} />
                   </div>
+                  <p className="text-sm font-semibold text-gray-800">
+                    No delivery confirmations yet
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
+                    They appear after a buyer confirms they received goods on
+                    an order the seller marked as delivered.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {confirmations.map((item) => {
+                    const status = String(
+                      item.status || "pending_admin_review"
+                    ).toLowerCase();
+                    const isPending =
+                      status === "pending_admin_review" ||
+                      status === "pending" ||
+                      status === "awaiting_admin";
+                    const isApproved = status === "approved";
+                    const busy = confirmActionId === item.id;
 
-                </button>
+                    return (
+                      <div
+                        key={item.id}
+                        className={`
+                          rounded-xl border p-4
+                          ${
+                            isPending
+                              ? "border-amber-100 bg-amber-50/40"
+                              : isApproved
+                                ? "border-green-100 bg-green-50/30"
+                                : "border-gray-100 bg-gray-50/40"
+                          }
+                        `}
+                      >
+                        <div className="flex flex-col lg:flex-row lg:items-start gap-4">
+                          <div className="flex-1 min-w-0 space-y-1.5">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-sm font-bold text-gray-900">
+                                Order{" "}
+                                {item.orderNumber ||
+                                  (item.orderId
+                                    ? `#${String(item.orderId).slice(0, 8)}`
+                                    : "—")}
+                              </span>
+                              <span
+                                className={`
+                                  px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide
+                                  ${
+                                    isPending
+                                      ? "bg-amber-100 text-amber-800"
+                                      : isApproved
+                                        ? "bg-green-100 text-[#006f2e]"
+                                        : "bg-gray-200 text-gray-600"
+                                  }
+                                `}
+                              >
+                                {isPending
+                                  ? "Needs review"
+                                  : isApproved
+                                    ? "Approved · payout eligible"
+                                    : status}
+                              </span>
+                            </div>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTickerMode("single");
-                    setTickerStatus("");
-                  }}
-                  className={`
-                    p-4 rounded-xl border text-left transition
-                    ${
-                      tickerMode === "single"
-                        ? "border-[#008236] bg-green-50"
-                        : "border-gray-200 bg-white hover:bg-gray-50"
-                    }
-                  `}
-                >
+                            <p className="text-sm text-gray-700">
+                              <span className="text-gray-500">Buyer:</span>{" "}
+                              {item.buyerName || "—"}
+                              {item.sellerName ? (
+                                <>
+                                  {" "}
+                                  ·{" "}
+                                  <span className="text-gray-500">
+                                    Seller:
+                                  </span>{" "}
+                                  {item.sellerName}
+                                </>
+                              ) : null}
+                            </p>
 
-                  <div className="flex items-center gap-3">
+                            <p className="text-sm font-semibold text-[#008236]">
+                              {formatNaira(item.total || item.amount)}
+                            </p>
 
-                    <div
-                      className={`
-                        w-10 h-10 rounded-xl flex items-center justify-center
-                        ${
-                          tickerMode === "single"
-                            ? "bg-[#008236] text-white"
-                            : "bg-gray-100 text-gray-500"
-                        }
-                      `}
-                    >
-                      <FiUser
-                        size={18}
-                      />
-                    </div>
+                            <p className="text-[11px] text-gray-400">
+                              Confirmed {formatDate(item.createdAt)}
+                              {item.sellerId
+                                ? ` · Seller ID ${String(item.sellerId).slice(0, 8)}…`
+                                : ""}
+                            </p>
 
-                    <div>
+                            {item.message && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                {item.message}
+                              </p>
+                            )}
+                          </div>
 
-                      <p className="text-sm font-bold text-gray-900">
-                        One account
-                      </p>
+                          <div className="flex flex-wrap lg:flex-col gap-2 shrink-0">
+                            {isPending && (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() =>
+                                    handleApproveConfirmation(item)
+                                  }
+                                  className="h-10 px-4 rounded-xl bg-[#008236] hover:bg-[#006f2e] text-white text-xs font-semibold disabled:opacity-50 inline-flex items-center justify-center gap-1.5"
+                                >
+                                  {busy ? (
+                                    <FiRefreshCw
+                                      className="animate-spin"
+                                      size={14}
+                                    />
+                                  ) : (
+                                    <FiCheckCircle size={14} />
+                                  )}
+                                  Approve for payout
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() =>
+                                    handleDismissConfirmation(item)
+                                  }
+                                  className="h-10 px-4 rounded-xl border border-gray-200 text-gray-600 text-xs font-semibold hover:bg-white disabled:opacity-50"
+                                >
+                                  Dismiss
+                                </button>
+                              </>
+                            )}
+                            {isApproved && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleNavigation("/admin/withdrawals")
+                                }
+                                className="h-10 px-4 rounded-xl border border-green-200 text-[#008236] text-xs font-semibold hover:bg-green-50 inline-flex items-center gap-1.5"
+                              >
+                                <FiExternalLink size={14} />
+                                Open withdrawals
+                              </button>
+                            )}
+                            {item.orderId && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleNavigation("/admin/orders")
+                                }
+                                className="h-10 px-4 rounded-xl border border-gray-200 text-gray-600 text-xs font-semibold hover:bg-white"
+                              >
+                                View orders
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </section>
 
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        Send to one
-                        email
-                      </p>
-
-                    </div>
-
-                  </div>
-
-                </button>
-
+          {/* =====================================================
+              2. NEWS TICKER
+          ====================================================== */}
+          <section className="bg-white rounded-2xl border border-gray-100 p-5 sm:p-6 shadow-sm">
+            <div className="flex items-start gap-3 mb-5">
+              <div className="w-11 h-11 rounded-xl bg-green-50 text-[#008236] flex items-center justify-center border border-green-100 shrink-0">
+                <FiVolume2 size={20} />
               </div>
-
+              <div className="flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-sm font-bold text-gray-900">
+                    In-app news ticker
+                  </h2>
+                  <span
+                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
+                      tickerActive
+                        ? "bg-green-50 text-[#008236] border border-green-100"
+                        : "bg-gray-50 text-gray-500 border border-gray-100"
+                    }`}
+                  >
+                    {tickerActive ? "Live" : "Off"}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Sliding message for buyers &amp; sellers (not email).
+                </p>
+              </div>
             </div>
 
-            {/* TARGET EMAIL */}
+            {tickerStatus && (
+              <div
+                className={`mb-4 rounded-xl border px-4 py-3 text-sm flex gap-2 ${
+                  tickerStatus.toLowerCase().includes("success") ||
+                  tickerStatus.toLowerCase().includes("live") ||
+                  tickerStatus.toLowerCase().includes("cleared") ||
+                  tickerStatus.toLowerCase().includes("sent")
+                    ? "bg-green-50 border-green-100 text-green-700"
+                    : "bg-red-50 border-red-100 text-red-600"
+                }`}
+              >
+                <FiAlertCircle size={16} className="shrink-0 mt-0.5" />
+                <span>{tickerStatus}</span>
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-2 mb-4">
+              {[
+                { id: "all", label: "Everyone" },
+                { id: "single", label: "One account" },
+              ].map((o) => (
+                <button
+                  key={o.id}
+                  type="button"
+                  onClick={() => {
+                    setTickerMode(o.id);
+                    setTickerStatus("");
+                  }}
+                  className={`h-10 px-4 rounded-xl text-sm font-semibold transition ${
+                    tickerMode === o.id
+                      ? "bg-[#008236] text-white"
+                      : "bg-green-50 text-[#008236] border border-green-100"
+                  }`}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
 
             {tickerMode === "single" && (
-              <div className="mb-5">
-
+              <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  CampusMart account
-                  email
+                  Account email
                 </label>
-
                 <div className="relative">
-
                   <FiMail
                     size={17}
                     className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
                   />
-
                   <input
                     type="email"
                     value={tickerEmail}
                     onChange={(e) => {
-                      setTickerEmail(
-                        e.target.value
-                      );
-
+                      setTickerEmail(e.target.value);
                       setTickerStatus("");
                     }}
                     placeholder="student@example.com"
                     className="w-full h-11 pl-10 pr-4 rounded-xl border border-gray-200 bg-gray-50 text-sm outline-none focus:border-[#008236] focus:bg-white"
                   />
-
                 </div>
-
-                <p className="text-[11px] text-gray-400 mt-1.5">
-                  The ticker will
-                  only appear on
-                  the account
-                  belonging to this
-                  email.
-                </p>
-
               </div>
             )}
 
-            {/* MESSAGE */}
-
-            <div>
-
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Ticker message
-              </label>
-
-              <textarea
-                rows={3}
-                value={tickerMessage}
-                onChange={(e) => {
-                  setTickerMessage(
-                    e.target.value
-                  );
-
-                  setTickerStatus("");
-                }}
-                placeholder={
-                  tickerMode === "single"
-                    ? "e.g. Your CampusMart order has been updated."
-                    : "e.g. Welcome to CampusMart 2.0 — Gigs are live. Shop safe on campus!"
-                }
-                maxLength={500}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm outline-none focus:border-[#008236] focus:bg-white resize-none"
-              />
-
-              <div className="mt-1 text-right text-[10px] text-gray-400">
-                {tickerMessage.length}/500
-              </div>
-
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Message
+            </label>
+            <textarea
+              rows={3}
+              value={tickerMessage}
+              onChange={(e) => {
+                setTickerMessage(e.target.value);
+                setTickerStatus("");
+              }}
+              maxLength={500}
+              placeholder="e.g. Welcome to CampusMart 2.0 — shop safe on campus!"
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm outline-none focus:border-[#008236] focus:bg-white resize-none"
+            />
+            <div className="mt-1 text-right text-[10px] text-gray-400">
+              {tickerMessage.length}/500
             </div>
 
-            {/* BUTTONS */}
-
             <div className="mt-4 flex flex-col sm:flex-row gap-3">
-
               <button
                 type="button"
-                disabled={
-                  tickerSaving ||
-                  tickerTargetLoading
-                }
-                onClick={
-                  handlePublishTicker
-                }
-                className="h-11 px-5 rounded-xl bg-[#008236] hover:bg-[#006f2e] disabled:opacity-60 text-white text-sm font-semibold inline-flex items-center justify-center gap-2 transition"
+                disabled={tickerSaving || tickerTargetLoading}
+                onClick={handlePublishTicker}
+                className="h-11 px-5 rounded-xl bg-[#008236] hover:bg-[#006f2e] disabled:opacity-60 text-white text-sm font-semibold inline-flex items-center justify-center gap-2"
               >
-
                 {tickerSaving ? (
                   <>
-                    <FiRefreshCw
-                      className="animate-spin"
-                      size={16}
-                    />
-
-                    Sending...
+                    <FiRefreshCw className="animate-spin" size={16} />
+                    Sending…
                   </>
                 ) : (
                   <>
-                    <FiSend
-                      size={16}
-                    />
-
+                    <FiSend size={16} />
                     {tickerMode === "single"
                       ? "Send to account"
                       : "Publish for everyone"}
                   </>
                 )}
-
               </button>
-
               {tickerMode === "all" && (
                 <button
                   type="button"
-                  disabled={
-                    tickerSaving ||
-                    !tickerActive
-                  }
-                  onClick={
-                    handleClearTicker
-                  }
-                  className="h-11 px-5 rounded-xl border border-green-200 text-[#008236] text-sm font-semibold hover:bg-green-50 transition disabled:opacity-50"
+                  disabled={tickerSaving || !tickerActive}
+                  onClick={handleClearTicker}
+                  className="h-11 px-5 rounded-xl border border-green-200 text-[#008236] text-sm font-semibold hover:bg-green-50 disabled:opacity-50"
                 >
                   Clear global ticker
                 </button>
               )}
-
               {tickerMode === "single" && (
                 <button
                   type="button"
@@ -1869,49 +1377,37 @@ function AdminDashboard() {
                     tickerTargetLoading ||
                     !tickerEmail.trim()
                   }
-                  onClick={
-                    handleClearPrivateTicker
-                  }
-                  className="h-11 px-5 rounded-xl border border-red-200 text-red-600 text-sm font-semibold hover:bg-red-50 transition disabled:opacity-50"
+                  onClick={handleClearPrivateTicker}
+                  className="h-11 px-5 rounded-xl border border-red-200 text-red-600 text-sm font-semibold hover:bg-red-50 disabled:opacity-50"
                 >
-                  Clear user's ticker
+                  Clear user&apos;s ticker
                 </button>
               )}
-
             </div>
+          </section>
 
-          </div>
-
-          {/* FEATURE / APP UPDATE PUSH */}
-
-          <div className="mt-6 bg-white rounded-2xl border border-gray-100 p-5 sm:p-6 shadow-sm">
-
+          {/* =====================================================
+              3. FEATURE PUSH
+          ====================================================== */}
+          <section className="bg-white rounded-2xl border border-gray-100 p-5 sm:p-6 shadow-sm">
             <div className="flex items-start gap-3 mb-5">
-
-              <div className="w-11 h-11 rounded-xl bg-green-50 text-[#008236] flex items-center justify-center flex-shrink-0 border border-green-100">
+              <div className="w-11 h-11 rounded-xl bg-green-50 text-[#008236] flex items-center justify-center border border-green-100 shrink-0">
                 <FiVolume2 size={20} />
               </div>
-
               <div>
-
                 <h2 className="text-sm font-bold text-gray-900">
                   New feature push
                 </h2>
-
                 <p className="text-xs text-gray-500 mt-1 max-w-md">
-                  Send a phone/desktop notification to users who enabled
-                  push — e.g. “Check out this new feature on CampusMart”.
+                  Phone/desktop notification for users who enabled push.
                 </p>
-
               </div>
-
             </div>
 
             {featureStatus && (
               <div
                 className={`mb-4 rounded-xl border px-4 py-3 text-sm flex gap-2 ${
-                  featureStatus.toLowerCase().includes("sent") ||
-                  featureStatus.toLowerCase().includes("push sent")
+                  featureStatus.toLowerCase().includes("sent")
                     ? "bg-green-50 border-green-100 text-green-700"
                     : "bg-red-50 border-red-100 text-red-600"
                 }`}
@@ -1926,7 +1422,6 @@ function AdminDashboard() {
             )}
 
             <div className="space-y-4">
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   Title
@@ -1942,7 +1437,6 @@ function AdminDashboard() {
                   className="w-full h-11 px-4 rounded-xl border border-gray-200 bg-gray-50 text-sm outline-none focus:border-[#008236] focus:bg-white"
                 />
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   Message
@@ -1954,25 +1448,24 @@ function AdminDashboard() {
                     setFeatureBody(e.target.value);
                     setFeatureStatus("");
                   }}
-                  placeholder="e.g. Check out this new feature on CampusMart — open the app to try Gigs and more."
                   maxLength={180}
+                  placeholder="e.g. Check out this new feature on CampusMart."
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm outline-none focus:border-[#008236] focus:bg-white resize-none"
                 />
                 <div className="mt-1 text-right text-[10px] text-gray-400">
                   {featureBody.length}/180
                 </div>
               </div>
-
               <button
                 type="button"
                 disabled={featureSending}
                 onClick={handleSendFeaturePush}
-                className="h-11 px-5 rounded-xl bg-[#008236] hover:bg-[#006f2e] disabled:opacity-60 text-white text-sm font-semibold inline-flex items-center justify-center gap-2 transition"
+                className="h-11 px-5 rounded-xl bg-[#008236] hover:bg-[#006f2e] disabled:opacity-60 text-white text-sm font-semibold inline-flex items-center justify-center gap-2"
               >
                 {featureSending ? (
                   <>
                     <FiRefreshCw className="animate-spin" size={16} />
-                    Sending push...
+                    Sending push…
                   </>
                 ) : (
                   <>
@@ -1981,118 +1474,65 @@ function AdminDashboard() {
                   </>
                 )}
               </button>
-
             </div>
+          </section>
 
-          </div>
-
-          {/* EMAIL ANNOUNCEMENTS */}
-
-          <div className="mt-6 bg-white rounded-2xl border border-gray-100 p-5 sm:p-6 shadow-sm">
-
+          {/* =====================================================
+              4. EMAIL ANNOUNCEMENTS
+          ====================================================== */}
+          <section className="bg-white rounded-2xl border border-gray-100 p-5 sm:p-6 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-5">
-
               <div className="flex items-start gap-3">
-
-                <div className="w-11 h-11 rounded-xl bg-green-50 text-[#008236] flex items-center justify-center flex-shrink-0 border border-green-100">
-                  <FiMail
-                    size={20}
-                  />
+                <div className="w-11 h-11 rounded-xl bg-green-50 text-[#008236] flex items-center justify-center border border-green-100 shrink-0">
+                  <FiMail size={20} />
                 </div>
-
                 <div>
-
                   <h2 className="text-sm font-bold text-gray-900">
                     Email announcements
                   </h2>
-
                   <p className="text-xs text-gray-500 mt-1 max-w-md">
-                    Email every
-                    registered user or
-                    one specific email.
+                    Email every registered user or one specific address.
                   </p>
-
                 </div>
-
               </div>
-
               <div
-                className={`
-                  self-start px-3 py-1.5 rounded-full text-[11px] font-semibold
-                  ${
-                    bannerActive
-                      ? "bg-green-50 text-[#008236] border border-green-100"
-                      : "bg-gray-50 text-gray-500 border border-gray-100"
-                  }
-                `}
+                className={`self-start px-3 py-1.5 rounded-full text-[11px] font-semibold ${
+                  bannerActive
+                    ? "bg-green-50 text-[#008236] border border-green-100"
+                    : "bg-gray-50 text-gray-500 border border-gray-100"
+                }`}
               >
-                Email banner:{" "}
-                {bannerActive
-                  ? "Active"
-                  : "Off"}
+                Email banner: {bannerActive ? "Active" : "Off"}
               </div>
-
             </div>
 
             {annError && (
               <div className="mb-4 rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-600 flex gap-2">
-
-                <FiAlertCircle
-                  className="shrink-0 mt-0.5"
-                  size={16}
-                />
-
+                <FiAlertCircle className="shrink-0 mt-0.5" size={16} />
                 {annError}
-
               </div>
             )}
-
             {annSuccess && (
               <div className="mb-4 rounded-xl bg-green-50 border border-green-100 px-4 py-3 text-sm text-green-700 flex gap-2">
-
-                <FiCheckCircle
-                  className="shrink-0 mt-0.5"
-                  size={16}
-                />
-
+                <FiCheckCircle className="shrink-0 mt-0.5" size={16} />
                 {annSuccess}
-
               </div>
             )}
 
-            <form
-              onSubmit={
-                handleSendAnnouncement
-              }
-              className="space-y-4"
-            >
-
+            <form onSubmit={handleSendAnnouncement} className="space-y-4">
               <div>
-
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   Recipients
                 </label>
-
                 <div className="flex flex-wrap gap-2">
-
                   {[
-                    {
-                      id: "all",
-                      label:
-                        "All registered emails",
-                    },
-                    {
-                      id: "single",
-                      label:
-                        "One specific email",
-                    },
+                    { id: "all", label: "All registered emails" },
+                    { id: "single", label: "One specific email" },
                   ].map((o) => (
                     <button
                       key={o.id}
                       type="button"
-                      onClick={() =>
-                        setAnnMode(o.id)
-                      }
+                      onClick={() => setAnnMode(o.id)}
                       className={`h-10 px-4 rounded-xl text-sm font-semibold transition ${
                         annMode === o.id
                           ? "bg-[#008236] text-white"
@@ -2102,456 +1542,238 @@ function AdminDashboard() {
                       {o.label}
                     </button>
                   ))}
-
                 </div>
-
               </div>
 
               {annMode === "single" && (
                 <div>
-
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
                     Email address
                   </label>
-
                   <input
                     type="email"
                     value={annEmail}
-                    onChange={(e) =>
-                      setAnnEmail(
-                        e.target.value
-                      )
-                    }
+                    onChange={(e) => setAnnEmail(e.target.value)}
                     placeholder="student@example.com"
                     className="w-full h-11 px-4 rounded-xl border border-gray-200 bg-gray-50 text-sm outline-none focus:border-[#008236] focus:bg-white"
                   />
-
                 </div>
               )}
 
               <div>
-
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   Title
                 </label>
-
                 <input
                   type="text"
                   value={annTitle}
-                  onChange={(e) =>
-                    setAnnTitle(
-                      e.target.value
-                    )
-                  }
+                  onChange={(e) => setAnnTitle(e.target.value)}
                   placeholder="e.g. New CampusMart update"
                   className="w-full h-11 px-4 rounded-xl border border-gray-200 bg-gray-50 text-sm outline-none focus:border-[#008236] focus:bg-white"
                 />
-
               </div>
 
               <div>
-
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   Message
                 </label>
-
                 <textarea
                   rows={4}
                   value={annBody}
-                  onChange={(e) =>
-                    setAnnBody(
-                      e.target.value
-                    )
-                  }
-                  placeholder="Write the announcement users will receive by email..."
+                  onChange={(e) => setAnnBody(e.target.value)}
+                  placeholder="Write the announcement…"
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm outline-none focus:border-[#008236] focus:bg-white resize-none"
                 />
-
               </div>
 
               <label className="flex items-start gap-3 cursor-pointer">
-
                 <input
                   type="checkbox"
                   checked={showBanner}
-                  onChange={(e) =>
-                    setShowBanner(
-                      e.target.checked
-                    )
-                  }
+                  onChange={(e) => setShowBanner(e.target.checked)}
                   className="mt-1 accent-green-600"
                 />
-
                 <span className="text-sm text-gray-600">
-                  Also set email-reminder
-                  banner.
+                  Also set email-reminder banner for logged-in users.
                 </span>
-
               </label>
 
               <div className="flex flex-col sm:flex-row gap-3 pt-1">
-
                 <button
                   type="submit"
                   disabled={annSending}
-                  className="h-11 px-5 rounded-xl bg-[#008236] hover:bg-[#006f2e] disabled:opacity-60 text-white text-sm font-semibold inline-flex items-center justify-center gap-2 transition"
+                  className="h-11 px-5 rounded-xl bg-[#008236] hover:bg-[#006f2e] disabled:opacity-60 text-white text-sm font-semibold inline-flex items-center justify-center gap-2"
                 >
-
                   {annSending ? (
                     <>
-                      <FiRefreshCw
-                        className="animate-spin"
-                        size={16}
-                      />
-
-                      Sending...
+                      <FiRefreshCw className="animate-spin" size={16} />
+                      Sending…
                     </>
                   ) : (
                     <>
-                      <FiSend
-                        size={16}
-                      />
-
-                      Send email
-                      announcement
+                      <FiSend size={16} />
+                      Send email announcement
                     </>
                   )}
-
                 </button>
-
                 {bannerActive && (
                   <button
                     type="button"
-                    onClick={
-                      handleClearBanner
-                    }
-                    className="h-11 px-5 rounded-xl border border-green-200 text-[#008236] text-sm font-semibold hover:bg-green-50 transition"
+                    onClick={handleClearBanner}
+                    className="h-11 px-5 rounded-xl border border-green-200 text-[#008236] text-sm font-semibold hover:bg-green-50"
                   >
                     Clear email banner
                   </button>
                 )}
-
               </div>
-
             </form>
+          </section>
 
-          </div>
-
-          {/* RESET */}
-
-          <div className="mt-8 bg-white rounded-2xl border border-green-200 p-5 shadow-sm">
-
+          {/* =====================================================
+              5. DANGER ZONE — RESET
+          ====================================================== */}
+          <section className="bg-white rounded-2xl border border-green-200 p-5 shadow-sm">
             <div className="flex items-start gap-4">
-
-              <div className="w-11 h-11 rounded-xl bg-green-50 text-[#008236] flex items-center justify-center flex-shrink-0">
-                <FiRefreshCw
-                  size={22}
-                />
+              <div className="w-11 h-11 rounded-xl bg-green-50 text-[#008236] flex items-center justify-center shrink-0">
+                <FiRefreshCw size={22} />
               </div>
-
               <div className="flex-1">
-
                 <h2 className="text-sm font-bold text-[#008236]">
-                  Reset Transactions
+                  Reset transactions
                 </h2>
-
                 <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-                  This will permanently
-                  delete{" "}
-                  <strong>
-                    all buyer orders
-                  </strong>
-                  ,{" "}
-                  <strong>
-                    all seller earnings
-                  </strong>{" "}
-                  and reset every
-                  seller’s balance to
-                  ₦0.
+                  Permanently deletes <strong>all buyer orders</strong>,{" "}
+                  <strong>seller earnings</strong>, and resets balances to ₦0.
+                  Testing only.
                 </p>
-
                 <button
                   type="button"
                   disabled={isResetting}
-                  onClick={() =>
-                    setShowResetConfirm(
-                      true
-                    )
-                  }
-                  className={`
-                    mt-4 h-11 px-5 rounded-xl text-sm font-semibold
-                    flex items-center gap-2 transition
-                    ${
-                      isResetting
-                        ? "bg-green-300 text-white cursor-not-allowed"
-                        : "bg-[#008236] hover:bg-[#006f2e] text-white"
-                    }
-                  `}
+                  onClick={() => setShowResetConfirm(true)}
+                  className={`mt-4 h-11 px-5 rounded-xl text-sm font-semibold flex items-center gap-2 ${
+                    isResetting
+                      ? "bg-green-300 text-white cursor-not-allowed"
+                      : "bg-[#008236] hover:bg-[#006f2e] text-white"
+                  }`}
                 >
-
                   {isResetting ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-
-                      Resetting...
+                      Resetting…
                     </>
                   ) : (
                     <>
-                      <FiTrash2
-                        size={16}
-                      />
-
-                      Reset All Orders &
-                      Earnings
+                      <FiTrash2 size={16} />
+                      Reset all orders &amp; earnings
                     </>
                   )}
-
                 </button>
-
               </div>
-
             </div>
-
-          </div>
-
+          </section>
         </main>
-
       </div>
 
-      {/* RESET CONFIRMATION MODAL */}
-
+      {/* RESET CONFIRM */}
       {showResetConfirm && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-
           <div
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={() =>
-              !isResetting &&
-              setShowResetConfirm(
-                false
-              )
-            }
+            onClick={() => !isResetting && setShowResetConfirm(false)}
           />
-
           <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
-
             <div className="bg-[#008236] px-6 py-5 flex items-center gap-3">
-
               <div className="w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center">
-
-                <FiAlertTriangle
-                  size={22}
-                  className="text-white"
-                />
-
+                <FiAlertTriangle size={22} className="text-white" />
               </div>
-
               <div>
-
-                <h3 className="text-lg font-bold text-white">
-                  Confirm Reset
-                </h3>
-
+                <h3 className="text-lg font-bold text-white">Confirm reset</h3>
                 <p className="text-xs text-green-100 mt-0.5">
-                  This action cannot
-                  be undone
+                  This cannot be undone
                 </p>
-
               </div>
-
             </div>
-
-            <div className="px-6 py-5">
-
-              <p className="text-sm text-gray-600 leading-relaxed">
-                You are about to
-                permanently delete:
-              </p>
-
-              <ul className="mt-3 space-y-2 text-sm text-gray-700">
-
-                <li>
-                  • All buyer orders
-                </li>
-
-                <li>
-                  • All seller earnings
-                  records
-                </li>
-
-                <li>
-                  • Reset every seller's
-                  balance to ₦0
-                </li>
-
+            <div className="px-6 py-5 text-sm text-gray-600">
+              <p>You will permanently delete:</p>
+              <ul className="mt-3 space-y-2 text-gray-700">
+                <li>• All buyer orders</li>
+                <li>• All seller earnings records</li>
+                <li>• Reset every seller balance to ₦0</li>
               </ul>
-
-              <p className="mt-4 text-xs text-gray-500">
-                This is intended for
-                testing only.
-              </p>
-
             </div>
-
             <div className="px-6 pb-6 flex flex-col sm:flex-row gap-3">
-
               <button
                 type="button"
                 disabled={isResetting}
-                onClick={() =>
-                  setShowResetConfirm(
-                    false
-                  )
-                }
-                className="flex-1 h-11 rounded-xl border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition"
+                onClick={() => setShowResetConfirm(false)}
+                className="flex-1 h-11 rounded-xl border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50"
               >
                 Cancel
               </button>
-
               <button
                 type="button"
                 disabled={isResetting}
-                onClick={
-                  handleResetAllTransactions
-                }
-                className="flex-1 h-11 rounded-xl bg-[#008236] hover:bg-[#006f2e] text-white text-sm font-semibold transition flex items-center justify-center gap-2"
+                onClick={handleResetAllTransactions}
+                className="flex-1 h-11 rounded-xl bg-[#008236] hover:bg-[#006f2e] text-white text-sm font-semibold flex items-center justify-center gap-2"
               >
-
-                {isResetting ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-
-                    Resetting...
-                  </>
-                ) : (
-                  <>
-                    <FiTrash2
-                      size={16}
-                    />
-
-                    Yes, Reset Everything
-                  </>
-                )}
-
+                {isResetting ? "Resetting…" : "Yes, reset everything"}
               </button>
-
             </div>
-
           </div>
-
         </div>
       )}
-
-      {/* SUCCESS MODAL */}
 
       {showSuccessModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-
           <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={() =>
-              setShowSuccessModal(
-                false
-              )
-            }
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setShowSuccessModal(false)}
           />
-
           <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
-
             <div className="bg-[#008236] px-6 py-6 flex flex-col items-center text-center">
-
-              <div className="w-16 h-16 rounded-full bg-white/15 flex items-center justify-center mb-3">
-
-                <FiCheckCircle
-                  size={36}
-                  className="text-white"
-                />
-
-              </div>
-
-              <h3 className="text-xl font-bold text-white">
-                Reset Complete!
-              </h3>
-
+              <FiCheckCircle size={36} className="text-white mb-3" />
+              <h3 className="text-xl font-bold text-white">Reset complete</h3>
               <p className="text-sm text-green-100 mt-1">
-                All transaction data
-                has been cleared
+                Transaction data cleared
               </p>
-
             </div>
-
-            <div className="px-6 py-5">
-
-              <p className="text-sm text-gray-600 text-center leading-relaxed">
-                All buyer orders,
-                seller earnings and
-                balances have been
-                successfully reset.
-              </p>
-
+            <div className="px-6 py-5 text-sm text-gray-600 text-center">
+              Orders, earnings and balances have been reset.
             </div>
-
             <div className="px-6 pb-6">
-
               <button
                 type="button"
-                onClick={() =>
-                  setShowSuccessModal(
-                    false
-                  )
-                }
-                className="w-full h-11 rounded-xl bg-[#008236] hover:bg-[#006f2e] text-white text-sm font-semibold transition"
+                onClick={() => setShowSuccessModal(false)}
+                className="w-full h-11 rounded-xl bg-[#008236] text-white text-sm font-semibold"
               >
                 Continue
               </button>
-
             </div>
-
           </div>
-
         </div>
       )}
-
     </div>
   );
 }
 
-// =============================================================
-// STAT CARD
-// =============================================================
-
-function StatCard({
-  label,
-  value,
-  icon: Icon,
-  color,
-  bg,
-}) {
+function StatCard({ label, value, icon: Icon, color, bg }) {
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-
-      <div className="flex items-start justify-between gap-3">
-
-        <div>
-
-          <p className="text-xs text-gray-500 font-medium">
+    <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-[11px] sm:text-xs text-gray-500 font-medium truncate">
             {label}
           </p>
-
-          <p className="text-2xl font-bold text-gray-900 mt-2">
+          <p className="text-lg sm:text-2xl font-bold text-gray-900 mt-1.5 truncate">
             {value}
           </p>
-
         </div>
-
         <div
-          className={`w-11 h-11 rounded-xl ${bg} ${color} flex items-center justify-center flex-shrink-0`}
+          className={`w-10 h-10 rounded-xl ${bg} ${color} flex items-center justify-center shrink-0`}
         >
-          <Icon size={20} />
+          <Icon size={18} />
         </div>
-
       </div>
-
     </div>
   );
 }

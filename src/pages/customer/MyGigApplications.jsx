@@ -32,15 +32,15 @@ function MyGigApplications({ cartCount = 0, profile }) {
   const [selectedGigId, setSelectedGigId] = useState("all");
   const [chattingId, setChattingId] = useState(null);
 
-  // Custom toast state
-  const [toast, setToast] = useState(null); // { type: 'success' | 'error', message: '' }
+   
+  const [toast, setToast] = useState(null); 
 
   const showToast = (type, message) => {
     setToast({ type, message });
     setTimeout(() => setToast(null), 3500);
   };
 
-  // Load gigs posted by current user
+ 
   useEffect(() => {
     if (!firebaseUser) return;
 

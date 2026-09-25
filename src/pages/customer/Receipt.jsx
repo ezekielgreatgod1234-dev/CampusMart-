@@ -30,8 +30,7 @@ function Receipt() {
   const [error, setError] = useState("");
   const [viewerRole, setViewerRole] = useState(null);
 
-  // Download UI state (CampusMart modal — not browser chrome)
-  const [downloadStatus, setDownloadStatus] = useState("idle"); // idle | loading | done | error
+  const [downloadStatus, setDownloadStatus] = useState("idle"); 
   const [downloadError, setDownloadError] = useState("");
   const [pdfUrl, setPdfUrl] = useState(null);
   const [pdfFileName, setPdfFileName] = useState("");

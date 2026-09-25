@@ -3,6 +3,16 @@ import { useNavigate, useParams } from "react-router-dom";
 import CustomerLayout from "../../layouts/CustomerLayout";
 
 import {
+  doc,
+  updateDoc,
+  addDoc,
+  collection,
+  serverTimestamp,
+} from "firebase/firestore";
+import { db } from "../../context/firebase";
+import { useAuth } from "../../context/AuthContext";
+
+import {
   FiArrowLeft,
   FiPackage,
   FiMapPin,
@@ -10,6 +20,8 @@ import {
   FiCheckCircle,
   FiXCircle,
   FiAlertTriangle,
+  FiShield,
+  FiClock,
 } from "react-icons/fi";
 
 function OrderDetails({
@@ -19,10 +31,16 @@ function OrderDetails({
 }) {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { firebaseUser } = useAuth();
 
   const [cancelling, setCancelling] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [cancelError, setCancelError] = useState("");
+
+  const [confirmingDelivery, setConfirmingDelivery] = useState(false);
+  const [deliveryError, setDeliveryError] = useState("");
+  const [deliverySuccess, setDeliverySuccess] = useState(false);
+  const [localConfirmed, setLocalConfirmed] = useState(false);
 
   const order = orders.find(
     (item) => String(item.id) === String(id)
@@ -100,17 +118,57 @@ function OrderDetails({
       0
     ) || 0;
 
-  const status = String(order.status || "placed").toLowerCase();
-  const isCancelled = status === "cancelled";
-  const isDelivered = status === "delivered";
+  const status = String(order.status || "placed")
+    .trim()
+    .toLowerCase();
+
+  const isCancelled =
+    status === "cancelled" || status === "canceled";
+
+  const isDelivered =
+    status === "delivered" ||
+    status === "completed" ||
+    status === "received";
+
+  const buyerAlreadyConfirmed =
+    localConfirmed ||
+    order.buyerConfirmedDelivery === true ||
+    Boolean(order.buyerConfirmedAt);
+
+  // Match buyer on several possible field names
+  const orderBuyerId = String(
+    order.buyerId ||
+      order.userId ||
+      order.customerId ||
+      order.buyerUid ||
+      order.uid ||
+      ""
+  );
+
+  const isMyOrder =
+    !firebaseUser?.uid ||
+    !orderBuyerId ||
+    orderBuyerId === String(firebaseUser.uid);
+
   const canCancel =
     !isCancelled &&
     !isDelivered &&
+    !buyerAlreadyConfirmed &&
     ["pending", "placed", "processing", ""].includes(status);
+
+  // Show the confirm section on every non-cancelled order the buyer owns.
+  // Button is enabled only after seller marks delivered.
+  const showConfirmSection =
+    !isCancelled && isMyOrder && !buyerAlreadyConfirmed;
+
+  const canConfirmDelivery = showConfirmSection && isDelivered;
 
   const statusStyles = {
     cancelled: "bg-red-50 text-red-600 border border-red-100",
+    canceled: "bg-red-50 text-red-600 border border-red-100",
     delivered: "bg-[#008236] text-white",
+    completed: "bg-[#008236] text-white",
+    received: "bg-[#008236] text-white",
     processing: "bg-green-100 text-[#006f2e] border border-green-200",
     shipped: "bg-emerald-50 text-emerald-700 border border-emerald-200",
     pending: "bg-green-50 text-[#008236] border border-green-200",
@@ -120,6 +178,13 @@ function OrderDetails({
   const statusClass =
     statusStyles[status] ||
     "bg-green-50 text-[#008236] border border-green-200";
+
+  const displayStatusLabel = () => {
+    if (isCancelled) return "Cancelled";
+    if (buyerAlreadyConfirmed) return "Received";
+    if (isDelivered) return "Delivered";
+    return order.status || "Placed";
+  };
 
   const handleCancelOrder = async () => {
     if (!canCancel || cancelling) return;
@@ -131,22 +196,70 @@ function OrderDetails({
       if (typeof cancelOrder === "function") {
         await cancelOrder(order.id);
       } else {
-        console.warn(
-          "cancelOrder prop not provided — wire it in App.jsx to update Firestore"
-        );
         setCancelError(
           "Cancel is not available right now. Please try again later."
         );
         setCancelling(false);
         return;
       }
-
       setShowCancelConfirm(false);
     } catch (error) {
       console.error("Cancel order error:", error);
       setCancelError("Could not cancel this order. Please try again.");
     } finally {
       setCancelling(false);
+    }
+  };
+
+  const handleConfirmDelivery = async () => {
+    if (!canConfirmDelivery || confirmingDelivery) return;
+    if (!firebaseUser?.uid) {
+      setDeliveryError("Please log in to confirm delivery.");
+      return;
+    }
+
+    setDeliveryError("");
+    setConfirmingDelivery(true);
+
+    try {
+      const orderRef = doc(db, "orders", String(order.id));
+
+      await updateDoc(orderRef, {
+        buyerConfirmedDelivery: true,
+        buyerConfirmedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      await addDoc(collection(db, "deliveryConfirmations"), {
+        orderId: String(order.id),
+        orderNumber: order.orderNumber || null,
+        buyerId: String(firebaseUser.uid),
+        sellerId: order.sellerId || null,
+        sellerName: order.sellerName || null,
+        buyerName:
+          fullName ||
+          order.buyerName ||
+          order.customerName ||
+          firebaseUser.email ||
+          "Buyer",
+        total: Number(order.total || 0),
+        amount: Number(order.total || order.amount || 0),
+        status: "pending_admin_review",
+        message:
+          "Buyer confirmed goods were delivered. Admin may approve seller payout / withdrawal.",
+        createdAt: serverTimestamp(),
+      });
+
+      setLocalConfirmed(true);
+      setDeliverySuccess(true);
+    } catch (error) {
+      console.error("Confirm delivery error:", error);
+      setDeliveryError(
+        error?.message ||
+          "Could not confirm delivery. Please try again."
+      );
+    } finally {
+      setConfirmingDelivery(false);
     }
   };
 
@@ -182,7 +295,7 @@ function OrderDetails({
                   ${statusClass}
                 `}
               >
-                {isCancelled ? "Cancelled" : order.status || "Placed"}
+                {displayStatusLabel()}
               </span>
             </div>
           </div>
@@ -192,6 +305,28 @@ function OrderDetails({
           <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
             <FiAlertTriangle className="text-red-500 shrink-0 mt-0.5" />
             <p className="text-sm text-red-600">{cancelError}</p>
+          </div>
+        )}
+
+        {deliveryError && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
+            <FiAlertTriangle className="text-red-500 shrink-0 mt-0.5" />
+            <p className="text-sm text-red-600">{deliveryError}</p>
+          </div>
+        )}
+
+        {deliverySuccess && (
+          <div className="bg-green-50 border border-green-100 rounded-2xl p-5 flex items-center gap-4">
+            <FiCheckCircle className="text-green-600 shrink-0" size={25} />
+            <div>
+              <h3 className="font-semibold text-green-800">
+                Delivery confirmed
+              </h3>
+              <p className="text-sm text-green-700 mt-1">
+                Thank you. CampusMart admin has been notified and can release
+                the seller&apos;s payout when appropriate.
+              </p>
+            </div>
           </div>
         )}
 
@@ -205,6 +340,83 @@ function OrderDetails({
               </p>
             </div>
           </div>
+        )}
+
+        {/* CONFIRM DELIVERY — always visible on active orders */}
+        {showConfirmSection && (
+          <section className="bg-white rounded-2xl border-2 border-[#008236]/20 p-5 sm:p-6 shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="w-12 h-12 rounded-xl bg-green-50 text-[#008236] flex items-center justify-center shrink-0 border border-green-100">
+                <FiShield size={22} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-base sm:text-lg font-bold text-gray-900">
+                  Confirm you received the goods
+                </h2>
+                <p className="text-sm text-gray-500 mt-1.5 leading-6">
+                  Only confirm after you have the product and it matches what
+                  you ordered. This notifies CampusMart admin so they can
+                  release the seller&apos;s payout.
+                </p>
+
+                {!isDelivered && (
+                  <div className="mt-3 flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-100 px-3 py-2.5">
+                    <FiClock
+                      className="text-amber-600 shrink-0 mt-0.5"
+                      size={16}
+                    />
+                    <p className="text-xs text-amber-800 leading-5">
+                      Waiting for the seller to mark this order as{" "}
+                      <strong>Delivered</strong>. The button below unlocks
+                      after that.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleConfirmDelivery}
+              disabled={!canConfirmDelivery || confirmingDelivery}
+              className={`
+                mt-5 w-full min-h-[52px] h-13
+                rounded-xl font-semibold text-sm sm:text-base
+                transition flex items-center justify-center gap-2
+                ${
+                  canConfirmDelivery && !confirmingDelivery
+                    ? "bg-[#008236] hover:bg-[#006f2e] active:bg-[#005f28] text-white"
+                    : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                }
+              `}
+            >
+              {confirmingDelivery ? (
+                "Confirming..."
+              ) : (
+                <>
+                  <FiCheckCircle size={18} />
+                  Approve goods delivered
+                </>
+              )}
+            </button>
+          </section>
+        )}
+
+        {buyerAlreadyConfirmed && !deliverySuccess && (
+          <section className="bg-green-50 border border-green-100 rounded-2xl p-5 flex items-start gap-3">
+            <FiCheckCircle
+              className="text-green-600 shrink-0 mt-0.5"
+              size={20}
+            />
+            <div>
+              <p className="font-semibold text-green-800 text-sm">
+                You confirmed delivery
+              </p>
+              <p className="text-xs text-green-700 mt-1">
+                Admin can approve the seller&apos;s withdrawal / payout.
+              </p>
+            </div>
+          </section>
         )}
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
@@ -245,14 +457,16 @@ function OrderDetails({
                     <p className="text-sm text-gray-500 mt-1">
                       Quantity: {item.quantity}
                     </p>
-                    <p className="font-bold text-gray-900 mt-2">{item.price}</p>
+                    <p className="font-bold text-gray-900 mt-2">
+                      {item.price}
+                    </p>
                   </div>
                 </div>
               ))}
             </div>
           </section>
 
-          {/* RIGHT */}
+          {/* RIGHT COLUMN */}
           <div className="space-y-6">
             <section className="bg-white rounded-2xl border border-gray-100 p-5">
               <h2 className="text-lg font-bold text-gray-800">Order Summary</h2>
@@ -337,7 +551,6 @@ function OrderDetails({
               </div>
             </section>
 
-            {/* CANCEL ORDER — larger touch target */}
             {canCancel && (
               <section className="bg-white rounded-2xl border border-green-100 p-5">
                 <h2 className="font-bold text-gray-800">Cancel order</h2>
@@ -350,7 +563,7 @@ function OrderDetails({
                   onClick={() => setShowCancelConfirm(true)}
                   disabled={cancelling}
                   className="
-                    mt-4 w-full min-h-[48px] h-12 sm:h-12
+                    mt-4 w-full min-h-[48px] h-12
                     rounded-xl
                     bg-[#008236] hover:bg-[#006f2e] active:bg-[#005f28]
                     text-white font-semibold text-sm sm:text-base
@@ -364,12 +577,12 @@ function OrderDetails({
           </div>
         </div>
 
-        {!isCancelled && (
+        {!isCancelled && !isDelivered && !buyerAlreadyConfirmed && (
           <div className="bg-green-50 border border-green-100 rounded-2xl p-5 flex items-center gap-4">
             <FiCheckCircle className="text-green-600 shrink-0" size={25} />
             <div>
               <h3 className="font-semibold text-green-800">
-                Order Placed Successfully
+                Order placed successfully
               </h3>
               <p className="text-sm text-green-700 mt-1">
                 Your order has been received and is being processed.
@@ -379,7 +592,7 @@ function OrderDetails({
         )}
       </div>
 
-      {/* CANCEL CONFIRM MODAL — mobile bottom sheet, large green buttons */}
+      {/* CANCEL MODAL */}
       {showCancelConfirm && (
         <div
           className="
@@ -405,7 +618,6 @@ function OrderDetails({
             "
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Mobile drag handle */}
             <div className="sm:hidden flex justify-center pt-3 pb-1">
               <div className="w-10 h-1 rounded-full bg-gray-300" />
             </div>
@@ -431,16 +643,14 @@ function OrderDetails({
               will be marked as cancelled in your order history.
             </div>
 
-            {/* Buttons — stacked on mobile, full width, large, green */}
             <div
               className="
-                px-5 pt-2 pb-5 sm:pb-5
+                px-5 pt-2 pb-5
                 flex flex-col gap-3
                 bg-gray-50 border-t border-gray-100
               "
               style={{
-                paddingBottom:
-                  "max(1.25rem, env(safe-area-inset-bottom))",
+                paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))",
               }}
             >
               <button
@@ -448,7 +658,7 @@ function OrderDetails({
                 disabled={cancelling}
                 onClick={handleCancelOrder}
                 className="
-                  w-full min-h-[52px] h-13
+                  w-full min-h-[52px]
                   rounded-xl
                   bg-[#008236] hover:bg-[#006f2e] active:bg-[#005f28]
                   text-white font-semibold text-base
@@ -464,12 +674,12 @@ function OrderDetails({
                 disabled={cancelling}
                 onClick={() => setShowCancelConfirm(false)}
                 className="
-                  w-full min-h-[52px] h-13
+                  w-full min-h-[52px]
                   rounded-xl
                   border-2 border-[#008236]
                   bg-white text-[#008236]
                   font-semibold text-base
-                  hover:bg-green-50 active:bg-green-100
+                  hover:bg-green-50
                   disabled:opacity-60 transition
                   flex items-center justify-center
                 "

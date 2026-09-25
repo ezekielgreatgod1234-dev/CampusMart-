@@ -1,10 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import CustomerLayout from "../../layouts/CustomerLayout";
 import ProductCard from "../../components/dashboard/ProductCard";
 
-import { collection, onSnapshot } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  limit,
+  orderBy,
+  query,
+  startAfter,
+} from "firebase/firestore";
 import { db } from "../../context/firebase";
 
 import {
@@ -13,7 +20,10 @@ import {
   FiStar,
   FiChevronDown,
   FiCheck,
+  FiRefreshCw,
 } from "react-icons/fi";
+
+const PAGE_SIZE = 20;
 
 function BrowseProducts({
   cartCount = 0,
@@ -25,7 +35,10 @@ function BrowseProducts({
 
   const [products, setProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [productsError, setProductsError] = useState("");
+  const [lastDoc, setLastDoc] = useState(null);
+  const [hasMore, setHasMore] = useState(true);
 
   const [sortBy, setSortBy] = useState("Newest");
   const [sortOpen, setSortOpen] = useState(false);
@@ -64,62 +77,40 @@ function BrowseProducts({
     if (value === null || value === undefined || value === "") {
       return fallback;
     }
-
     if (typeof value === "number") {
       return Number.isFinite(value) ? value : fallback;
     }
-
     const number = Number(
       String(value)
         .replace(/[₦,\s]/g, "")
         .trim()
     );
-
     return Number.isFinite(number) ? number : fallback;
   };
 
   const getTimestamp = (value) => {
     if (!value) return 0;
-
-    if (typeof value.toMillis === "function") {
-      return value.toMillis();
-    }
-
-    if (typeof value.toDate === "function") {
-      return value.toDate().getTime();
-    }
-
-    if (value instanceof Date) {
-      return value.getTime();
-    }
-
+    if (typeof value.toMillis === "function") return value.toMillis();
+    if (typeof value.toDate === "function") return value.toDate().getTime();
+    if (value instanceof Date) return value.getTime();
     if (typeof value === "object" && value.seconds !== undefined) {
       return (
         Number(value.seconds) * 1000 +
         Math.floor(Number(value.nanoseconds || 0) / 1000000)
       );
     }
-
     const parsed = new Date(value).getTime();
-
     return Number.isNaN(parsed) ? 0 : parsed;
   };
 
   const isCurrentlyBoosted = (product) => {
     if (product?.isPromoted !== true) return false;
-
     const until = product.promotedUntil;
     if (!until) return false;
-
     let untilMs = 0;
-    if (typeof until.toMillis === "function") {
-      untilMs = until.toMillis();
-    } else if (until.seconds != null) {
-      untilMs = Number(until.seconds) * 1000;
-    } else {
-      untilMs = new Date(until).getTime() || 0;
-    }
-
+    if (typeof until.toMillis === "function") untilMs = until.toMillis();
+    else if (until.seconds != null) untilMs = Number(until.seconds) * 1000;
+    else untilMs = new Date(until).getTime() || 0;
     return untilMs > Date.now();
   };
 
@@ -140,16 +131,13 @@ function BrowseProducts({
       data.availableStock,
       data.availableQuantity,
     ];
-
     for (const value of fields) {
       if (value !== undefined && value !== null && value !== "") {
         return Math.max(0, getNumber(value));
       }
     }
-
     const status = String(data.status || "").toLowerCase();
     const availability = String(data.availability || "").toLowerCase();
-
     if (
       status === "out of stock" ||
       status === "out_of_stock" ||
@@ -160,117 +148,134 @@ function BrowseProducts({
     ) {
       return 0;
     }
-
     return null;
   };
 
-  useEffect(() => {
-    setProductsLoading(true);
-    setProductsError("");
+  const mapDoc = (productDoc) => {
+    const data = productDoc.data() || {};
+    let images = [];
+    if (Array.isArray(data.images)) images = data.images.filter(Boolean);
+    if (data.image) images.unshift(data.image);
+    if (data.imageUrl) images.unshift(data.imageUrl);
+    images = [...new Set(images.filter(Boolean))];
 
-    const productsRef = collection(db, "products");
+    const stock = getProductStock(data);
+    const status = String(data.status || "active").toLowerCase();
+    const createdAt = data.createdAt || null;
+    const updatedAt = data.updatedAt || null;
 
-    const unsubscribe = onSnapshot(
-      productsRef,
-      (snapshot) => {
-        try {
-          const loadedProducts = snapshot.docs
-            .map((productDoc) => {
-              const data = productDoc.data() || {};
+    return {
+      id: productDoc.id,
+      ...data,
+      name: data.name || "Untitled Product",
+      description: data.description || "",
+      category: data.category || "Other",
+      price: getNumber(data.price),
+      rating: getNumber(data.rating),
+      reviews: getNumber(data.reviews),
+      sales: getNumber(data.sales),
+      image: images[0] || null,
+      images,
+      sellerId: data.sellerId || "",
+      sellerName: data.sellerName || "CampusMart Seller",
+      sellerImage: data.sellerImage || null,
+      stock,
+      quantity: stock,
+      status,
+      availability:
+        stock === null ? "available" : stock > 0 ? "available" : "unavailable",
+      createdAt,
+      updatedAt,
+      _createdAt: getTimestamp(createdAt),
+      _updatedAt: getTimestamp(updatedAt),
+      isPromoted: data.isPromoted === true,
+      promotedUntil: data.promotedUntil || null,
+      promotedAt: data.promotedAt || null,
+    };
+  };
 
-              let images = [];
+  const isActiveProduct = (product) => {
+    const status = String(product.status || "active").toLowerCase();
+    return !["deleted", "inactive", "archived"].includes(status);
+  };
 
-              if (Array.isArray(data.images)) {
-                images = data.images.filter(Boolean);
-              }
+  // FREE-TIER: one-shot pages of 20 (not full-collection live listener)
+  const loadProducts = useCallback(async (isLoadMore = false) => {
+    try {
+      if (isLoadMore) setLoadingMore(true);
+      else {
+        setProductsLoading(true);
+        setProductsError("");
+      }
 
-              if (data.image) {
-                images.unshift(data.image);
-              }
-
-              if (data.imageUrl) {
-                images.unshift(data.imageUrl);
-              }
-
-              images = [...new Set(images.filter(Boolean))];
-
-              const stock = getProductStock(data);
-              const status = String(data.status || "active").toLowerCase();
-              const createdAt = data.createdAt || null;
-              const updatedAt = data.updatedAt || null;
-
-              return {
-                id: productDoc.id,
-                ...data,
-                name: data.name || "Untitled Product",
-                description: data.description || "",
-                category: data.category || "Other",
-                price: getNumber(data.price),
-                rating: getNumber(data.rating),
-                reviews: getNumber(data.reviews),
-                sales: getNumber(data.sales),
-                image: images[0] || null,
-                images,
-                sellerId: data.sellerId || "",
-                sellerName: data.sellerName || "CampusMart Seller",
-                sellerImage: data.sellerImage || null,
-                stock,
-                quantity: stock,
-                status,
-                availability:
-                  stock === null
-                    ? "available"
-                    : stock > 0
-                      ? "available"
-                      : "unavailable",
-                createdAt,
-                updatedAt,
-                _createdAt: getTimestamp(createdAt),
-                _updatedAt: getTimestamp(updatedAt),
-                isPromoted: data.isPromoted === true,
-                promotedUntil: data.promotedUntil || null,
-                promotedAt: data.promotedAt || null,
-              };
-            })
-            .filter((product) => {
-              const status = String(product.status || "active").toLowerCase();
-              return !["deleted", "inactive", "archived"].includes(status);
-            });
-
-          setProducts(loadedProducts);
-          setProductsLoading(false);
-          setProductsError("");
-        } catch (error) {
-          console.error("Error processing products:", error);
-          setProducts([]);
-          setProductsLoading(false);
-          setProductsError(
-            "We couldn't process the products right now. Please try again."
+      let q;
+      try {
+        if (isLoadMore && lastDoc) {
+          q = query(
+            collection(db, "products"),
+            orderBy("createdAt", "desc"),
+            startAfter(lastDoc),
+            limit(PAGE_SIZE)
+          );
+        } else {
+          q = query(
+            collection(db, "products"),
+            orderBy("createdAt", "desc"),
+            limit(PAGE_SIZE)
           );
         }
-      },
-      (error) => {
-        console.error("Error loading products from Firestore:", error);
-        setProducts([]);
-        setProductsLoading(false);
-        setProductsError(
-          "We couldn't load products right now. Please check your internet connection and Firebase rules."
+      } catch {
+        q = query(collection(db, "products"), limit(PAGE_SIZE));
+      }
+
+      let snapshot;
+      try {
+        snapshot = await getDocs(q);
+      } catch (err) {
+        // Missing composite index → plain limit
+        console.warn("Products query fallback:", err?.message);
+        snapshot = await getDocs(
+          query(collection(db, "products"), limit(PAGE_SIZE))
         );
       }
-    );
 
-    return () => unsubscribe();
+      const batch = snapshot.docs
+        .map(mapDoc)
+        .filter(isActiveProduct);
+
+      setLastDoc(
+        snapshot.docs.length > 0
+          ? snapshot.docs[snapshot.docs.length - 1]
+          : null
+      );
+      setHasMore(snapshot.docs.length >= PAGE_SIZE);
+
+      setProducts((prev) => (isLoadMore ? [...prev, ...batch] : batch));
+      setProductsError("");
+    } catch (error) {
+      console.error("Error loading products:", error);
+      setProductsError(
+        "We couldn't load products right now. Please check your connection."
+      );
+      if (!isLoadMore) setProducts([]);
+    } finally {
+      setProductsLoading(false);
+      setLoadingMore(false);
+    }
+  }, [lastDoc]);
+
+  useEffect(() => {
+    setLastDoc(null);
+    setHasMore(true);
+    loadProducts(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const highestProductPrice = useMemo(() => {
-    if (!products.length) {
-      return 1000000;
-    }
-
+    if (!products.length) return 1000000;
     const highest = Math.max(
       ...products.map((product) => getNumber(product.price))
     );
-
     return Math.max(1000000, Math.ceil(highest / 100000) * 100000);
   }, [products]);
 
@@ -283,25 +288,15 @@ function BrowseProducts({
   const handleSearchChange = (event) => {
     const value = event.target.value;
     const params = new URLSearchParams(searchParams);
-
-    if (!value.trim()) {
-      params.delete("search");
-    } else {
-      params.set("search", value);
-    }
-
+    if (!value.trim()) params.delete("search");
+    else params.set("search", value);
     setSearchParams(params);
   };
 
   const handleCategoryChange = (category) => {
     const params = new URLSearchParams(searchParams);
-
-    if (category === "All") {
-      params.delete("category");
-    } else {
-      params.set("category", category);
-    }
-
+    if (category === "All") params.delete("category");
+    else params.set("category", category);
     setSearchParams(params);
   };
 
@@ -342,26 +337,20 @@ function BrowseProducts({
   filteredProducts = [...filteredProducts].sort((a, b) => {
     const aBoosted = isCurrentlyBoosted(a);
     const bBoosted = isCurrentlyBoosted(b);
-
     if (aBoosted && !bBoosted) return -1;
     if (!aBoosted && bBoosted) return 1;
-
     if (aBoosted && bBoosted) {
       return getPromotedAtMs(b) - getPromotedAtMs(a);
     }
-
     if (sortBy === "Lowest Price") {
       return getNumber(a.price) - getNumber(b.price);
     }
-
     if (sortBy === "Highest Price") {
       return getNumber(b.price) - getNumber(a.price);
     }
-
     if (sortBy === "Top Rated") {
       return getNumber(b.rating) - getNumber(a.rating);
     }
-
     const aTime = getNumber(a._createdAt) || getNumber(a._updatedAt);
     const bTime = getNumber(b._createdAt) || getNumber(b._updatedAt);
     return bTime - aTime;
@@ -396,9 +385,10 @@ function BrowseProducts({
           <div className="bg-green-50 border border-green-100 rounded-xl px-4 py-3">
             <p className="text-sm text-green-700">
               Search results for{" "}
-              <span className="font-semibold">"{search}"</span> —{" "}
+              <span className="font-semibold">&quot;{search}&quot;</span> —{" "}
               {filteredProducts.length} product
-              {filteredProducts.length !== 1 ? "s" : ""}
+              {filteredProducts.length !== 1 ? "s" : ""}{" "}
+              (loaded)
             </p>
           </div>
         )}
@@ -407,11 +397,9 @@ function BrowseProducts({
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-bold text-gray-800">Categories</h2>
             <span className="text-sm text-gray-500">
-              {products.length}{" "}
-              {products.length === 1 ? "product" : "products"}
+              {products.length} loaded
             </span>
           </div>
-
           <div className="flex gap-2 sm:gap-3 overflow-x-auto pb-2">
             {categories.map((category) => (
               <button
@@ -440,7 +428,7 @@ function BrowseProducts({
                 : selectedCategory}
             </h2>
             <p className="text-sm text-gray-500">
-              Showing {filteredProducts.length} of {products.length} products
+              Showing {filteredProducts.length} of {products.length} loaded
             </p>
           </div>
 
@@ -459,7 +447,6 @@ function BrowseProducts({
                   }`}
                 />
               </button>
-
               {sortOpen && (
                 <>
                   <button
@@ -491,7 +478,6 @@ function BrowseProducts({
                 </>
               )}
             </div>
-
             <button
               type="button"
               onClick={() => setFilterOpen(true)}
@@ -517,7 +503,10 @@ function BrowseProducts({
             <p className="text-sm text-gray-500 mt-2">{productsError}</p>
             <button
               type="button"
-              onClick={() => window.location.reload()}
+              onClick={() => {
+                setLastDoc(null);
+                loadProducts(false);
+              }}
               className="mt-5 bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-xl text-sm font-medium"
             >
               Try Again
@@ -528,17 +517,39 @@ function BrowseProducts({
         {!productsLoading &&
           !productsError &&
           filteredProducts.length > 0 && (
-            <section className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-5">
-              {filteredProducts.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  addToCart={addToCart}
-                  wishlist={wishlist}
-                  toggleWishlist={toggleWishlist}
-                />
-              ))}
-            </section>
+            <>
+              <section className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-5">
+                {filteredProducts.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    addToCart={addToCart}
+                    wishlist={wishlist}
+                    toggleWishlist={toggleWishlist}
+                  />
+                ))}
+              </section>
+
+              {hasMore && (
+                <div className="flex justify-center pt-2">
+                  <button
+                    type="button"
+                    disabled={loadingMore}
+                    onClick={() => loadProducts(true)}
+                    className="h-11 px-6 rounded-xl bg-[#008236] hover:bg-[#006f2e] text-white text-sm font-semibold disabled:opacity-60 flex items-center gap-2"
+                  >
+                    {loadingMore ? (
+                      <>
+                        <FiRefreshCw className="animate-spin" size={16} />
+                        Loading...
+                      </>
+                    ) : (
+                      "Load more products"
+                    )}
+                  </button>
+                </div>
+              )}
+            </>
           )}
 
         {!productsLoading &&
@@ -553,7 +564,7 @@ function BrowseProducts({
               </h3>
               <p className="text-gray-500 text-sm mt-2">
                 {search
-                  ? `We couldn't find any products matching "${search}".`
+                  ? `We couldn't find any products matching "${search}" in loaded results. Try Load more or clear filters.`
                   : "Try changing your search or filters."}
               </p>
               <button

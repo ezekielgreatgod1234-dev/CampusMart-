@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   collection,
-  onSnapshot,
-  query,
+  getDocs,
   limit,
+  orderBy,
+  query,
 } from "firebase/firestore";
 
 import { db } from "../../context/firebase";
@@ -11,19 +13,12 @@ import ProductCard from "./ProductCard";
 
 function isCurrentlyBoosted(product) {
   if (product?.isPromoted !== true) return false;
-
   const until = product.promotedUntil;
   if (!until) return false;
-
   let untilMs = 0;
-  if (typeof until.toMillis === "function") {
-    untilMs = until.toMillis();
-  } else if (until.seconds != null) {
-    untilMs = Number(until.seconds) * 1000;
-  } else {
-    untilMs = new Date(until).getTime() || 0;
-  }
-
+  if (typeof until.toMillis === "function") untilMs = until.toMillis();
+  else if (until.seconds != null) untilMs = Number(until.seconds) * 1000;
+  else untilMs = new Date(until).getTime() || 0;
   return untilMs > Date.now();
 }
 
@@ -48,21 +43,37 @@ function RecommendedProducts({
   wishlist = [],
   toggleWishlist,
 }) {
+  const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    // Load more than we show so boosted items are not missed by limit alone
-    const productsQuery = query(collection(db, "products"), limit(80));
+    let cancelled = false;
 
-    const unsubscribe = onSnapshot(
-      productsQuery,
-      (snapshot) => {
+    // FREE-TIER: one-shot read, small batch (not live listener on full collection)
+    const load = async () => {
+      try {
+        let snapshot;
+        try {
+          snapshot = await getDocs(
+            query(
+              collection(db, "products"),
+              orderBy("createdAt", "desc"),
+              limit(24)
+            )
+          );
+        } catch {
+          snapshot = await getDocs(
+            query(collection(db, "products"), limit(24))
+          );
+        }
+
+        if (cancelled) return;
+
         const sellerProducts = snapshot.docs
           .map((productDoc) => {
             const data = productDoc.data() || {};
-
             return {
               id: productDoc.id,
               name: data.name || "Unnamed Product",
@@ -77,7 +88,6 @@ function RecommendedProducts({
               sellerEmail: data.sellerEmail || "",
               createdAt: data.createdAt || null,
               updatedAt: data.updatedAt || null,
-              // promotion fields
               isPromoted: data.isPromoted === true,
               promotedUntil: data.promotedUntil || null,
               promotedAt: data.promotedAt || null,
@@ -95,30 +105,29 @@ function RecommendedProducts({
           .sort((a, b) => {
             const aBoosted = isCurrentlyBoosted(a);
             const bBoosted = isCurrentlyBoosted(b);
-
             if (aBoosted && !bBoosted) return -1;
             if (!aBoosted && bBoosted) return 1;
-
             if (aBoosted && bBoosted) {
               return getPromotedAtMs(b) - getPromotedAtMs(a);
             }
-
             return getCreatedAtMs(b) - getCreatedAtMs(a);
           })
-          .slice(0, 20);
+          .slice(0, 12);
 
         setProducts(sellerProducts);
-        setLoading(false);
         setError("");
-      },
-      (firebaseError) => {
+      } catch (firebaseError) {
         console.error("Error loading recommended products:", firebaseError);
-        setError("Unable to load recommended products.");
-        setLoading(false);
+        if (!cancelled) setError("Unable to load recommended products.");
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-    );
+    };
 
-    return () => unsubscribe();
+    load();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
@@ -127,7 +136,11 @@ function RecommendedProducts({
         <h2 className="text-xl font-bold text-gray-800">
           Recommended Products
         </h2>
-        <button type="button" className="text-green-600 hover:underline font-medium">
+        <button
+          type="button"
+          onClick={() => navigate("/browse-products")}
+          className="text-green-600 hover:underline font-medium"
+        >
           View All
         </button>
       </div>

@@ -362,6 +362,8 @@ function SellerChat({
   // LOAD BUYER PROFILE
   // =====================================================
 
+  // FREE-TIER: one publicProfiles read only (users/{uid} is private to owner).
+  // Prefer participantNames / participantImages already on the conversation.
   useEffect(() => {
     if (!otherParticipantId) {
       setParticipantProfile(null);
@@ -369,126 +371,76 @@ function SellerChat({
       return undefined;
     }
 
+    const fromConversationName =
+      liveConversation?.participantNames?.[otherParticipantId] ||
+      fallbackConversation?.buyerName ||
+      fallbackConversation?.name ||
+      null;
+
+    const fromConversationImage =
+      liveConversation?.participantImages?.[otherParticipantId] ||
+      fallbackConversation?.profileImage ||
+      fallbackConversation?.photoURL ||
+      null;
+
+    // Already have both → skip network
+    if (fromConversationName && fromConversationImage) {
+      setParticipantProfile({
+        fullName: fromConversationName,
+        profileImage: fromConversationImage,
+        uid: otherParticipantId,
+      });
+      setParticipantProfileImage(fromConversationImage);
+      return undefined;
+    }
+
     let cancelled = false;
 
     const loadParticipantProfile = async () => {
       try {
-        const userRef = doc(
+        const publicRef = doc(
           db,
-          "users",
+          "publicProfiles",
           String(otherParticipantId)
         );
+        const snap = await getDoc(publicRef);
+        if (cancelled) return;
 
-        const userSnapshot =
-          await getDoc(userRef);
-
-        let userData = {};
-
-        if (userSnapshot.exists()) {
-          userData =
-            userSnapshot.data() || {};
-        }
-
-        let customerData = {};
-
-        const possibleCustomerDocuments = [
-          "profile",
-          "personalInfo",
-          "customer",
-          "data",
-        ];
-
-        for (
-          const documentId of possibleCustomerDocuments
-        ) {
-          try {
-            const customerRef = doc(
-              db,
-              "users",
-              String(otherParticipantId),
-              "customerData",
-              documentId
-            );
-
-            const customerSnapshot =
-              await getDoc(customerRef);
-
-            if (
-              customerSnapshot.exists()
-            ) {
-              customerData = {
-                ...customerData,
-                ...customerSnapshot.data(),
-              };
-            }
-          } catch {
-            // Ignore inaccessible fallback documents.
-          }
-        }
-
-        if (cancelled) {
-          return;
-        }
-
-        const mergedProfile = {
-          ...customerData,
-          ...userData,
-        };
-
+        const data = snap.exists() ? snap.data() || {} : {};
         const fullName =
-          mergedProfile?.fullName ||
-          mergedProfile?.displayName ||
-          mergedProfile?.name ||
-          [
-            mergedProfile?.firstName,
-            mergedProfile?.lastName,
-          ]
-            .filter(Boolean)
-            .join(" ") ||
-          liveConversation?.participantNames?.[
-            otherParticipantId
-          ] ||
-          fallbackConversation?.buyerName ||
-          fallbackConversation?.name ||
-          fallbackConversation?.participantName ||
+          data.fullName ||
+          data.displayName ||
+          data.name ||
+          fromConversationName ||
           "Buyer";
-
         const profileImage =
-          mergedProfile?.profileImage ||
-          mergedProfile?.photoURL ||
-          mergedProfile?.profilePicture ||
-          mergedProfile?.avatar ||
-          mergedProfile?.imageUrl ||
-          mergedProfile?.image ||
-          mergedProfile?.profilePhoto ||
-          mergedProfile?.picture ||
+          data.profileImage ||
+          data.photoURL ||
+          data.avatar ||
+          fromConversationImage ||
           null;
 
         setParticipantProfile({
-          ...mergedProfile,
+          ...data,
           fullName,
           profileImage,
           uid: otherParticipantId,
         });
-
-        setParticipantProfileImage(
-          profileImage
-        );
+        setParticipantProfileImage(profileImage);
       } catch (error) {
-        console.warn(
-          "Could not load participant profile:",
-          error
-        );
-
+        console.warn("Could not load participant profile:", error);
         if (!cancelled) {
-          setParticipantProfile(null);
-          setParticipantProfileImage(null);
+          setParticipantProfile(
+            fromConversationName
+              ? { fullName: fromConversationName, uid: otherParticipantId }
+              : null
+          );
+          setParticipantProfileImage(fromConversationImage);
         }
       }
     };
 
     loadParticipantProfile();
-
     return () => {
       cancelled = true;
     };

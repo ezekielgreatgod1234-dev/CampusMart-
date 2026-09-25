@@ -54,9 +54,10 @@ function HeroBanner() {
             text-white
             leading-tight
           ">
-            Get up to
+            Your Campus Marketplace 
+
             <br />
-            <span>30% OFF</span>
+            <span>Awaits</span>
           </h1>
 
 
@@ -67,7 +68,7 @@ function HeroBanner() {
             md:text-base
             text-green-100
           ">
-            On electronics, fashion and more
+           Shop products, discover gigs, and connect with trusted campus sellers.
           </p>
 
 

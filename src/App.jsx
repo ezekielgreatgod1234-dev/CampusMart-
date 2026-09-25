@@ -25,6 +25,8 @@ import {
   increment,
   runTransaction,
   Timestamp,
+  limit,
+  orderBy,
 } from "firebase/firestore";
 
 import { db } from "./context/firebase";
@@ -104,7 +106,7 @@ const emptyProfile = {
   role: "",
 };
 
-const CUSTOMER_DATA_SAVE_DELAY = 800;
+const CUSTOMER_DATA_SAVE_DELAY = 1500;
 
 function InstalledAppSplash() {
   const navigate = useNavigate();
@@ -254,19 +256,34 @@ function getProfileName(profile, firebaseUser = null) {
   );
 }
 
+// In-memory cache — avoid re-reading the same public profile
+// repeatedly in one session (big free-tier saver).
+const publicProfileCache = new Map();
+const PUBLIC_PROFILE_CACHE_TTL_MS = 5 * 60 * 1000;
+
 async function getPublicProfile(userId) {
   if (!userId) return null;
+  const key = String(userId);
+  const cached = publicProfileCache.get(key);
+  if (cached && Date.now() - cached.at < PUBLIC_PROFILE_CACHE_TTL_MS) {
+    return cached.value;
+  }
 
   try {
-    const publicProfileRef = doc(db, "publicProfiles", String(userId));
+    const publicProfileRef = doc(db, "publicProfiles", key);
     const snapshot = await getDoc(publicProfileRef);
 
-    if (!snapshot.exists()) return null;
+    if (!snapshot.exists()) {
+      publicProfileCache.set(key, { at: Date.now(), value: null });
+      return null;
+    }
 
-    return {
-      uid: String(userId),
+    const value = {
+      uid: key,
       ...snapshot.data(),
     };
+    publicProfileCache.set(key, { at: Date.now(), value });
+    return value;
   } catch (error) {
     console.error("Error loading public profile:", error);
     return null;
@@ -294,20 +311,52 @@ async function syncOwnPublicProfile(firebaseUser, profile) {
     "CampusMart User";
 
   const profileImage = getProfileImage(profile, firebaseUser);
+  const photoURL =
+    profile?.photoURL || profileImage || firebaseUser.photoURL || null;
+
+  // Preserve store/seller flags if already set (Create Store)
+  const hasStore = profile?.hasStore === true;
+  const isSeller = profile?.isSeller === true;
 
   try {
+    // Read once; skip write if nothing meaningful changed (saves free-tier writes)
+    const existing = await getDoc(publicProfileRef);
+    const prev = existing.exists() ? existing.data() || {} : {};
+    const same =
+      String(prev.fullName || "") === String(fullName || "") &&
+      String(prev.displayName || "") === String(displayName || "") &&
+      String(prev.profileImage || "") === String(profileImage || "") &&
+      String(prev.photoURL || "") === String(photoURL || "") &&
+      Boolean(prev.hasStore) === hasStore &&
+      Boolean(prev.isSeller) === isSeller;
+
+    if (same) return;
+
     await setDoc(
       publicProfileRef,
       {
         fullName,
         displayName,
         profileImage: profileImage || null,
-        photoURL:
-          profile?.photoURL || profileImage || firebaseUser.photoURL || null,
+        photoURL: photoURL || null,
+        ...(hasStore ? { hasStore: true } : {}),
+        ...(isSeller ? { isSeller: true } : {}),
         updatedAt: serverTimestamp(),
       },
       { merge: true }
     );
+    publicProfileCache.set(userId, {
+      at: Date.now(),
+      value: {
+        uid: userId,
+        fullName,
+        displayName,
+        profileImage: profileImage || null,
+        photoURL: photoURL || null,
+        hasStore,
+        isSeller,
+      },
+    });
   } catch (error) {
     console.error("Error syncing public profile:", error);
   }
@@ -544,58 +593,39 @@ async function formatConversation(conversationDoc, currentUserId) {
   const otherParticipantId =
     participants.find((uid) => String(uid) !== String(currentUserId)) || null;
 
-  let publicProfile = null;
-  if (otherParticipantId) {
-    publicProfile = await getPublicProfile(otherParticipantId);
-  }
-
-  const publicProfileName =
-    publicProfile?.fullName || publicProfile?.displayName || "";
+  // FREE-TIER: prefer data already on the conversation doc.
+  // Only hit publicProfiles when name/image is missing (cached).
   const storedParticipantName = participantNames[otherParticipantId] || "";
-  const otherName =
-    publicProfileName || storedParticipantName || "CampusMart User";
-
-  const publicProfileImage =
-    publicProfile?.profileImage ||
-    publicProfile?.photoURL ||
-    publicProfile?.image ||
-    publicProfile?.avatar ||
-    null;
-
   const storedParticipantImage =
     participantImages[otherParticipantId] ||
     data.profileImages?.[otherParticipantId] ||
     data.participantPhotos?.[otherParticipantId] ||
     null;
 
-  const otherParticipantImage =
-    publicProfileImage || storedParticipantImage || null;
+  let otherName = storedParticipantName || "CampusMart User";
+  let otherParticipantImage = storedParticipantImage || null;
 
-  if (
+  const needsProfileLookup =
     otherParticipantId &&
-    publicProfile &&
-    (String(participantImages[otherParticipantId] || "") !==
-      String(otherParticipantImage || "") ||
-      String(participantNames[otherParticipantId] || "") !== String(otherName))
-  ) {
-    try {
-      await setDoc(
-        conversationDoc.ref,
-        {
-          participantNames: {
-            ...participantNames,
-            [otherParticipantId]: otherName,
-          },
-          participantImages: {
-            ...participantImages,
-            [otherParticipantId]: otherParticipantImage,
-          },
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-    } catch (error) {
-      console.error("Could not repair conversation profile:", error);
+    (
+      !storedParticipantName ||
+      storedParticipantName === "CampusMart User" ||
+      !storedParticipantImage
+    );
+
+  if (needsProfileLookup) {
+    const publicProfile = await getPublicProfile(otherParticipantId);
+    if (publicProfile) {
+      otherName =
+        publicProfile.fullName ||
+        publicProfile.displayName ||
+        otherName;
+      otherParticipantImage =
+        publicProfile.profileImage ||
+        publicProfile.photoURL ||
+        publicProfile.image ||
+        publicProfile.avatar ||
+        otherParticipantImage;
     }
   }
 
@@ -834,23 +864,37 @@ function App() {
     return doc(db, "users", firebaseUser.uid, "customerData", "main");
   };
 
+  // Last successfully written snapshot — skip identical writes
+  const lastCustomerDataJson = useRef("");
+
   const writeCustomerData = async ({ nextCart, nextWishlist, nextOrders }) => {
     if (!firebaseUser) return false;
 
     const customerDataRef = getCustomerDataRef();
     if (!customerDataRef) return false;
 
+    // Do NOT mirror full order history into customerData (orders live in /orders).
+    // Cart + wishlist only — fewer bytes and fewer writes.
+    const payload = {
+      cart: Array.isArray(nextCart) ? nextCart : [],
+      wishlist: Array.isArray(nextWishlist) ? nextWishlist : [],
+    };
+
+    const serialized = JSON.stringify(payload);
+    if (serialized === lastCustomerDataJson.current) {
+      return true; // unchanged — no Firebase write
+    }
+
     try {
       await setDoc(
         customerDataRef,
         {
-          cart: Array.isArray(nextCart) ? nextCart : [],
-          wishlist: Array.isArray(nextWishlist) ? nextWishlist : [],
-          orders: Array.isArray(nextOrders) ? nextOrders : [],
+          ...payload,
           updatedAt: serverTimestamp(),
         },
         { merge: true }
       );
+      lastCustomerDataJson.current = serialized;
       return true;
     } catch (error) {
       console.error("Error saving customer data:", error);
@@ -907,27 +951,16 @@ function App() {
         if (cancelled) return;
 
         if (!snapshot.exists()) {
+          // FREE-TIER: do not create empty docs until the user actually carts/wishlists
           setCart([]);
           setWishlist([]);
-          setOrders([]);
-          await setDoc(
-            customerDataRef,
-            {
-              cart: [],
-              wishlist: [],
-              orders: [],
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp(),
-            },
-            { merge: true }
-          );
           return;
         }
 
         const data = snapshot.data();
         setCart(Array.isArray(data.cart) ? data.cart : []);
         setWishlist(Array.isArray(data.wishlist) ? data.wishlist : []);
-        setOrders(Array.isArray(data.orders) ? data.orders : []);
+        // Orders come from /orders listener — not customerData (avoids duplicate storage)
       } catch (error) {
         console.error("Error loading customer data:", error);
         if (!cancelled) {
@@ -951,9 +984,11 @@ function App() {
     }
 
     const buyerUid = String(firebaseUser.uid);
+    // FREE-TIER: only recent buyer orders (not entire history)
     const ordersQuery = query(
       collection(db, "orders"),
-      where("buyerId", "==", buyerUid)
+      where("buyerId", "==", buyerUid),
+      limit(40)
     );
 
     const unsubscribe = onSnapshot(
@@ -1027,78 +1062,10 @@ function App() {
     }
   };
 
-  useEffect(() => {
-    if (!firebaseUser || !profileResolved) return;
+  // FREE-TIER: Do NOT fan-out profile image updates to every conversation.
+  // Names/photos are resolved from publicProfiles + cache when rendering chat.
+  // Updating every conversation doc on each profile change was a major write cost.
 
-    const currentUserId = String(firebaseUser.uid);
-    const currentUserImage = getCurrentUserChatImage();
-    const currentUserName = getProfileName(profile, firebaseUser);
-    let cancelled = false;
-
-    const syncProfileImage = async () => {
-      try {
-        const conversationsQuery = query(
-          collection(db, "conversations"),
-          where("participants", "array-contains", currentUserId)
-        );
-        const snapshot = await getDocs(conversationsQuery);
-        if (cancelled || snapshot.empty) return;
-
-        const updates = [];
-
-        snapshot.docs.forEach((conversationDoc) => {
-          const data = conversationDoc.data();
-          const existingImages = data.participantImages || {};
-          const existingNames = data.participantNames || {};
-          const existingImage = existingImages[currentUserId] || null;
-          const existingName = existingNames[currentUserId] || "";
-
-          if (
-            String(existingImage || "") !== String(currentUserImage || "") ||
-            String(existingName || "") !== String(currentUserName || "")
-          ) {
-            updates.push(
-              setDoc(
-                conversationDoc.ref,
-                {
-                  participantImages: {
-                    ...existingImages,
-                    [currentUserId]: currentUserImage,
-                  },
-                  participantNames: {
-                    ...existingNames,
-                    [currentUserId]: currentUserName,
-                  },
-                  updatedAt: serverTimestamp(),
-                },
-                { merge: true }
-              )
-            );
-          }
-        });
-
-        if (updates.length > 0) await Promise.all(updates);
-      } catch (error) {
-        if (!cancelled) {
-          console.error("Error synchronizing chat profile:", error);
-        }
-      }
-    };
-
-    syncProfileImage();
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    firebaseUser?.uid,
-    profileResolved,
-    profile?.profileImage,
-    profile?.photoURL,
-    profile?.image,
-    profile?.avatar,
-    profile?.fullName,
-    profile?.displayName,
-  ]);
 
   const addToCart = (product, quantity = 1) => {
     if (!product || !firebaseUser) return;
@@ -1472,6 +1439,9 @@ function App() {
       }
     };
 
+    // FREE-TIER: live listener ONLY on messages pages.
+    // Elsewhere, do a light one-shot read for unread badge only
+    // (no per-conversation publicProfiles fetches).
     if (isMessagesPage) {
       const unsubscribe = onSnapshot(
         conversationsQuery,
@@ -1486,24 +1456,41 @@ function App() {
 
     let cancelled = false;
 
-    const loadConversationsOnce = async () => {
+    const loadUnreadOnly = async () => {
       try {
-        const snapshot = await getDocs(conversationsQuery);
-        if (cancelled) return;
-        const conversationList = await Promise.all(
-          snapshot.docs.map((conversationDoc) =>
-            formatConversation(conversationDoc, firebaseUser.uid)
-          )
+        // Cap conversations scanned for badge (needs composite index? limit+where OK)
+        const lightQuery = query(
+          collection(db, "conversations"),
+          where("participants", "array-contains", firebaseUser.uid),
+          limit(30)
         );
+        const snapshot = await getDocs(lightQuery);
         if (cancelled) return;
-        setMessages(sortConversations(conversationList));
+
+        const uid = String(firebaseUser.uid);
+        const light = snapshot.docs.map((d) => {
+          const data = d.data() || {};
+          return {
+            id: d.id,
+            conversationId: d.id,
+            unread: Number(data.unreadCounts?.[uid] || 0),
+            lastMessage: data.lastMessage || "",
+            name:
+              data.participantNames?.[
+                (data.participants || []).find((p) => String(p) !== uid)
+              ] || "Chat",
+            conversation: [],
+            allMessages: [],
+          };
+        });
+        setMessages(light);
       } catch (error) {
-        console.error("Error loading conversations:", error);
+        console.error("Error loading unread badges:", error);
         if (!cancelled) setMessages([]);
       }
     };
 
-    loadConversationsOnce();
+    loadUnreadOnly();
     return () => {
       cancelled = true;
     };
