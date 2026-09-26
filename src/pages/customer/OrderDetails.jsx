@@ -22,6 +22,7 @@ import {
   FiAlertTriangle,
   FiShield,
   FiClock,
+  FiFileText,
 } from "react-icons/fi";
 
 function OrderDetails({
@@ -163,6 +164,9 @@ function OrderDetails({
 
   const canConfirmDelivery = showConfirmSection && isDelivered;
 
+  // Show View Receipt for any non-cancelled order
+  const showViewReceipt = !isCancelled;
+
   const statusStyles = {
     cancelled: "bg-red-50 text-red-600 border border-red-100",
     canceled: "bg-red-50 text-red-600 border border-red-100",
@@ -289,14 +293,32 @@ function OrderDetails({
                 </p>
               </div>
 
-              <span
-                className={`
-                  w-fit px-4 py-2 rounded-full text-sm font-semibold
-                  ${statusClass}
-                `}
-              >
-                {displayStatusLabel()}
-              </span>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                <span
+                  className={`
+                    w-fit px-4 py-2 rounded-full text-sm font-semibold
+                    ${statusClass}
+                  `}
+                >
+                  {displayStatusLabel()}
+                </span>
+
+                {showViewReceipt && (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/receipt/${order.id}`)}
+                    className="
+                      w-fit px-4 py-2 rounded-full text-sm font-semibold
+                      bg-white border-2 border-[#008236] text-[#008236]
+                      hover:bg-green-50 active:bg-green-100
+                      transition flex items-center gap-2
+                    "
+                  >
+                    <FiFileText size={16} />
+                    View Receipt
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -498,6 +520,8 @@ function OrderDetails({
                   ? "Pay on Delivery"
                   : "Paystack / Card"}
               </p>
+
+             
             </section>
 
             <section className="bg-white rounded-2xl border border-gray-100 p-5">
@@ -551,43 +575,25 @@ function OrderDetails({
               </div>
             </section>
 
-            {canCancel && (
-              <section className="bg-white rounded-2xl border border-green-100 p-5">
-                <h2 className="font-bold text-gray-800">Cancel order</h2>
-                <p className="text-sm text-gray-500 mt-2 leading-6">
-                  Placed by mistake? You can cancel this order. The seller will
-                  no longer see it.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setShowCancelConfirm(true)}
-                  disabled={cancelling}
-                  className="
-                    mt-4 w-full min-h-[48px] h-12
-                    rounded-xl
-                    bg-[#008236] hover:bg-[#006f2e] active:bg-[#005f28]
-                    text-white font-semibold text-sm sm:text-base
-                    transition disabled:opacity-50
-                  "
-                >
-                  Cancel this order
-                </button>
-              </section>
-            )}
+           
           </div>
         </div>
 
         {!isCancelled && !isDelivered && !buyerAlreadyConfirmed && (
-          <div className="bg-green-50 border border-green-100 rounded-2xl p-5 flex items-center gap-4">
-            <FiCheckCircle className="text-green-600 shrink-0" size={25} />
-            <div>
-              <h3 className="font-semibold text-green-800">
-                Order placed successfully
-              </h3>
-              <p className="text-sm text-green-700 mt-1">
-                Your order has been received and is being processed.
-              </p>
+          <div className="bg-green-50 border border-green-100 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex items-center gap-4 flex-1">
+              <FiCheckCircle className="text-green-600 shrink-0" size={25} />
+              <div>
+                <h3 className="font-semibold text-green-800">
+                  Order placed successfully
+                </h3>
+                <p className="text-sm text-green-700 mt-1">
+                  Your order has been received and is being processed.
+                </p>
+              </div>
             </div>
+
+           
           </div>
         )}
       </div>
