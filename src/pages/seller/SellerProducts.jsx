@@ -150,7 +150,6 @@ function SellerProducts({ unreadMessages = 0, profile = {} }) {
 
   const [showProductModal, setShowProductModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
-  // product | service
   const [listingType, setListingType] = useState("product");
 
   const [productForm, setProductForm] = useState({
@@ -202,7 +201,6 @@ function SellerProducts({ unreadMessages = 0, profile = {} }) {
     firebaseUser?.photoURL ||
     null;
 
-  // Orders → sales + badge
   useEffect(() => {
     if (!firebaseUser?.uid) {
       setSoldByProductId({});
@@ -232,7 +230,6 @@ function SellerProducts({ unreadMessages = 0, profile = {} }) {
     return () => unsub();
   }, [firebaseUser?.uid]);
 
-  // Own products
   useEffect(() => {
     if (!firebaseUser?.uid) {
       setProducts([]);
@@ -278,7 +275,6 @@ function SellerProducts({ unreadMessages = 0, profile = {} }) {
     return () => unsub();
   }, [firebaseUser?.uid, firebaseUser?.displayName]);
 
-  // Own services
   useEffect(() => {
     if (!firebaseUser?.uid) {
       setServices([]);
@@ -317,7 +313,6 @@ function SellerProducts({ unreadMessages = 0, profile = {} }) {
     return () => unsub();
   }, [firebaseUser?.uid, sellerFullName]);
 
-  // Other sellers' products
   useEffect(() => {
     if (!firebaseUser?.uid || productTab !== "others") return undefined;
     setOtherLoading(true);
@@ -358,7 +353,6 @@ function SellerProducts({ unreadMessages = 0, profile = {} }) {
     return () => unsub();
   }, [firebaseUser?.uid, productTab]);
 
-  // Other sellers' services
   useEffect(() => {
     if (!firebaseUser?.uid || productTab !== "otherServices") return undefined;
     setOtherLoading(true);
@@ -548,7 +542,7 @@ function SellerProducts({ unreadMessages = 0, profile = {} }) {
       );
       return;
     }
-    if (!productForm.category || productForm.category === "Select Category") {
+    if (!productForm.category) {
       setFormError("Please select a category.");
       return;
     }
@@ -598,7 +592,6 @@ function SellerProducts({ unreadMessages = 0, profile = {} }) {
         return;
       }
 
-      // Never write undefined fields
       const docData = {
         ...base,
         views: 0,
@@ -874,11 +867,12 @@ function SellerProducts({ unreadMessages = 0, profile = {} }) {
             </div>
           </div>
 
-          {/* Tabs */}
+          {/* Tabs: My products | My services | Other products | Other services */}
           <div className="flex flex-wrap gap-2 p-1 bg-white rounded-2xl border border-gray-100 w-fit mb-5">
             {[
               { id: "mine", label: `My products (${products.length})` },
               { id: "services", label: `My services (${services.length})` },
+              { id: "others", label: "Other products" },
               { id: "otherServices", label: "Other services" },
             ].map((t) => (
               <button
@@ -950,7 +944,7 @@ function SellerProducts({ unreadMessages = 0, profile = {} }) {
                   : productTab === "otherServices"
                     ? "No other services found."
                     : productTab === "others"
-                      ? "No marketplace products."
+                      ? "No other products found."
                       : "No products yet. Add your first listing."}
               </p>
               {isOwnTab && (
@@ -1111,18 +1105,16 @@ function SellerProducts({ unreadMessages = 0, profile = {} }) {
             </div>
             <div>
               <p className="text-sm font-semibold text-gray-800">
-                Products & services are live.
+                Your listings sync automatically
               </p>
               <p className="text-xs text-gray-500 mt-1 leading-5">
-                Listings are saved under your seller account.
-                Buyers can browse services on CampusMart and chat you.
+                Products and services update in real time for buyers on CampusMart.
               </p>
             </div>
           </div>
         </main>
       </div>
 
-      {/* ADD / EDIT MODAL */}
       {showProductModal && (
         <div
           className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-[2px] flex items-center justify-center p-3 sm:p-5"
@@ -1359,7 +1351,6 @@ function SellerProducts({ unreadMessages = 0, profile = {} }) {
         </div>
       )}
 
-      {/* DELETE */}
       {deleteItem && (
         <div
           className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4"
