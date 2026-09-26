@@ -522,7 +522,7 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
     {
       label: "Gross Sales",
       value: loading ? "…" : formatNaira(grossSales),
-      sub: "Before 5% fee",
+      sub: "Amount sold",
       icon: FiTrendingUp,
       iconBg: "bg-purple-50",
       iconColor: "text-purple-600",

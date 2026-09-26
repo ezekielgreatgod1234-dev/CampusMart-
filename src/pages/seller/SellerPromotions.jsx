@@ -37,6 +37,7 @@ import {
   Timestamp,
   increment,
   writeBatch,
+  addDoc,
 } from "firebase/firestore";
 
 import { db } from "../../context/firebase";
@@ -357,6 +358,45 @@ function SellerPromotions({ unreadMessages = 0, profile = {} }) {
     await batch.commit();
   };
 
+  /** Record promotion fee for admin Platform Fees (balance payments only —
+   *  card payments are recorded server-side by the Paystack webhook). */
+  const recordPlatformPromotionFee = async ({
+    totalPaid,
+    paidVia,
+    productIds,
+    plan,
+  }) => {
+    await addDoc(collection(db, "platformFees"), {
+      type: "promotion",
+      source: "seller_promotion",
+      sellerId: firebaseUser.uid,
+      sellerName: sellerFullName,
+      platformFee: Number(totalPaid) || 0,
+      totalAmount: Number(totalPaid) || 0,
+      sellerAmount: 0,
+      productIds: productIds || [],
+      planId: plan?.id || null,
+      planLabel: plan?.label || null,
+      paidVia: paidVia || "Available balance",
+      paystackReference: null,
+      createdAt: serverTimestamp(),
+    });
+
+    // Also mirror into promotionPayments (used by backend withdrawal math)
+    await addDoc(collection(db, "promotionPayments"), {
+      sellerId: firebaseUser.uid,
+      productIds: productIds || [],
+      planId: plan?.id || null,
+      planDays: plan?.days || null,
+      totalAmount: Number(totalPaid) || 0,
+      paidVia: paidVia || "Available balance",
+      paystackReference: null,
+      productName: `Promote ${(productIds || []).length} product(s)`,
+      status: "paid",
+      createdAt: serverTimestamp(),
+    });
+  };
+
   const handlePromote = (e) => {
     e.preventDefault();
     setFormError("");
@@ -400,6 +440,12 @@ function SellerPromotions({ unreadMessages = 0, profile = {} }) {
         amountPerProduct: selectedPlan.price,
         totalPaid: totalAmount,
         paidVia: "Available balance",
+      });
+      await recordPlatformPromotionFee({
+        totalPaid: totalAmount,
+        paidVia: "Available balance",
+        productIds: selectedProductIds,
+        plan: selectedPlan,
       });
       const names = sellerProducts
         .filter((p) => selectedProductIds.includes(p.id))

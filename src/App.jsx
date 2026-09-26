@@ -93,6 +93,7 @@ import AnnouncementBanner from "./components/AnnouncementBanner";
 
 import AIAssistant from "./pages/admin/AIAssistant";
 import Receipt from "./pages/customer/Receipt";
+import ServiceDetails from "./pages/customer/ServiceDetails";
 
 const emptyProfile = {
   fullName: "",
@@ -215,9 +216,7 @@ function canAccessSellerArea(profile) {
   const role = getUserRole(profile);
 
   return (
-    role === "seller" ||
-    profile.isSeller === true ||
-    profile.hasStore === true
+    role === "seller" || profile.isSeller === true || profile.hasStore === true
   );
 }
 
@@ -343,7 +342,7 @@ async function syncOwnPublicProfile(firebaseUser, profile) {
         ...(isSeller ? { isSeller: true } : {}),
         updatedAt: serverTimestamp(),
       },
-      { merge: true }
+      { merge: true },
     );
     publicProfileCache.set(userId, {
       at: Date.now(),
@@ -571,7 +570,7 @@ function getMessageTimestamp(message) {
         timeDate.getHours(),
         timeDate.getMinutes(),
         timeDate.getSeconds(),
-        timeDate.getMilliseconds()
+        timeDate.getMilliseconds(),
       );
       const ms = result.getTime();
       if (Number.isFinite(ms) && ms > 0) return ms;
@@ -580,7 +579,6 @@ function getMessageTimestamp(message) {
 
   return 0;
 }
-
 
 async function formatConversation(conversationDoc, currentUserId) {
   const data = conversationDoc.data();
@@ -607,19 +605,15 @@ async function formatConversation(conversationDoc, currentUserId) {
 
   const needsProfileLookup =
     otherParticipantId &&
-    (
-      !storedParticipantName ||
+    (!storedParticipantName ||
       storedParticipantName === "CampusMart User" ||
-      !storedParticipantImage
-    );
+      !storedParticipantImage);
 
   if (needsProfileLookup) {
     const publicProfile = await getPublicProfile(otherParticipantId);
     if (publicProfile) {
       otherName =
-        publicProfile.fullName ||
-        publicProfile.displayName ||
-        otherName;
+        publicProfile.fullName || publicProfile.displayName || otherName;
       otherParticipantImage =
         publicProfile.profileImage ||
         publicProfile.photoURL ||
@@ -892,7 +886,7 @@ function App() {
           ...payload,
           updatedAt: serverTimestamp(),
         },
-        { merge: true }
+        { merge: true },
       );
       lastCustomerDataJson.current = serialized;
       return true;
@@ -988,7 +982,7 @@ function App() {
     const ordersQuery = query(
       collection(db, "orders"),
       where("buyerId", "==", buyerUid),
-      limit(40)
+      limit(40),
     );
 
     const unsubscribe = onSnapshot(
@@ -1022,7 +1016,7 @@ function App() {
       (error) => {
         console.error("Buyer orders listener error:", error);
         setOrders([]);
-      }
+      },
     );
 
     return () => unsubscribe();
@@ -1054,7 +1048,7 @@ function App() {
           email: newProfile.email || firebaseUser.email || "",
           updatedAt: serverTimestamp(),
         },
-        { merge: true }
+        { merge: true },
       );
       await syncOwnPublicProfile(firebaseUser, newProfile);
     } catch (error) {
@@ -1065,7 +1059,6 @@ function App() {
   // FREE-TIER: Do NOT fan-out profile image updates to every conversation.
   // Names/photos are resolved from publicProfiles + cache when rendering chat.
   // Updating every conversation doc on each profile change was a major write cost.
-
 
   const addToCart = (product, quantity = 1) => {
     if (!product || !firebaseUser) return;
@@ -1080,7 +1073,7 @@ function App() {
               ...item,
               quantity: Number(item.quantity || 0) + Number(quantity || 0),
             }
-          : item
+          : item,
       );
     } else {
       nextCart = [...cart, { ...product, quantity: Number(quantity) || 1 }];
@@ -1098,7 +1091,7 @@ function App() {
     const nextCart = cart.map((item) =>
       item.id === productId
         ? { ...item, quantity: Number(item.quantity || 0) + 1 }
-        : item
+        : item,
     );
     setCart(nextCart);
     queueCustomerDataSave({
@@ -1115,7 +1108,7 @@ function App() {
             ...item,
             quantity: Math.max(1, Number(item.quantity || 1) - 1),
           }
-        : item
+        : item,
     );
     setCart(nextCart);
     queueCustomerDataSave({
@@ -1137,7 +1130,7 @@ function App() {
 
   const cartCount = cart.reduce(
     (total, item) => total + Number(item.quantity || 0),
-    0
+    0,
   );
 
   const toggleWishlist = (productId) => {
@@ -1165,7 +1158,7 @@ function App() {
     });
   };
 
-    // =======================================================
+  // =======================================================
   // COMMISSION — 100% to seller
   // =======================================================
 
@@ -1206,15 +1199,18 @@ function App() {
         const existingSnap = await getDocs(
           query(
             collection(db, "orders"),
-            where("paystackReference", "==", String(paystackReference))
-          )
+            where("paystackReference", "==", String(paystackReference)),
+          ),
         );
         if (!existingSnap.empty) {
           const first = existingSnap.docs[0];
           return { id: first.id, ...first.data() };
         }
       } catch (checkErr) {
-        console.warn("placeOrder: could not check existing reference", checkErr);
+        console.warn(
+          "placeOrder: could not check existing reference",
+          checkErr,
+        );
       }
     }
 
@@ -1242,11 +1238,11 @@ function App() {
         const sellerItems = bySeller[sellerId];
         const total = sellerItems.reduce(
           (sum, item) => sum + getItemLineTotal(item),
-          0
+          0,
         );
         const { platformFee, sellerAmount } = splitAmount(total);
         const orderNumber = `CM-${String(timestamp).slice(-6)}${String(
-          createdOrders.length + 1
+          createdOrders.length + 1,
         ).padStart(2, "0")}`;
 
         const orderPayload = {
@@ -1294,7 +1290,11 @@ function App() {
               updatedAt: serverTimestamp(),
             });
           } catch (salesErr) {
-            console.warn("Could not update product sales:", productId, salesErr);
+            console.warn(
+              "Could not update product sales:",
+              productId,
+              salesErr,
+            );
           }
         }
 
@@ -1352,7 +1352,7 @@ function App() {
 
     if (!snap.exists()) {
       const nextOrders = orders.map((o) =>
-        String(o.id) === String(orderId) ? { ...o, status: "cancelled" } : o
+        String(o.id) === String(orderId) ? { ...o, status: "cancelled" } : o,
       );
       setOrders(nextOrders);
       queueCustomerDataSave({
@@ -1397,7 +1397,7 @@ function App() {
     }
 
     const nextOrders = orders.map((o) =>
-      String(o.id) === String(orderId) ? { ...o, status: "cancelled" } : o
+      String(o.id) === String(orderId) ? { ...o, status: "cancelled" } : o,
     );
     setOrders(nextOrders);
     queueCustomerDataSave({
@@ -1422,15 +1422,15 @@ function App() {
 
     const conversationsQuery = query(
       collection(db, "conversations"),
-      where("participants", "array-contains", firebaseUser.uid)
+      where("participants", "array-contains", firebaseUser.uid),
     );
 
     const processSnapshot = async (snapshot) => {
       try {
         const conversationList = await Promise.all(
           snapshot.docs.map((conversationDoc) =>
-            formatConversation(conversationDoc, firebaseUser.uid)
-          )
+            formatConversation(conversationDoc, firebaseUser.uid),
+          ),
         );
         setMessages(sortConversations(conversationList));
       } catch (error) {
@@ -1449,7 +1449,7 @@ function App() {
         (error) => {
           console.error("Conversation listener error:", error);
           setMessages([]);
-        }
+        },
       );
       return () => unsubscribe();
     }
@@ -1462,7 +1462,7 @@ function App() {
         const lightQuery = query(
           collection(db, "conversations"),
           where("participants", "array-contains", firebaseUser.uid),
-          limit(30)
+          limit(30),
         );
         const snapshot = await getDocs(lightQuery);
         if (cancelled) return;
@@ -1498,7 +1498,7 @@ function App() {
 
   const unreadMessages = messages.reduce(
     (total, message) => total + Number(message.unread || 0),
-    0
+    0,
   );
 
   const markMessageAsRead = async (messageId) => {
@@ -1538,7 +1538,7 @@ function App() {
         }
 
         const receiverId = participants.find(
-          (uid) => String(uid) !== String(firebaseUser.uid)
+          (uid) => String(uid) !== String(firebaseUser.uid),
         );
         if (!receiverId) throw new Error("Receiver ID is missing.");
 
@@ -1760,7 +1760,7 @@ function App() {
             },
             updatedAt: serverTimestamp(),
           },
-          { merge: true }
+          { merge: true },
         );
         navigate(`/messages/${conversationId}`);
         return true;
@@ -1796,7 +1796,7 @@ function App() {
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         },
-        { merge: true }
+        { merge: true },
       );
 
       navigate(`/messages/${conversationId}`);
@@ -1826,16 +1826,12 @@ function App() {
 
   const isPublicPath = publicPaths.some(
     (path) =>
-      location.pathname === path ||
-      location.pathname.startsWith(`${path}/`)
+      location.pathname === path || location.pathname.startsWith(`${path}/`),
   );
 
   const showInternetRequired = !isOnline && location.pathname !== "/app-start";
 
-  if (
-    !isPublicPath &&
-    (profileLoading || (firebaseUser && !profileResolved))
-  ) {
+  if (!isPublicPath && (profileLoading || (firebaseUser && !profileResolved))) {
     return (
       <>
         {showInternetRequired && <InternetRequired />}
@@ -1876,10 +1872,7 @@ function App() {
           }
         />
 
-        <Route
-          path="/registration-success"
-          element={<RegistrationSuccess />}
-        />
+        <Route path="/registration-success" element={<RegistrationSuccess />} />
 
         <Route
           path="/forgot-password"
@@ -1897,7 +1890,10 @@ function App() {
           path="/dashboard"
           element={
             <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
                 <Dashboard
                   addToCart={addToCart}
                   cartCount={cartCount}
@@ -1917,7 +1913,10 @@ function App() {
           path="/browse-products"
           element={
             <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
                 <BrowseProducts
                   addToCart={addToCart}
                   cartCount={cartCount}
@@ -1934,7 +1933,10 @@ function App() {
           path="/products/:id"
           element={
             <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
                 <ProductDetails
                   addToCart={addToCart}
                   cartCount={cartCount}
@@ -1952,7 +1954,10 @@ function App() {
           path="/cart"
           element={
             <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
                 <Cart
                   cart={cart}
                   cartCount={cartCount}
@@ -1971,7 +1976,10 @@ function App() {
           path="/orders"
           element={
             <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
                 <Orders
                   orders={orders}
                   cartCount={cartCount}
@@ -1986,7 +1994,10 @@ function App() {
           path="/orders/:id"
           element={
             <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
                 <OrderDetails
                   orders={orders}
                   cartCount={cartCount}
@@ -2002,7 +2013,10 @@ function App() {
           path="/messages"
           element={
             <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
                 <Messages
                   cartCount={cartCount}
                   wishlist={wishlist}
@@ -2022,7 +2036,10 @@ function App() {
           path="/messages/:id"
           element={
             <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
                 <Chat
                   cartCount={cartCount}
                   wishlist={wishlist}
@@ -2042,7 +2059,10 @@ function App() {
           path="/checkout"
           element={
             <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
                 <Checkout
                   cart={cart}
                   cartCount={cartCount}
@@ -2058,7 +2078,10 @@ function App() {
           path="/order-success"
           element={
             <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
                 <OrderSuccess profile={profile} />
               </CustomerRoute>
             </ProtectedRoute>
@@ -2069,7 +2092,10 @@ function App() {
           path="/wishlist"
           element={
             <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
                 <Wishlist
                   wishlist={wishlist}
                   removeFromWishlist={removeFromWishlist}
@@ -2086,7 +2112,10 @@ function App() {
           path="/payment"
           element={
             <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
                 <Payment
                   cartCount={cartCount}
                   profile={profile}
@@ -2101,7 +2130,10 @@ function App() {
           path="/profile"
           element={
             <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
                 <Profile
                   profile={profile}
                   updateProfile={updateProfile}
@@ -2118,7 +2150,10 @@ function App() {
           path="/settings"
           element={
             <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
                 <Settings
                   profile={profile}
                   updateProfile={updateProfile}
@@ -2309,22 +2344,24 @@ function App() {
           path="/payment/otp"
           element={
             <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
                 <PaymentOtp cartCount={cartCount} placeOrder={placeOrder} />
               </CustomerRoute>
             </ProtectedRoute>
           }
         />
 
-
         <Route
-  path="/receipt/:id"
-  element={
-    <ProtectedRoute profileResolved={profileResolved}>
-      <Receipt />
-    </ProtectedRoute>
-  }
-/>
+          path="/receipt/:id"
+          element={
+            <ProtectedRoute profileResolved={profileResolved}>
+              <Receipt />
+            </ProtectedRoute>
+          }
+        />
 
         <Route
           path="/admin-dashboard"
@@ -2415,7 +2452,10 @@ function App() {
           path="/store/:sellerId"
           element={
             <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
                 <SellerStore
                   cartCount={cartCount}
                   addToCart={addToCart}
@@ -2427,68 +2467,58 @@ function App() {
           }
         />
 
+        {/* ===================== GIGS (Buyers + Sellers allowed) ===================== */}
+        <Route
+          path="/gigs"
+          element={
+            <ProtectedRoute profileResolved={profileResolved}>
+              <Gigs cartCount={cartCount} />
+            </ProtectedRoute>
+          }
+        />
 
-        
+        <Route
+          path="/gigs/create"
+          element={
+            <ProtectedRoute profileResolved={profileResolved}>
+              <CreateGig cartCount={cartCount} profile={profile} />
+            </ProtectedRoute>
+          }
+        />
 
-      {/* ===================== GIGS (Buyers + Sellers allowed) ===================== */}
-<Route
-  path="/gigs"
-  element={
-    <ProtectedRoute profileResolved={profileResolved}>
-      <Gigs cartCount={cartCount} />
-    </ProtectedRoute>
-  }
-/>
+        <Route
+          path="/gigs/:id"
+          element={
+            <ProtectedRoute profileResolved={profileResolved}>
+              <GigDetail cartCount={cartCount} profile={profile} />
+            </ProtectedRoute>
+          }
+        />
 
-<Route
-  path="/gigs/create"
-  element={
-    <ProtectedRoute profileResolved={profileResolved}>
-      <CreateGig cartCount={cartCount} profile={profile} />
-    </ProtectedRoute>
-  }
-/>
+        <Route
+          path="/gigs/applications"
+          element={
+            <ProtectedRoute profileResolved={profileResolved}>
+              <MyGigApplications cartCount={cartCount} profile={profile} />
+            </ProtectedRoute>
+          }
+        />
 
-<Route
-  path="/gigs/:id"
-  element={
-    <ProtectedRoute profileResolved={profileResolved}>
-      <GigDetail cartCount={cartCount} profile={profile} />
-    </ProtectedRoute>
-  }
-/>
+        {/* ===================== CAMPUS AI ===================== */}
+        <Route
+          path="/ai"
+          element={
+            <ProtectedRoute profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
+                <AIAssistant cartCount={cartCount} />
+              </CustomerRoute>
+            </ProtectedRoute>
+          }
+        />
 
-<Route
-  path="/gigs/applications"
-  element={
-    <ProtectedRoute profileResolved={profileResolved}>
-      <MyGigApplications cartCount={cartCount} profile={profile} />
-    </ProtectedRoute>
-  }
-/>
-
-{/* ===================== CAMPUS AI ===================== */}
-<Route
-  path="/ai"
-  element={
-    <ProtectedRoute profileResolved={profileResolved}>
-      <CustomerRoute profile={profile} profileResolved={profileResolved}>
-        <AIAssistant cartCount={cartCount} />
-      </CustomerRoute>
-    </ProtectedRoute>
-  }
-/>
-
-<Route
-  path="/admin/announcements"
-  element={
-    <AdminRoute profile={profile} profileResolved={profileResolved}>
-      <AdminAnnouncements />
-    </AdminRoute>
-  }
-/>
-
-<Route path="*" element={<Navigate to="/" replace />} />
         <Route
           path="/admin/announcements"
           element={
@@ -2498,7 +2528,33 @@ function App() {
           }
         />
 
-  
+        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route
+          path="/admin/announcements"
+          element={
+            <AdminRoute profile={profile} profileResolved={profileResolved}>
+              <AdminAnnouncements />
+            </AdminRoute>
+          }
+        />
+
+        <Route
+          path="/services/:id"
+          element={
+            <ProtectedRoute profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
+                <ServiceDetails
+                  cartCount={cartCount}
+                  wishlist={wishlist}
+                  toggleWishlist={toggleWishlist}
+                />
+              </CustomerRoute>
+            </ProtectedRoute>
+          }
+        />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

@@ -315,6 +315,14 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
     availableBalance,
   ];
 
+  // Live amount validation — styled inline instead of the browser's
+  // native min/max validation bubble.
+  const numericAmountLive = Number(amount) || 0;
+  const amountTooHigh = amount !== "" && numericAmountLive > availableBalance;
+  const amountTooLow =
+    amount !== "" && numericAmountLive > 0 && numericAmountLive < 100;
+  const amountInvalid = amountTooHigh || amountTooLow;
+
 
   const filteredBanks = banks.filter((b) => {
     const q = bankSearch.trim().toLowerCase();
@@ -822,20 +830,43 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
                       ₦
                     </span>
                     <input
-                      type="number"
-                      min="100"
-                      max={availableBalance}
-                      step="100"
+                      type="text"
+                      inputMode="numeric"
                       value={amount}
                       onChange={(e) => {
-                        setAmount(e.target.value);
+                        const value = e.target.value.replace(/[^0-9]/g, "");
+                        setAmount(value);
                         if (formError) setFormError("");
                       }}
                       disabled={submitting || loadingBalance}
                       placeholder="0"
-                      className="w-full h-12 pl-8 pr-3.5 rounded-xl border border-gray-200 bg-gray-50 text-sm font-semibold text-gray-800 outline-none focus:border-[#008236] focus:ring-4 focus:ring-green-50 transition disabled:opacity-60"
+                      className={`
+                        w-full h-12 pl-8 pr-3.5 rounded-xl border bg-gray-50 text-sm font-semibold text-gray-800
+                        outline-none transition disabled:opacity-60
+                        ${
+                          amountInvalid
+                            ? "border-red-300 focus:border-red-400 focus:ring-4 focus:ring-red-50"
+                            : "border-gray-200 focus:border-[#008236] focus:ring-4 focus:ring-green-50"
+                        }
+                      `}
                     />
                   </div>
+
+                  {amountInvalid && (
+                    <div className="mt-2 rounded-xl bg-red-50 border border-red-100 px-3.5 py-2.5 flex items-start gap-2">
+                      <FiAlertCircle
+                        size={15}
+                        className="text-red-500 flex-shrink-0 mt-0.5"
+                      />
+                      <p className="text-xs text-red-600 leading-5">
+                        {amountTooHigh
+                          ? `Value must be less than or equal to ${formatNaira(
+                              availableBalance
+                            )}.`
+                          : "Minimum withdrawal amount is ₦100."}
+                      </p>
+                    </div>
+                  )}
 
                   <div className="flex flex-wrap gap-2 mt-3">
                     {presets.map((preset, index) => {
@@ -1044,7 +1075,8 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
                     disabled={
                       submitting ||
                       loadingBalance ||
-                      availableBalance < 100
+                      availableBalance < 100 ||
+                      amountInvalid
                     }
                     className="h-12 px-5 rounded-xl bg-[#008236] text-white text-sm font-semibold flex items-center justify-center gap-2 hover:bg-[#006f2e] active:bg-[#005f28] transition shadow-sm disabled:opacity-60 disabled:cursor-not-allowed sm:flex-[1.4]"
                   >

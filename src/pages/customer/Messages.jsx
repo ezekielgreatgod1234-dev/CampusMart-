@@ -1065,13 +1065,7 @@ function Messages({
           )}
         </div>
 
-        <button
-          type="button"
-          className="sm:hidden w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-medium transition"
-        >
-          <FiMessageCircle />
-          New Message
-        </button>
+       
       </div>
     </CustomerLayout>
   );

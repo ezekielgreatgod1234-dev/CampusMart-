@@ -67,6 +67,11 @@ function AdminDashboard() {
   const [pendingWithdrawals, setPendingWithdrawals] = useState(0);
   const [unreadSupportCount, setUnreadSupportCount] = useState(0);
 
+  // Seller balances view (stat card -> whole page swap)
+  const [activeView, setActiveView] = useState("overview");
+  const [sellerBalances, setSellerBalances] = useState([]);
+  const [sellerSearch, setSellerSearch] = useState("");
+
   // Delivery confirmations (buyer approved goods)
   const [confirmations, setConfirmations] = useState([]);
   const [confirmationsLoading, setConfirmationsLoading] = useState(true);
@@ -172,6 +177,31 @@ function AdminDashboard() {
         setTotalUsers(usersSnap.size);
         setTotalProducts(productsSnap.size);
         setTotalOrders(ordersSnap.size);
+
+        const sellers = [];
+        usersSnap.forEach((d) => {
+          const data = d.data() || {};
+          const isSellerAccount =
+            data.role === "seller" ||
+            data.isSeller === true ||
+            data.hasStore === true ||
+            data.availableBalance !== undefined;
+          if (!isSellerAccount) return;
+          sellers.push({
+            id: d.id,
+            name:
+              data.fullName ||
+              data.storeName ||
+              data.businessName ||
+              data.name ||
+              "Unnamed seller",
+            email: data.email || "—",
+            availableBalance: Number(data.availableBalance) || 0,
+            totalEarnings: Number(data.totalEarnings) || 0,
+          });
+        });
+        sellers.sort((a, b) => b.availableBalance - a.availableBalance);
+        setSellerBalances(sellers);
 
         let revenue = 0;
         ordersSnap.forEach((d) => {
@@ -363,6 +393,22 @@ function AdminDashboard() {
 
   const formatNaira = (n) =>
     `₦${Number(n || 0).toLocaleString("en-NG")}`;
+
+  const totalSellerBalance = useMemo(
+    () => sellerBalances.reduce((sum, s) => sum + s.availableBalance, 0),
+    [sellerBalances]
+  );
+
+  const filteredSellerBalances = useMemo(() => {
+    const q = sellerSearch.trim().toLowerCase();
+    if (!q) return sellerBalances;
+    return sellerBalances.filter(
+      (s) =>
+        s.name.toLowerCase().includes(q) ||
+        s.email.toLowerCase().includes(q) ||
+        s.id.toLowerCase().includes(q)
+    );
+  }, [sellerBalances, sellerSearch]);
 
   const formatDate = (value) => {
     if (!value) return "—";
@@ -960,7 +1006,7 @@ function AdminDashboard() {
 
         <main className="flex-1 overflow-y-auto px-3 sm:px-6 py-5 space-y-6">
           {/* STATS */}
-          <section className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
+          <section className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
             <StatCard
               label="Users"
               value={totalUsers}
@@ -1003,7 +1049,148 @@ function AdminDashboard() {
               color="text-amber-600"
               bg="bg-amber-50"
             />
+            <StatCard
+              label="Seller balances"
+              value={formatNaira(totalSellerBalance)}
+              icon={FiCreditCard}
+              color="text-teal-600"
+              bg="bg-teal-50"
+              active={activeView === "sellerBalances"}
+              onClick={() =>
+                setActiveView((v) =>
+                  v === "sellerBalances" ? "overview" : "sellerBalances"
+                )
+              }
+            />
+            <StatCard
+              label="Delivery confirmations"
+              value={pendingConfirmations.length}
+              icon={FiCheckCircle}
+              color="text-green-600"
+              bg="bg-green-50"
+              active={activeView === "confirmations"}
+              onClick={() =>
+                setActiveView((v) =>
+                  v === "confirmations" ? "overview" : "confirmations"
+                )
+              }
+            />
+            <StatCard
+              label="News ticker"
+              value={tickerActive ? "Live" : "Off"}
+              icon={FiVolume2}
+              color="text-indigo-600"
+              bg="bg-indigo-50"
+              active={activeView === "ticker"}
+              onClick={() =>
+                setActiveView((v) => (v === "ticker" ? "overview" : "ticker"))
+              }
+            />
+            <StatCard
+              label="Feature push"
+              value="Send"
+              icon={FiSend}
+              color="text-pink-600"
+              bg="bg-pink-50"
+              active={activeView === "push"}
+              onClick={() =>
+                setActiveView((v) => (v === "push" ? "overview" : "push"))
+              }
+            />
+            <StatCard
+              label="Email announcements"
+              value={bannerActive ? "Banner active" : "Send"}
+              icon={FiMail}
+              color="text-amber-600"
+              bg="bg-amber-50"
+              active={activeView === "announcements"}
+              onClick={() =>
+                setActiveView((v) =>
+                  v === "announcements" ? "overview" : "announcements"
+                )
+              }
+            />
           </section>
+
+          {activeView === "sellerBalances" && (
+            <section className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-11 h-11 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center border border-teal-100 shrink-0">
+                    <FiCreditCard size={20} />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-gray-900">
+                      Seller balances
+                    </h2>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {sellerBalances.length} seller
+                      {sellerBalances.length === 1 ? "" : "s"} · Total{" "}
+                      {formatNaira(totalSellerBalance)} available
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveView("overview")}
+                  className="h-10 px-4 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 shrink-0"
+                >
+                  Back to overview
+                </button>
+              </div>
+
+              <div className="p-4 sm:p-5 border-b border-gray-100">
+                <div className="relative">
+                  <FiUsers className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    value={sellerSearch}
+                    onChange={(e) => setSellerSearch(e.target.value)}
+                    placeholder="Search sellers by name, email, or ID..."
+                    className="w-full h-11 pl-10 pr-4 rounded-xl border border-gray-200 bg-gray-50 text-sm outline-none focus:border-[#008236] focus:bg-white focus:ring-2 focus:ring-green-50"
+                  />
+                </div>
+              </div>
+
+              {filteredSellerBalances.length === 0 ? (
+                <div className="p-10 text-center text-sm text-gray-500">
+                  No sellers found.
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {filteredSellerBalances.map((s) => (
+                    <div
+                      key={s.id}
+                      className="p-4 sm:p-5 flex items-center justify-between gap-4"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-gray-900 truncate">
+                          {s.name}
+                        </p>
+                        <p className="text-xs text-gray-500 truncate">
+                          {s.email}
+                        </p>
+                        <p className="text-[11px] text-gray-400 mt-0.5">
+                          ID: {s.id}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-bold text-[#008236]">
+                          {formatNaira(s.availableBalance)}
+                        </p>
+                        <p className="text-[11px] text-gray-400 mt-0.5">
+                          Lifetime {formatNaira(s.totalEarnings)}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+
+          {activeView === "confirmations" && (
+            <>
 
           {/* =====================================================
               1. BUYER DELIVERY CONFIRMATIONS
@@ -1026,6 +1213,13 @@ function AdminDashboard() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveView("overview")}
+                  className="h-9 px-3 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 shrink-0"
+                >
+                  Back to overview
+                </button>
                 <span
                   className={`px-3 py-1 rounded-full text-[11px] font-semibold ${
                     pendingConfirmations.length > 0
@@ -1228,33 +1422,43 @@ function AdminDashboard() {
             </div>
           </section>
 
-          {/* =====================================================
-              2. NEWS TICKER
-          ====================================================== */}
+            </>
+          )}
+
+          {activeView === "ticker" && (
           <section className="bg-white rounded-2xl border border-gray-100 p-5 sm:p-6 shadow-sm">
-            <div className="flex items-start gap-3 mb-5">
-              <div className="w-11 h-11 rounded-xl bg-green-50 text-[#008236] flex items-center justify-center border border-green-100 shrink-0">
-                <FiVolume2 size={20} />
-              </div>
-              <div className="flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-sm font-bold text-gray-900">
-                    In-app news ticker
-                  </h2>
-                  <span
-                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
-                      tickerActive
-                        ? "bg-green-50 text-[#008236] border border-green-100"
-                        : "bg-gray-50 text-gray-500 border border-gray-100"
-                    }`}
-                  >
-                    {tickerActive ? "Live" : "Off"}
-                  </span>
+            <div className="flex items-start justify-between gap-3 mb-5">
+              <div className="flex items-start gap-3">
+                <div className="w-11 h-11 rounded-xl bg-green-50 text-[#008236] flex items-center justify-center border border-green-100 shrink-0">
+                  <FiVolume2 size={20} />
                 </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  Sliding message for buyers &amp; sellers (not email).
-                </p>
+                <div className="flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-sm font-bold text-gray-900">
+                      In-app news ticker
+                    </h2>
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
+                        tickerActive
+                          ? "bg-green-50 text-[#008236] border border-green-100"
+                          : "bg-gray-50 text-gray-500 border border-gray-100"
+                      }`}
+                    >
+                      {tickerActive ? "Live" : "Off"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Sliding message for buyers &amp; sellers (not email).
+                  </p>
+                </div>
               </div>
+              <button
+                type="button"
+                onClick={() => setActiveView("overview")}
+                className="h-9 px-3 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 shrink-0"
+              >
+                Back to overview
+              </button>
             </div>
 
             {tickerStatus && (
@@ -1385,23 +1589,31 @@ function AdminDashboard() {
               )}
             </div>
           </section>
+          )}
 
-          {/* =====================================================
-              3. FEATURE PUSH
-          ====================================================== */}
+          {activeView === "push" && (
           <section className="bg-white rounded-2xl border border-gray-100 p-5 sm:p-6 shadow-sm">
-            <div className="flex items-start gap-3 mb-5">
-              <div className="w-11 h-11 rounded-xl bg-green-50 text-[#008236] flex items-center justify-center border border-green-100 shrink-0">
-                <FiVolume2 size={20} />
+            <div className="flex items-start justify-between gap-3 mb-5">
+              <div className="flex items-start gap-3">
+                <div className="w-11 h-11 rounded-xl bg-green-50 text-[#008236] flex items-center justify-center border border-green-100 shrink-0">
+                  <FiVolume2 size={20} />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-gray-900">
+                    New feature push
+                  </h2>
+                  <p className="text-xs text-gray-500 mt-1 max-w-md">
+                    Phone/desktop notification for users who enabled push.
+                  </p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-sm font-bold text-gray-900">
-                  New feature push
-                </h2>
-                <p className="text-xs text-gray-500 mt-1 max-w-md">
-                  Phone/desktop notification for users who enabled push.
-                </p>
-              </div>
+              <button
+                type="button"
+                onClick={() => setActiveView("overview")}
+                className="h-9 px-3 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 shrink-0"
+              >
+                Back to overview
+              </button>
             </div>
 
             {featureStatus && (
@@ -1476,10 +1688,9 @@ function AdminDashboard() {
               </button>
             </div>
           </section>
+          )}
 
-          {/* =====================================================
-              4. EMAIL ANNOUNCEMENTS
-          ====================================================== */}
+          {activeView === "announcements" && (
           <section className="bg-white rounded-2xl border border-gray-100 p-5 sm:p-6 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-5">
               <div className="flex items-start gap-3">
@@ -1495,14 +1706,23 @@ function AdminDashboard() {
                   </p>
                 </div>
               </div>
-              <div
-                className={`self-start px-3 py-1.5 rounded-full text-[11px] font-semibold ${
-                  bannerActive
-                    ? "bg-green-50 text-[#008236] border border-green-100"
-                    : "bg-gray-50 text-gray-500 border border-gray-100"
-                }`}
-              >
-                Email banner: {bannerActive ? "Active" : "Off"}
+              <div className="flex items-center gap-2 self-start">
+                <button
+                  type="button"
+                  onClick={() => setActiveView("overview")}
+                  className="h-9 px-3 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 shrink-0"
+                >
+                  Back to overview
+                </button>
+                <div
+                  className={`px-3 py-1.5 rounded-full text-[11px] font-semibold ${
+                    bannerActive
+                      ? "bg-green-50 text-[#008236] border border-green-100"
+                      : "bg-gray-50 text-gray-500 border border-gray-100"
+                  }`}
+                >
+                  Email banner: {bannerActive ? "Active" : "Off"}
+                </div>
               </div>
             </div>
 
@@ -1628,6 +1848,15 @@ function AdminDashboard() {
               </div>
             </form>
           </section>
+          )}
+
+          {activeView === "overview" && (
+            <div className="bg-white rounded-2xl border border-dashed border-gray-200 p-10 text-center">
+              <p className="text-sm text-gray-500">
+                Select a card above to view its details.
+              </p>
+            </div>
+          )}
 
           {/* =====================================================
               5. DANGER ZONE — RESET
@@ -1756,9 +1985,18 @@ function AdminDashboard() {
   );
 }
 
-function StatCard({ label, value, icon: Icon, color, bg }) {
+function StatCard({ label, value, icon: Icon, color, bg, onClick, active }) {
+  const Wrapper = onClick ? "button" : "div";
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-sm">
+    <Wrapper
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
+      className={`bg-white rounded-2xl border p-4 sm:p-5 shadow-sm text-left w-full ${
+        active
+          ? "border-[#008236] ring-2 ring-green-100"
+          : "border-gray-100"
+      } ${onClick ? "hover:border-green-200 hover:shadow-md transition cursor-pointer" : ""}`}
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-[11px] sm:text-xs text-gray-500 font-medium truncate">
@@ -1774,7 +2012,7 @@ function StatCard({ label, value, icon: Icon, color, bg }) {
           <Icon size={18} />
         </div>
       </div>
-    </div>
+    </Wrapper>
   );
 }
 

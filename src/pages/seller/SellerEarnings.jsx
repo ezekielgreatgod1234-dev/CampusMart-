@@ -1288,8 +1288,7 @@ const handleResetEarnings = async () => {
                     </h1>
 
                     <p className="text-sm sm:text-base text-green-50 mt-1.5 max-w-xl leading-6">
-                      Live totals from your sales. CampusMart keeps 5%; you receive
-                      95% net.
+                      Live totals from your sales. 
                     </p>
 
                   </div>
@@ -2331,8 +2330,7 @@ const handleResetEarnings = async () => {
                 </p>
 
                 <p className="text-xs text-gray-500 mt-0.5">
-                  Available balance can be withdrawn to your bank. Amounts are
-                  net of the 5% CampusMart commission.
+                  Available balance can be withdrawn to your bank.
                 </p>
 
               </div>
