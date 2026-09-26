@@ -1,4 +1,3 @@
-// Chat.jsx
 import {
   useEffect,
   useRef,
@@ -591,12 +590,14 @@ function Chat({
       <div
         className="
           fixed inset-0 md:static md:h-[calc(100vh-140px)]
-          z-20 md:z-auto bg-white md:rounded-2xl border border-green-100
-          overflow-hidden flex flex-col shadow-sm h-[100dvh] min-h-0
+          z-[100] md:z-auto bg-white md:rounded-2xl
+          border-0 md:border border-green-100
+          overflow-hidden flex flex-col shadow-sm
+          h-[100dvh] min-h-0
         "
       >
         {/* HEADER */}
-        <div className="flex items-center gap-3 px-3 sm:px-6 py-3 sm:py-4 border-b border-green-100 bg-white flex-shrink-0 z-30">
+        <div className="flex items-center gap-2 sm:gap-3 px-2.5 sm:px-6 py-2.5 sm:py-4 border-b border-green-100 bg-white flex-shrink-0 z-30 pt-[max(0.625rem,env(safe-area-inset-top))]">
           {selectedMessageIds.length > 0 ? (
             <>
               <button
@@ -630,22 +631,23 @@ function Chat({
               <button
                 type="button"
                 onClick={() => navigate("/messages")}
-                className="w-10 h-10 rounded-full hover:bg-green-50 flex items-center justify-center text-green-700 flex-shrink-0"
+                aria-label="Back to messages"
+                className="w-10 h-10 min-w-[40px] rounded-full hover:bg-green-50 active:bg-green-100 flex items-center justify-center text-green-700 flex-shrink-0"
               >
-                <FiArrowLeft size={19} />
+                <FiArrowLeft size={20} />
               </button>
               {personImage ? (
                 <img
                   src={personImage}
                   alt={personName}
-                  className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover ring-2 ring-green-100 flex-shrink-0"
+                  className="w-10 h-10 min-w-[40px] sm:w-11 sm:h-11 rounded-full object-cover ring-2 ring-green-100 flex-shrink-0"
                 />
               ) : (
-                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-green-100 text-green-700 flex items-center justify-center font-bold text-lg flex-shrink-0">
+                <div className="w-10 h-10 min-w-[40px] sm:w-11 sm:h-11 rounded-full bg-green-100 text-green-700 flex items-center justify-center font-bold text-lg flex-shrink-0">
                   {getInitial(personName)}
                 </div>
               )}
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-0 overflow-hidden">
                 <h2 className="font-bold text-gray-800 truncate text-sm sm:text-base">
                   {personName}
                 </h2>
@@ -660,7 +662,8 @@ function Chat({
                   onClick={selectAllForDeletion}
                   disabled={deleting}
                   title="Clear all messages"
-                  className="w-10 h-10 rounded-full hover:bg-green-50 flex items-center justify-center text-green-600 flex-shrink-0"
+                  aria-label="Delete messages"
+                  className="w-10 h-10 min-w-[40px] rounded-full hover:bg-green-50 active:bg-green-100 flex items-center justify-center text-green-600 flex-shrink-0"
                 >
                   <FiTrash2 size={18} />
                 </button>

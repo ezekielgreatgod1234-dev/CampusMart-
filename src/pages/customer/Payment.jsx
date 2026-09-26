@@ -14,6 +14,58 @@ import {
 
 import { useAuth } from "../../context/AuthContext";
 
+// =====================================================
+// PAYSTACK FEE (Nigeria, local cards)
+// 1.5% + ₦100 flat, ₦100 waived under ₦2,500,
+// total fee capped at ₦2,000.
+//
+// To make the BUYER pay the fee (instead of it being
+// deducted from what the seller receives), we "gross up"
+// the amount actually sent to Paystack, using:
+//   charge = (target + 100) / (1 - 0.015)
+// This solves for the charge amount such that, after
+// Paystack takes its cut, the seller still nets exactly
+// `target` (the real product price).
+//
+// The order's recorded total stays as the real product
+// price — only the amount sent to Paystack is grossed up.
+// =====================================================
+
+const PAYSTACK_PERCENT = 0.015;
+const PAYSTACK_FLAT = 100;
+const PAYSTACK_FEE_CAP = 2000;
+const PAYSTACK_WAIVER_THRESHOLD = 2500;
+
+function calculatePaystackGrossUp(targetAmount) {
+  const target = Number(targetAmount) || 0;
+
+  if (target <= 0) {
+    return { fee: 0, totalToCharge: 0 };
+  }
+
+  // Under ₦2,500, Paystack waives its flat ₦100 fee entirely on the
+  // underlying amount, so there's nothing to gross up.
+  if (target <= PAYSTACK_WAIVER_THRESHOLD) {
+    return { fee: 0, totalToCharge: target };
+  }
+
+  // Uncapped gross-up formula
+  const uncappedCharge = (target + PAYSTACK_FLAT) / (1 - PAYSTACK_PERCENT);
+  const uncappedFee = uncappedCharge - target;
+
+  if (uncappedFee <= PAYSTACK_FEE_CAP) {
+    // Round up so the seller is never shorted by a rounding error —
+    // the buyer pays at most an extra kobo-level difference.
+    const totalToCharge = Math.ceil(uncappedCharge);
+    return { fee: totalToCharge - target, totalToCharge };
+  }
+
+  // Large transaction — Paystack's fee is capped at ₦2,000 flat,
+  // so the gross-up is just the target plus that fixed cap.
+  const totalToCharge = target + PAYSTACK_FEE_CAP;
+  return { fee: PAYSTACK_FEE_CAP, totalToCharge };
+}
+
 function Payment({ cartCount = 0, placeOrder }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -36,6 +88,11 @@ function Payment({ cartCount = 0, placeOrder }) {
 
   const amountNaira = Number(total) || 0;
 
+  const { fee: paystackFee, totalToCharge: amountToChargeBuyer } = useMemo(
+    () => calculatePaystackGrossUp(amountNaira),
+    [amountNaira]
+  );
+
   const hasValidCheckout = useMemo(() => {
     return (
       Array.isArray(checkoutItems) &&
@@ -49,8 +106,9 @@ function Payment({ cartCount = 0, placeOrder }) {
 
   // =====================================================
   // PAY WITH PAYSTACK
-  // 1. Create order (Pending)
-  // 2. Initialize payment on backend
+  // 1. Create order (Pending) — recorded at the real product price
+  // 2. Initialize payment on backend — charged at the grossed-up
+  //    amount, so the buyer covers the processing fee
   // 3. Redirect to Paystack
   // =====================================================
 
@@ -90,6 +148,8 @@ function Payment({ cartCount = 0, placeOrder }) {
     try {
       // =========================================
       // 1. CREATE ORDER FIRST (status = Pending)
+      //    Recorded at the real product price — the
+      //    Paystack fee is not part of the order value.
       // =========================================
       const order = await placeOrder({
         items: checkoutItems,
@@ -116,6 +176,8 @@ function Payment({ cartCount = 0, placeOrder }) {
 
       // =========================================
       // 2. CALL BACKEND TO INITIALIZE PAYMENT
+      //    Charge the grossed-up amount (product price +
+      //    Paystack fee) so the buyer pays it in one go.
       // =========================================
       const response = await fetch(
         "https://campusbackend-1.onrender.com/initialize-payment",
@@ -126,7 +188,7 @@ function Payment({ cartCount = 0, placeOrder }) {
           },
           body: JSON.stringify({
             email,
-            amount: amountNaira,
+            amount: amountToChargeBuyer,
             sellerId,
             orderId,
             productName: checkoutItems[0]?.name || "CampusMart Order",
@@ -161,6 +223,8 @@ function Payment({ cartCount = 0, placeOrder }) {
           orderId,
           items: checkoutItems,
           total: amountNaira,
+          amountCharged: amountToChargeBuyer,
+          paystackFee,
           paymentMethod: "card",
           type: checkoutType,
           status: "Pending",
@@ -284,13 +348,43 @@ function Payment({ cartCount = 0, placeOrder }) {
           <p className="text-xs text-gray-400 uppercase font-semibold tracking-wide">
             Amount to pay
           </p>
-          <p className="text-3xl font-bold text-gray-900 mt-2">
-            {formatNaira(amountNaira)}
-          </p>
-          <p className="text-xs text-gray-500 mt-2">
-            {checkoutItems.length} item
-            {checkoutItems.length === 1 ? "" : "s"} · Free delivery
-          </p>
+
+          <div className="mt-3 space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-500">
+                Subtotal ({checkoutItems.length} item
+                {checkoutItems.length === 1 ? "" : "s"})
+              </span>
+              <span className="text-gray-700 font-medium">
+                {formatNaira(amountNaira)}
+              </span>
+            </div>
+
+            {paystackFee > 0 && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-500">Card processing fee</span>
+                <span className="text-gray-700 font-medium">
+                  {formatNaira(paystackFee)}
+                </span>
+              </div>
+            )}
+
+            <div className="pt-2 mt-1 border-t border-gray-100 flex items-center justify-between">
+              <span className="text-sm font-semibold text-gray-800">
+                Total to pay
+              </span>
+              <span className="text-2xl font-bold text-gray-900">
+                {formatNaira(amountToChargeBuyer)}
+              </span>
+            </div>
+          </div>
+
+          {paystackFee > 0 && (
+            <p className="text-xs text-gray-400 mt-3">
+              Includes a small card processing fee charged by Paystack.
+              Free delivery is already included in the subtotal.
+            </p>
+          )}
         </div>
 
         {/* DELIVERING TO */}
@@ -330,7 +424,7 @@ function Payment({ cartCount = 0, placeOrder }) {
           ) : (
             <>
               <FiCreditCard size={18} />
-              Pay {formatNaira(amountNaira)}
+              Pay {formatNaira(amountToChargeBuyer)}
             </>
           )}
         </button>

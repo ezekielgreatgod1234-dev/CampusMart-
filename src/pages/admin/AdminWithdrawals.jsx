@@ -6,8 +6,6 @@ import {
   onSnapshot,
   doc,
   getDoc,
-  updateDoc,
-  serverTimestamp,
 } from "firebase/firestore";
 
 import {
@@ -34,6 +32,7 @@ import { db } from "../../context/firebase";
 import { useAuth } from "../../context/AuthContext";
 
 const ADMIN_EMAIL = "campusmart1234@gmail.com";
+const BACKEND_URL = "https://campusbackend-1.onrender.com";
 
 function AdminWithdrawals() {
   const navigate = useNavigate();
@@ -48,9 +47,13 @@ function AdminWithdrawals() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [updatingId, setUpdatingId] = useState(null);
+  const [actionError, setActionError] = useState("");
   const [unreadSupportCount, setUnreadSupportCount] = useState(0);
 
-  // Access control
+  // Manual mark-successful modal
+  const [successModal, setSuccessModal] = useState(null); // { id, amount, accountName, bankName }
+  const [bankRef, setBankRef] = useState("");
+
   useEffect(() => {
     if (!firebaseUser) {
       setAllowed(false);
@@ -68,8 +71,12 @@ function AdminWithdrawals() {
     const check = async () => {
       try {
         const snap = await getDoc(doc(db, "users", firebaseUser.uid));
-        const role = snap.exists() ? snap.data()?.role : null;
-        setAllowed(role === "admin");
+        const data = snap.exists() ? snap.data() || {} : {};
+        const isAdmin =
+          data.role === "admin" ||
+          data.isAdmin === true ||
+          (Array.isArray(data.roles) && data.roles.includes("admin"));
+        setAllowed(isAdmin);
       } catch {
         setAllowed(false);
       } finally {
@@ -79,49 +86,39 @@ function AdminWithdrawals() {
     check();
   }, [firebaseUser]);
 
-  // Load withdrawals + support badge
   useEffect(() => {
     if (!allowed) return;
 
-    const unsubWithdrawals = onSnapshot(
-      collection(db, "withdrawals"),
-      (snap) => {
-        const list = snap.docs.map((d) => ({
-          id: d.id,
-          ...d.data(),
-        }));
+    const unsubWithdrawals = onSnapshot(collection(db, "withdrawals"), (snap) => {
+      const list = snap.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      }));
 
-        list.sort((a, b) => {
-          const aT =
-            a.createdAt?.toMillis?.() || a.createdAt?.seconds * 1000 || 0;
-          const bT =
-            b.createdAt?.toMillis?.() || b.createdAt?.seconds * 1000 || 0;
-          return bT - aT;
-        });
+      list.sort((a, b) => {
+        const aT =
+          a.createdAt?.toMillis?.() || a.createdAt?.seconds * 1000 || 0;
+        const bT =
+          b.createdAt?.toMillis?.() || b.createdAt?.seconds * 1000 || 0;
+        return bT - aT;
+      });
 
-        setWithdrawals(list);
-      }
-    );
+      setWithdrawals(list);
+    });
 
-    const unsubSupport = onSnapshot(
-      collection(db, "supportMessages"),
-      (snap) => {
-        let unread = 0;
-
-        snap.forEach((d) => {
-          const data = d.data() || {};
-          const isRead =
-            data.read === true ||
-            data.isRead === true ||
-            String(data.status || "").toLowerCase() === "read" ||
-            String(data.status || "").toLowerCase() === "resolved";
-
-          if (!isRead) unread += 1;
-        });
-
-        setUnreadSupportCount(unread);
-      }
-    );
+    const unsubSupport = onSnapshot(collection(db, "supportMessages"), (snap) => {
+      let unread = 0;
+      snap.forEach((d) => {
+        const data = d.data() || {};
+        const isRead =
+          data.read === true ||
+          data.isRead === true ||
+          String(data.status || "").toLowerCase() === "read" ||
+          String(data.status || "").toLowerCase() === "resolved";
+        if (!isRead) unread += 1;
+      });
+      setUnreadSupportCount(unread);
+    });
 
     return () => {
       unsubWithdrawals();
@@ -144,7 +141,6 @@ function AdminWithdrawals() {
 
     return withdrawals.filter((w) => {
       const status = normalizeStatus(w.status);
-
       if (statusFilter !== "all" && status !== statusFilter) return false;
       if (!q) return true;
 
@@ -155,8 +151,8 @@ function AdminWithdrawals() {
         w.accountNumber,
         w.amount,
         w.status,
-        w.paystackReference,
-        w.paystackTransferCode,
+        w.bankTransferReference,
+        w.failureReason,
       ]
         .filter(Boolean)
         .join(" ")
@@ -241,17 +237,89 @@ function AdminWithdrawals() {
     };
   };
 
-  const updateStatus = async (id, nextStatus) => {
-    if (!id || updatingId) return;
-    setUpdatingId(id);
+  const getAuthHeaders = async () => {
+    const token = await firebaseUser.getIdToken();
+    return {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+  };
+
+  const openSuccessModal = (w) => {
+    setSuccessModal({
+      id: w.id,
+      amount: w.amount,
+      accountName: w.accountName,
+      bankName: w.bankName,
+      accountNumber: w.accountNumber,
+    });
+    setBankRef("");
+    setActionError("");
+  };
+
+  const handleConfirmSuccessful = async () => {
+    if (!successModal?.id || updatingId) return;
+    setUpdatingId(successModal.id);
+    setActionError("");
+
     try {
-      await updateDoc(doc(db, "withdrawals", id), {
-        status: nextStatus,
-        updatedAt: serverTimestamp(),
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${BACKEND_URL}/admin/complete-withdrawal`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          withdrawalId: successModal.id,
+          bankTransferReference: bankRef.trim() || null,
+        }),
       });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "Could not mark successful");
+      }
+
+      setSuccessModal(null);
+      setBankRef("");
     } catch (error) {
       console.error(error);
-      alert("Could not update status. Check Firestore rules.");
+      setActionError(error.message || "Could not mark successful");
+      alert(error.message || "Could not mark successful");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const handleMarkFailed = async (id) => {
+    if (!id || updatingId) return;
+    const ok = window.confirm(
+      "Mark this withdrawal as failed? The seller balance will be refunded."
+    );
+    if (!ok) return;
+
+    setUpdatingId(id);
+    setActionError("");
+
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${BACKEND_URL}/admin/fail-withdrawal`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          withdrawalId: id,
+          reason: "Marked failed by admin",
+        }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "Could not mark failed");
+      }
+    } catch (error) {
+      console.error(error);
+      setActionError(error.message || "Could not mark failed");
+      alert(error.message || "Could not mark failed");
     } finally {
       setUpdatingId(null);
     }
@@ -319,7 +387,6 @@ function AdminWithdrawals() {
         />
       )}
 
-      {/* SIDEBAR */}
       <aside
         className={`
           fixed inset-y-0 left-0 z-50 w-[291px] bg-[#008236] text-white flex flex-col h-screen
@@ -367,7 +434,6 @@ function AdminWithdrawals() {
               >
                 <Icon size={18} className="flex-shrink-0" />
                 <span className="flex-1 text-[14px]">{label}</span>
-
                 {badge > 0 && (
                   <span className="min-w-[20px] h-[20px] px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
                     {badge > 99 ? "99+" : badge}
@@ -390,7 +456,6 @@ function AdminWithdrawals() {
         </div>
       </aside>
 
-      {/* MAIN */}
       <div className="min-w-0 flex flex-col h-screen lg:ml-[291px]">
         <header className="min-h-[70px] bg-[#007233] text-white flex items-center px-4 sm:px-6 lg:px-8 gap-3 flex-shrink-0">
           <button
@@ -402,11 +467,27 @@ function AdminWithdrawals() {
           </button>
           <div>
             <p className="text-sm font-semibold">Withdrawals</p>
-            <p className="text-[11px] text-green-100">Seller payout requests</p>
+            <p className="text-[11px] text-green-100">
+              Pay sellers manually · then mark successful
+            </p>
           </div>
         </header>
 
         <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5">
+          <div className="rounded-2xl bg-amber-50 border border-amber-100 p-4 text-xs text-amber-900 leading-5">
+            <strong>How payouts work (Starter Business):</strong> Buyer payments
+            settle into your linked bank account. When a seller requests a
+            withdrawal, transfer them with your bank app / internet banking,
+            then mark the request <strong>Successful</strong> and optionally
+            save the bank transfer reference.
+          </div>
+
+          {actionError && (
+            <div className="rounded-2xl bg-red-50 border border-red-100 p-4 text-sm text-red-600">
+              {actionError}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
               <p className="text-xs text-gray-500">Pending</p>
@@ -522,48 +603,38 @@ function AdminWithdrawals() {
                               : "—"}{" "}
                             · {formatDate(w.createdAt)}
                           </p>
-                          {(w.paystackReference || w.paystackTransferCode) && (
-                            <p className="text-xs text-gray-400 mt-0.5">
-                              {w.paystackTransferCode || w.paystackReference}
+                          {w.bankTransferReference && (
+                            <p className="text-xs text-[#008236] mt-0.5">
+                              Bank ref: {w.bankTransferReference}
+                            </p>
+                          )}
+                          {w.failureReason && (
+                            <p className="text-xs text-red-500 mt-1">
+                              {w.failureReason}
                             </p>
                           )}
                         </div>
 
                         <div className="flex flex-wrap gap-2 lg:justify-end">
-                          {status !== "processing" &&
-                            status !== "successful" && (
+                          {status !== "successful" && status !== "failed" && (
+                            <>
                               <button
                                 type="button"
                                 disabled={updatingId === w.id}
-                                onClick={() =>
-                                  updateStatus(w.id, "Processing")
-                                }
-                                className="h-9 px-3 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100 disabled:opacity-50"
+                                onClick={() => openSuccessModal(w)}
+                                className="h-9 px-3 rounded-lg text-xs font-semibold bg-[#008236] text-white hover:bg-[#006f2e] disabled:opacity-50"
                               >
-                                Mark processing
+                                Mark successful
                               </button>
-                            )}
-                          {status !== "successful" && (
-                            <button
-                              type="button"
-                              disabled={updatingId === w.id}
-                              onClick={() =>
-                                updateStatus(w.id, "Successful")
-                              }
-                              className="h-9 px-3 rounded-lg text-xs font-semibold bg-[#008236] text-white hover:bg-[#006f2e] disabled:opacity-50"
-                            >
-                              Mark successful
-                            </button>
-                          )}
-                          {status !== "failed" && status !== "successful" && (
-                            <button
-                              type="button"
-                              disabled={updatingId === w.id}
-                              onClick={() => updateStatus(w.id, "Failed")}
-                              className="h-9 px-3 rounded-lg text-xs font-semibold bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 disabled:opacity-50"
-                            >
-                              Mark failed
-                            </button>
+                              <button
+                                type="button"
+                                disabled={updatingId === w.id}
+                                onClick={() => handleMarkFailed(w.id)}
+                                className="h-9 px-3 rounded-lg text-xs font-semibold bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 disabled:opacity-50"
+                              >
+                                Mark failed
+                              </button>
+                            </>
                           )}
                         </div>
                       </div>
@@ -575,6 +646,66 @@ function AdminWithdrawals() {
           </div>
         </main>
       </div>
+
+      {/* Confirm successful — after manual bank transfer */}
+      {successModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => !updatingId && setSuccessModal(null)}
+          />
+          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-xl border border-gray-100 p-5 sm:p-6">
+            <h3 className="text-lg font-bold text-gray-900">
+              Confirm manual payout
+            </h3>
+            <p className="text-sm text-gray-500 mt-2 leading-5">
+              Only mark successful after you have transferred{" "}
+              <strong>{formatNaira(successModal.amount)}</strong> to{" "}
+              <strong>{successModal.accountName || "the seller"}</strong> (
+              {successModal.bankName || "bank"} ·{" "}
+              {successModal.accountNumber || "—"}) using your bank app.
+            </p>
+
+            <label className="block text-xs font-semibold text-gray-700 mt-4 mb-2">
+              Bank transfer reference (optional)
+            </label>
+            <input
+              type="text"
+              value={bankRef}
+              onChange={(e) => setBankRef(e.target.value)}
+              placeholder="e.g. session ID / receipt number"
+              disabled={!!updatingId}
+              className="w-full h-11 px-3.5 rounded-xl border border-gray-200 bg-gray-50 text-sm outline-none focus:border-[#008236] focus:ring-2 focus:ring-green-50"
+            />
+
+            <div className="flex gap-3 mt-5">
+              <button
+                type="button"
+                disabled={!!updatingId}
+                onClick={() => setSuccessModal(null)}
+                className="flex-1 h-11 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!!updatingId}
+                onClick={handleConfirmSuccessful}
+                className="flex-1 h-11 rounded-xl bg-[#008236] text-white text-sm font-semibold hover:bg-[#006f2e] disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {updatingId ? (
+                  <>
+                    <FiRefreshCw className="animate-spin" size={16} />
+                    Saving...
+                  </>
+                ) : (
+                  "Mark successful"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

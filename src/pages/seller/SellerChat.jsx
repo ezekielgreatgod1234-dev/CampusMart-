@@ -1652,10 +1652,10 @@ function SellerChat({
         {/* CHAT */}
 
         <main className="flex-1 min-h-0 overflow-hidden p-0 sm:p-4 lg:p-7 flex flex-col">
-          <div className="flex-1 min-h-0 h-full w-full bg-white sm:rounded-xl lg:rounded-2xl border border-green-100 overflow-hidden flex flex-col shadow-sm">
+          <div className="flex-1 min-h-0 h-full w-full bg-white sm:rounded-xl lg:rounded-2xl border-0 sm:border border-green-100 overflow-hidden flex flex-col shadow-sm">
             {/* CHAT HEADER */}
 
-            <div className="flex items-center gap-2 sm:gap-3 px-2.5 sm:px-6 py-2.5 sm:py-4 border-b border-green-100 bg-white shrink-0 z-30">
+            <div className="flex items-center gap-2 sm:gap-3 px-2.5 sm:px-6 py-2.5 sm:py-4 border-b border-green-100 bg-white shrink-0 z-30 sticky top-0">
               {selectedMessageIds.length >
               0 ? (
                 <>

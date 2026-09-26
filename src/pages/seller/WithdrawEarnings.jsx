@@ -376,8 +376,8 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
       setFormError("Please enter a valid withdrawal amount.");
       return;
     }
-    if (numericAmount < 1000) {
-      setFormError("Minimum withdrawal amount is ₦1,000.");
+    if (numericAmount < 100) {
+      setFormError("Minimum withdrawal amount is ₦100.");
       return;
     }
     if (numericAmount > availableBalance) {
@@ -779,9 +779,8 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
                   Withdrawal initiated
                 </p>
                 <p className="text-xs text-gray-500 mt-1 leading-5">
-                  {formatNaira(successAmount)} is being sent to your bank
-                  account. Funds usually arrive within a few minutes to a few
-                  hours.
+                  {formatNaira(successAmount)} withdrawal request was submitted.
+                  An admin will review it and pay you manually shortly.
                 </p>
                 <button
                   type="button"
@@ -824,7 +823,7 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
                     </span>
                     <input
                       type="number"
-                      min="1000"
+                      min="100"
                       max={availableBalance}
                       step="100"
                       value={amount}
@@ -1026,7 +1025,7 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
                 </div>
 
                 <div className="rounded-xl bg-green-50 border border-green-100 px-4 py-3 text-xs text-gray-600 leading-5">
-                  Minimum amount is ₦1,000. You will be asked for your payment
+                  Minimum amount is ₦100. You will be asked for your payment
                   PIN before the transfer is made.
                 </div>
 
@@ -1045,7 +1044,7 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
                     disabled={
                       submitting ||
                       loadingBalance ||
-                      availableBalance < 1000
+                      availableBalance < 100
                     }
                     className="h-12 px-5 rounded-xl bg-[#008236] text-white text-sm font-semibold flex items-center justify-center gap-2 hover:bg-[#006f2e] active:bg-[#005f28] transition shadow-sm disabled:opacity-60 disabled:cursor-not-allowed sm:flex-[1.4]"
                   >
