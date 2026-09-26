@@ -9,26 +9,14 @@ import {
   FiLock,
   FiCheckCircle,
   FiAlertCircle,
-  FiShield,
 } from "react-icons/fi";
 
 import { useAuth } from "../../context/AuthContext";
 
 // =====================================================
 // PAYSTACK FEE (Nigeria, local cards)
-// 1.5% + ₦100 flat, ₦100 waived under ₦2,500,
-// total fee capped at ₦2,000.
-//
-// To make the BUYER pay the fee (instead of it being
-// deducted from what the seller receives), we "gross up"
-// the amount actually sent to Paystack, using:
-//   charge = (target + 100) / (1 - 0.015)
-// This solves for the charge amount such that, after
-// Paystack takes its cut, the seller still nets exactly
-// `target` (the real product price).
-//
-// The order's recorded total stays as the real product
-// price — only the amount sent to Paystack is grossed up.
+// Gross-up so the BUYER pays the fee and the seller
+// still nets the real product total.
 // =====================================================
 
 const PAYSTACK_PERCENT = 0.015;
@@ -43,30 +31,23 @@ function calculatePaystackGrossUp(targetAmount) {
     return { fee: 0, totalToCharge: 0 };
   }
 
-  // Under ₦2,500, Paystack waives its flat ₦100 fee entirely on the
-  // underlying amount, so there's nothing to gross up.
   if (target <= PAYSTACK_WAIVER_THRESHOLD) {
     return { fee: 0, totalToCharge: target };
   }
 
-  // Uncapped gross-up formula
   const uncappedCharge = (target + PAYSTACK_FLAT) / (1 - PAYSTACK_PERCENT);
   const uncappedFee = uncappedCharge - target;
 
   if (uncappedFee <= PAYSTACK_FEE_CAP) {
-    // Round up so the seller is never shorted by a rounding error —
-    // the buyer pays at most an extra kobo-level difference.
     const totalToCharge = Math.ceil(uncappedCharge);
     return { fee: totalToCharge - target, totalToCharge };
   }
 
-  // Large transaction — Paystack's fee is capped at ₦2,000 flat,
-  // so the gross-up is just the target plus that fixed cap.
   const totalToCharge = target + PAYSTACK_FEE_CAP;
   return { fee: PAYSTACK_FEE_CAP, totalToCharge };
 }
 
-function Payment({ cartCount = 0, placeOrder }) {
+function Payment({ cartCount = 0 }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { firebaseUser } = useAuth();
@@ -106,10 +87,9 @@ function Payment({ cartCount = 0, placeOrder }) {
 
   // =====================================================
   // PAY WITH PAYSTACK
-  // 1. Create order (Pending) — recorded at the real product price
-  // 2. Initialize payment on backend — charged at the grossed-up
-  //    amount, so the buyer covers the processing fee
-  // 3. Redirect to Paystack
+  // Does NOT create an order yet.
+  // Order is created only after Paystack confirms payment
+  // (webhook + /order-success recovery).
   // =====================================================
 
   const handlePayWithPaystack = async () => {
@@ -125,7 +105,6 @@ function Payment({ cartCount = 0, placeOrder }) {
       return;
     }
 
-    // Get sellerId
     const sellerId =
       checkoutItems[0]?.sellerId ||
       checkoutItems[0]?.seller?.id ||
@@ -138,47 +117,60 @@ function Payment({ cartCount = 0, placeOrder }) {
       return;
     }
 
-    if (typeof placeOrder !== "function") {
-      setErrorMessage("Order system is not available. Please try again later.");
-      return;
-    }
-
     setPaying(true);
 
     try {
-      // =========================================
-      // 1. CREATE ORDER FIRST (status = Pending)
-      //    Recorded at the real product price — the
-      //    Paystack fee is not part of the order value.
-      // =========================================
-      const order = await placeOrder({
-        items: checkoutItems,
+      // Compact items for Paystack metadata / recovery
+      const compactItems = checkoutItems.map((item) => ({
+        id: item.id || item.productId || null,
+        productId: item.productId || item.id || null,
+        name: item.name || "",
+        price: Number(item.price) || 0,
+        quantity: Number(item.quantity) || 1,
+        image: item.image || item.imageUrl || null,
+        sellerId:
+          item.sellerId ||
+          item.seller?.id ||
+          item.ownerId ||
+          item.userId ||
+          sellerId,
+        sellerName: item.sellerName || item.seller?.name || "",
+      }));
+
+      const customer = {
+        fullName: formData?.fullName || "",
+        phone: formData?.phone || "",
+        campus: formData?.campus || "",
+        address: formData?.address || "",
+        note: formData?.note || "",
+        email,
+      };
+
+      // Save checkout payload for OrderSuccess recovery
+      // (still no Firestore order yet)
+      const pendingCheckout = {
+        buyerId: firebaseUser.uid,
+        sellerId: String(sellerId),
+        items: compactItems,
         total: amountNaira,
+        amountCharged: amountToChargeBuyer,
+        paystackFee,
         paymentMethod: "card",
         type: checkoutType,
-        status: "Pending",
-        paymentStatus: "pending",
-        customer: {
-          fullName: formData?.fullName || "",
-          phone: formData?.phone || "",
-          campus: formData?.campus || "",
-          address: formData?.address || "",
-          note: formData?.note || "",
-          email,
-        },
-      });
+        customer,
+        createdAt: Date.now(),
+      };
 
-      const orderId = order?.id || order?.orderId || null;
-
-      if (!orderId) {
-        throw new Error("Order was created but no ID was returned");
+      try {
+        sessionStorage.setItem(
+          "campusmart_pending_checkout",
+          JSON.stringify(pendingCheckout)
+        );
+      } catch (storageError) {
+        console.warn("Could not save pending checkout:", storageError);
       }
 
-      // =========================================
-      // 2. CALL BACKEND TO INITIALIZE PAYMENT
-      //    Charge the grossed-up amount (product price +
-      //    Paystack fee) so the buyer pays it in one go.
-      // =========================================
+      // Initialize Paystack only — no placeOrder here
       const response = await fetch(
         "https://campusbackend-1.onrender.com/initialize-payment",
         {
@@ -189,94 +181,59 @@ function Payment({ cartCount = 0, placeOrder }) {
           body: JSON.stringify({
             email,
             amount: amountToChargeBuyer,
-            sellerId,
-            orderId,
-            productName: checkoutItems[0]?.name || "CampusMart Order",
-
-            // Keep the exact Firestore order ID in the Paystack callback URL.
-            // This lets OrderSuccess load the correct order even after
-            // Paystack redirects/reloads the browser.
-            callback_url:
-              `${window.location.origin}/order-success?orderId=${encodeURIComponent(
-                String(orderId)
-              )}`,
+            sellerId: String(sellerId),
+            buyerId: firebaseUser.uid,
+            productName: compactItems[0]?.name || "CampusMart Order",
+            productTotal: amountNaira,
+            paystackFee,
+            type: "order",
+            checkoutType,
+            customer,
+            items: compactItems,
+            callback_url: `${window.location.origin}/order-success`,
           }),
         }
       );
 
       const data = await response.json();
 
-      if (data.authorization_url) {
-        // =========================================
-        // SAVE PAYMENT CONTEXT BEFORE REDIRECT
-        // =========================================
-        // Paystack can reload the app without React location.state.
-        // Save both the order and the reference as a second recovery path.
-        const reference =
-          data.reference ||
-          data.data?.reference ||
-          "";
-
-        const pendingOrder = {
-          ...(order || {}),
-          id: orderId,
-          orderId,
-          items: checkoutItems,
-          total: amountNaira,
-          amountCharged: amountToChargeBuyer,
-          paystackFee,
-          paymentMethod: "card",
-          type: checkoutType,
-          status: "Pending",
-          paymentStatus: "pending",
-          customer: {
-            ...(formData || {}),
-            email,
-          },
-          paystackReference: reference || null,
-        };
-
-        try {
-          sessionStorage.setItem(
-            "lastOrder",
-            JSON.stringify(pendingOrder)
-          );
-
-          sessionStorage.setItem(
-            "campusmart_pending_payment",
-            JSON.stringify({
-              orderId,
-              reference: reference || null,
-              savedAt: Date.now(),
-              order: pendingOrder,
-            })
-          );
-
-          if (reference) {
-            sessionStorage.setItem(
-              `campusmart_payment_${reference}`,
-              JSON.stringify({
-                orderId,
-                order: pendingOrder,
-                savedAt: Date.now(),
-              })
-            );
-          }
-        } catch (storageError) {
-          console.warn(
-            "Could not save payment recovery data:",
-            storageError
-          );
-        }
-
-        // =========================================
-        // 3. REDIRECT TO PAYSTACK
-        // =========================================
-        window.location.href = data.authorization_url;
-      } else {
+      if (!data.authorization_url) {
         setErrorMessage(data.error || "Payment could not be started");
         setPaying(false);
+        return;
       }
+
+      const reference =
+        data.reference ||
+        data.data?.reference ||
+        "";
+
+      try {
+        sessionStorage.setItem(
+          "campusmart_pending_payment",
+          JSON.stringify({
+            reference: reference || null,
+            savedAt: Date.now(),
+            checkout: pendingCheckout,
+          })
+        );
+
+        if (reference) {
+          sessionStorage.setItem(
+            `campusmart_payment_${reference}`,
+            JSON.stringify({
+              reference,
+              checkout: pendingCheckout,
+              savedAt: Date.now(),
+            })
+          );
+        }
+      } catch (storageError) {
+        console.warn("Could not save payment recovery data:", storageError);
+      }
+
+      // Redirect to Paystack
+      window.location.href = data.authorization_url;
     } catch (error) {
       console.error("Payment error:", error);
       setErrorMessage(
@@ -285,10 +242,6 @@ function Payment({ cartCount = 0, placeOrder }) {
       setPaying(false);
     }
   };
-
-  // =====================================================
-  // NO CHECKOUT STATE
-  // =====================================================
 
   if (!hasValidCheckout) {
     return (
@@ -343,7 +296,6 @@ function Payment({ cartCount = 0, placeOrder }) {
           </div>
         )}
 
-        {/* AMOUNT */}
         <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
           <p className="text-xs text-gray-400 uppercase font-semibold tracking-wide">
             Amount to pay
@@ -387,7 +339,6 @@ function Payment({ cartCount = 0, placeOrder }) {
           )}
         </div>
 
-        {/* DELIVERING TO */}
         <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
           <p className="text-xs text-gray-400 uppercase font-semibold tracking-wide">
             Delivering to
@@ -406,7 +357,6 @@ function Payment({ cartCount = 0, placeOrder }) {
           )}
         </div>
 
-        {/* PAY BUTTON */}
         <button
           type="button"
           disabled={paying}
@@ -420,7 +370,7 @@ function Payment({ cartCount = 0, placeOrder }) {
           "
         >
           {paying ? (
-            "Creating order & redirecting…"
+            "Redirecting to Paystack…"
           ) : (
             <>
               <FiCreditCard size={18} />
@@ -434,11 +384,9 @@ function Payment({ cartCount = 0, placeOrder }) {
           <span>Secured by Paystack · SSL encrypted</span>
         </div>
 
-        
-
         <div className="flex items-center gap-2 text-xs text-gray-400 justify-center">
           <FiCheckCircle className="text-green-600" size={14} />
-          Secure payment
+          Your order is created only after payment succeeds
         </div>
       </div>
     </CustomerLayout>
