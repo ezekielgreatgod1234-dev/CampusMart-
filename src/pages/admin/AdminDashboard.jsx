@@ -41,6 +41,7 @@ import {
   FiUser,
   FiCheck,
   FiExternalLink,
+  FiDatabase,
 } from "react-icons/fi";
 
 import { db } from "../../context/firebase";
@@ -66,6 +67,12 @@ function AdminDashboard() {
   const [platformFees, setPlatformFees] = useState(0);
   const [pendingWithdrawals, setPendingWithdrawals] = useState(0);
   const [unreadSupportCount, setUnreadSupportCount] = useState(0);
+
+  // Firebase usage (Firestore reads/writes/deletes today, Spark free tier)
+  const [usageStats, setUsageStats] = useState(null);
+  const [usageLoading, setUsageLoading] = useState(false);
+  const [usageError, setUsageError] = useState("");
+  const [usageFetchedAt, setUsageFetchedAt] = useState(null);
 
   // Seller balances view (stat card -> whole page swap)
   const [activeView, setActiveView] = useState("overview");
@@ -552,6 +559,50 @@ function AdminDashboard() {
     }
     return data;
   };
+
+  // =========================================================
+  // FIREBASE USAGE (Firestore reads/writes/deletes today)
+  // Free to query — uses Cloud Monitoring, works on Spark.
+  // =========================================================
+  const loadUsageStats = async () => {
+    if (!firebaseUser) return;
+    setUsageLoading(true);
+    setUsageError("");
+    try {
+      const token = await getAdminToken();
+      const response = await fetch(`${BACKEND_URL}/admin/usage-stats`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const rawText = await response.text();
+      let data = {};
+      try {
+        data = rawText ? JSON.parse(rawText) : {};
+      } catch {
+        data = {};
+      }
+      if (!response.ok) {
+        throw new Error(
+          data?.error || `Server request failed (${response.status}).`
+        );
+      }
+      setUsageStats(data);
+      setUsageFetchedAt(new Date());
+    } catch (error) {
+      console.error("loadUsageStats error:", error);
+      setUsageError(
+        error.message || "Could not load Firebase usage."
+      );
+    } finally {
+      setUsageLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!allowed) return;
+    loadUsageStats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allowed]);
 
   // Ticker handlers
   const handlePublishTicker = async () => {
@@ -1108,6 +1159,25 @@ function AdminDashboard() {
                 setActiveView((v) =>
                   v === "announcements" ? "overview" : "announcements"
                 )
+              }
+            />
+            <StatCard
+              label="Firebase usage today"
+              value={
+                usageLoading && !usageStats
+                  ? "…"
+                  : usageStats?.today
+                    ? `${usageStats.today.reads.toLocaleString()} reads`
+                    : usageError
+                      ? "Error"
+                      : "—"
+              }
+              icon={FiDatabase}
+              color="text-cyan-600"
+              bg="bg-cyan-50"
+              active={activeView === "usage"}
+              onClick={() =>
+                setActiveView((v) => (v === "usage" ? "overview" : "usage"))
               }
             />
           </section>
@@ -1850,6 +1920,89 @@ function AdminDashboard() {
           </section>
           )}
 
+          {activeView === "usage" && (
+            <section className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-11 h-11 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center border border-cyan-100 shrink-0">
+                    <FiDatabase size={20} />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-bold text-gray-900">
+                      Firebase usage (today)
+                    </h2>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Firestore reads / writes / deletes against the Spark
+                      free daily quota. Resets ~midnight Pacific Time.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={loadUsageStats}
+                    disabled={usageLoading}
+                    className="h-9 px-3 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50 flex items-center gap-1.5 disabled:opacity-60"
+                  >
+                    <FiRefreshCw
+                      size={14}
+                      className={usageLoading ? "animate-spin" : ""}
+                    />
+                    Refresh
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveView("overview")}
+                    className="h-9 px-3 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+                  >
+                    Back
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-5 space-y-5">
+                {usageError && (
+                  <div className="flex items-start gap-2 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-xs text-red-700">
+                    <FiAlertCircle size={16} className="mt-0.5 shrink-0" />
+                    <span>{usageError}</span>
+                  </div>
+                )}
+
+                {!usageError && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <UsageMeter
+                      label="Reads"
+                      used={usageStats?.today?.reads ?? 0}
+                      quota={usageStats?.freeQuota?.reads ?? 50000}
+                      color="bg-cyan-500"
+                    />
+                    <UsageMeter
+                      label="Writes"
+                      used={usageStats?.today?.writes ?? 0}
+                      quota={usageStats?.freeQuota?.writes ?? 20000}
+                      color="bg-orange-500"
+                    />
+                    <UsageMeter
+                      label="Deletes"
+                      used={usageStats?.today?.deletes ?? 0}
+                      quota={usageStats?.freeQuota?.deletes ?? 20000}
+                      color="bg-purple-500"
+                    />
+                  </div>
+                )}
+
+                <p className="text-[11px] text-gray-400">
+                  {usageFetchedAt
+                    ? `Last checked ${usageFetchedAt.toLocaleTimeString()}. `
+                    : ""}
+                  Figures come from Google Cloud Monitoring, not Firestore
+                  itself — this only reads metrics, it does not use any of
+                  your Firestore quota.
+                </p>
+              </div>
+            </section>
+          )}
+
           {activeView === "overview" && (
             <div className="bg-white rounded-2xl border border-dashed border-gray-200 p-10 text-center">
               <p className="text-sm text-gray-500">
@@ -2013,6 +2166,38 @@ function StatCard({ label, value, icon: Icon, color, bg, onClick, active }) {
         </div>
       </div>
     </Wrapper>
+  );
+}
+
+function UsageMeter({ label, used, quota, color }) {
+  const pct = quota > 0 ? Math.min(100, Math.round((used / quota) * 100)) : 0;
+  const isHigh = pct >= 80;
+  return (
+    <div className="rounded-xl border border-gray-100 p-4">
+      <div className="flex items-baseline justify-between">
+        <p className="text-xs font-semibold text-gray-500">{label}</p>
+        <p
+          className={`text-[11px] font-bold ${
+            isHigh ? "text-red-600" : "text-gray-400"
+          }`}
+        >
+          {pct}%
+        </p>
+      </div>
+      <p className="text-xl font-bold text-gray-900 mt-1">
+        {Number(used).toLocaleString()}
+        <span className="text-xs font-medium text-gray-400">
+          {" "}
+          / {Number(quota).toLocaleString()} free/day
+        </span>
+      </p>
+      <div className="mt-2 h-2 rounded-full bg-gray-100 overflow-hidden">
+        <div
+          className={`h-full ${isHigh ? "bg-red-500" : color}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
   );
 }
 
