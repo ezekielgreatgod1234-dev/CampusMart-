@@ -24,6 +24,47 @@ const PAYSTACK_FLAT = 100;
 const PAYSTACK_FEE_CAP = 2000;
 const PAYSTACK_WAIVER_THRESHOLD = 2500;
 
+// Loads Paystack's v2 inline popup script once, so payment opens
+// inside the website instead of redirecting to another page.
+// If an older v1 script (where PaystackPop is a plain object, not a
+// constructor) is already on the page, we load v2 over it.
+let paystackScriptPromise = null;
+
+function getPaystackConstructor() {
+  const pop = typeof window !== "undefined" ? window.PaystackPop : null;
+  if (typeof pop === "function") return pop;
+  if (pop && typeof pop.default === "function") return pop.default;
+  return null;
+}
+
+function loadPaystackScript() {
+  const existing = getPaystackConstructor();
+  if (existing) return Promise.resolve(existing);
+
+  if (paystackScriptPromise) return paystackScriptPromise;
+
+  paystackScriptPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://js.paystack.co/v2/inline.js";
+    script.async = true;
+    script.onload = () => {
+      const ctor = getPaystackConstructor();
+      if (ctor) resolve(ctor);
+      else {
+        paystackScriptPromise = null;
+        reject(new Error("Paystack failed to load"));
+      }
+    };
+    script.onerror = () => {
+      paystackScriptPromise = null;
+      reject(new Error("Could not load Paystack"));
+    };
+    document.body.appendChild(script);
+  });
+
+  return paystackScriptPromise;
+}
+
 function calculatePaystackGrossUp(targetAmount) {
   const target = Number(targetAmount) || 0;
 
@@ -232,8 +273,44 @@ function Payment({ cartCount = 0 }) {
         console.warn("Could not save payment recovery data:", storageError);
       }
 
-      // Redirect to Paystack
-      window.location.href = data.authorization_url;
+      // Open Paystack inside the website (popup), not a redirect
+      const accessCode =
+        data.access_code ||
+        data.data?.access_code ||
+        "";
+
+      if (!accessCode) {
+        // Fallback only if the backend gave no access code
+        window.location.href = data.authorization_url;
+        return;
+      }
+
+      const PaystackCtor = await loadPaystackScript();
+      const popup = new PaystackCtor();
+
+      popup.resumeTransaction(accessCode, {
+        onSuccess: (transaction) => {
+          const ref =
+            transaction?.reference ||
+            transaction?.trxref ||
+            reference;
+
+          navigate(
+            `/order-success${ref ? `?reference=${encodeURIComponent(ref)}` : ""}`
+          );
+        },
+        onCancel: () => {
+          setPaying(false);
+          setErrorMessage("Payment was cancelled. You can try again.");
+        },
+        onError: (err) => {
+          console.error("Paystack popup error:", err);
+          setPaying(false);
+          setErrorMessage(
+            err?.message || "Payment could not be completed. Please try again."
+          );
+        },
+      });
     } catch (error) {
       console.error("Payment error:", error);
       setErrorMessage(
@@ -370,7 +447,7 @@ function Payment({ cartCount = 0 }) {
           "
         >
           {paying ? (
-            "Redirecting to Paystack…"
+            "Opening secure payment…"
           ) : (
             <>
               <FiCreditCard size={18} />
