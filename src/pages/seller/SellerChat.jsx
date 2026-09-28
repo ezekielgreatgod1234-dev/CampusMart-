@@ -2409,21 +2409,28 @@ function SellerChat({
                           : "justify-start"
                       }`}
                     >
-                      <button
-                        type="button"
+                      <div
+                        role="button"
+                        tabIndex={0}
                         onClick={() =>
                           toggleMessageSelection(
                             messageId
                           )
                         }
-                        disabled={
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            toggleMessageSelection(messageId);
+                          }
+                        }}
+                        aria-disabled={
                           deleting
                         }
                         className={`
                           max-w-[88%] sm:max-w-[65%]
                           text-left px-3.5 py-2.5
                           sm:px-4 sm:py-3
-                          rounded-2xl transition
+                          rounded-2xl transition cursor-pointer
                           ${
                             selected
                               ? "ring-2 ring-green-500 ring-offset-2"
@@ -2477,7 +2484,8 @@ function SellerChat({
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            className="mb-2 flex items-center gap-2 rounded-xl bg-white/15 px-3 py-2 text-left hover:bg-white/25"
+                            onKeyDown={(e) => e.stopPropagation()}
+                            className="mb-2 flex items-center gap-2 rounded-xl bg-white/15 px-3 py-2 text-left hover:bg-white/25 cursor-pointer"
                           >
                             <FiFileText size={18} />
                             <span className="text-xs font-semibold truncate">
@@ -2540,7 +2548,7 @@ function SellerChat({
                             }
                           />
                         </div>
-                      </button>
+                      </div>
                     </div>
                   );
                 }

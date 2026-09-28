@@ -54,6 +54,31 @@ import {
   FiCamera,
 } from "react-icons/fi";
 
+// =====================================================
+// PRODUCT ATTACH — only the FIRST time.
+// Once the product card has been sent (or the buyer removed it),
+// we remember that per user + conversation + product so the
+// "Sending with product" bar never comes back for normal chats.
+// =====================================================
+const productHandledKey = (uid, conversationId, productId) =>
+  `cm_product_handled:${uid || "anon"}:${conversationId}:${productId}`;
+
+const readProductHandled = (key) => {
+  try {
+    return window.localStorage.getItem(key) === "1";
+  } catch {
+    return false;
+  }
+};
+
+const writeProductHandled = (key) => {
+  try {
+    window.localStorage.setItem(key, "1");
+  } catch {
+    /* storage unavailable — the messages check below still protects us */
+  }
+};
+
 function Chat({
   cartCount = 0,
   wishlist = [],
@@ -75,7 +100,7 @@ function Chat({
   const galleryInputRef = useRef(null);
   const cameraInputRef = useRef(null);
   const fileInputRef = useRef(null);
-  const [attachProduct, setAttachProduct] = useState(true);
+  const [attachProduct, setAttachProduct] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState(null);
   const [toast, setToast] = useState(null); // { type: "error"|"success", message }
   const toastTimerRef = useRef(null);
@@ -293,19 +318,45 @@ function Chat({
   // =====================================================
 
 
-  // When opening chat from a product, attach it for the next send (do not auto-send)
-  useEffect(() => {
-    if (contextProduct?.id) {
-      setAttachProduct(true);
-    } else {
-      setAttachProduct(false);
-    }
-  }, [id, contextProduct?.id]);
-
   const chatMessages =
     liveConversation && Array.isArray(liveConversation.messages)
       ? liveConversation.messages
       : fallbackPerson?.conversation || [];
+
+  // Has this product already been sent in this conversation (or dismissed)?
+  // Checks the raw messages (even ones deleted "for me") AND a saved flag,
+  // so deleting the product card later doesn't make it pop up again.
+  const handledKey = contextProduct?.id
+    ? productHandledKey(firebaseUser?.uid, id, contextProduct.id)
+    : null;
+
+  const productAlreadySent = (() => {
+    if (!contextProduct?.id) return false;
+
+    const inMessages = chatMessages.some(
+      (m) =>
+        m?.type === "product" &&
+        String(m?.productId) === String(contextProduct.id)
+    );
+
+    return inMessages || (handledKey ? readProductHandled(handledKey) : false);
+  })();
+
+  const markProductHandled = () => {
+    if (handledKey) writeProductHandled(handledKey);
+  };
+
+  // Attach the product ONLY the first time you chat about it.
+  // Wait until the conversation has loaded so we can see its messages.
+  useEffect(() => {
+    if (conversationLoading) return;
+
+    if (contextProduct?.id && !productAlreadySent) {
+      setAttachProduct(true);
+    } else {
+      setAttachProduct(false);
+    }
+  }, [id, conversationLoading, contextProduct?.id, productAlreadySent]);
 
   const orderedChatMessages = chatMessages;
 
@@ -742,7 +793,10 @@ const uploadChatFile = async (file) => {
     const text = messageText.trim();
     const hasFile = Boolean(pendingFile?.file);
     const shouldAttachProduct =
-      attachProduct && contextProduct && contextProduct.id;
+      attachProduct &&
+      !productAlreadySent &&
+      contextProduct &&
+      contextProduct.id;
 
     // Need at least text, file, or product
     if ((!text && !hasFile && !shouldAttachProduct) || sending || uploadingFile) {
@@ -800,6 +854,8 @@ const uploadChatFile = async (file) => {
           showToast("Message failed to send. Please try again.");
           return;
         }
+        // Product card is out — never attach it again for this chat
+        markProductHandled();
         // If user also attached a file, send it as a follow-up
         if (fileMeta) {
           const okFile = await sendMessage(
@@ -1230,13 +1286,20 @@ const uploadChatFile = async (file) => {
                     </div>
                   </div>
                 ) : (
-                  <button
-                    type="button"
+                  <div
+                    role="button"
+                    tabIndex={0}
                     onClick={() => toggleMessageSelection(messageId)}
-                    disabled={deleting}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        toggleMessageSelection(messageId);
+                      }
+                    }}
+                    aria-disabled={deleting}
                     className={`
                       max-w-[82%] sm:max-w-[65%] text-left px-3.5 py-2.5 sm:px-4 sm:py-3
-                      rounded-2xl transition
+                      rounded-2xl transition cursor-pointer
                       ${selected ? "ring-2 ring-green-500 ring-offset-2" : ""}
                       ${
                         mine
@@ -1273,7 +1336,8 @@ const uploadChatFile = async (file) => {
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className="mb-2 flex items-center gap-2 rounded-xl bg-white/15 px-3 py-2 text-left hover:bg-white/25"
+                        onKeyDown={(e) => e.stopPropagation()}
+                        className="mb-2 flex items-center gap-2 rounded-xl bg-white/15 px-3 py-2 text-left hover:bg-white/25 cursor-pointer"
                       >
                         <FiFileText size={18} />
                         <span className="text-xs font-semibold truncate">
@@ -1306,7 +1370,7 @@ const uploadChatFile = async (file) => {
                       <span>{formatMessageTime(message)}</span>
                       <MessageTicks message={message} />
                     </div>
-                  </button>
+                  </div>
                 )}
               </div>
             );
@@ -1350,7 +1414,10 @@ const uploadChatFile = async (file) => {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setAttachProduct(false)}
+                  onClick={() => {
+                    markProductHandled();
+                    setAttachProduct(false);
+                  }}
                   className="w-8 h-8 rounded-full hover:bg-white text-gray-500 flex items-center justify-center flex-shrink-0"
                   aria-label="Remove product"
                   title="Remove product"
