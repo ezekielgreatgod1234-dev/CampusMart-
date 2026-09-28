@@ -20,6 +20,26 @@ import { db } from "../../context/firebase";
 
 import { useAuth } from "../../context/AuthContext";
 
+
+// =====================================================
+// CLOUDINARY (Spark-friendly — no Firebase Storage)
+// Set these in .env:
+//   VITE_CLOUDINARY_CLOUD_NAME=your_cloud_name
+//   VITE_CLOUDINARY_UPLOAD_PRESET=campusmart_unsigned
+// =====================================================
+const CLOUDINARY_CLOUD_NAME =
+  (typeof import.meta !== "undefined" &&
+    import.meta.env &&
+    import.meta.env.VITE_CLOUDINARY_CLOUD_NAME) ||
+  "quj7ewsm";
+
+const CLOUDINARY_UPLOAD_PRESET =
+  (typeof import.meta !== "undefined" &&
+    import.meta.env &&
+    import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET) ||
+  "campusmart_unsigned";
+
+
 import {
   FiArrowLeft,
   FiSend,
@@ -28,6 +48,10 @@ import {
   FiCheck,
   FiFileText,
   FiExternalLink,
+  FiPaperclip,
+  FiImage,
+  FiPackage,
+  FiCamera,
 } from "react-icons/fi";
 
 function Chat({
@@ -46,11 +70,56 @@ function Chat({
 
   const [messageText, setMessageText] = useState("");
   const [sending, setSending] = useState(false);
+  const [pendingFile, setPendingFile] = useState(null); // { file, previewUrl, kind: "image"|"file" }
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const galleryInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const [attachProduct, setAttachProduct] = useState(true);
+  const [lightboxUrl, setLightboxUrl] = useState(null);
+  const [toast, setToast] = useState(null); // { type: "error"|"success", message }
+  const toastTimerRef = useRef(null);
   const [liveConversation, setLiveConversation] = useState(null);
   const [conversationLoading, setConversationLoading] = useState(true);
   const [selectedMessageIds, setSelectedMessageIds] = useState([]);
   const [showDeleteMenu, setShowDeleteMenu] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+
+  const showToast = (message, type = "error") => {
+    if (toastTimerRef.current) {
+      window.clearTimeout(toastTimerRef.current);
+    }
+    setToast({ message: String(message || ""), type });
+    toastTimerRef.current = window.setTimeout(() => {
+      setToast(null);
+      toastTimerRef.current = null;
+    }, 4200);
+  };
+
+  const copyMessageText = async (text) => {
+    const value = String(text || "").trim();
+    if (!value) return;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        const el = document.createElement("textarea");
+        el.value = value;
+        el.setAttribute("readonly", "");
+        el.style.position = "fixed";
+        el.style.left = "-9999px";
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand("copy");
+        document.body.removeChild(el);
+      }
+      showToast("Message copied", "success");
+    } catch (err) {
+      console.warn("Copy failed:", err);
+      showToast("Could not copy message", "error");
+    }
+  };
 
   // =====================================================
   // TIMESTAMP HELPER (only for display time under bubbles)
@@ -190,6 +259,19 @@ function Chat({
     fallbackPerson?.photoURL ||
     null;
 
+  // Product linked to this conversation (for seeding first product message)
+  const contextProduct = (() => {
+    const src = liveConversation || fallbackPerson || {};
+    const productId = src.productId || src.product?.id || null;
+    if (!productId && !src.productName && !src.productImage) return null;
+    return {
+      id: productId ? String(productId) : null,
+      name: src.productName || src.product?.name || "Product",
+      image: src.productImage || src.product?.image || null,
+      price: src.productPrice ?? src.product?.price ?? null,
+    };
+  })();
+
   // =====================================================
   // MESSAGES — USE FIRESTORE ARRAY ORDER DIRECTLY.
   //
@@ -209,6 +291,16 @@ function Chat({
   // order avoids that entirely. (Mirrors the same fix in
   // SellerChat.jsx — keep both in sync if this changes.)
   // =====================================================
+
+
+  // When opening chat from a product, attach it for the next send (do not auto-send)
+  useEffect(() => {
+    if (contextProduct?.id) {
+      setAttachProduct(true);
+    } else {
+      setAttachProduct(false);
+    }
+  }, [id, contextProduct?.id]);
 
   const chatMessages =
     liveConversation && Array.isArray(liveConversation.messages)
@@ -502,27 +594,270 @@ function Chat({
     }
   };
 
+  const clearPendingFile = () => {
+    if (pendingFile?.previewUrl) {
+      try {
+        URL.revokeObjectURL(pendingFile.previewUrl);
+      } catch (_) {}
+    }
+    setPendingFile(null);
+    if (galleryInputRef.current) galleryInputRef.current.value = "";
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const isImageFile = (file) =>
+    file && String(file.type || "").startsWith("image/");
+
+  const compressImage = (file, maxWidth = 1280, quality = 0.72) =>
+    new Promise((resolve) => {
+      if (!isImageFile(file)) {
+        resolve(file);
+        return;
+      }
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        try {
+          const scale = Math.min(1, maxWidth / (img.width || maxWidth));
+          const w = Math.max(1, Math.round((img.width || maxWidth) * scale));
+          const h = Math.max(1, Math.round((img.height || maxWidth) * scale));
+          const canvas = document.createElement("canvas");
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, w, h);
+          canvas.toBlob(
+            (blob) => {
+              URL.revokeObjectURL(url);
+              if (!blob) {
+                resolve(file);
+                return;
+              }
+              resolve(
+                new File([blob], file.name.replace(/\.\w+$/, ".jpg") || "photo.jpg", {
+                  type: "image/jpeg",
+                })
+              );
+            },
+            "image/jpeg",
+            quality
+          );
+        } catch {
+          URL.revokeObjectURL(url);
+          resolve(file);
+        }
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(file);
+      };
+      img.src = url;
+    });
+
+  const handlePickAttachment = (e, kindHint) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const isImg = isImageFile(file);
+    const isPdf =
+      file.type === "application/pdf" ||
+      /\.pdf$/i.test(file.name || "");
+    const isDoc =
+      /\.(doc|docx|txt|xls|xlsx|ppt|pptx)$/i.test(file.name || "") ||
+      String(file.type || "").includes("document") ||
+      String(file.type || "").includes("msword") ||
+      String(file.type || "").includes("officedocument");
+
+    if (!isImg && !isPdf && !isDoc && kindHint !== "file") {
+      showToast("Please choose an image, PDF, or document.");
+      return;
+    }
+
+    if (file.size > 12 * 1024 * 1024) {
+      showToast("File is too large. Please use a file under 12MB.");
+      return;
+    }
+
+    if (pendingFile?.previewUrl) {
+      try {
+        URL.revokeObjectURL(pendingFile.previewUrl);
+      } catch (_) {}
+    }
+
+    setPendingFile({
+      file,
+      previewUrl: isImg ? URL.createObjectURL(file) : null,
+      kind: isImg ? "image" : "file",
+      name: file.name || "file",
+    });
+  };
+
+const uploadChatFile = async (file) => {
+    if (!file) throw new Error("No file selected");
+
+    if (
+      !CLOUDINARY_CLOUD_NAME ||
+      CLOUDINARY_CLOUD_NAME === "YOUR_CLOUD_NAME" ||
+      !CLOUDINARY_UPLOAD_PRESET
+    ) {
+      throw new Error(
+        "Cloudinary is not configured. Add VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET to your .env file."
+      );
+    }
+
+    const isImage = isImageFile(file);
+    const resourceType = isImage ? "image" : "raw";
+    const endpoint = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`;
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+    formData.append(
+      "folder",
+      isImage ? "campusmart/chat-images" : "campusmart/chat-files"
+    );
+
+    const response = await fetch(endpoint, {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      const msg =
+        data?.error?.message ||
+        data?.message ||
+        `Upload failed (${response.status})`;
+      throw new Error(msg);
+    }
+
+    const url = data.secure_url || data.url;
+    if (!url) throw new Error("Upload succeeded but no URL was returned");
+    return url;
+  };
+
   const handleSendMessage = async () => {
     const text = messageText.trim();
+    const hasFile = Boolean(pendingFile?.file);
+    const shouldAttachProduct =
+      attachProduct && contextProduct && contextProduct.id;
 
-    if (!text || sending) return;
+    // Need at least text, file, or product
+    if ((!text && !hasFile && !shouldAttachProduct) || sending || uploadingFile) {
+      return;
+    }
     if (typeof sendMessage !== "function") return;
     if (!id) return;
 
+    const localPending = pendingFile;
+    const productToSend = shouldAttachProduct ? { ...contextProduct } : null;
+
     setMessageText("");
+    clearPendingFile();
+    if (productToSend) setAttachProduct(false);
     setSending(true);
 
     try {
-      const success = await sendMessage(id, text);
+      let fileMeta = null;
 
-      if (!success) {
-        setMessageText(text);
-        console.error("Failed to send message");
+      if (localPending?.file) {
+        setUploadingFile(true);
+        const toUpload =
+          localPending.kind === "image"
+            ? await compressImage(localPending.file)
+            : localPending.file;
+        const fileUrl = await uploadChatFile(toUpload);
+        fileMeta = {
+          type: localPending.kind === "image" ? "image" : "file",
+          fileUrl,
+          imageUrl: localPending.kind === "image" ? fileUrl : undefined,
+          fileName: localPending.name,
+          fileMime: localPending.file.type || "",
+          text:
+            text ||
+            (localPending.kind === "image"
+              ? "📷 Photo"
+              : `📎 ${localPending.name}`),
+        };
+      }
+
+      // 1) Send product card with optional text (user message goes on the product bubble)
+      if (productToSend) {
+        const productText = text || productToSend.name || "Product";
+        const okProduct = await sendMessage(id, productText, {
+          type: "product",
+          productId: productToSend.id,
+          productName: productToSend.name,
+          productImage: productToSend.image,
+          productPrice: productToSend.price,
+          text: productText,
+        });
+        if (okProduct === false) {
+          setMessageText(text);
+          setAttachProduct(true);
+          showToast("Message failed to send. Please try again.");
+          return;
+        }
+        // If user also attached a file, send it as a follow-up
+        if (fileMeta) {
+          const okFile = await sendMessage(
+            id,
+            fileMeta.text || "📷 Photo",
+            fileMeta
+          );
+          if (okFile === false) {
+            showToast("Product sent, but the attachment failed.");
+          }
+        }
+      } else if (fileMeta) {
+        const payloadText =
+          text ||
+          (fileMeta.type === "image"
+            ? "📷 Photo"
+            : `📎 ${fileMeta.fileName}`);
+        const success = await sendMessage(id, payloadText, fileMeta);
+        if (success === false) {
+          setMessageText(text);
+          showToast("Message failed to send. Please try again.");
+        }
+      } else {
+        const success = await sendMessage(id, text);
+        if (success === false) {
+          setMessageText(text);
+          showToast("Message failed to send. Please try again.");
+        }
       }
     } catch (error) {
       console.error("Customer send message error:", error);
       setMessageText(text);
+      if (productToSend) setAttachProduct(true);
+
+      const errorText = String(error?.message || "");
+      const normalizedError = errorText.toLowerCase();
+
+      let userMessage =
+        "Message failed to send. Check your connection and try again.";
+
+      if (
+        normalizedError.includes("cloudinary") ||
+        normalizedError.includes("not configured")
+      ) {
+        userMessage = errorText || "Cloudinary upload failed.";
+      } else if (
+        normalizedError.includes("participant") ||
+        normalizedError.includes("permission") ||
+        normalizedError.includes("insufficient")
+      ) {
+        userMessage = "You cannot send in this conversation.";
+      } else if (localPending?.file) {
+        userMessage = "Could not upload file. Please try again.";
+      }
+
+      showToast(userMessage);
     } finally {
+      setUploadingFile(false);
       setSending(false);
     }
   };
@@ -674,11 +1009,13 @@ function Chat({
 
         {/* MESSAGES */}
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 sm:p-6 space-y-2 sm:space-y-3 bg-gradient-to-b from-green-50/40 to-gray-50 [scrollbar-width:thin] touch-pan-y">
-          <div className="text-center mb-4 sm:mb-5">
+          <div className="text-center mb-3 sm:mb-4">
             <span className="inline-block bg-white text-green-600 text-[11px] sm:text-xs font-medium px-3 py-1.5 rounded-full border border-green-100 shadow-sm">
               Conversation with {personName}
             </span>
           </div>
+
+          
 
           {visibleMessages.length === 0 && (
             <div className="text-center py-10">
@@ -698,6 +1035,10 @@ function Chat({
             const selected = selectedMessageIds.includes(messageId);
 
             const isReceiptMessage = message?.type === "receipt";
+            const isProductMessage = message?.type === "product";
+            const isFileMessage =
+              message?.type === "file" ||
+              (message?.fileUrl && message?.type !== "image");
 
             const receiptUrl =
               message?.receiptUrl ||
@@ -719,6 +1060,94 @@ function Chat({
 
               window.open(receiptUrl, "_blank", "noopener,noreferrer");
             };
+
+            if (isProductMessage) {
+              const pId = message.productId;
+              const pName = message.productName || message.text || "Product";
+              const pImage = message.productImage || null;
+              const pPrice = message.productPrice;
+              return (
+                <div
+                  key={messageId}
+                  className={`flex w-full ${mine ? "justify-end" : "justify-start"}`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedMessageIds.length > 0) {
+                        toggleMessageSelection(messageId);
+                        return;
+                      }
+                      if (pId) navigate(`/products/${pId}`);
+                    }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      toggleMessageSelection(messageId);
+                    }}
+                    className={`
+                      max-w-[88%] sm:max-w-[70%] text-left rounded-2xl overflow-hidden
+                      border shadow-sm transition
+                      ${selected ? "ring-2 ring-green-500 ring-offset-2" : ""}
+                      ${
+                        mine
+                          ? "bg-green-800 border-green-700 rounded-br-md"
+                          : "bg-white border-green-200 rounded-bl-md"
+                      }
+                    `}
+                  >
+                    <div className="flex gap-3 p-3">
+                      <div className="w-16 h-16 rounded-xl overflow-hidden bg-green-50 flex-shrink-0 border border-green-100">
+                        {pImage ? (
+                          <img src={pImage} alt={pName} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-green-600">
+                            <FiPackage size={22} />
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className={`text-[10px] font-semibold uppercase tracking-wide ${mine ? "text-green-100" : "text-green-600"}`}>
+                          Product
+                        </p>
+                        <p className={`text-sm font-bold mt-0.5 line-clamp-2 ${mine ? "text-white" : "text-gray-900"}`}>
+                          {pName}
+                        </p>
+                        {pPrice != null && Number(pPrice) > 0 && (
+                          <p className={`text-xs font-semibold mt-1 ${mine ? "text-green-100" : "text-gray-700"}`}>
+                            ₦{Number(pPrice).toLocaleString("en-NG")}
+                          </p>
+                        )}
+                        {message.text &&
+                          message.text !== pName &&
+                          message.text !== "Product" && (
+                          <p
+                            className={`text-sm mt-2 leading-5 break-words whitespace-pre-wrap select-text ${
+                              mine ? "text-green-50" : "text-gray-700"
+                            }`}
+                            title="Double-tap to copy"
+                            onDoubleClick={(e) => {
+                              e.stopPropagation();
+                              copyMessageText(message.text);
+                            }}
+                            onContextMenu={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              copyMessageText(message.text);
+                            }}
+                          >
+                            {message.text}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className={`flex items-center justify-end gap-0.5 text-[10px] px-3 pb-2 ${mine ? "text-green-100" : "text-gray-400"}`}>
+                      <span>{formatMessageTime(message)}</span>
+                      <MessageTicks message={message} />
+                    </div>
+                  </button>
+                </div>
+              );
+            }
 
             return (
               <div
@@ -823,9 +1252,56 @@ function Chat({
                         </span>
                       </div>
                     )}
-                    <p className="text-sm leading-5 break-words whitespace-pre-wrap">
-                      {message.text}
-                    </p>
+                    {(message?.type === "image" || message?.imageUrl) && (
+                      <div className="mb-2 rounded-xl overflow-hidden bg-black/10 max-w-full">
+                        <img
+                          src={message.imageUrl || message.fileUrl || message.text}
+                          alt="Shared"
+                          className="max-h-56 w-full object-cover"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setLightboxUrl(
+                              message.imageUrl || message.fileUrl || message.text
+                            );
+                          }}
+                        />
+                      </div>
+                    )}
+                    {isFileMessage && (
+                      <a
+                        href={message.fileUrl || message.imageUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="mb-2 flex items-center gap-2 rounded-xl bg-white/15 px-3 py-2 text-left hover:bg-white/25"
+                      >
+                        <FiFileText size={18} />
+                        <span className="text-xs font-semibold truncate">
+                          {message.fileName || "Document"}
+                        </span>
+                        <FiExternalLink size={14} className="ml-auto shrink-0" />
+                      </a>
+                    )}
+                    {message.text &&
+                      message.text !== "📷 Photo" &&
+                      !String(message.text || "").startsWith("📎 ") &&
+                      message?.type !== "product" && (
+                      <p
+                        className="text-sm leading-5 break-words whitespace-pre-wrap select-text"
+                        title="Double-tap to copy"
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
+                          copyMessageText(message.text);
+                        }}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          copyMessageText(message.text);
+                        }}
+                      >
+                        {message.text}
+                      </p>
+                    )}
                     <div className="flex items-center justify-end gap-0.5 text-[10px] mt-1 text-green-100">
                       <span>{formatMessageTime(message)}</span>
                       <MessageTicks message={message} />
@@ -842,29 +1318,246 @@ function Chat({
         {/* INPUT */}
         {selectedMessageIds.length === 0 && (
           <div className="flex-shrink-0 border-t border-green-100 bg-white z-30 px-2.5 sm:px-4 pt-2.5 sm:pt-4 pb-2 sm:pb-4 [padding-bottom:env(safe-area-inset-bottom)]">
-            <div className="flex items-center gap-2">
+            {attachProduct && contextProduct && (
+              <div className="mb-2 flex items-center gap-2 rounded-2xl border border-green-200 bg-green-50/80 px-3 py-2">
+                <div className="w-12 h-12 rounded-xl overflow-hidden bg-white border border-green-100 flex-shrink-0">
+                  {contextProduct.image ? (
+                    <img
+                      src={contextProduct.image}
+                      alt={contextProduct.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-green-600">
+                      <FiPackage size={18} />
+                    </div>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-green-700">
+                    Sending with product
+                  </p>
+                  <p className="text-xs font-bold text-gray-900 truncate">
+                    {contextProduct.name}
+                  </p>
+                  {contextProduct.price != null &&
+                    Number(contextProduct.price) > 0 && (
+                      <p className="text-[11px] font-semibold text-gray-600">
+                        ₦
+                        {Number(contextProduct.price).toLocaleString("en-NG")}
+                      </p>
+                    )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAttachProduct(false)}
+                  className="w-8 h-8 rounded-full hover:bg-white text-gray-500 flex items-center justify-center flex-shrink-0"
+                  aria-label="Remove product"
+                  title="Remove product"
+                >
+                  <FiX size={16} />
+                </button>
+              </div>
+            )}
+
+            {pendingFile && (
+              <div className="mb-2 flex items-center gap-2">
+                {pendingFile.kind === "image" && pendingFile.previewUrl ? (
+                  <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-green-200">
+                    <img
+                      src={pendingFile.previewUrl}
+                      alt="Preview"
+                      className="w-full h-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={clearPendingFile}
+                      className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center"
+                      aria-label="Remove"
+                    >
+                      <FiX size={12} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="relative flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-3 py-2">
+                    <FiFileText className="text-green-700" size={18} />
+                    <span className="text-xs font-semibold text-gray-700 truncate max-w-[160px]">
+                      {pendingFile.name}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={clearPendingFile}
+                      className="w-5 h-5 rounded-full bg-black/50 text-white flex items-center justify-center"
+                      aria-label="Remove"
+                    >
+                      <FiX size={12} />
+                    </button>
+                  </div>
+                )}
+                <p className="text-xs text-gray-500 flex-1">Ready to send</p>
+              </div>
+            )}
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <input
+                ref={galleryInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => handlePickAttachment(e, "image")}
+              />
+              <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={(e) => handlePickAttachment(e, "image")}
+              />
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.doc,.docx,.txt,.xls,.xlsx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                className="hidden"
+                onChange={(e) => handlePickAttachment(e, "file")}
+              />
+              <button
+                type="button"
+                onClick={() => galleryInputRef.current?.click()}
+                disabled={sending || uploadingFile}
+                title="Gallery"
+                aria-label="Gallery"
+                className="w-10 h-10 rounded-full bg-green-50 hover:bg-green-100 text-green-700 flex items-center justify-center shrink-0 border border-green-100 disabled:opacity-50"
+              >
+                <FiImage size={18} />
+              </button>
+              <button
+                type="button"
+                onClick={() => cameraInputRef.current?.click()}
+                disabled={sending || uploadingFile}
+                title="Camera"
+                aria-label="Camera"
+                className="w-10 h-10 rounded-full bg-green-50 hover:bg-green-100 text-green-700 flex items-center justify-center shrink-0 border border-green-100 disabled:opacity-50 sm:flex"
+              >
+                <FiCamera size={18} />
+              </button>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={sending || uploadingFile}
+                title="Document"
+                aria-label="Document"
+                className="w-10 h-10 rounded-full bg-green-50 hover:bg-green-100 text-green-700 flex items-center justify-center shrink-0 border border-green-100 disabled:opacity-50"
+              >
+                <FiPaperclip size={18} />
+              </button>
               <input
                 type="text"
                 value={messageText}
                 onChange={(e) => setMessageText(e.target.value)}
                 onKeyDown={handleKeyDown}
-                disabled={sending}
+                disabled={sending || uploadingFile}
                 placeholder={`Message ${personName}...`}
-                className="flex-1 min-w-0 bg-gray-100 rounded-full px-4 py-3 text-sm outline-none border border-transparent focus:ring-2 focus:ring-green-100 focus:border-green-500 focus:bg-white disabled:opacity-60"
+                className="flex-1 min-w-0 bg-gray-100 rounded-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm outline-none border border-transparent focus:ring-2 focus:ring-green-100 focus:border-green-500 focus:bg-white disabled:opacity-60"
               />
               <button
                 type="button"
                 onClick={handleSendMessage}
-                disabled={!messageText.trim() || sending}
+                disabled={
+                  (!messageText.trim() &&
+                    !pendingFile &&
+                    !(attachProduct && contextProduct?.id)) ||
+                  sending ||
+                  uploadingFile
+                }
                 className="w-11 h-11 rounded-full bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white flex items-center justify-center shrink-0"
               >
-                {sending ? (
+                {sending || uploadingFile ? (
                   <span className="w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
                 ) : (
                   <FiSend size={18} />
                 )}
               </button>
             </div>
+          </div>
+        )}
+
+        
+        {/* CAMPUSMART TOAST */}
+        {toast && (
+          <div className="fixed left-1/2 bottom-24 sm:bottom-28 z-[120] -translate-x-1/2 px-4 w-full max-w-sm pointer-events-none">
+            <div
+              className={`
+                pointer-events-auto rounded-2xl px-4 py-3 shadow-lg border flex items-start gap-3
+                ${
+                  toast.type === "success"
+                    ? "bg-[#008236] border-green-700 text-white"
+                    : "bg-white border-green-200 text-gray-800"
+                }
+              `}
+            >
+              <div
+                className={`
+                  w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0
+                  ${
+                    toast.type === "success"
+                      ? "bg-white/15 text-white"
+                      : "bg-red-50 text-red-600"
+                  }
+                `}
+              >
+                {toast.type === "success" ? (
+                  <FiCheck size={18} />
+                ) : (
+                  <FiX size={18} />
+                )}
+              </div>
+              <div className="min-w-0 flex-1 pt-0.5">
+                <p className="text-sm font-semibold leading-5">
+                  {toast.type === "success" ? "Done" : "Couldn’t send"}
+                </p>
+                <p
+                  className={`text-xs mt-0.5 leading-4 ${
+                    toast.type === "success" ? "text-green-50" : "text-gray-500"
+                  }`}
+                >
+                  {toast.message}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setToast(null)}
+                className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  toast.type === "success"
+                    ? "hover:bg-white/10 text-white"
+                    : "hover:bg-gray-100 text-gray-500"
+                }`}
+              >
+                <FiX size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* IMAGE LIGHTBOX */}
+        {lightboxUrl && (
+          <div
+            className="fixed inset-0 z-[130] bg-black/90 flex items-center justify-center p-4"
+            onClick={() => setLightboxUrl(null)}
+          >
+            <button
+              type="button"
+              onClick={() => setLightboxUrl(null)}
+              className="absolute top-4 right-4 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
+              aria-label="Close"
+            >
+              <FiX size={22} />
+            </button>
+            <img
+              src={lightboxUrl}
+              alt="Full size"
+              className="max-w-full max-h-[90vh] object-contain rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
           </div>
         )}
 

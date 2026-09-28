@@ -684,6 +684,9 @@ async function formatConversation(conversationDoc, currentUserId) {
     allMessages: orderedVisibleMessages,
     productId: data.productId || null,
     productName: data.productName || "",
+    productImage: data.productImage || null,
+    productPrice:
+      data.productPrice != null ? Number(data.productPrice) || 0 : null,
     buyerId: data.buyerId || null,
     sellerId: data.sellerId || null,
   };
@@ -1514,9 +1517,30 @@ function App() {
     }
   };
 
-  const sendMessage = async (messageId, text) => {
+  // extras (optional):
+  //  { type: "image", imageUrl }
+  //  { type: "file", fileUrl, fileName, fileMime }
+  //  { type: "product", productId, productName, productImage, productPrice }
+  const sendMessage = async (messageId, text, extras = null) => {
     const cleanText = String(text || "").trim();
-    if (!cleanText || !firebaseUser || !messageId) return false;
+    const extra = extras && typeof extras === "object" ? extras : null;
+
+    const imageUrl = extra?.imageUrl ? String(extra.imageUrl) : null;
+    const fileUrl = extra?.fileUrl ? String(extra.fileUrl) : null;
+    const messageType = extra?.type
+      ? String(extra.type)
+      : imageUrl
+        ? "image"
+        : fileUrl
+          ? "file"
+          : "text";
+
+    const isProduct = messageType === "product";
+    const hasAttachment = Boolean(imageUrl || fileUrl || isProduct);
+
+    if ((!cleanText && !hasAttachment) || !firebaseUser || !messageId) {
+      return false;
+    }
 
     try {
       const conversationRef = doc(db, "conversations", String(messageId));
@@ -1545,7 +1569,16 @@ function App() {
         const existingMessages = Array.isArray(data.messages)
           ? data.messages
           : [];
+
+
         const nowMs = Date.now();
+
+        let displayText = cleanText;
+        if (!displayText) {
+          if (isProduct) displayText = extra.productName || "Product";
+          else if (imageUrl) displayText = "📷 Photo";
+          else if (fileUrl) displayText = `📎 ${extra.fileName || "File"}`;
+        }
 
         const newMessage = {
           id: `${firebaseUser.uid}_${nowMs}_${Math.random()
@@ -1553,7 +1586,8 @@ function App() {
             .slice(2, 8)}`,
           senderId: firebaseUser.uid,
           sender: "me",
-          text: cleanText,
+          text: displayText,
+          type: messageType,
           createdAt: Timestamp.fromMillis(nowMs),
           createdAtMs: nowMs,
           time: new Date(nowMs).toLocaleTimeString([], {
@@ -1561,13 +1595,28 @@ function App() {
             minute: "2-digit",
           }),
           deletedFor: [],
+          ...(imageUrl ? { imageUrl } : {}),
+          ...(fileUrl ? { fileUrl } : {}),
+          ...(extra?.fileName ? { fileName: String(extra.fileName) } : {}),
+          ...(extra?.fileMime ? { fileMime: String(extra.fileMime) } : {}),
+          ...(isProduct
+            ? {
+                productId: extra.productId ? String(extra.productId) : null,
+                productName: extra.productName || displayText,
+                productImage: extra.productImage || null,
+                productPrice:
+                  extra.productPrice != null
+                    ? Number(extra.productPrice) || 0
+                    : null,
+              }
+            : {}),
         };
 
         const currentUnread = Number(data.unreadCounts?.[receiverId] || 0);
 
         transaction.update(conversationRef, {
           messages: [...existingMessages, newMessage],
-          lastMessage: cleanText,
+          lastMessage: displayText,
           lastMessageAt: nowMs,
           [`unreadCounts.${receiverId}`]: currentUnread + 1,
           [`unreadCounts.${firebaseUser.uid}`]: 0,
@@ -1740,6 +1789,18 @@ function App() {
         product.seller?.avatar ||
         null;
 
+      const productFields = {
+        productId: product.id || product.productId || null,
+        productName: product.name || product.productName || "",
+        productImage:
+          product.image ||
+          product.imageUrl ||
+          product.productImage ||
+          null,
+        productPrice:
+          product.price != null ? Number(product.price) || 0 : null,
+      };
+
       if (existingSnapshot.exists()) {
         const existingData = existingSnapshot.data();
         await setDoc(
@@ -1758,6 +1819,9 @@ function App() {
               [String(firebaseUser.uid)]: buyerImage,
               [String(sellerId)]: sellerImage,
             },
+            // Refresh product context so chat highlights the product
+            // the buyer opened chat from (latest product wins).
+            ...productFields,
             updatedAt: serverTimestamp(),
           },
           { merge: true },
@@ -1791,8 +1855,7 @@ function App() {
           lastMessage: "",
           lastMessageAt: 0,
           messages: [],
-          productId: product.id || null,
-          productName: product.name || "",
+          ...productFields,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         },

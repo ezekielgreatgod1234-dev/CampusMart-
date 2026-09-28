@@ -1,6 +1,7 @@
 import {
   useEffect,
   useState,
+  useRef,
 } from "react";
 
 import {
@@ -34,10 +35,34 @@ import {
   FiX,
   FiFileText,
   FiDownload,
+  FiImage,
+  FiExternalLink,
+  FiCamera,
+  FiPaperclip,
 } from "react-icons/fi";
 
 import { db } from "../../context/firebase";
 import { useAuth } from "../../context/AuthContext";
+
+
+// =====================================================
+// CLOUDINARY (Spark-friendly — no Firebase Storage)
+// Set these in .env:
+//   VITE_CLOUDINARY_CLOUD_NAME=your_cloud_name
+//   VITE_CLOUDINARY_UPLOAD_PRESET=campusmart_unsigned
+// =====================================================
+const CLOUDINARY_CLOUD_NAME =
+  (typeof import.meta !== "undefined" &&
+    import.meta.env &&
+    import.meta.env.VITE_CLOUDINARY_CLOUD_NAME) ||
+  "YOUR_CLOUD_NAME";
+
+const CLOUDINARY_UPLOAD_PRESET =
+  (typeof import.meta !== "undefined" &&
+    import.meta.env &&
+    import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET) ||
+  "campusmart_unsigned";
+
 
 function SellerChat({
   messages = [],
@@ -94,6 +119,24 @@ function SellerChat({
 
   const [sending, setSending] =
     useState(false);
+
+  const [pendingFile, setPendingFile] =
+    useState(null);
+
+  const [uploadingFile, setUploadingFile] =
+    useState(false);
+
+  const galleryInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  const [lightboxUrl, setLightboxUrl] =
+    useState(null);
+
+  const [toast, setToast] =
+    useState(null);
+
+  const toastTimerRef = useRef(null);
 
   const [liveConversation, setLiveConversation] =
     useState(null);
@@ -206,6 +249,41 @@ function SellerChat({
         .charAt(0)
         .toUpperCase() || "U"
     );
+  };
+
+  const showToast = (message, type = "error") => {
+    if (toastTimerRef.current) {
+      window.clearTimeout(toastTimerRef.current);
+    }
+    setToast({ message: String(message || ""), type });
+    toastTimerRef.current = window.setTimeout(() => {
+      setToast(null);
+      toastTimerRef.current = null;
+    }, 4200);
+  };
+
+  const copyMessageText = async (text) => {
+    const value = String(text || "").trim();
+    if (!value) return;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        const el = document.createElement("textarea");
+        el.value = value;
+        el.setAttribute("readonly", "");
+        el.style.position = "fixed";
+        el.style.left = "-9999px";
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand("copy");
+        document.body.removeChild(el);
+      }
+      showToast("Message copied", "success");
+    } catch (err) {
+      console.warn("Copy failed:", err);
+      showToast("Could not copy message", "error");
+    }
   };
 
   // =====================================================
@@ -502,6 +580,19 @@ function SellerChat({
     fallbackConversation?.buyerImage ||
     null;
 
+  // Product buyer started chat from
+  const contextProduct = (() => {
+    const src = liveConversation || fallbackConversation || {};
+    const productId = src.productId || src.product?.id || null;
+    if (!productId && !src.productName && !src.productImage) return null;
+    return {
+      id: productId ? String(productId) : null,
+      name: src.productName || src.product?.name || "Product",
+      image: src.productImage || src.product?.image || null,
+      price: src.productPrice ?? src.product?.price ?? null,
+    };
+  })();
+
   // =====================================================
   // MESSAGES — USE FIRESTORE ARRAY ORDER DIRECTLY.
   //
@@ -772,6 +863,21 @@ function SellerChat({
   // SELECTION
   // =====================================================
 
+  const getMessageId = (message, index) =>
+    String(
+      message?.id ||
+        `${getMessageTimestampMs(message)}-${index}`
+    );
+
+  const selectAllForDeletion = () => {
+    if (deleting || visibleMessages.length === 0) return;
+    const allIds = visibleMessages.map((message, index) =>
+      getMessageId(message, index)
+    );
+    setSelectedMessageIds(allIds);
+    setShowDeleteMenu(true);
+  };
+
   const toggleMessageSelection =
     (messageId) => {
       if (deleting) {
@@ -955,44 +1061,221 @@ function SellerChat({
   // SEND MESSAGE
   // =====================================================
 
-  const handleSendMessage =
-    async () => {
-      const text =
-        messageText.trim();
+  const clearPendingFile = () => {
+    if (pendingFile?.previewUrl) {
+      try {
+        URL.revokeObjectURL(pendingFile.previewUrl);
+      } catch (_) {}
+    }
+    setPendingFile(null);
+    if (galleryInputRef.current) galleryInputRef.current.value = "";
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
-      if (
-        !text ||
-        sending ||
-        typeof sendMessage !==
-          "function" ||
-        !conversationId
-      ) {
+  const isImageFile = (file) =>
+    file && String(file.type || "").startsWith("image/");
+
+  const compressImage = (file, maxWidth = 1280, quality = 0.72) =>
+    new Promise((resolve) => {
+      if (!isImageFile(file)) {
+        resolve(file);
         return;
       }
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        try {
+          const scale = Math.min(1, maxWidth / (img.width || maxWidth));
+          const w = Math.max(1, Math.round((img.width || maxWidth) * scale));
+          const h = Math.max(1, Math.round((img.height || maxWidth) * scale));
+          const canvas = document.createElement("canvas");
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, w, h);
+          canvas.toBlob(
+            (blob) => {
+              URL.revokeObjectURL(url);
+              if (!blob) {
+                resolve(file);
+                return;
+              }
+              resolve(
+                new File(
+                  [blob],
+                  (file.name || "photo").replace(/\.\w+$/, ".jpg"),
+                  { type: "image/jpeg" }
+                )
+              );
+            },
+            "image/jpeg",
+            quality
+          );
+        } catch {
+          URL.revokeObjectURL(url);
+          resolve(file);
+        }
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(file);
+      };
+      img.src = url;
+    });
 
-      setMessageText("");
-      setSending(true);
+  const handlePickAttachment = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
+    const isImg = isImageFile(file);
+    const isPdf =
+      file.type === "application/pdf" || /\.pdf$/i.test(file.name || "");
+    const isDoc =
+      /\.(doc|docx|txt|xls|xlsx|ppt|pptx)$/i.test(file.name || "") ||
+      String(file.type || "").includes("document") ||
+      String(file.type || "").includes("msword") ||
+      String(file.type || "").includes("officedocument");
+
+    if (!isImg && !isPdf && !isDoc) {
+      showToast("Please choose an image, PDF, or document.");
+      return;
+    }
+    if (file.size > 12 * 1024 * 1024) {
+      showToast("File is too large. Please use a file under 12MB.");
+      return;
+    }
+
+    if (pendingFile?.previewUrl) {
       try {
-        await sendMessage(
-          conversationId,
-          text
-        );
-      } catch (error) {
-        console.error(
-          "Seller send message error:",
-          error
-        );
+        URL.revokeObjectURL(pendingFile.previewUrl);
+      } catch (_) {}
+    }
 
-        setMessageText(text);
-      } finally {
-        setSending(false);
+    setPendingFile({
+      file,
+      previewUrl: isImg ? URL.createObjectURL(file) : null,
+      kind: isImg ? "image" : "file",
+      name: file.name || "file",
+    });
+  };
+
+  const uploadChatFile = async (file) => {
+    if (!file) throw new Error("No file selected");
+
+    if (
+      !CLOUDINARY_CLOUD_NAME ||
+      CLOUDINARY_CLOUD_NAME === "YOUR_CLOUD_NAME" ||
+      !CLOUDINARY_UPLOAD_PRESET
+    ) {
+      throw new Error(
+        "Cloudinary is not configured. Add VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET to your .env file."
+      );
+    }
+
+    const isImage = isImageFile(file);
+    const resourceType = isImage ? "image" : "raw";
+    const endpoint = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`;
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+    formData.append(
+      "folder",
+      isImage ? "campusmart/chat-images" : "campusmart/chat-files"
+    );
+
+    const response = await fetch(endpoint, {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      const msg =
+        data?.error?.message ||
+        data?.message ||
+        `Upload failed (${response.status})`;
+      throw new Error(msg);
+    }
+
+    const url = data.secure_url || data.url;
+    if (!url) throw new Error("Upload succeeded but no URL was returned");
+    return url;
+  };
+
+  const handleSendMessage = async () => {
+    const text = messageText.trim();
+    const hasFile = Boolean(pendingFile?.file);
+
+    if (
+      (!text && !hasFile) ||
+      sending ||
+      uploadingFile ||
+      typeof sendMessage !== "function" ||
+      !conversationId
+    ) {
+      return;
+    }
+
+    const localPending = pendingFile;
+    setMessageText("");
+    clearPendingFile();
+    setSending(true);
+
+    try {
+      let fileMeta = null;
+      if (localPending?.file) {
+        setUploadingFile(true);
+        const toUpload =
+          localPending.kind === "image"
+            ? await compressImage(localPending.file)
+            : localPending.file;
+        const fileUrl = await uploadChatFile(toUpload);
+        fileMeta = {
+          type: localPending.kind === "image" ? "image" : "file",
+          fileUrl,
+          imageUrl: localPending.kind === "image" ? fileUrl : undefined,
+          fileName: localPending.name,
+          fileMime: localPending.file.type || "",
+          text:
+            text ||
+            (localPending.kind === "image"
+              ? "📷 Photo"
+              : `📎 ${localPending.name}`),
+        };
       }
-    };
 
-  // =====================================================
-  // KEYBOARD
-  // =====================================================
+      const payloadText =
+        text ||
+        (fileMeta
+          ? fileMeta.type === "image"
+            ? "📷 Photo"
+            : `📎 ${fileMeta.fileName}`
+          : "");
+
+      if (fileMeta) {
+        await sendMessage(conversationId, payloadText, fileMeta);
+      } else {
+        await sendMessage(conversationId, payloadText);
+      }
+    } catch (error) {
+      console.error("Seller send message error:", error);
+      setMessageText(text);
+      showToast(
+        String(error?.message || "").toLowerCase().includes("cloudinary")
+          ? error.message
+          : String(error?.message || "").includes("not configured")
+          ? error.message
+          : "Could not upload file. Please try again."
+          : "Message failed to send. Check your connection and try again."
+      );
+    } finally {
+      setUploadingFile(false);
+      setSending(false);
+    }
+  };
 
   const handleKeyDown = (e) => {
     if (
@@ -1789,6 +2072,19 @@ function SellerChat({
                       </p>
                     </div>
                   </div>
+
+                  {visibleMessages.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={selectAllForDeletion}
+                      disabled={deleting}
+                      title="Delete all messages"
+                      aria-label="Delete all messages"
+                      className="w-10 h-10 min-w-[40px] rounded-full hover:bg-green-50 active:bg-green-100 flex items-center justify-center text-green-600 shrink-0"
+                    >
+                      <FiTrash2 size={18} />
+                    </button>
+                  )}
                 </>
               )}
             </div>
@@ -1809,12 +2105,14 @@ function SellerChat({
               to-gray-50
               [scrollbar-width:thin]
             ">
-              <div className="text-center mb-3 sm:mb-5">
+              <div className="text-center mb-3 sm:mb-4">
                 <span className="inline-block bg-white text-green-600 text-[10px] sm:text-xs font-medium px-3 py-1.5 rounded-full border border-green-100 shadow-sm">
                   Conversation with{" "}
                   {buyerName}
                 </span>
               </div>
+
+              
 
               {searchedMessages.length ===
                 0 && (
@@ -1998,6 +2296,95 @@ function SellerChat({
                     );
                   }
 
+
+                  // ===== PRODUCT CARD MESSAGE =====
+                  if (message?.type === "product") {
+                    const pId = message.productId;
+                    const pName =
+                      message.productName || message.text || "Product";
+                    const pImage = message.productImage || null;
+                    const pPrice = message.productPrice;
+                    return (
+                      <div
+                        key={messageId}
+                        className={`flex w-full ${
+                          mine ? "justify-end" : "justify-start"
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (selectedMessageIds.length > 0) {
+                              toggleMessageSelection(messageId);
+                              return;
+                            }
+                            if (pId) navigate(`/products/${pId}`);
+                          }}
+                          className={`
+                            max-w-[88%] sm:max-w-[70%] text-left rounded-2xl overflow-hidden
+                            border shadow-sm transition
+                            ${selected ? "ring-2 ring-green-500 ring-offset-2" : ""}
+                            ${
+                              mine
+                                ? "bg-green-800 border-green-700 rounded-br-md"
+                                : "bg-white border-green-200 rounded-bl-md"
+                            }
+                          `}
+                        >
+                          <div className="flex gap-3 p-3">
+                            <div className="w-16 h-16 rounded-xl overflow-hidden bg-green-50 flex-shrink-0 border border-green-100">
+                              {pImage ? (
+                                <img
+                                  src={pImage}
+                                  alt={pName}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-green-600">
+                                  <FiPackage size={22} />
+                                </div>
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p
+                                className={`text-[10px] font-semibold uppercase tracking-wide ${
+                                  mine ? "text-green-100" : "text-green-600"
+                                }`}
+                              >
+                                Product
+                              </p>
+                              <p
+                                className={`text-sm font-bold mt-0.5 line-clamp-2 ${
+                                  mine ? "text-white" : "text-gray-900"
+                                }`}
+                              >
+                                {pName}
+                              </p>
+                              {pPrice != null && Number(pPrice) > 0 && (
+                                <p
+                                  className={`text-xs font-semibold mt-1 ${
+                                    mine ? "text-green-100" : "text-gray-700"
+                                  }`}
+                                >
+                                  ₦
+                                  {Number(pPrice).toLocaleString("en-NG")}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <div
+                            className={`flex items-center justify-end gap-0.5 text-[10px] px-3 pb-2 ${
+                              mine ? "text-green-100" : "text-gray-400"
+                            }`}
+                          >
+                            <span>{formatMessageTime(message)}</span>
+                            <MessageTicks message={message} />
+                          </div>
+                        </button>
+                      </div>
+                    );
+                  }
+
                   // ===== NORMAL TEXT BUBBLE =====
                   return (
                     <div
@@ -2048,11 +2435,76 @@ function SellerChat({
                           </div>
                         )}
 
-                        <p className="text-sm leading-5 break-words whitespace-pre-wrap">
-                          {message?.text ||
-                            message?.message ||
-                            ""}
-                        </p>
+                        {(message?.type === "image" ||
+                          message?.imageUrl) && (
+                          <div className="mb-2 rounded-xl overflow-hidden bg-black/10">
+                            <img
+                              src={
+                                message.imageUrl ||
+                                message.fileUrl ||
+                                message.text
+                              }
+                              alt="Shared"
+                              className="max-h-56 w-full object-cover"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setLightboxUrl(
+                                  message.imageUrl ||
+                                    message.fileUrl ||
+                                    message.text
+                                );
+                              }}
+                            />
+                          </div>
+                        )}
+
+                        {(message?.type === "file" ||
+                          (message?.fileUrl &&
+                            message?.type !== "image")) && (
+                          <a
+                            href={message.fileUrl || message.imageUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="mb-2 flex items-center gap-2 rounded-xl bg-white/15 px-3 py-2 text-left hover:bg-white/25"
+                          >
+                            <FiFileText size={18} />
+                            <span className="text-xs font-semibold truncate">
+                              {message.fileName || "Document"}
+                            </span>
+                            <FiExternalLink
+                              size={14}
+                              className="ml-auto shrink-0"
+                            />
+                          </a>
+                        )}
+
+                        {message?.text &&
+                          message.text !== "📷 Photo" &&
+                          !String(message.text || "").startsWith("📎 ") &&
+                          message?.type !== "product" && (
+                          <p
+                            className="text-sm leading-5 break-words whitespace-pre-wrap select-text"
+                            title="Double-tap to copy"
+                            onDoubleClick={(e) => {
+                              e.stopPropagation();
+                              copyMessageText(
+                                message?.text || message?.message || ""
+                              );
+                            }}
+                            onContextMenu={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              copyMessageText(
+                                message?.text || message?.message || ""
+                              );
+                            }}
+                          >
+                            {message?.text ||
+                              message?.message ||
+                              ""}
+                          </p>
+                        )}
 
                         <div
                           className="
@@ -2105,75 +2557,206 @@ function SellerChat({
                   [padding-bottom:max(0.5rem,env(safe-area-inset-bottom))]
                 "
               >
-                <div className="flex items-center gap-2 w-full">
+                {pendingFile && (
+                  <div className="mb-2 flex items-center gap-2">
+                    {pendingFile.kind === "image" &&
+                    pendingFile.previewUrl ? (
+                      <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-green-200">
+                        <img
+                          src={pendingFile.previewUrl}
+                          alt="Preview"
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={clearPendingFile}
+                          className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center"
+                          aria-label="Remove"
+                        >
+                          <FiX size={12} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="relative flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-3 py-2">
+                        <FiFileText className="text-green-700" size={18} />
+                        <span className="text-xs font-semibold text-gray-700 truncate max-w-[160px]">
+                          {pendingFile.name}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={clearPendingFile}
+                          className="w-5 h-5 rounded-full bg-black/50 text-white flex items-center justify-center"
+                        >
+                          <FiX size={12} />
+                        </button>
+                      </div>
+                    )}
+                    <p className="text-xs text-gray-500">Ready to send</p>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-1.5 sm:gap-2 w-full">
                   <input
-                    type="text"
-                    value={messageText}
-                    onChange={(e) =>
-                      setMessageText(
-                        e.target.value
-                      )
-                    }
-                    onKeyDown={
-                      handleKeyDown
-                    }
-                    disabled={sending}
-                    placeholder={`Message ${buyerName}...`}
-                    autoComplete="off"
-                    className="
-                      flex-1
-                      min-w-0
-                      h-11
-                      bg-gray-100
-                      rounded-full
-                      px-4
-                      text-sm
-                      text-gray-800
-                      outline-none
-                      border
-                      border-transparent
-                      focus:ring-2
-                      focus:ring-green-100
-                      focus:border-green-500
-                      focus:bg-white
-                      disabled:opacity-60
-                    "
+                    ref={galleryInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handlePickAttachment}
+                  />
+                  <input
+                    ref={cameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={handlePickAttachment}
+                  />
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf,.doc,.docx,.txt,.xls,.xlsx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    className="hidden"
+                    onChange={handlePickAttachment}
                   />
 
                   <button
                     type="button"
-                    onClick={
-                      handleSendMessage
-                    }
-                    disabled={
-                      !messageText.trim() ||
-                      sending
-                    }
-                    className="
-                      w-11
-                      h-11
-                      rounded-full
-                      bg-green-600
-                      hover:bg-green-700
-                      active:bg-green-800
-                      disabled:bg-gray-300
-                      text-white
-                      flex
-                      items-center
-                      justify-center
-                      shrink-0
-                      transition
-                    "
+                    onClick={() => galleryInputRef.current?.click()}
+                    disabled={sending || uploadingFile}
+                    title="Gallery"
+                    className="w-10 h-10 rounded-full bg-green-50 hover:bg-green-100 text-green-700 flex items-center justify-center shrink-0 border border-green-100 disabled:opacity-50"
                   >
-                    {sending ? (
+                    <FiImage size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => cameraInputRef.current?.click()}
+                    disabled={sending || uploadingFile}
+                    title="Camera"
+                    className="w-10 h-10 rounded-full bg-green-50 hover:bg-green-100 text-green-700 flex items-center justify-center shrink-0 border border-green-100 disabled:opacity-50"
+                  >
+                    <FiCamera size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={sending || uploadingFile}
+                    title="Document"
+                    className="w-10 h-10 rounded-full bg-green-50 hover:bg-green-100 text-green-700 flex items-center justify-center shrink-0 border border-green-100 disabled:opacity-50"
+                  >
+                    <FiPaperclip size={18} />
+                  </button>
+
+                  <input
+                    type="text"
+                    value={messageText}
+                    onChange={(e) => setMessageText(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    disabled={sending || uploadingFile}
+                    placeholder={`Message ${buyerName}...`}
+                    autoComplete="off"
+                    className="flex-1 min-w-0 h-11 bg-gray-100 rounded-full px-3 sm:px-4 text-sm text-gray-800 outline-none border border-transparent focus:ring-2 focus:ring-green-100 focus:border-green-500 focus:bg-white disabled:opacity-60"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={handleSendMessage}
+                    disabled={
+                      (!messageText.trim() && !pendingFile) ||
+                      sending ||
+                      uploadingFile
+                    }
+                    className="w-11 h-11 rounded-full bg-green-600 hover:bg-green-700 active:bg-green-800 disabled:bg-gray-300 text-white flex items-center justify-center shrink-0 transition"
+                  >
+                    {sending || uploadingFile ? (
                       <span className="w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
                     ) : (
-                      <FiSend
-                        size={18}
-                      />
+                      <FiSend size={18} />
                     )}
                   </button>
                 </div>
+              </div>
+            )}
+
+            
+            {/* CAMPUSMART TOAST */}
+            {toast && (
+              <div className="fixed left-1/2 bottom-24 sm:bottom-28 z-[120] -translate-x-1/2 px-4 w-full max-w-sm pointer-events-none">
+                <div
+                  className={`
+                    pointer-events-auto rounded-2xl px-4 py-3 shadow-lg border flex items-start gap-3
+                    ${
+                      toast.type === "success"
+                        ? "bg-[#008236] border-green-700 text-white"
+                        : "bg-white border-green-200 text-gray-800"
+                    }
+                  `}
+                >
+                  <div
+                    className={`
+                      w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0
+                      ${
+                        toast.type === "success"
+                          ? "bg-white/15 text-white"
+                          : "bg-red-50 text-red-600"
+                      }
+                    `}
+                  >
+                    {toast.type === "success" ? (
+                      <FiCheck size={18} />
+                    ) : (
+                      <FiX size={18} />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1 pt-0.5">
+                    <p className="text-sm font-semibold leading-5">
+                      {toast.type === "success" ? "Done" : "Couldn’t send"}
+                    </p>
+                    <p
+                      className={`text-xs mt-0.5 leading-4 ${
+                        toast.type === "success"
+                          ? "text-green-50"
+                          : "text-gray-500"
+                      }`}
+                    >
+                      {toast.message}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setToast(null)}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                      toast.type === "success"
+                        ? "hover:bg-white/10 text-white"
+                        : "hover:bg-gray-100 text-gray-500"
+                    }`}
+                  >
+                    <FiX size={16} />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* IMAGE LIGHTBOX */}
+            {lightboxUrl && (
+              <div
+                className="fixed inset-0 z-[130] bg-black/90 flex items-center justify-center p-4"
+                onClick={() => setLightboxUrl(null)}
+              >
+                <button
+                  type="button"
+                  onClick={() => setLightboxUrl(null)}
+                  className="absolute top-4 right-4 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
+                  aria-label="Close"
+                >
+                  <FiX size={22} />
+                </button>
+                <img
+                  src={lightboxUrl}
+                  alt="Full size"
+                  className="max-w-full max-h-[90vh] object-contain rounded-lg"
+                  onClick={(e) => e.stopPropagation()}
+                />
               </div>
             )}
 

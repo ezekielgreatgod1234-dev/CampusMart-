@@ -291,9 +291,12 @@ function ProductDetails({
           },
           lastMessage: "",
           lastMessageAt: 0,
+          // Product context — shown at top of chat for both sides
           productId: product.id || null,
           productName: product.name || "",
           productImage: product.image || null,
+          productPrice:
+            product.price != null ? Number(product.price) || 0 : null,
           sellerId,
           updatedAt: serverTimestamp(),
         },

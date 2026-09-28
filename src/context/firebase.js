@@ -2,11 +2,8 @@ import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getDatabase } from "firebase/database";
+import { getStorage } from "firebase/storage";
 import { getMessaging, isSupported } from "firebase/messaging";
-
-// =====================================================
-// FIREBASE CONFIG
-// =====================================================
 
 const firebaseConfig = {
   apiKey: "AIzaSyCvkrye7sDBuFT3PMR2SfhteAo5FronrlY",
@@ -17,33 +14,12 @@ const firebaseConfig = {
   appId: "1:951479651923:web:b83fd9ec9f399a4570c0a6",
 };
 
-// =====================================================
-// INITIALIZE FIREBASE
-// =====================================================
-
 const app = initializeApp(firebaseConfig);
 
-// =====================================================
-// AUTHENTICATION
-// =====================================================
-
 export const auth = getAuth(app);
-
-// =====================================================
-// FIRESTORE
-// =====================================================
-
 export const db = getFirestore(app);
-
-// =====================================================
-// REALTIME DATABASE
-// =====================================================
-
 export const realtimeDb = getDatabase(app);
-
-// =====================================================
-// CLOUD MESSAGING (push notifications)
-// =====================================================
+export const storage = getStorage(app);
 
 let messaging = null;
 
@@ -61,9 +37,5 @@ export async function getFirebaseMessaging() {
     return null;
   }
 }
-
-// =====================================================
-// EXPORT APP
-// =====================================================
 
 export default app;
