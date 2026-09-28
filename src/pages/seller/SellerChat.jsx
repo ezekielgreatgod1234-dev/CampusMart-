@@ -1263,14 +1263,25 @@ function SellerChat({
     } catch (error) {
       console.error("Seller send message error:", error);
       setMessageText(text);
-      showToast(
-        String(error?.message || "").toLowerCase().includes("cloudinary")
-          ? error.message
-          : String(error?.message || "").includes("not configured")
-          ? error.message
-          : "Could not upload file. Please try again."
-          : "Message failed to send. Check your connection and try again."
-      );
+
+      // FIXED: the old nested ternary had an extra ":" which caused the
+      // Vite PARSE_ERROR. Using plain if/else keeps it readable and safe.
+      const errorText = String(error?.message || "");
+      const normalizedError = errorText.toLowerCase();
+
+      let userMessage =
+        "Message failed to send. Check your connection and try again.";
+
+      if (
+        normalizedError.includes("cloudinary") ||
+        normalizedError.includes("not configured")
+      ) {
+        userMessage = errorText || "Cloudinary upload failed.";
+      } else if (localPending?.file) {
+        userMessage = "Could not upload file. Please try again.";
+      }
+
+      showToast(userMessage);
     } finally {
       setUploadingFile(false);
       setSending(false);
