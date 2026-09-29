@@ -815,20 +815,15 @@ function GigDetail({ cartCount = 0, profile }) {
       return;
     }
 
-    let openUrl = String(url);
-
-    // Cloudinary serves "raw"/non-image files without an inline
-    // Content-Type by default, which is what makes PDFs go blank in a
-    // new tab. Ask it to serve as inline (viewable) instead of as an
-    // attachment, without changing the file itself.
-    if (
-      openUrl.includes("res.cloudinary.com") &&
-      openUrl.includes("/upload/") &&
-      !openUrl.includes("fl_attachment") &&
-      !openUrl.includes("fl_inline")
-    ) {
-      openUrl = openUrl.replace("/upload/", "/upload/fl_inline/");
-    }
+    // Open the URL exactly as stored — do NOT rewrite/insert Cloudinary
+    // transformation flags (fl_attachment, fl_inline, etc). Cloudinary
+    // "raw" uploads (most non-image files, e.g. PDFs from a resume
+    // upload) don't support delivery flags at all, and if the URL is
+    // signed, changing it even slightly invalidates the signature —
+    // both cases come back as an HTTP 400 "page isn't working" error.
+    // The untouched URL already has the correct Content-Type, which is
+    // all that's needed for the browser to preview or download it.
+    const openUrl = String(url);
 
     const win = window.open(openUrl, "_blank", "noopener,noreferrer");
 
