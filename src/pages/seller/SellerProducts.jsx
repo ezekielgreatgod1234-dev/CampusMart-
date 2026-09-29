@@ -488,8 +488,8 @@ function SellerProducts({ unreadMessages = 0, profile = {} }) {
       event.target.value = "";
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      setFormError("Image must be 5MB or smaller.");
+    if (file.size > 500 * 1024) {
+      setFormError("Image must be 500KB or smaller. Please compress or choose a smaller image.");
       event.target.value = "";
       return;
     }
@@ -1247,7 +1247,8 @@ function SellerProducts({ unreadMessages = 0, profile = {} }) {
 
                 <div className="sm:col-span-2">
                   <label className="block text-xs font-semibold text-gray-700 mb-2">
-                    Image
+                    Image{" "}
+                    <span className="font-normal text-gray-400">(max 500KB)</span>
                   </label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="relative">

@@ -66,6 +66,7 @@ function SellerStore({
   const [seller, setSeller] = useState(null);
   const [products, setProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(true);
+  const [visibleCount, setVisibleCount] = useState(10);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
@@ -183,6 +184,7 @@ function SellerStore({
     }
 
     setProductsLoading(true);
+    setVisibleCount(10);
 
     const q = query(
       collection(db, "products"),
@@ -532,17 +534,46 @@ function SellerStore({
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
-              {products.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  addToCart={addToCart}
-                  wishlist={wishlist}
-                  toggleWishlist={toggleWishlist}
-                />
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-5">
+                {products.slice(0, visibleCount).map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    addToCart={addToCart}
+                    wishlist={wishlist}
+                    toggleWishlist={toggleWishlist}
+                  />
+                ))}
+              </div>
+
+              {(products.length > 10 || visibleCount > 10) && (
+                <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
+                  {visibleCount < products.length && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setVisibleCount((n) =>
+                          Math.min(n + 10, products.length)
+                        )
+                      }
+                      className="h-11 px-6 rounded-xl bg-[#008236] text-white text-sm font-semibold hover:bg-[#006f2e] transition shadow-sm"
+                    >
+                      Load more
+                    </button>
+                  )}
+                  {visibleCount > 10 && (
+                    <button
+                      type="button"
+                      onClick={() => setVisibleCount(10)}
+                      className="h-11 px-6 rounded-xl border border-gray-200 bg-white text-gray-700 text-sm font-semibold hover:bg-gray-50 transition"
+                    >
+                      Load less
+                    </button>
+                  )}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

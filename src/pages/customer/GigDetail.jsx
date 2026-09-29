@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import CustomerLayout from "../../layouts/CustomerLayout";
 import {
@@ -31,7 +31,23 @@ import {
   FiAlertCircle,
   FiRefreshCw,
   FiXCircle,
+  FiPaperclip,
+  FiX,
+  FiFileText,
+  FiImage,
+  FiExternalLink,
 } from "react-icons/fi";
+
+const CLOUDINARY_CLOUD_NAME =
+  (typeof import.meta !== "undefined" &&
+    import.meta.env &&
+    import.meta.env.VITE_CLOUDINARY_CLOUD_NAME) ||
+  "";
+const CLOUDINARY_UPLOAD_PRESET =
+  (typeof import.meta !== "undefined" &&
+    import.meta.env &&
+    import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET) ||
+  "";
 
 function GigDetail({ cartCount = 0, profile }) {
   const { id } = useParams();
@@ -50,6 +66,19 @@ function GigDetail({ cartCount = 0, profile }) {
   const [showDeadlineEditor, setShowDeadlineEditor] = useState(false);
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showEditGig, setShowEditGig] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editForm, setEditForm] = useState({
+    title: "",
+    description: "",
+    category: "Programming",
+    budget: "",
+    deadline: "",
+    location: "",
+    requirements: "",
+    eligibility: "",
+  });
+
 
   const [newDeadline, setNewDeadline] = useState("");
   const [alreadyApplied, setAlreadyApplied] = useState(false);
@@ -59,6 +88,16 @@ function GigDetail({ cartCount = 0, profile }) {
     message: "",
     proposedPrice: "",
   });
+
+  // slotId -> { file, previewUrl, name, kind }
+  const [attachFiles, setAttachFiles] = useState({});
+  const [uploading, setUploading] = useState(false);
+  const fileInputRefs = useRef({});
+  const [lightboxUrl, setLightboxUrl] = useState(null);
+
+  // Owner: list of applications with attachments
+  const [applications, setApplications] = useState([]);
+  const [appsLoading, setAppsLoading] = useState(false);
 
   const [toast, setToast] = useState({
     open: false,
@@ -105,7 +144,10 @@ function GigDetail({ cartCount = 0, profile }) {
 
   const formatDeadline = (deadline) => {
     const date = getDeadlineDate(deadline);
-    if (!date) return "No deadline set";
+    if (!date) {
+      if (typeof deadline === "string" && deadline.trim()) return deadline;
+      return "No deadline set";
+    }
     return date.toLocaleString("en-NG", {
       month: "long",
       day: "numeric",
@@ -138,9 +180,17 @@ function GigDetail({ cartCount = 0, profile }) {
     return stringValue.replace(/\$/g, "₦");
   };
 
-  /**
-   * Live-format proposed price input: digits only → ₦12,500 style
-   */
+
+  const formatUploadedLabel = (label, fileName) => {
+    let raw = String(label || "").trim();
+    if (!raw) raw = String(fileName || "file").trim() || "file";
+    raw = raw.replace(/^upload\s+(your\s+)?/i, "").trim();
+    if (!raw) raw = "file";
+    const pretty = raw.charAt(0).toUpperCase() + raw.slice(1);
+    if (/^uploaded\b/i.test(pretty)) return pretty;
+    return `Uploaded ${pretty}`;
+  };
+
   const handleProposedPriceChange = (raw) => {
     const digits = String(raw || "").replace(/[^\d]/g, "");
     if (!digits) {
@@ -169,7 +219,158 @@ function GigDetail({ cartCount = 0, profile }) {
     return `${year}-${month}-${day}T${hours}:${minutes}`;
   };
 
-  // Fetch gig
+  const requireAttachment = gig?.requireAttachment === true;
+
+  // New multi-slot format; fall back to single legacy slot
+  const attachmentSlots = (() => {
+    if (Array.isArray(gig?.attachmentSlots) && gig.attachmentSlots.length) {
+      return gig.attachmentSlots.map((s, i) => ({
+        id: String(s.id || `slot-${i}`),
+        label: String(s.label || `File ${i + 1}`).trim() || `File ${i + 1}`,
+        allowedTypes: Array.isArray(s.allowedTypes)
+          ? s.allowedTypes.map((t) => String(t).toLowerCase())
+          : ["jpg", "png", "pdf"],
+      }));
+    }
+    if (requireAttachment) {
+      const types = Array.isArray(gig?.allowedFileTypes)
+        ? gig.allowedFileTypes.map((t) => String(t).toLowerCase())
+        : ["jpg", "png", "pdf"];
+      return [
+        {
+          id: "default",
+          label: "Upload required file",
+          allowedTypes: types.length ? types : ["jpg", "png", "pdf"],
+        },
+      ];
+    }
+    return [];
+  })();
+
+  const acceptForTypes = (types) => {
+    const parts = [];
+    const t = (types || []).map((x) => String(x).toLowerCase());
+    if (t.includes("jpg") || t.includes("jpeg")) {
+      parts.push("image/jpeg", ".jpg", ".jpeg");
+    }
+    if (t.includes("png")) parts.push("image/png", ".png");
+    if (t.includes("pdf")) parts.push("application/pdf", ".pdf");
+    return (
+      parts.join(",") ||
+      "image/jpeg,image/png,application/pdf,.jpg,.jpeg,.png,.pdf"
+    );
+  };
+
+  const detectKind = (file) => {
+    const type = String(file?.type || "").toLowerCase();
+    const name = String(file?.name || "").toLowerCase();
+    if (type.includes("pdf") || name.endsWith(".pdf")) return "pdf";
+    if (type.includes("png") || name.endsWith(".png")) return "png";
+    if (
+      type.includes("jpeg") ||
+      type.includes("jpg") ||
+      name.endsWith(".jpg") ||
+      name.endsWith(".jpeg")
+    )
+      return "jpg";
+    if (type.startsWith("image/")) return "jpg";
+    return "file";
+  };
+
+  const isTypeAllowedForSlot = (kind, allowedTypes) => {
+    const t = (allowedTypes || []).map((x) => String(x).toLowerCase());
+    if (kind === "jpg" || kind === "jpeg") {
+      return t.includes("jpg") || t.includes("jpeg");
+    }
+    return t.includes(kind);
+  };
+
+  const clearAttachSlot = (slotId) => {
+    setAttachFiles((prev) => {
+      const cur = prev[slotId];
+      if (cur?.previewUrl) {
+        try {
+          URL.revokeObjectURL(cur.previewUrl);
+        } catch (_) {}
+      }
+      const next = { ...prev };
+      delete next[slotId];
+      return next;
+    });
+    if (fileInputRefs.current[slotId]) {
+      fileInputRefs.current[slotId].value = "";
+    }
+  };
+
+  const clearAllAttaches = () => {
+    Object.keys(attachFiles).forEach((id) => clearAttachSlot(id));
+    setAttachFiles({});
+  };
+
+  const handleFilePick = (slotId, allowedTypes, e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const kind = detectKind(file);
+    if (!isTypeAllowedForSlot(kind, allowedTypes)) {
+      showToast(
+        `This file only accepts: ${(allowedTypes || [])
+          .map((t) => String(t).toUpperCase())
+          .join(", ")}`,
+        "error"
+      );
+      e.target.value = "";
+      return;
+    }
+
+    if (file.size > 1 * 1024 * 1024) {
+      showToast(
+        "File is too large. Maximum size is 1MB. Please compress or choose a smaller file.",
+        "error"
+      );
+      e.target.value = "";
+      return;
+    }
+
+    clearAttachSlot(slotId);
+    const isImg = kind === "jpg" || kind === "png";
+    setAttachFiles((prev) => ({
+      ...prev,
+      [slotId]: {
+        file,
+        name: file.name,
+        kind,
+        previewUrl: isImg ? URL.createObjectURL(file) : null,
+      },
+    }));
+  };
+
+  const uploadToCloudinary = async (file) => {
+    if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) {
+      throw new Error(
+        "Cloudinary is not configured. Add VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET."
+      );
+    }
+    const kind = detectKind(file);
+    const resourceType = kind === "pdf" ? "raw" : "image";
+    const endpoint = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`;
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+    formData.append("folder", "campusmart/gig-applications");
+
+    const response = await fetch(endpoint, { method: "POST", body: formData });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(
+        data?.error?.message || data?.message || "Upload failed"
+      );
+    }
+    const url = data.secure_url || data.url;
+    if (!url) throw new Error("Upload succeeded but no URL returned");
+    return { url, kind, name: file.name, mime: file.type || "" };
+  };
+
   useEffect(() => {
     const fetchGig = async () => {
       try {
@@ -189,7 +390,6 @@ function GigDetail({ cartCount = 0, profile }) {
     fetchGig();
   }, [id]);
 
-  // Check if current user already applied
   useEffect(() => {
     if (!firebaseUser?.uid || !id) {
       setAlreadyApplied(false);
@@ -202,7 +402,7 @@ function GigDetail({ cartCount = 0, profile }) {
     const q = query(
       collection(db, "gigApplications"),
       where("gigId", "==", id),
-      where("applicantId", "==", firebaseUser.uid),
+      where("applicantId", "==", firebaseUser.uid)
     );
 
     const unsub = onSnapshot(
@@ -213,18 +413,46 @@ function GigDetail({ cartCount = 0, profile }) {
       },
       (err) => {
         console.error("Check application error:", err);
-        // fallback one-shot
         getDocs(q)
-          .then((snap) => {
-            setAlreadyApplied(!snap.empty);
-          })
+          .then((snap) => setAlreadyApplied(!snap.empty))
           .catch(() => setAlreadyApplied(false))
           .finally(() => setCheckingApplication(false));
-      },
+      }
     );
 
     return () => unsub();
   }, [firebaseUser?.uid, id]);
+
+  // Owner loads applications on this page too
+  useEffect(() => {
+    if (!isOwner || !id) {
+      setApplications([]);
+      return;
+    }
+    setAppsLoading(true);
+    const q = query(
+      collection(db, "gigApplications"),
+      where("gigId", "==", id)
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        list.sort((a, b) => {
+          const at = a.createdAt?.seconds || 0;
+          const bt = b.createdAt?.seconds || 0;
+          return bt - at;
+        });
+        setApplications(list);
+        setAppsLoading(false);
+      },
+      () => {
+        setApplications([]);
+        setAppsLoading(false);
+      }
+    );
+    return () => unsub();
+  }, [isOwner, id]);
 
   const handleApply = async (e) => {
     e.preventDefault();
@@ -247,8 +475,6 @@ function GigDetail({ cartCount = 0, profile }) {
       return;
     }
 
-    const currentDeadline = getDeadlineDate(gig.deadline);
-
     if (
       gig.applicationOpen === false ||
       gig.status === "completed" ||
@@ -259,13 +485,23 @@ function GigDetail({ cartCount = 0, profile }) {
       return;
     }
 
+    const currentDeadline = getDeadlineDate(gig.deadline);
     if (currentDeadline && currentDeadline.getTime() < Date.now()) {
       showToast(
         "The application deadline has passed. Please wait for the poster to extend the deadline.",
-        "error",
+        "error"
       );
       setShowApplyForm(false);
       return;
+    }
+
+    if (requireAttachment && attachmentSlots.length) {
+      for (const slot of attachmentSlots) {
+        if (!attachFiles[slot.id]?.file) {
+          showToast(`Please upload: ${slot.label}`, "error");
+          return;
+        }
+      }
     }
 
     setApplying(true);
@@ -283,12 +519,32 @@ function GigDetail({ cartCount = 0, profile }) {
         firebaseUser.photoURL ||
         null;
 
-      // Store numeric proposed price when possible
       let priceToSave = proposal.proposedPrice.trim() || null;
       if (priceToSave) {
         const cleaned = priceToSave.replace(/[^\d]/g, "");
         if (cleaned) priceToSave = Number(cleaned);
       }
+
+      const attachments = [];
+      if (attachmentSlots.length) {
+        setUploading(true);
+        for (const slot of attachmentSlots) {
+          const picked = attachFiles[slot.id];
+          if (!picked?.file) continue;
+          const uploaded = await uploadToCloudinary(picked.file);
+          attachments.push({
+            slotId: slot.id,
+            label: slot.label,
+            url: uploaded.url,
+            name: uploaded.name,
+            type: uploaded.kind,
+            mime: uploaded.mime,
+          });
+        }
+      }
+
+      // Legacy single-file fields (first attachment) for older UIs
+      const first = attachments[0] || null;
 
       await addDoc(collection(db, "gigApplications"), {
         gigId: id,
@@ -298,6 +554,11 @@ function GigDetail({ cartCount = 0, profile }) {
         message: proposal.message.trim(),
         proposedPrice: priceToSave,
         proposedPriceDisplay: priceToSave ? formatNaira(priceToSave) : null,
+        attachments,
+        attachmentUrl: first?.url || null,
+        attachmentName: first?.name || null,
+        attachmentType: first?.type || null,
+        attachmentMime: first?.mime || null,
         status: "pending",
         createdAt: serverTimestamp(),
       });
@@ -310,20 +571,25 @@ function GigDetail({ cartCount = 0, profile }) {
       setAlreadyApplied(true);
       setShowApplyForm(false);
       setProposal({ message: "", proposedPrice: "" });
+      clearAllAttaches();
       setGig((prev) =>
         prev
           ? {
               ...prev,
               applicationsCount: (prev.applicationsCount || 0) + 1,
             }
-          : prev,
+          : prev
       );
 
       showToast("Application sent successfully!", "success");
     } catch (error) {
       console.error("Error applying:", error);
-      showToast("Failed to send application. Please try again.", "error");
+      showToast(
+        error?.message || "Failed to send application. Please try again.",
+        "error"
+      );
     } finally {
+      setUploading(false);
       setApplying(false);
     }
   };
@@ -339,7 +605,7 @@ function GigDetail({ cartCount = 0, profile }) {
     if (!firebaseUser || !isOwner) {
       showToast(
         "Only the person who posted this gig can change the deadline.",
-        "error",
+        "error"
       );
       return;
     }
@@ -356,7 +622,7 @@ function GigDetail({ cartCount = 0, profile }) {
     if (selectedDate.getTime() <= Date.now()) {
       showToast(
         "Please choose a future date and time for the new deadline.",
-        "error",
+        "error"
       );
       return;
     }
@@ -378,18 +644,84 @@ function GigDetail({ cartCount = 0, profile }) {
               applicationOpen: true,
               status: "open",
             }
-          : prev,
+          : prev
       );
       setShowDeadlineEditor(false);
       showToast(
         "Deadline updated successfully. Applications are open again.",
-        "success",
+        "success"
       );
     } catch (error) {
       console.error("Error updating deadline:", error);
       showToast("Failed to update the deadline. Please try again.", "error");
     } finally {
       setSavingDeadline(false);
+    }
+  };
+
+
+  const openEditGig = () => {
+    if (!gig) return;
+    setEditForm({
+      title: gig.title || "",
+      description: gig.description || "",
+      category: gig.category || "Programming",
+      budget:
+        gig.budget === "Negotiable" || gig.budget == null
+          ? ""
+          : String(gig.budget),
+      deadline: getDateTimeLocalValue(gig.deadline),
+      location: gig.location || "",
+      requirements: gig.requirements || "",
+      eligibility: gig.eligibility || "",
+    });
+    setShowEditGig(true);
+  };
+
+  const handleSaveEditGig = async (e) => {
+    e.preventDefault();
+    if (!firebaseUser || !isOwner || !id) {
+      showToast("Only the poster can edit this gig.", "error");
+      return;
+    }
+    if (!editForm.title.trim() || !editForm.description.trim()) {
+      showToast("Title and description are required.", "error");
+      return;
+    }
+    if (!editForm.deadline) {
+      showToast("Please choose a deadline.", "error");
+      return;
+    }
+    const selectedDate = new Date(editForm.deadline);
+    if (Number.isNaN(selectedDate.getTime())) {
+      showToast("Please enter a valid deadline.", "error");
+      return;
+    }
+
+    setSavingEdit(true);
+    try {
+      const payload = {
+        title: editForm.title.trim(),
+        description: editForm.description.trim(),
+        category: editForm.category,
+        budget: editForm.budget.trim() || "Negotiable",
+        deadline: selectedDate.toISOString(),
+        location: editForm.location.trim() || "Campus",
+        requirements: editForm.requirements.trim() || "",
+        eligibility: editForm.eligibility.trim() || "",
+        applicationOpen: true,
+        status: "open",
+        updatedAt: serverTimestamp(),
+      };
+      await updateDoc(doc(db, "gigs", id), payload);
+      setGig((prev) => (prev ? { ...prev, ...payload } : prev));
+      setShowEditGig(false);
+      showToast("Gig updated successfully.", "success");
+    } catch (error) {
+      console.error("Edit gig error:", error);
+      showToast("Could not update gig. Please try again.", "error");
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -418,19 +750,19 @@ function GigDetail({ cartCount = 0, profile }) {
               applicationOpen: false,
               status: "completed",
             }
-          : prev,
+          : prev
       );
       setShowApplyForm(false);
       setShowCloseModal(false);
       showToast(
         "Your gig has been marked as completed. Applications are now closed.",
-        "success",
+        "success"
       );
     } catch (error) {
       console.error("Error closing gig:", error);
       showToast(
         "We couldn't close the gig right now. Please try again.",
-        "error",
+        "error"
       );
     } finally {
       setClosingGig(false);
@@ -450,6 +782,70 @@ function GigDetail({ cartCount = 0, profile }) {
       setShowDeleteModal(false);
     }
   };
+
+  const isMobileDevice = () =>
+    /Android|iPhone|iPad|iPod|Mobile/i.test(
+      typeof navigator !== "undefined" ? navigator.userAgent || "" : ""
+    );
+
+  /**
+   * Open uploaded file.
+   * Mobile: try system "Open with" / download sheet (Cloudinary fl_attachment).
+   * Desktop: images in lightbox, PDF/files in new tab.
+   */
+  const openAttachment = (url, type, fileName) => {
+    if (!url) return;
+
+    const t = String(type || "").toLowerCase();
+    const isImage =
+      t === "jpg" ||
+      t === "jpeg" ||
+      t === "png" ||
+      t === "image" ||
+      t.startsWith("image");
+
+    const mobile = isMobileDevice();
+
+    let openUrl = String(url);
+    if (
+      mobile &&
+      openUrl.includes("res.cloudinary.com") &&
+      openUrl.includes("/upload/")
+    ) {
+      const safe =
+        encodeURIComponent(
+          String(fileName || "campusmart-file")
+            .replace(/[^\w.\-]+/g, "_")
+            .slice(0, 80)
+        ) || "campusmart-file";
+      if (!openUrl.includes("fl_attachment")) {
+        openUrl = openUrl.replace("/upload/", `/upload/fl_attachment:${safe}/`);
+      }
+    }
+
+    if (mobile) {
+      const a = document.createElement("a");
+      a.href = openUrl;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      if (fileName) {
+        try {
+          a.setAttribute("download", String(fileName));
+        } catch (_) {}
+      }
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return;
+    }
+
+    if (isImage) {
+      setLightboxUrl(url);
+      return;
+    }
+    window.open(openUrl, "_blank", "noopener,noreferrer");
+  };
+
 
   if (loading) {
     return (
@@ -485,8 +881,7 @@ function GigDetail({ cartCount = 0, profile }) {
 
   return (
     <CustomerLayout cartCount={cartCount}>
-      <div className="max-w-3xl mx-auto space-y-6">
-        {/* Toast */}
+      <div className="max-w-3xl mx-auto space-y-6 pb-10">
         {toast.open && (
           <div
             className={`fixed top-4 right-4 z-[120] max-w-sm rounded-xl border px-4 py-3 shadow-lg text-sm font-medium ${
@@ -499,7 +894,6 @@ function GigDetail({ cartCount = 0, profile }) {
           </div>
         )}
 
-        {/* Header */}
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <button
@@ -538,7 +932,6 @@ function GigDetail({ cartCount = 0, profile }) {
           )}
         </div>
 
-        {/* Main Card */}
         <div className="bg-white rounded-2xl border border-gray-100 p-5 sm:p-6">
           <div className="flex flex-wrap items-center gap-2 mb-4">
             <span className="text-xs font-medium bg-green-50 text-green-700 px-3 py-1 rounded-full">
@@ -561,6 +954,12 @@ function GigDetail({ cartCount = 0, profile }) {
                     ? "Deadline Passed"
                     : gig.status || "Open"}
             </span>
+            {requireAttachment && (
+              <span className="text-xs font-medium bg-gray-100 text-gray-700 px-3 py-1 rounded-full flex items-center gap-1">
+                <FiPaperclip size={12} />
+                File required
+              </span>
+            )}
           </div>
 
           <h2 className="text-2xl font-bold text-gray-800 mb-4">{gig.title}</h2>
@@ -641,12 +1040,50 @@ function GigDetail({ cartCount = 0, profile }) {
             </p>
           </div>
 
+          {gig.requirements && (
+            <div className="mb-6">
+              <h3 className="font-semibold text-gray-800 mb-2">Requirements</h3>
+              <p className="text-gray-600 leading-relaxed whitespace-pre-line text-sm sm:text-base">
+                {gig.requirements}
+              </p>
+            </div>
+          )}
+
+          {gig.eligibility && (
+            <div className="mb-6">
+              <h3 className="font-semibold text-gray-800 mb-2">Eligibility</h3>
+              <p className="text-gray-600 leading-relaxed whitespace-pre-line text-sm sm:text-base">
+                {gig.eligibility}
+              </p>
+            </div>
+          )}
+
+          {requireAttachment && attachmentSlots.length > 0 && (
+            <div className="mb-6 rounded-xl border border-green-100 bg-green-50/50 px-4 py-3 text-sm text-gray-700">
+              <p className="font-semibold text-[#008236] flex items-center gap-1.5">
+                <FiPaperclip size={15} />
+                {attachmentSlots.length} file
+                {attachmentSlots.length === 1 ? "" : "s"} required to apply
+              </p>
+              <ul className="mt-2 space-y-1 text-xs text-gray-600 list-disc list-inside">
+                {attachmentSlots.map((s) => (
+                  <li key={s.id}>
+                    <span className="font-medium">{s.label}</span>
+                    {" — "}
+                    {(s.allowedTypes || [])
+                      .map((x) => String(x).toUpperCase())
+                      .join(", ")}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <p className="text-sm text-gray-500 mb-6">
             {gig.applicationsCount || 0} student
             {(gig.applicationsCount || 0) !== 1 ? "s" : ""} have applied
           </p>
 
-          {/* OWNER VIEW */}
           {isOwner ? (
             <div className="space-y-4">
               <div
@@ -694,7 +1131,7 @@ function GigDetail({ cartCount = 0, profile }) {
                         ? "If the work is finished, close the gig. If you still need someone, extend the deadline."
                         : gig.status === "completed" || gig.status === "closed"
                           ? "Applications are no longer being accepted for this gig."
-                          : "You can manage your applications and deadline from here."}
+                          : "You can manage applications and deadline from here."}
                     </p>
                   </div>
                 </div>
@@ -706,8 +1143,10 @@ function GigDetail({ cartCount = 0, profile }) {
                   className="inline-flex items-center justify-center gap-2 bg-[#008236] hover:bg-[#006f2e] text-white text-sm font-medium px-4 py-3 rounded-xl transition shadow-sm"
                 >
                   <FiUser size={16} />
-                  View Applications
+                  My Applications
                 </Link>
+
+            
 
                 <button
                   type="button"
@@ -739,11 +1178,109 @@ function GigDetail({ cartCount = 0, profile }) {
                       ) : (
                         <>
                           <FiCheckCircle size={16} />
-                          Work Completed — Close Applications
+                          Work Completed, Close Applications
                         </>
                       )}
                     </button>
                   )}
+              </div>
+
+              {/* Applications on this gig (with files) */}
+              <div className="mt-2 border border-gray-100 rounded-2xl p-4">
+                <h3 className="font-semibold text-gray-800 mb-3">
+                  Applications ({applications.length})
+                </h3>
+                {appsLoading ? (
+                  <p className="text-sm text-gray-500">Loading...</p>
+                ) : applications.length === 0 ? (
+                  <p className="text-sm text-gray-500">No applications yet.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {applications.map((app) => (
+                      <div
+                        key={app.id}
+                        className="rounded-xl border border-gray-100 bg-gray-50/50 p-3"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 rounded-full bg-green-50 text-[#008236] flex items-center justify-center font-bold text-sm shrink-0 overflow-hidden">
+                            {app.applicantImage ? (
+                              <img
+                                src={app.applicantImage}
+                                alt=""
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              String(app.applicantName || "U")
+                                .charAt(0)
+                                .toUpperCase()
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-semibold text-gray-800 text-sm">
+                              {app.applicantName || "Applicant"}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-0.5 whitespace-pre-wrap">
+                              {app.message}
+                            </p>
+                            {app.proposedPriceDisplay ||
+                            app.proposedPrice != null ? (
+                              <p className="text-xs font-semibold text-[#008236] mt-1">
+                                Proposed:{" "}
+                                {app.proposedPriceDisplay ||
+                                  formatNaira(app.proposedPrice)}
+                              </p>
+                            ) : null}
+                            {Array.isArray(app.attachments) &&
+                            app.attachments.length > 0
+                              ? app.attachments.map((att, idx) => (
+                                  <button
+                                    key={att.slotId || idx}
+                                    type="button"
+                                    onClick={() =>
+                                      openAttachment(att.url, att.type, att.name || att.label)
+                                    }
+                                    className="mt-2 mr-2 inline-flex items-center gap-1.5 text-xs font-semibold text-[#008236] hover:underline"
+                                  >
+                                    {String(att.type || "")
+                                      .toLowerCase()
+                                      .includes("pdf") ? (
+                                      <FiFileText size={14} />
+                                    ) : (
+                                      <FiImage size={14} />
+                                    )}
+                                    {formatUploadedLabel(att.label, att.name)}
+                                    <FiExternalLink size={12} />
+                                  </button>
+                                ))
+                              : app.attachmentUrl && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      openAttachment(
+                                        app.attachmentUrl,
+                                        app.attachmentType,
+                                        app.attachmentName
+                                      )
+                                    }
+                                    className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-[#008236] hover:underline"
+                                  >
+                                    {String(app.attachmentType || "")
+                                      .toLowerCase()
+                                      .includes("pdf") ? (
+                                      <FiFileText size={14} />
+                                    ) : (
+                                      <FiImage size={14} />
+                                    )}
+                                    {formatUploadedLabel(null, app.attachmentName)}
+                                    <FiExternalLink size={12} />
+                                  </button>
+                                )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {showDeadlineEditor && (
@@ -759,15 +1296,13 @@ function GigDetail({ cartCount = 0, profile }) {
                           : "Edit Gig Deadline"}
                       </h3>
                       <p className="text-sm text-gray-500 mt-1">
-                        {isExpired
-                          ? "If you still need the work completed, choose a new deadline below."
-                          : "Choose the new date and time for this gig."}
+                        Choose the new date and time for this gig.
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => setShowDeadlineEditor(false)}
-                      className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:text-green-600 hover:border-green-200 transition"
+                      className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-500"
                     >
                       ×
                     </button>
@@ -817,7 +1352,6 @@ function GigDetail({ cartCount = 0, profile }) {
               )}
             </div>
           ) : !showApplyForm ? (
-            /* APPLICANT VIEW */
             alreadyApplied ? (
               <button
                 type="button"
@@ -857,7 +1391,6 @@ function GigDetail({ cartCount = 0, profile }) {
               </button>
             )
           ) : (
-            /* APPLY FORM */
             <form
               onSubmit={handleApply}
               className="border border-green-100 rounded-2xl p-5 bg-green-50/40"
@@ -883,7 +1416,7 @@ function GigDetail({ cartCount = 0, profile }) {
                 />
               </div>
 
-              <div className="mb-5">
+              <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   Your proposed price (optional)
                 </label>
@@ -896,26 +1429,111 @@ function GigDetail({ cartCount = 0, profile }) {
                   placeholder="e.g. ₦9,500"
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition bg-white disabled:opacity-60"
                 />
-                {proposal.proposedPrice && (
-                  <p className="mt-1.5 text-xs text-gray-500">
-                    Will be submitted as{" "}
-                    <span className="font-semibold text-[#008236]">
-                      {formatNaira(proposal.proposedPrice)}
-                    </span>
-                  </p>
-                )}
               </div>
+
+              {attachmentSlots.length > 0 && (
+                <div className="mb-5 space-y-3">
+                  <p className="text-sm font-semibold text-gray-800">
+                    Required files{" "}
+                    <span className="text-red-500">*</span>
+                  </p>
+                  {attachmentSlots.map((slot) => {
+                    const picked = attachFiles[slot.id];
+                    return (
+                      <div
+                        key={slot.id}
+                        className="rounded-xl border border-green-100 bg-white p-3 space-y-2"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-semibold text-gray-800">
+                              {slot.label}
+                            </p>
+                            <p className="text-[11px] text-gray-500 mt-0.5">
+                              Allowed:{" "}
+                              {(slot.allowedTypes || [])
+                                .map((x) => String(x).toUpperCase())
+                                .join(", ") || "JPG, PNG, PDF"}
+                              {" · Max 1MB"}
+                            </p>
+                          </div>
+                        </div>
+                        <input
+                          ref={(el) => {
+                            fileInputRefs.current[slot.id] = el;
+                          }}
+                          type="file"
+                          accept={acceptForTypes(slot.allowedTypes)}
+                          className="hidden"
+                          onChange={(e) =>
+                            handleFilePick(slot.id, slot.allowedTypes, e)
+                          }
+                          disabled={applying}
+                        />
+                        {!picked ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              fileInputRefs.current[slot.id]?.click()
+                            }
+                            disabled={applying}
+                            className="w-full h-10 rounded-xl border border-dashed border-green-300 bg-green-50/40 text-sm font-semibold text-[#008236] flex items-center justify-center gap-2 hover:bg-green-50"
+                          >
+                            <FiPaperclip size={15} />
+                            Choose file
+                          </button>
+                        ) : (
+                          <div className="flex items-center gap-3 rounded-xl border border-green-100 bg-green-50/30 px-3 py-2">
+                            {picked.previewUrl ? (
+                              <img
+                                src={picked.previewUrl}
+                                alt=""
+                                className="w-11 h-11 rounded-lg object-cover"
+                              />
+                            ) : (
+                              <div className="w-11 h-11 rounded-lg bg-green-50 text-[#008236] flex items-center justify-center">
+                                <FiFileText size={18} />
+                              </div>
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium text-gray-800 truncate">
+                                {picked.name}
+                              </p>
+                              <p className="text-xs text-gray-500 uppercase">
+                                {picked.kind}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => clearAttachSlot(slot.id)}
+                              className="w-8 h-8 rounded-full hover:bg-white flex items-center justify-center text-gray-500"
+                            >
+                              <FiX size={16} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   type="submit"
-                  disabled={applying || alreadyApplied}
+                  disabled={
+                    applying ||
+                    alreadyApplied ||
+                    uploading ||
+                    (requireAttachment &&
+                      attachmentSlots.some((s) => !attachFiles[s.id]?.file))
+                  }
                   className="flex-1 flex items-center justify-center gap-2 bg-[#008236] hover:bg-[#006f2e] disabled:bg-green-400 disabled:cursor-not-allowed text-white font-medium py-3 rounded-xl transition"
                 >
-                  {applying ? (
+                  {applying || uploading ? (
                     <>
                       <FiLoader className="animate-spin" size={16} />
-                      Sending...
+                      {uploading ? "Uploading..." : "Sending..."}
                     </>
                   ) : alreadyApplied ? (
                     "Already applied"
@@ -926,7 +1544,10 @@ function GigDetail({ cartCount = 0, profile }) {
                 <button
                   type="button"
                   disabled={applying}
-                  onClick={() => setShowApplyForm(false)}
+                  onClick={() => {
+                    setShowApplyForm(false);
+                    clearAllAttaches();
+                  }}
                   className="flex-1 py-3 border border-green-200 rounded-xl text-green-700 font-medium hover:bg-green-50 transition disabled:opacity-50"
                 >
                   Cancel
@@ -937,7 +1558,6 @@ function GigDetail({ cartCount = 0, profile }) {
         </div>
       </div>
 
-      {/* Close completion modal */}
       {showCloseModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
           <div
@@ -952,16 +1572,7 @@ function GigDetail({ cartCount = 0, profile }) {
               Mark this gig as completed?
             </h3>
             <p className="text-sm text-gray-600 leading-relaxed mt-2">
-              If the work has been completed, you can close applications for
-              this gig. Students will no longer be able to apply.
-            </p>
-            <p className="text-sm text-gray-500 mt-3">
-              If the work is not finished yet, choose
-              <span className="font-medium text-green-600">
-                {" "}
-                Extend Deadline
-              </span>{" "}
-              instead.
+              Students will no longer be able to apply.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 mt-6">
               <button
@@ -995,7 +1606,6 @@ function GigDetail({ cartCount = 0, profile }) {
         </div>
       )}
 
-      {/* Delete confirmation modal — CampusMart green */}
       {showDeleteModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
           <div
@@ -1011,8 +1621,8 @@ function GigDetail({ cartCount = 0, profile }) {
             </h3>
             <p className="text-sm text-gray-600 leading-relaxed mt-2">
               This will permanently remove{" "}
-              <span className="font-semibold text-gray-800">“{gig.title}”</span>{" "}
-              from CampusMart. This cannot be undone.
+              <span className="font-semibold text-gray-800">“{gig.title}”</span>
+              . This cannot be undone.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 mt-6">
               <button
@@ -1043,6 +1653,27 @@ function GigDetail({ cartCount = 0, profile }) {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-[130] bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <button
+            type="button"
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 text-white flex items-center justify-center"
+            onClick={() => setLightboxUrl(null)}
+          >
+            <FiX size={22} />
+          </button>
+          <img
+            src={lightboxUrl}
+            alt="Attachment"
+            className="max-w-full max-h-[90vh] object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
     </CustomerLayout>

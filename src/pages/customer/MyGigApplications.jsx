@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import CustomerLayout from "../../layouts/CustomerLayout";
 import {
@@ -20,7 +20,28 @@ import {
   FiX,
   FiCheckCircle,
   FiAlertCircle,
+  FiPaperclip,
+  FiFileText,
+  FiImage,
+  FiExternalLink,
+  FiChevronDown,
+  FiCheck,
 } from "react-icons/fi";
+
+/** Turn poster label into "Uploaded CV" style */
+function formatUploadedLabel(label, fileName) {
+  let raw = String(label || "").trim();
+  if (!raw) {
+    raw = String(fileName || "file").trim() || "file";
+  }
+  // strip leading "upload" / "upload your" instructions
+  raw = raw.replace(/^upload\s+(your\s+)?/i, "").trim();
+  if (!raw) raw = "file";
+  // Title-ish case first letter
+  const pretty = raw.charAt(0).toUpperCase() + raw.slice(1);
+  if (/^uploaded\b/i.test(pretty)) return pretty;
+  return `Uploaded ${pretty}`;
+}
 
 function MyGigApplications({ cartCount = 0, profile }) {
   const { firebaseUser } = useAuth();
@@ -30,17 +51,27 @@ function MyGigApplications({ cartCount = 0, profile }) {
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedGigId, setSelectedGigId] = useState("all");
+  const [filterOpen, setFilterOpen] = useState(false);
   const [chattingId, setChattingId] = useState(null);
-
-   
-  const [toast, setToast] = useState(null); 
+  const [lightboxUrl, setLightboxUrl] = useState(null);
+  const [toast, setToast] = useState(null);
+  const filterRef = useRef(null);
 
   const showToast = (type, message) => {
     setToast({ type, message });
     setTimeout(() => setToast(null), 3500);
   };
 
- 
+  useEffect(() => {
+    const onDocClick = (e) => {
+      if (filterRef.current && !filterRef.current.contains(e.target)) {
+        setFilterOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
+
   useEffect(() => {
     if (!firebaseUser) return;
 
@@ -57,7 +88,6 @@ function MyGigApplications({ cartCount = 0, profile }) {
     return () => unsub();
   }, [firebaseUser]);
 
-  // Load applications for those gigs
   useEffect(() => {
     if (!firebaseUser || myGigs.length === 0) {
       setApplications([]);
@@ -108,100 +138,174 @@ function MyGigApplications({ cartCount = 0, profile }) {
     return gig?.title || "Unknown Gig";
   };
 
-  // FIXED startChat – no getDoc, just setDoc with merge
- const startChat = async (application) => {
-  if (!firebaseUser) {
-    showToast("error", "You must be logged in.");
-    return;
-  }
+  const selectedGigLabel =
+    selectedGigId === "all"
+      ? "All Gigs"
+      : getGigTitle(selectedGigId);
 
-  const otherId = String(application.applicantId || "").trim();
-  if (!otherId) {
-    showToast("error", "Applicant information is missing.");
-    return;
-  }
-
-  if (otherId === String(firebaseUser.uid)) {
-    showToast("error", "You cannot chat with yourself.");
-    return;
-  }
-
-  setChattingId(application.id);
-
-  const myUid = String(firebaseUser.uid);
-  const participantIds = [myUid, otherId].sort();
-  const conversationId = participantIds.join("_");
-  const conversationRef = doc(db, "conversations", conversationId);
-
-  try {
-    const myName =
-      profile?.fullName ||
-      profile?.displayName ||
-      firebaseUser.displayName ||
-      "CampusMart User";
-
-    const myImage =
-      profile?.profileImage ||
-      profile?.photoURL ||
-      firebaseUser.photoURL ||
-      null;
-
-    const otherName = application.applicantName || "Student";
-    const otherImage = application.applicantImage || null;
-    const gigTitle = getGigTitle(application.gigId);
-
-    // Only set the fields we need. DO NOT touch messages array.
-    await setDoc(
-      conversationRef,
-      {
-        participants: participantIds,
-        buyerId: myUid,
-        sellerId: otherId,
-        participantNames: {
-          [myUid]: myName,
-          [otherId]: otherName,
-        },
-        participantImages: {
-          [myUid]: myImage,
-          [otherId]: otherImage,
-        },
-        unreadCounts: {
-          [myUid]: 0,
-          [otherId]: 0,
-        },
-        onlineStatus: {
-          [myUid]: true,
-          [otherId]: false,
-        },
-        productId: null,
-        productName: `Gig: ${gigTitle}`,
-        updatedAt: serverTimestamp(),
-        // Only set these if the document is new
-        lastMessage: "",
-        lastMessageAt: 0,
-        createdAt: serverTimestamp(),
-      },
-      { merge: true }
+  const isMobileDevice = () =>
+    /Android|iPhone|iPad|iPod|Mobile/i.test(
+      typeof navigator !== "undefined" ? navigator.userAgent || "" : ""
     );
 
-    // Navigate to the chat
-    navigate(`/messages/${conversationId}`);
-  } catch (error) {
-    console.error("Error starting chat:", error);
-    showToast(
-      "error",
-      error?.code === "permission-denied"
-        ? "Permission denied. Please check Firestore rules."
-        : "Could not start chat. Please try again."
-    );
-  } finally {
-    setChattingId(null);
-  }
-};
+  /**
+   * Open uploaded file.
+   * Mobile: try system "Open with" / download sheet (Cloudinary fl_attachment).
+   * Desktop: images in lightbox, PDF/files in new tab.
+   */
+  const openAttachment = (url, type, fileName) => {
+    if (!url) return;
+
+    const t = String(type || "").toLowerCase();
+    const isImage =
+      t === "jpg" ||
+      t === "jpeg" ||
+      t === "png" ||
+      t === "image" ||
+      t.startsWith("image");
+
+    const mobile = isMobileDevice();
+
+    let openUrl = String(url);
+    if (
+      mobile &&
+      openUrl.includes("res.cloudinary.com") &&
+      openUrl.includes("/upload/")
+    ) {
+      const safe =
+        encodeURIComponent(
+          String(fileName || "campusmart-file")
+            .replace(/[^\w.\-]+/g, "_")
+            .slice(0, 80)
+        ) || "campusmart-file";
+      if (!openUrl.includes("fl_attachment")) {
+        openUrl = openUrl.replace("/upload/", `/upload/fl_attachment:${safe}/`);
+      }
+    }
+
+    if (mobile) {
+      const a = document.createElement("a");
+      a.href = openUrl;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      if (fileName) {
+        try {
+          a.setAttribute("download", String(fileName));
+        } catch (_) {}
+      }
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return;
+    }
+
+    if (isImage) {
+      setLightboxUrl(url);
+      return;
+    }
+    window.open(openUrl, "_blank", "noopener,noreferrer");
+  };
+
+
+  const formatProposed = (app) => {
+    if (app.proposedPriceDisplay) return app.proposedPriceDisplay;
+    if (app.proposedPrice == null || app.proposedPrice === "") return null;
+    if (typeof app.proposedPrice === "number") {
+      return `₦${app.proposedPrice.toLocaleString("en-NG")}`;
+    }
+    return String(app.proposedPrice);
+  };
+
+  const startChat = async (application) => {
+    if (!firebaseUser) {
+      showToast("error", "You must be logged in.");
+      return;
+    }
+
+    const otherId = String(application.applicantId || "").trim();
+    if (!otherId) {
+      showToast("error", "Applicant information is missing.");
+      return;
+    }
+
+    if (otherId === String(firebaseUser.uid)) {
+      showToast("error", "You cannot chat with yourself.");
+      return;
+    }
+
+    setChattingId(application.id);
+
+    const myUid = String(firebaseUser.uid);
+    const participantIds = [myUid, otherId].sort();
+    const conversationId = participantIds.join("_");
+    const conversationRef = doc(db, "conversations", conversationId);
+
+    try {
+      const myName =
+        profile?.fullName ||
+        profile?.displayName ||
+        firebaseUser.displayName ||
+        "CampusMart User";
+
+      const myImage =
+        profile?.profileImage ||
+        profile?.photoURL ||
+        firebaseUser.photoURL ||
+        null;
+
+      const otherName = application.applicantName || "Student";
+      const otherImage = application.applicantImage || null;
+      const gigTitle = getGigTitle(application.gigId);
+
+      await setDoc(
+        conversationRef,
+        {
+          participants: participantIds,
+          buyerId: myUid,
+          sellerId: otherId,
+          participantNames: {
+            [myUid]: myName,
+            [otherId]: otherName,
+          },
+          participantImages: {
+            [myUid]: myImage,
+            [otherId]: otherImage,
+          },
+          unreadCounts: {
+            [myUid]: 0,
+            [otherId]: 0,
+          },
+          onlineStatus: {
+            [myUid]: true,
+            [otherId]: false,
+          },
+          productId: null,
+          productName: `Gig: ${gigTitle}`,
+          updatedAt: serverTimestamp(),
+          lastMessage: "",
+          lastMessageAt: 0,
+          createdAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      navigate(`/messages/${conversationId}`);
+    } catch (error) {
+      console.error("Error starting chat:", error);
+      showToast(
+        "error",
+        error?.code === "permission-denied"
+          ? "Permission denied. Please check Firestore rules."
+          : "Could not start chat. Please try again."
+      );
+    } finally {
+      setChattingId(null);
+    }
+  };
+
   return (
     <CustomerLayout cartCount={cartCount}>
       <div className="space-y-6 relative">
-        {/* Custom Toast */}
         {toast && (
           <div className="fixed top-5 right-5 z-[200] animate-fade-in">
             <div
@@ -218,6 +322,7 @@ function MyGigApplications({ cartCount = 0, profile }) {
               )}
               <span className="flex-1">{toast.message}</span>
               <button
+                type="button"
                 onClick={() => setToast(null)}
                 className="text-gray-400 hover:text-gray-600"
               >
@@ -227,9 +332,9 @@ function MyGigApplications({ cartCount = 0, profile }) {
           </div>
         )}
 
-        {/* Header */}
         <div className="flex items-center gap-3">
           <button
+            type="button"
             onClick={() => navigate("/gigs")}
             className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-green-50 hover:text-green-600 hover:border-green-200 transition"
           >
@@ -245,28 +350,75 @@ function MyGigApplications({ cartCount = 0, profile }) {
           </div>
         </div>
 
-        {/* Filter by gig */}
+        {/* Custom green filter */}
         {myGigs.length > 0 && (
           <div className="bg-white rounded-2xl border border-gray-100 p-4">
             <label className="block text-sm font-semibold text-gray-800 mb-2">
               Filter by Gig
             </label>
-            <select
-              value={selectedGigId}
-              onChange={(e) => setSelectedGigId(e.target.value)}
-              className="w-full sm:w-80 px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 bg-white"
-            >
-              <option value="all">All Gigs</option>
-              {myGigs.map((gig) => (
-                <option key={gig.id} value={gig.id}>
-                  {gig.title}
-                </option>
-              ))}
-            </select>
+            <div className="relative w-full sm:w-80" ref={filterRef}>
+              <button
+                type="button"
+                onClick={() => setFilterOpen((o) => !o)}
+                className={`w-full flex items-center justify-between gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition ${
+                  filterOpen
+                    ? "border-[#008236] ring-2 ring-green-100 bg-white text-gray-900"
+                    : "border-gray-200 bg-white text-gray-800 hover:border-green-300"
+                }`}
+              >
+                <span className="truncate text-left">{selectedGigLabel}</span>
+                <FiChevronDown
+                  size={18}
+                  className={`text-[#008236] shrink-0 transition ${
+                    filterOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+
+              {filterOpen && (
+                <div className="absolute z-30 mt-1.5 w-full rounded-xl border border-green-100 bg-white shadow-lg overflow-hidden max-h-64 overflow-y-auto">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedGigId("all");
+                      setFilterOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-left transition ${
+                      selectedGigId === "all"
+                        ? "bg-[#008236] text-white font-semibold"
+                        : "text-gray-700 hover:bg-green-50 hover:text-[#008236]"
+                    }`}
+                  >
+                    <span>All Gigs</span>
+                    {selectedGigId === "all" && <FiCheck size={16} />}
+                  </button>
+                  {myGigs.map((gig) => {
+                    const active = selectedGigId === gig.id;
+                    return (
+                      <button
+                        key={gig.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedGigId(gig.id);
+                          setFilterOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-left transition ${
+                          active
+                            ? "bg-[#008236] text-white font-semibold"
+                            : "text-gray-700 hover:bg-green-50 hover:text-[#008236]"
+                        }`}
+                      >
+                        <span className="truncate">{gig.title || "Untitled"}</span>
+                        {active && <FiCheck size={16} />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
-        {/* Loading */}
         {loading && (
           <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">
             <div className="w-10 h-10 mx-auto rounded-full border-4 border-green-100 border-t-green-600 animate-spin" />
@@ -274,7 +426,6 @@ function MyGigApplications({ cartCount = 0, profile }) {
           </div>
         )}
 
-        {/* Empty */}
         {!loading && filteredApps.length === 0 && (
           <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">
             <p className="text-gray-500">
@@ -291,7 +442,6 @@ function MyGigApplications({ cartCount = 0, profile }) {
           </div>
         )}
 
-        {/* Applications list */}
         {!loading && filteredApps.length > 0 && (
           <div className="grid gap-4">
             {filteredApps.map((app) => (
@@ -300,8 +450,8 @@ function MyGigApplications({ cartCount = 0, profile }) {
                 className="bg-white rounded-2xl border border-gray-100 p-5"
               >
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <span className="text-xs font-medium bg-green-50 text-green-700 px-2.5 py-0.5 rounded-full">
                         {getGigTitle(app.gigId)}
                       </span>
@@ -310,8 +460,8 @@ function MyGigApplications({ cartCount = 0, profile }) {
                           app.status === "pending"
                             ? "bg-yellow-50 text-yellow-700"
                             : app.status === "accepted"
-                            ? "bg-emerald-50 text-emerald-700"
-                            : "bg-gray-100 text-gray-600"
+                              ? "bg-emerald-50 text-emerald-700"
+                              : "bg-gray-100 text-gray-600"
                         }`}
                       >
                         {app.status}
@@ -319,7 +469,7 @@ function MyGigApplications({ cartCount = 0, profile }) {
                     </div>
 
                     <div className="flex items-center gap-2 mt-2">
-                      <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-700 font-semibold text-sm overflow-hidden">
+                      <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-700 font-semibold text-sm overflow-hidden shrink-0">
                         {app.applicantImage ? (
                           <img
                             src={app.applicantImage}
@@ -345,18 +495,68 @@ function MyGigApplications({ cartCount = 0, profile }) {
                       {app.message}
                     </p>
 
-                    {app.proposedPrice && (
+                    {formatProposed(app) && (
                       <p className="text-sm text-green-700 font-medium mt-2">
-                        Proposed: {app.proposedPrice}
+                        Proposed: {formatProposed(app)}
                       </p>
                     )}
+
+                    {(Array.isArray(app.attachments) &&
+                      app.attachments.length > 0) ||
+                    app.attachmentUrl ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {Array.isArray(app.attachments) &&
+                        app.attachments.length > 0
+                          ? app.attachments.map((att, idx) => (
+                              <button
+                                key={att.slotId || idx}
+                                type="button"
+                                onClick={() =>
+                                  openAttachment(att.url, att.type, att.name || att.label)
+                                }
+                                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#008236] bg-green-50 border border-green-100 px-2.5 py-1.5 rounded-lg hover:bg-green-100"
+                              >
+                                {String(att.type || "")
+                                  .toLowerCase()
+                                  .includes("pdf") ? (
+                                  <FiFileText size={13} />
+                                ) : (
+                                  <FiImage size={13} />
+                                )}
+                                {formatUploadedLabel(att.label, att.name)}
+                                <FiExternalLink size={11} />
+                              </button>
+                            ))
+                          : app.attachmentUrl && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  openAttachment(
+                                    app.attachmentUrl,
+                                    app.attachmentType,
+                                    app.attachmentName
+                                  )
+                                }
+                                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#008236] bg-green-50 border border-green-100 px-2.5 py-1.5 rounded-lg hover:bg-green-100"
+                              >
+                                <FiPaperclip size={13} />
+                                {formatUploadedLabel(
+                                  null,
+                                  app.attachmentName
+                                )}
+                                <FiExternalLink size={11} />
+                              </button>
+                            )}
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="flex flex-col gap-2 sm:items-end">
                     <button
+                      type="button"
                       onClick={() => startChat(app)}
                       disabled={chattingId === app.id}
-                      className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition"
+                      className="inline-flex items-center gap-2 bg-[#008236] hover:bg-[#006f2e] disabled:bg-green-400 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition"
                     >
                       {chattingId === app.id ? (
                         <>
@@ -374,6 +574,27 @@ function MyGigApplications({ cartCount = 0, profile }) {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {lightboxUrl && (
+          <div
+            className="fixed inset-0 z-[250] bg-black/90 flex items-center justify-center p-4"
+            onClick={() => setLightboxUrl(null)}
+          >
+            <button
+              type="button"
+              className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 text-white flex items-center justify-center"
+              onClick={() => setLightboxUrl(null)}
+            >
+              <FiX size={22} />
+            </button>
+            <img
+              src={lightboxUrl}
+              alt="Attachment"
+              className="max-w-full max-h-[90vh] object-contain rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
           </div>
         )}
       </div>
