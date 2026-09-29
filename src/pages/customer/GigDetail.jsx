@@ -789,9 +789,14 @@ function GigDetail({ cartCount = 0, profile }) {
     );
 
   /**
-   * Open uploaded file.
-   * Mobile: try system "Open with" / download sheet (Cloudinary fl_attachment).
-   * Desktop: images in lightbox, PDF/files in new tab.
+   * Open an uploaded applicant file.
+   * We never force a Cloudinary "attachment" download — that sends a
+   * Content-Disposition: attachment header, which most mobile browsers
+   * treat as a silent download and show as a blank tab instead of the
+   * file. Letting the browser open the plain URL directly lets it show
+   * PDFs/images in its own built-in viewer; anything it truly can't
+   * preview (e.g. .docx) it just downloads normally with a filename,
+   * instead of going blank.
    */
   const openAttachment = (url, type, fileName) => {
     if (!url) return;
@@ -804,46 +809,35 @@ function GigDetail({ cartCount = 0, profile }) {
       t === "image" ||
       t.startsWith("image");
 
-    const mobile = isMobileDevice();
-
-    let openUrl = String(url);
-    if (
-      mobile &&
-      openUrl.includes("res.cloudinary.com") &&
-      openUrl.includes("/upload/")
-    ) {
-      const safe =
-        encodeURIComponent(
-          String(fileName || "campusmart-file")
-            .replace(/[^\w.\-]+/g, "_")
-            .slice(0, 80)
-        ) || "campusmart-file";
-      if (!openUrl.includes("fl_attachment")) {
-        openUrl = openUrl.replace("/upload/", `/upload/fl_attachment:${safe}/`);
-      }
-    }
-
-    if (mobile) {
-      const a = document.createElement("a");
-      a.href = openUrl;
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-      if (fileName) {
-        try {
-          a.setAttribute("download", String(fileName));
-        } catch (_) {}
-      }
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      return;
-    }
-
-    if (isImage) {
+    // Desktop images still get the in-app lightbox for a nicer preview.
+    if (!isMobileDevice() && isImage) {
       setLightboxUrl(url);
       return;
     }
-    window.open(openUrl, "_blank", "noopener,noreferrer");
+
+    let openUrl = String(url);
+
+    // Cloudinary serves "raw"/non-image files without an inline
+    // Content-Type by default, which is what makes PDFs go blank in a
+    // new tab. Ask it to serve as inline (viewable) instead of as an
+    // attachment, without changing the file itself.
+    if (
+      openUrl.includes("res.cloudinary.com") &&
+      openUrl.includes("/upload/") &&
+      !openUrl.includes("fl_attachment") &&
+      !openUrl.includes("fl_inline")
+    ) {
+      openUrl = openUrl.replace("/upload/", "/upload/fl_inline/");
+    }
+
+    const win = window.open(openUrl, "_blank", "noopener,noreferrer");
+
+    // Some in-app/mobile browsers block window.open or silently no-op it
+    // (that's the other common cause of a "blank" result). Fall back to
+    // a normal same-tab navigation so the file still opens.
+    if (!win) {
+      window.location.href = openUrl;
+    }
   };
 
 

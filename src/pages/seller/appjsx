@@ -25,6 +25,8 @@ import {
   increment,
   runTransaction,
   Timestamp,
+  limit,
+  orderBy,
 } from "firebase/firestore";
 
 import { db } from "./context/firebase";
@@ -91,6 +93,7 @@ import AnnouncementBanner from "./components/AnnouncementBanner";
 
 import AIAssistant from "./pages/admin/AIAssistant";
 import Receipt from "./pages/customer/Receipt";
+import ServiceDetails from "./pages/customer/ServiceDetails";
 
 const emptyProfile = {
   fullName: "",
@@ -104,7 +107,7 @@ const emptyProfile = {
   role: "",
 };
 
-const CUSTOMER_DATA_SAVE_DELAY = 800;
+const CUSTOMER_DATA_SAVE_DELAY = 1500;
 
 function InstalledAppSplash() {
   const navigate = useNavigate();
@@ -133,28 +136,34 @@ function InstalledAppSplash() {
       aria-label="Loading CampusMart"
     >
       <div className="flex flex-col items-center justify-center px-6 text-center">
-        <div className="relative flex h-28 w-28 items-center justify-center rounded-[30px] bg-[#008236] shadow-[0_16px_45px_rgba(0,130,54,0.24)] overflow-hidden">
+        {/* Smaller logo – matches header CM style */}
+        <div className="relative flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-2xl bg-[#008236] shadow-[0_10px_28px_rgba(0,130,54,0.22)] overflow-hidden">
           <img
             src="/pwa-512x512.png"
             alt="CampusMart"
-            className="h-full w-full rounded-[30px] object-cover"
+            className="h-full w-full rounded-2xl object-cover"
             onError={(event) => {
               event.currentTarget.style.display = "none";
               const fallback = event.currentTarget.nextElementSibling;
               if (fallback) fallback.style.display = "flex";
             }}
           />
-          <div className="absolute inset-0 hidden items-center justify-center rounded-[30px] text-4xl font-black text-white" aria-hidden="true">
+          {/* Fallback CM – same bold style as header logo */}
+          <div
+            className="absolute inset-0 hidden items-center justify-center rounded-2xl text-white font-black tracking-tight"
+            style={{ fontSize: "1.65rem", letterSpacing: "-0.04em" }}
+            aria-hidden="true"
+          >
             CM
           </div>
         </div>
 
-        <h1 className="mt-6 text-2xl font-extrabold tracking-tight text-gray-900">
+        <h1 className="mt-5 text-xl sm:text-2xl font-extrabold tracking-tight text-gray-900">
           Campus<span className="text-[#008236]">Mart 2.0</span>
         </h1>
         <p className="mt-1 text-sm text-gray-500">Your Campus Marketplace</p>
 
-        <div className="mt-7 h-1.5 w-24 overflow-hidden rounded-full bg-green-100">
+        <div className="mt-6 h-1.5 w-20 overflow-hidden rounded-full bg-green-100">
           <div className="h-full w-1/2 animate-pulse rounded-full bg-[#008236]" />
         </div>
       </div>
@@ -195,6 +204,22 @@ function getUserRole(profile) {
     .toLowerCase();
 }
 
+// A profile can access the seller dashboard either the old way
+// (role === "seller", from accounts created before dual-mode
+// buyer/seller accounts existed) or the new way — a buyer account
+// that used "Create Store" in Settings, which sets isSeller/hasStore
+// but deliberately leaves role as "buyer" so the same account can
+// still shop.
+function canAccessSellerArea(profile) {
+  if (!profile) return false;
+
+  const role = getUserRole(profile);
+
+  return (
+    role === "seller" || profile.isSeller === true || profile.hasStore === true
+  );
+}
+
 function isAdminUser(profile) {
   if (!profile) return false;
 
@@ -230,19 +255,34 @@ function getProfileName(profile, firebaseUser = null) {
   );
 }
 
+// In-memory cache — avoid re-reading the same public profile
+// repeatedly in one session (big free-tier saver).
+const publicProfileCache = new Map();
+const PUBLIC_PROFILE_CACHE_TTL_MS = 5 * 60 * 1000;
+
 async function getPublicProfile(userId) {
   if (!userId) return null;
+  const key = String(userId);
+  const cached = publicProfileCache.get(key);
+  if (cached && Date.now() - cached.at < PUBLIC_PROFILE_CACHE_TTL_MS) {
+    return cached.value;
+  }
 
   try {
-    const publicProfileRef = doc(db, "publicProfiles", String(userId));
+    const publicProfileRef = doc(db, "publicProfiles", key);
     const snapshot = await getDoc(publicProfileRef);
 
-    if (!snapshot.exists()) return null;
+    if (!snapshot.exists()) {
+      publicProfileCache.set(key, { at: Date.now(), value: null });
+      return null;
+    }
 
-    return {
-      uid: String(userId),
+    const value = {
+      uid: key,
       ...snapshot.data(),
     };
+    publicProfileCache.set(key, { at: Date.now(), value });
+    return value;
   } catch (error) {
     console.error("Error loading public profile:", error);
     return null;
@@ -270,20 +310,52 @@ async function syncOwnPublicProfile(firebaseUser, profile) {
     "CampusMart User";
 
   const profileImage = getProfileImage(profile, firebaseUser);
+  const photoURL =
+    profile?.photoURL || profileImage || firebaseUser.photoURL || null;
+
+  // Preserve store/seller flags if already set (Create Store)
+  const hasStore = profile?.hasStore === true;
+  const isSeller = profile?.isSeller === true;
 
   try {
+    // Read once; skip write if nothing meaningful changed (saves free-tier writes)
+    const existing = await getDoc(publicProfileRef);
+    const prev = existing.exists() ? existing.data() || {} : {};
+    const same =
+      String(prev.fullName || "") === String(fullName || "") &&
+      String(prev.displayName || "") === String(displayName || "") &&
+      String(prev.profileImage || "") === String(profileImage || "") &&
+      String(prev.photoURL || "") === String(photoURL || "") &&
+      Boolean(prev.hasStore) === hasStore &&
+      Boolean(prev.isSeller) === isSeller;
+
+    if (same) return;
+
     await setDoc(
       publicProfileRef,
       {
         fullName,
         displayName,
         profileImage: profileImage || null,
-        photoURL:
-          profile?.photoURL || profileImage || firebaseUser.photoURL || null,
+        photoURL: photoURL || null,
+        ...(hasStore ? { hasStore: true } : {}),
+        ...(isSeller ? { isSeller: true } : {}),
         updatedAt: serverTimestamp(),
       },
-      { merge: true }
+      { merge: true },
     );
+    publicProfileCache.set(userId, {
+      at: Date.now(),
+      value: {
+        uid: userId,
+        fullName,
+        displayName,
+        profileImage: profileImage || null,
+        photoURL: photoURL || null,
+        hasStore,
+        isSeller,
+      },
+    });
   } catch (error) {
     console.error("Error syncing public profile:", error);
   }
@@ -417,23 +489,27 @@ function SellerRoute({ children, profile, profileResolved }) {
 
   const role = getUserRole(profile);
 
-  if (isAdminUser(profile) && (role === "seller" || role === "admin")) {
+  // Admins can always view seller pages.
+  if (isAdminUser(profile)) {
     return children;
   }
 
-  if (role !== "seller") {
-    if (role === "buyer") {
-      return <Navigate to="/dashboard" replace />;
-    }
-
-    if (role === "admin") {
-      return <Navigate to="/admin-dashboard" replace />;
-    }
-
-    return <LoadingScreen text="Preparing your account..." />;
+  // A buyer account that created a store via Settings (isSeller/
+  // hasStore) — or a legacy account with role === "seller" — can
+  // access the seller dashboard.
+  if (canAccessSellerArea(profile)) {
+    return children;
   }
 
-  return children;
+  if (role === "buyer") {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  if (role === "admin") {
+    return <Navigate to="/admin-dashboard" replace />;
+  }
+
+  return <LoadingScreen text="Preparing your account..." />;
 }
 
 function getMessageTimestamp(message) {
@@ -494,7 +570,7 @@ function getMessageTimestamp(message) {
         timeDate.getHours(),
         timeDate.getMinutes(),
         timeDate.getSeconds(),
-        timeDate.getMilliseconds()
+        timeDate.getMilliseconds(),
       );
       const ms = result.getTime();
       if (Number.isFinite(ms) && ms > 0) return ms;
@@ -502,27 +578,6 @@ function getMessageTimestamp(message) {
   }
 
   return 0;
-}
-
-function sortMessagesChronologically(messages) {
-  if (!Array.isArray(messages)) return [];
-
-  return messages
-    .map((message, index) => ({
-      message,
-      index,
-      timestamp: getMessageTimestamp(message),
-    }))
-    .sort((a, b) => {
-      if (a.timestamp > 0 && b.timestamp > 0) {
-        if (a.timestamp !== b.timestamp) return a.timestamp - b.timestamp;
-        return a.index - b.index;
-      }
-      if (a.timestamp > 0 && b.timestamp === 0) return -1;
-      if (a.timestamp === 0 && b.timestamp > 0) return 1;
-      return a.index - b.index;
-    })
-    .map((item) => item.message);
 }
 
 async function formatConversation(conversationDoc, currentUserId) {
@@ -536,58 +591,35 @@ async function formatConversation(conversationDoc, currentUserId) {
   const otherParticipantId =
     participants.find((uid) => String(uid) !== String(currentUserId)) || null;
 
-  let publicProfile = null;
-  if (otherParticipantId) {
-    publicProfile = await getPublicProfile(otherParticipantId);
-  }
-
-  const publicProfileName =
-    publicProfile?.fullName || publicProfile?.displayName || "";
+  // FREE-TIER: prefer data already on the conversation doc.
+  // Only hit publicProfiles when name/image is missing (cached).
   const storedParticipantName = participantNames[otherParticipantId] || "";
-  const otherName =
-    publicProfileName || storedParticipantName || "CampusMart User";
-
-  const publicProfileImage =
-    publicProfile?.profileImage ||
-    publicProfile?.photoURL ||
-    publicProfile?.image ||
-    publicProfile?.avatar ||
-    null;
-
   const storedParticipantImage =
     participantImages[otherParticipantId] ||
     data.profileImages?.[otherParticipantId] ||
     data.participantPhotos?.[otherParticipantId] ||
     null;
 
-  const otherParticipantImage =
-    publicProfileImage || storedParticipantImage || null;
+  let otherName = storedParticipantName || "CampusMart User";
+  let otherParticipantImage = storedParticipantImage || null;
 
-  if (
+  const needsProfileLookup =
     otherParticipantId &&
-    publicProfile &&
-    (String(participantImages[otherParticipantId] || "") !==
-      String(otherParticipantImage || "") ||
-      String(participantNames[otherParticipantId] || "") !== String(otherName))
-  ) {
-    try {
-      await setDoc(
-        conversationDoc.ref,
-        {
-          participantNames: {
-            ...participantNames,
-            [otherParticipantId]: otherName,
-          },
-          participantImages: {
-            ...participantImages,
-            [otherParticipantId]: otherParticipantImage,
-          },
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-    } catch (error) {
-      console.error("Could not repair conversation profile:", error);
+    (!storedParticipantName ||
+      storedParticipantName === "CampusMart User" ||
+      !storedParticipantImage);
+
+  if (needsProfileLookup) {
+    const publicProfile = await getPublicProfile(otherParticipantId);
+    if (publicProfile) {
+      otherName =
+        publicProfile.fullName || publicProfile.displayName || otherName;
+      otherParticipantImage =
+        publicProfile.profileImage ||
+        publicProfile.photoURL ||
+        publicProfile.image ||
+        publicProfile.avatar ||
+        otherParticipantImage;
     }
   }
 
@@ -605,10 +637,18 @@ async function formatConversation(conversationDoc, currentUserId) {
     return true;
   });
 
-  const sortedVisibleMessages = sortMessagesChronologically(visibleMessages);
+  // Trust the array order Firestore already stored (sendMessage always
+  // appends via a transaction, so it's already chronological). Re-sorting
+  // by timestamp here reintroduces the exact bug already fixed in
+  // Chat.jsx/SellerChat.jsx: sortMessagesChronologically always placed any
+  // message WITH a valid timestamp above any message without one,
+  // regardless of actual send order — which is why messages could appear
+  // scattered, especially on mobile where this fallback data is visible
+  // for longer before the live Firestore listener takes over.
+  const orderedVisibleMessages = visibleMessages;
   const lastVisibleMessage =
-    sortedVisibleMessages.length > 0
-      ? sortedVisibleMessages[sortedVisibleMessages.length - 1]
+    orderedVisibleMessages.length > 0
+      ? orderedVisibleMessages[orderedVisibleMessages.length - 1]
       : null;
 
   const lastMessage =
@@ -640,10 +680,13 @@ async function formatConversation(conversationDoc, currentUserId) {
     time: displayTime,
     unread: unreadCount,
     online: data.onlineStatus?.[otherParticipantId] === true,
-    conversation: sortedVisibleMessages,
-    allMessages: sortedVisibleMessages,
+    conversation: orderedVisibleMessages,
+    allMessages: orderedVisibleMessages,
     productId: data.productId || null,
     productName: data.productName || "",
+    productImage: data.productImage || null,
+    productPrice:
+      data.productPrice != null ? Number(data.productPrice) || 0 : null,
     buyerId: data.buyerId || null,
     sellerId: data.sellerId || null,
   };
@@ -818,23 +861,37 @@ function App() {
     return doc(db, "users", firebaseUser.uid, "customerData", "main");
   };
 
+  // Last successfully written snapshot — skip identical writes
+  const lastCustomerDataJson = useRef("");
+
   const writeCustomerData = async ({ nextCart, nextWishlist, nextOrders }) => {
     if (!firebaseUser) return false;
 
     const customerDataRef = getCustomerDataRef();
     if (!customerDataRef) return false;
 
+    // Do NOT mirror full order history into customerData (orders live in /orders).
+    // Cart + wishlist only — fewer bytes and fewer writes.
+    const payload = {
+      cart: Array.isArray(nextCart) ? nextCart : [],
+      wishlist: Array.isArray(nextWishlist) ? nextWishlist : [],
+    };
+
+    const serialized = JSON.stringify(payload);
+    if (serialized === lastCustomerDataJson.current) {
+      return true; // unchanged — no Firebase write
+    }
+
     try {
       await setDoc(
         customerDataRef,
         {
-          cart: Array.isArray(nextCart) ? nextCart : [],
-          wishlist: Array.isArray(nextWishlist) ? nextWishlist : [],
-          orders: Array.isArray(nextOrders) ? nextOrders : [],
+          ...payload,
           updatedAt: serverTimestamp(),
         },
-        { merge: true }
+        { merge: true },
       );
+      lastCustomerDataJson.current = serialized;
       return true;
     } catch (error) {
       console.error("Error saving customer data:", error);
@@ -891,27 +948,16 @@ function App() {
         if (cancelled) return;
 
         if (!snapshot.exists()) {
+          // FREE-TIER: do not create empty docs until the user actually carts/wishlists
           setCart([]);
           setWishlist([]);
-          setOrders([]);
-          await setDoc(
-            customerDataRef,
-            {
-              cart: [],
-              wishlist: [],
-              orders: [],
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp(),
-            },
-            { merge: true }
-          );
           return;
         }
 
         const data = snapshot.data();
         setCart(Array.isArray(data.cart) ? data.cart : []);
         setWishlist(Array.isArray(data.wishlist) ? data.wishlist : []);
-        setOrders(Array.isArray(data.orders) ? data.orders : []);
+        // Orders come from /orders listener — not customerData (avoids duplicate storage)
       } catch (error) {
         console.error("Error loading customer data:", error);
         if (!cancelled) {
@@ -935,9 +981,11 @@ function App() {
     }
 
     const buyerUid = String(firebaseUser.uid);
+    // FREE-TIER: only recent buyer orders (not entire history)
     const ordersQuery = query(
       collection(db, "orders"),
-      where("buyerId", "==", buyerUid)
+      where("buyerId", "==", buyerUid),
+      limit(40),
     );
 
     const unsubscribe = onSnapshot(
@@ -971,7 +1019,7 @@ function App() {
       (error) => {
         console.error("Buyer orders listener error:", error);
         setOrders([]);
-      }
+      },
     );
 
     return () => unsubscribe();
@@ -1003,7 +1051,7 @@ function App() {
           email: newProfile.email || firebaseUser.email || "",
           updatedAt: serverTimestamp(),
         },
-        { merge: true }
+        { merge: true },
       );
       await syncOwnPublicProfile(firebaseUser, newProfile);
     } catch (error) {
@@ -1011,78 +1059,9 @@ function App() {
     }
   };
 
-  useEffect(() => {
-    if (!firebaseUser || !profileResolved) return;
-
-    const currentUserId = String(firebaseUser.uid);
-    const currentUserImage = getCurrentUserChatImage();
-    const currentUserName = getProfileName(profile, firebaseUser);
-    let cancelled = false;
-
-    const syncProfileImage = async () => {
-      try {
-        const conversationsQuery = query(
-          collection(db, "conversations"),
-          where("participants", "array-contains", currentUserId)
-        );
-        const snapshot = await getDocs(conversationsQuery);
-        if (cancelled || snapshot.empty) return;
-
-        const updates = [];
-
-        snapshot.docs.forEach((conversationDoc) => {
-          const data = conversationDoc.data();
-          const existingImages = data.participantImages || {};
-          const existingNames = data.participantNames || {};
-          const existingImage = existingImages[currentUserId] || null;
-          const existingName = existingNames[currentUserId] || "";
-
-          if (
-            String(existingImage || "") !== String(currentUserImage || "") ||
-            String(existingName || "") !== String(currentUserName || "")
-          ) {
-            updates.push(
-              setDoc(
-                conversationDoc.ref,
-                {
-                  participantImages: {
-                    ...existingImages,
-                    [currentUserId]: currentUserImage,
-                  },
-                  participantNames: {
-                    ...existingNames,
-                    [currentUserId]: currentUserName,
-                  },
-                  updatedAt: serverTimestamp(),
-                },
-                { merge: true }
-              )
-            );
-          }
-        });
-
-        if (updates.length > 0) await Promise.all(updates);
-      } catch (error) {
-        if (!cancelled) {
-          console.error("Error synchronizing chat profile:", error);
-        }
-      }
-    };
-
-    syncProfileImage();
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    firebaseUser?.uid,
-    profileResolved,
-    profile?.profileImage,
-    profile?.photoURL,
-    profile?.image,
-    profile?.avatar,
-    profile?.fullName,
-    profile?.displayName,
-  ]);
+  // FREE-TIER: Do NOT fan-out profile image updates to every conversation.
+  // Names/photos are resolved from publicProfiles + cache when rendering chat.
+  // Updating every conversation doc on each profile change was a major write cost.
 
   const addToCart = (product, quantity = 1) => {
     if (!product || !firebaseUser) return;
@@ -1097,7 +1076,7 @@ function App() {
               ...item,
               quantity: Number(item.quantity || 0) + Number(quantity || 0),
             }
-          : item
+          : item,
       );
     } else {
       nextCart = [...cart, { ...product, quantity: Number(quantity) || 1 }];
@@ -1115,7 +1094,7 @@ function App() {
     const nextCart = cart.map((item) =>
       item.id === productId
         ? { ...item, quantity: Number(item.quantity || 0) + 1 }
-        : item
+        : item,
     );
     setCart(nextCart);
     queueCustomerDataSave({
@@ -1132,7 +1111,7 @@ function App() {
             ...item,
             quantity: Math.max(1, Number(item.quantity || 1) - 1),
           }
-        : item
+        : item,
     );
     setCart(nextCart);
     queueCustomerDataSave({
@@ -1154,7 +1133,7 @@ function App() {
 
   const cartCount = cart.reduce(
     (total, item) => total + Number(item.quantity || 0),
-    0
+    0,
   );
 
   const toggleWishlist = (productId) => {
@@ -1182,7 +1161,7 @@ function App() {
     });
   };
 
-    // =======================================================
+  // =======================================================
   // COMMISSION — 100% to seller
   // =======================================================
 
@@ -1223,15 +1202,18 @@ function App() {
         const existingSnap = await getDocs(
           query(
             collection(db, "orders"),
-            where("paystackReference", "==", String(paystackReference))
-          )
+            where("paystackReference", "==", String(paystackReference)),
+          ),
         );
         if (!existingSnap.empty) {
           const first = existingSnap.docs[0];
           return { id: first.id, ...first.data() };
         }
       } catch (checkErr) {
-        console.warn("placeOrder: could not check existing reference", checkErr);
+        console.warn(
+          "placeOrder: could not check existing reference",
+          checkErr,
+        );
       }
     }
 
@@ -1259,11 +1241,11 @@ function App() {
         const sellerItems = bySeller[sellerId];
         const total = sellerItems.reduce(
           (sum, item) => sum + getItemLineTotal(item),
-          0
+          0,
         );
         const { platformFee, sellerAmount } = splitAmount(total);
         const orderNumber = `CM-${String(timestamp).slice(-6)}${String(
-          createdOrders.length + 1
+          createdOrders.length + 1,
         ).padStart(2, "0")}`;
 
         const orderPayload = {
@@ -1311,7 +1293,11 @@ function App() {
               updatedAt: serverTimestamp(),
             });
           } catch (salesErr) {
-            console.warn("Could not update product sales:", productId, salesErr);
+            console.warn(
+              "Could not update product sales:",
+              productId,
+              salesErr,
+            );
           }
         }
 
@@ -1369,7 +1355,7 @@ function App() {
 
     if (!snap.exists()) {
       const nextOrders = orders.map((o) =>
-        String(o.id) === String(orderId) ? { ...o, status: "cancelled" } : o
+        String(o.id) === String(orderId) ? { ...o, status: "cancelled" } : o,
       );
       setOrders(nextOrders);
       queueCustomerDataSave({
@@ -1414,7 +1400,7 @@ function App() {
     }
 
     const nextOrders = orders.map((o) =>
-      String(o.id) === String(orderId) ? { ...o, status: "cancelled" } : o
+      String(o.id) === String(orderId) ? { ...o, status: "cancelled" } : o,
     );
     setOrders(nextOrders);
     queueCustomerDataSave({
@@ -1439,15 +1425,15 @@ function App() {
 
     const conversationsQuery = query(
       collection(db, "conversations"),
-      where("participants", "array-contains", firebaseUser.uid)
+      where("participants", "array-contains", firebaseUser.uid),
     );
 
     const processSnapshot = async (snapshot) => {
       try {
         const conversationList = await Promise.all(
           snapshot.docs.map((conversationDoc) =>
-            formatConversation(conversationDoc, firebaseUser.uid)
-          )
+            formatConversation(conversationDoc, firebaseUser.uid),
+          ),
         );
         setMessages(sortConversations(conversationList));
       } catch (error) {
@@ -1456,6 +1442,9 @@ function App() {
       }
     };
 
+    // FREE-TIER: live listener ONLY on messages pages.
+    // Elsewhere, do a light one-shot read for unread badge only
+    // (no per-conversation publicProfiles fetches).
     if (isMessagesPage) {
       const unsubscribe = onSnapshot(
         conversationsQuery,
@@ -1463,31 +1452,48 @@ function App() {
         (error) => {
           console.error("Conversation listener error:", error);
           setMessages([]);
-        }
+        },
       );
       return () => unsubscribe();
     }
 
     let cancelled = false;
 
-    const loadConversationsOnce = async () => {
+    const loadUnreadOnly = async () => {
       try {
-        const snapshot = await getDocs(conversationsQuery);
-        if (cancelled) return;
-        const conversationList = await Promise.all(
-          snapshot.docs.map((conversationDoc) =>
-            formatConversation(conversationDoc, firebaseUser.uid)
-          )
+        // Cap conversations scanned for badge (needs composite index? limit+where OK)
+        const lightQuery = query(
+          collection(db, "conversations"),
+          where("participants", "array-contains", firebaseUser.uid),
+          limit(30),
         );
+        const snapshot = await getDocs(lightQuery);
         if (cancelled) return;
-        setMessages(sortConversations(conversationList));
+
+        const uid = String(firebaseUser.uid);
+        const light = snapshot.docs.map((d) => {
+          const data = d.data() || {};
+          return {
+            id: d.id,
+            conversationId: d.id,
+            unread: Number(data.unreadCounts?.[uid] || 0),
+            lastMessage: data.lastMessage || "",
+            name:
+              data.participantNames?.[
+                (data.participants || []).find((p) => String(p) !== uid)
+              ] || "Chat",
+            conversation: [],
+            allMessages: [],
+          };
+        });
+        setMessages(light);
       } catch (error) {
-        console.error("Error loading conversations:", error);
+        console.error("Error loading unread badges:", error);
         if (!cancelled) setMessages([]);
       }
     };
 
-    loadConversationsOnce();
+    loadUnreadOnly();
     return () => {
       cancelled = true;
     };
@@ -1495,7 +1501,7 @@ function App() {
 
   const unreadMessages = messages.reduce(
     (total, message) => total + Number(message.unread || 0),
-    0
+    0,
   );
 
   const markMessageAsRead = async (messageId) => {
@@ -1511,9 +1517,30 @@ function App() {
     }
   };
 
-  const sendMessage = async (messageId, text) => {
+  // extras (optional):
+  //  { type: "image", imageUrl }
+  //  { type: "file", fileUrl, fileName, fileMime }
+  //  { type: "product", productId, productName, productImage, productPrice }
+  const sendMessage = async (messageId, text, extras = null) => {
     const cleanText = String(text || "").trim();
-    if (!cleanText || !firebaseUser || !messageId) return false;
+    const extra = extras && typeof extras === "object" ? extras : null;
+
+    const imageUrl = extra?.imageUrl ? String(extra.imageUrl) : null;
+    const fileUrl = extra?.fileUrl ? String(extra.fileUrl) : null;
+    const messageType = extra?.type
+      ? String(extra.type)
+      : imageUrl
+        ? "image"
+        : fileUrl
+          ? "file"
+          : "text";
+
+    const isProduct = messageType === "product";
+    const hasAttachment = Boolean(imageUrl || fileUrl || isProduct);
+
+    if ((!cleanText && !hasAttachment) || !firebaseUser || !messageId) {
+      return false;
+    }
 
     try {
       const conversationRef = doc(db, "conversations", String(messageId));
@@ -1535,14 +1562,23 @@ function App() {
         }
 
         const receiverId = participants.find(
-          (uid) => String(uid) !== String(firebaseUser.uid)
+          (uid) => String(uid) !== String(firebaseUser.uid),
         );
         if (!receiverId) throw new Error("Receiver ID is missing.");
 
         const existingMessages = Array.isArray(data.messages)
           ? data.messages
           : [];
+
+
         const nowMs = Date.now();
+
+        let displayText = cleanText;
+        if (!displayText) {
+          if (isProduct) displayText = extra.productName || "Product";
+          else if (imageUrl) displayText = "📷 Photo";
+          else if (fileUrl) displayText = `📎 ${extra.fileName || "File"}`;
+        }
 
         const newMessage = {
           id: `${firebaseUser.uid}_${nowMs}_${Math.random()
@@ -1550,7 +1586,8 @@ function App() {
             .slice(2, 8)}`,
           senderId: firebaseUser.uid,
           sender: "me",
-          text: cleanText,
+          text: displayText,
+          type: messageType,
           createdAt: Timestamp.fromMillis(nowMs),
           createdAtMs: nowMs,
           time: new Date(nowMs).toLocaleTimeString([], {
@@ -1558,13 +1595,28 @@ function App() {
             minute: "2-digit",
           }),
           deletedFor: [],
+          ...(imageUrl ? { imageUrl } : {}),
+          ...(fileUrl ? { fileUrl } : {}),
+          ...(extra?.fileName ? { fileName: String(extra.fileName) } : {}),
+          ...(extra?.fileMime ? { fileMime: String(extra.fileMime) } : {}),
+          ...(isProduct
+            ? {
+                productId: extra.productId ? String(extra.productId) : null,
+                productName: extra.productName || displayText,
+                productImage: extra.productImage || null,
+                productPrice:
+                  extra.productPrice != null
+                    ? Number(extra.productPrice) || 0
+                    : null,
+              }
+            : {}),
         };
 
         const currentUnread = Number(data.unreadCounts?.[receiverId] || 0);
 
         transaction.update(conversationRef, {
           messages: [...existingMessages, newMessage],
-          lastMessage: cleanText,
+          lastMessage: displayText,
           lastMessageAt: nowMs,
           [`unreadCounts.${receiverId}`]: currentUnread + 1,
           [`unreadCounts.${firebaseUser.uid}`]: 0,
@@ -1630,10 +1682,11 @@ function App() {
             );
           });
 
-          const sortedMessages = sortMessagesChronologically(visibleMessages);
+          // Trust array order instead of re-sorting (see formatConversation
+          // for why sortMessagesChronologically can misplace messages).
           const lastMessage =
-            sortedMessages.length > 0
-              ? sortedMessages[sortedMessages.length - 1]
+            visibleMessages.length > 0
+              ? visibleMessages[visibleMessages.length - 1]
               : null;
 
           transaction.update(conversationRef, {
@@ -1671,10 +1724,11 @@ function App() {
           return true;
         });
 
-        const sortedVisible = sortMessagesChronologically(visibleForCurrentUser);
+        // Trust array order instead of re-sorting (see formatConversation
+        // for why sortMessagesChronologically can misplace messages).
         const lastMessage =
-          sortedVisible.length > 0
-            ? sortedVisible[sortedVisible.length - 1]
+          visibleForCurrentUser.length > 0
+            ? visibleForCurrentUser[visibleForCurrentUser.length - 1]
             : null;
 
         transaction.update(conversationRef, {
@@ -1735,6 +1789,18 @@ function App() {
         product.seller?.avatar ||
         null;
 
+      const productFields = {
+        productId: product.id || product.productId || null,
+        productName: product.name || product.productName || "",
+        productImage:
+          product.image ||
+          product.imageUrl ||
+          product.productImage ||
+          null,
+        productPrice:
+          product.price != null ? Number(product.price) || 0 : null,
+      };
+
       if (existingSnapshot.exists()) {
         const existingData = existingSnapshot.data();
         await setDoc(
@@ -1753,9 +1819,12 @@ function App() {
               [String(firebaseUser.uid)]: buyerImage,
               [String(sellerId)]: sellerImage,
             },
+            // Refresh product context so chat highlights the product
+            // the buyer opened chat from (latest product wins).
+            ...productFields,
             updatedAt: serverTimestamp(),
           },
-          { merge: true }
+          { merge: true },
         );
         navigate(`/messages/${conversationId}`);
         return true;
@@ -1786,12 +1855,11 @@ function App() {
           lastMessage: "",
           lastMessageAt: 0,
           messages: [],
-          productId: product.id || null,
-          productName: product.name || "",
+          ...productFields,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         },
-        { merge: true }
+        { merge: true },
       );
 
       navigate(`/messages/${conversationId}`);
@@ -1821,16 +1889,12 @@ function App() {
 
   const isPublicPath = publicPaths.some(
     (path) =>
-      location.pathname === path ||
-      location.pathname.startsWith(`${path}/`)
+      location.pathname === path || location.pathname.startsWith(`${path}/`),
   );
 
   const showInternetRequired = !isOnline && location.pathname !== "/app-start";
 
-  if (
-    !isPublicPath &&
-    (profileLoading || (firebaseUser && !profileResolved))
-  ) {
+  if (!isPublicPath && (profileLoading || (firebaseUser && !profileResolved))) {
     return (
       <>
         {showInternetRequired && <InternetRequired />}
@@ -1871,10 +1935,7 @@ function App() {
           }
         />
 
-        <Route
-          path="/registration-success"
-          element={<RegistrationSuccess />}
-        />
+        <Route path="/registration-success" element={<RegistrationSuccess />} />
 
         <Route
           path="/forgot-password"
@@ -1892,7 +1953,10 @@ function App() {
           path="/dashboard"
           element={
             <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
                 <Dashboard
                   addToCart={addToCart}
                   cartCount={cartCount}
@@ -1912,7 +1976,10 @@ function App() {
           path="/browse-products"
           element={
             <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
                 <BrowseProducts
                   addToCart={addToCart}
                   cartCount={cartCount}
@@ -1929,7 +1996,10 @@ function App() {
           path="/products/:id"
           element={
             <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
                 <ProductDetails
                   addToCart={addToCart}
                   cartCount={cartCount}
@@ -1947,7 +2017,10 @@ function App() {
           path="/cart"
           element={
             <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
                 <Cart
                   cart={cart}
                   cartCount={cartCount}
@@ -1966,7 +2039,10 @@ function App() {
           path="/orders"
           element={
             <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
                 <Orders
                   orders={orders}
                   cartCount={cartCount}
@@ -1981,7 +2057,10 @@ function App() {
           path="/orders/:id"
           element={
             <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
                 <OrderDetails
                   orders={orders}
                   cartCount={cartCount}
@@ -1997,7 +2076,10 @@ function App() {
           path="/messages"
           element={
             <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
                 <Messages
                   cartCount={cartCount}
                   wishlist={wishlist}
@@ -2017,7 +2099,10 @@ function App() {
           path="/messages/:id"
           element={
             <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
                 <Chat
                   cartCount={cartCount}
                   wishlist={wishlist}
@@ -2037,7 +2122,10 @@ function App() {
           path="/checkout"
           element={
             <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
                 <Checkout
                   cart={cart}
                   cartCount={cartCount}
@@ -2053,7 +2141,10 @@ function App() {
           path="/order-success"
           element={
             <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
                 <OrderSuccess profile={profile} />
               </CustomerRoute>
             </ProtectedRoute>
@@ -2064,7 +2155,10 @@ function App() {
           path="/wishlist"
           element={
             <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
                 <Wishlist
                   wishlist={wishlist}
                   removeFromWishlist={removeFromWishlist}
@@ -2081,7 +2175,10 @@ function App() {
           path="/payment"
           element={
             <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
                 <Payment
                   cartCount={cartCount}
                   profile={profile}
@@ -2096,7 +2193,10 @@ function App() {
           path="/profile"
           element={
             <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
                 <Profile
                   profile={profile}
                   updateProfile={updateProfile}
@@ -2113,7 +2213,10 @@ function App() {
           path="/settings"
           element={
             <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
                 <Settings
                   profile={profile}
                   updateProfile={updateProfile}
@@ -2304,22 +2407,24 @@ function App() {
           path="/payment/otp"
           element={
             <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
                 <PaymentOtp cartCount={cartCount} placeOrder={placeOrder} />
               </CustomerRoute>
             </ProtectedRoute>
           }
         />
 
-
         <Route
-  path="/receipt/:id"
-  element={
-    <ProtectedRoute profileResolved={profileResolved}>
-      <Receipt />
-    </ProtectedRoute>
-  }
-/>
+          path="/receipt/:id"
+          element={
+            <ProtectedRoute profileResolved={profileResolved}>
+              <Receipt />
+            </ProtectedRoute>
+          }
+        />
 
         <Route
           path="/admin-dashboard"
@@ -2410,7 +2515,10 @@ function App() {
           path="/store/:sellerId"
           element={
             <ProtectedRoute profileResolved={profileResolved}>
-              <CustomerRoute profile={profile} profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
                 <SellerStore
                   cartCount={cartCount}
                   addToCart={addToCart}
@@ -2422,68 +2530,58 @@ function App() {
           }
         />
 
+        {/* ===================== GIGS (Buyers + Sellers allowed) ===================== */}
+        <Route
+          path="/gigs"
+          element={
+            <ProtectedRoute profileResolved={profileResolved}>
+              <Gigs cartCount={cartCount} />
+            </ProtectedRoute>
+          }
+        />
 
-        
+        <Route
+          path="/gigs/create"
+          element={
+            <ProtectedRoute profileResolved={profileResolved}>
+              <CreateGig cartCount={cartCount} profile={profile} />
+            </ProtectedRoute>
+          }
+        />
 
-      {/* ===================== GIGS (Buyers + Sellers allowed) ===================== */}
-<Route
-  path="/gigs"
-  element={
-    <ProtectedRoute profileResolved={profileResolved}>
-      <Gigs cartCount={cartCount} />
-    </ProtectedRoute>
-  }
-/>
+        <Route
+          path="/gigs/:id"
+          element={
+            <ProtectedRoute profileResolved={profileResolved}>
+              <GigDetail cartCount={cartCount} profile={profile} />
+            </ProtectedRoute>
+          }
+        />
 
-<Route
-  path="/gigs/create"
-  element={
-    <ProtectedRoute profileResolved={profileResolved}>
-      <CreateGig cartCount={cartCount} profile={profile} />
-    </ProtectedRoute>
-  }
-/>
+        <Route
+          path="/gigs/applications"
+          element={
+            <ProtectedRoute profileResolved={profileResolved}>
+              <MyGigApplications cartCount={cartCount} profile={profile} />
+            </ProtectedRoute>
+          }
+        />
 
-<Route
-  path="/gigs/:id"
-  element={
-    <ProtectedRoute profileResolved={profileResolved}>
-      <GigDetail cartCount={cartCount} profile={profile} />
-    </ProtectedRoute>
-  }
-/>
+        {/* ===================== CAMPUS AI ===================== */}
+        <Route
+          path="/ai"
+          element={
+            <ProtectedRoute profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
+                <AIAssistant cartCount={cartCount} />
+              </CustomerRoute>
+            </ProtectedRoute>
+          }
+        />
 
-<Route
-  path="/gigs/applications"
-  element={
-    <ProtectedRoute profileResolved={profileResolved}>
-      <MyGigApplications cartCount={cartCount} profile={profile} />
-    </ProtectedRoute>
-  }
-/>
-
-{/* ===================== CAMPUS AI ===================== */}
-<Route
-  path="/ai"
-  element={
-    <ProtectedRoute profileResolved={profileResolved}>
-      <CustomerRoute profile={profile} profileResolved={profileResolved}>
-        <AIAssistant cartCount={cartCount} />
-      </CustomerRoute>
-    </ProtectedRoute>
-  }
-/>
-
-<Route
-  path="/admin/announcements"
-  element={
-    <AdminRoute profile={profile} profileResolved={profileResolved}>
-      <AdminAnnouncements />
-    </AdminRoute>
-  }
-/>
-
-<Route path="*" element={<Navigate to="/" replace />} />
         <Route
           path="/admin/announcements"
           element={
@@ -2493,7 +2591,33 @@ function App() {
           }
         />
 
-  
+        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route
+          path="/admin/announcements"
+          element={
+            <AdminRoute profile={profile} profileResolved={profileResolved}>
+              <AdminAnnouncements />
+            </AdminRoute>
+          }
+        />
+
+        <Route
+          path="/services/:id"
+          element={
+            <ProtectedRoute profileResolved={profileResolved}>
+              <CustomerRoute
+                profile={profile}
+                profileResolved={profileResolved}
+              >
+                <ServiceDetails
+                  cartCount={cartCount}
+                  wishlist={wishlist}
+                  toggleWishlist={toggleWishlist}
+                />
+              </CustomerRoute>
+            </ProtectedRoute>
+          }
+        />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
