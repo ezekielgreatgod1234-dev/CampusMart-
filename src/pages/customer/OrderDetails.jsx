@@ -377,7 +377,7 @@ function OrderDetails({
                 </h2>
                 <p className="text-sm text-gray-500 mt-1.5 leading-6">
                   Only confirm after you have the product and it matches what
-                  you ordered. This notifies CampusMart admin so they can
+                  you ordered. This notifies Paystack so they can
                   release the seller&apos;s payout.
                 </p>
 

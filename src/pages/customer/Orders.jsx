@@ -20,6 +20,9 @@ import {
   FiClock,
   FiXCircle,
   FiUser,
+  FiChevronLeft,
+  FiChevronRight,
+  FiX,
 } from "react-icons/fi";
 
 import CustomerLayout from "../../layouts/CustomerLayout";
@@ -48,6 +51,26 @@ const formatOrderDate = (value) => {
 const formatMoney = (value) => {
   const n = Number(String(value ?? 0).replace(/[₦,]/g, ""));
   return `₦${(Number.isFinite(n) ? n : 0).toLocaleString("en-NG")}`;
+};
+
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+const getOrderDate = (order) => {
+  const ms = toMillis(order?.createdAt);
+  return ms ? new Date(ms) : null;
 };
 
 const SUCCESS_WORDS = ["successful", "success", "delivered", "completed"];
@@ -228,6 +251,10 @@ function Orders({ cartCount = 0 }) {
   const [successMsg, setSuccessMsg] = useState("");
   const [sellerNames, setSellerNames] = useState({});
   const requestedSellers = useRef(new Set());
+  const currentYear = new Date().getFullYear();
+  const [year, setYear] = useState(currentYear);
+  const [selectedMonth, setSelectedMonth] = useState(null); // 0-11 or null
+  const monthHeaderRef = useRef(null);
 
   // Every order this buyer has placed. One document per seller, so an order
   // containing products from several sellers shows up as several cards.
@@ -310,6 +337,40 @@ function Orders({ cartCount = 0 }) {
     return orders.filter((o) => normalizeOrderStatus(o) === filter);
   }, [orders, filter]);
 
+  // January–December stat cards for the chosen year (respects the status filter)
+  const monthStats = useMemo(() => {
+    const buckets = MONTHS.map(() => ({ count: 0, amount: 0 }));
+    visibleOrders.forEach((order) => {
+      const d = getOrderDate(order);
+      if (!d || d.getFullYear() !== year) return;
+      const bucket = buckets[d.getMonth()];
+      bucket.count += 1;
+      if (normalizeOrderStatus(order) !== "cancelled") {
+        bucket.amount += getOrderTotal(order);
+      }
+    });
+    return buckets;
+  }, [visibleOrders, year]);
+
+  // Orders of the chosen month
+  const displayedOrders = useMemo(() => {
+    if (selectedMonth === null) return [];
+    return visibleOrders.filter((order) => {
+      const d = getOrderDate(order);
+      return d && d.getFullYear() === year && d.getMonth() === selectedMonth;
+    });
+  }, [visibleOrders, selectedMonth, year]);
+
+  // Bring the month's orders into view when a month is opened
+  useEffect(() => {
+    if (selectedMonth !== null) {
+      monthHeaderRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }
+  }, [selectedMonth]);
+
   // Buyer approves the delivery -> order becomes successful.
   // Step 1: open the styled confirmation popup.
   const askApproveDelivery = (order) => {
@@ -386,6 +447,111 @@ function Orders({ cartCount = 0 }) {
           </div>
         )}
 
+        {/* ================= ORDERS BY MONTH: January to December ================= */}
+        {!loading && !error && orders.length > 0 && (
+          <div className="bg-white border border-gray-100 rounded-2xl p-4 sm:p-5 shadow-sm">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <div>
+                <h2 className="font-bold text-gray-800">Orders by month</h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Tap a month to open its orders.
+                </p>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setYear((y) => y - 1)}
+                  aria-label="Previous year"
+                  className="w-9 h-9 rounded-lg border border-green-100 text-green-700 hover:bg-green-50 flex items-center justify-center"
+                >
+                  <FiChevronLeft size={18} />
+                </button>
+                <span className="min-w-[56px] text-center text-sm font-bold text-gray-800">
+                  {year}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setYear((y) => y + 1)}
+                  disabled={year >= currentYear}
+                  aria-label="Next year"
+                  className="w-9 h-9 rounded-lg border border-green-100 text-green-700 hover:bg-green-50 flex items-center justify-center disabled:opacity-40 disabled:hover:bg-transparent"
+                >
+                  <FiChevronRight size={18} />
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+              {MONTHS.map((monthName, index) => {
+                const stat = monthStats[index];
+                const active = selectedMonth === index;
+                return (
+                  <button
+                    key={monthName}
+                    type="button"
+                    onClick={() =>
+                      setSelectedMonth((prev) => (prev === index ? null : index))
+                    }
+                    aria-pressed={active}
+                    className={`rounded-2xl border p-4 text-left transition ${
+                      active
+                        ? "bg-green-600 border-green-600 text-white shadow-md shadow-green-700/20"
+                        : "bg-white border-green-100 hover:border-green-300 hover:bg-green-50/50"
+                    }`}
+                  >
+                    <p
+                      className={`text-xs font-semibold ${
+                        active ? "text-green-100" : "text-gray-500"
+                      }`}
+                    >
+                      {monthName}
+                    </p>
+                    <p
+                      className={`text-2xl font-bold mt-1 ${
+                        active ? "text-white" : "text-green-700"
+                      }`}
+                    >
+                      {stat.count}
+                    </p>
+                    <p
+                      className={`text-[11px] mt-1 truncate ${
+                        active ? "text-green-100" : "text-gray-400"
+                      }`}
+                    >
+                      {stat.count === 1 ? "order" : "orders"}
+                      {stat.count > 0 ? ` · ${formatMoney(stat.amount)}` : ""}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ================= SELECTED MONTH HEADER ================= */}
+        {!loading && !error && orders.length > 0 && selectedMonth !== null && (
+          <div
+            ref={monthHeaderRef}
+            className="scroll-mt-4 flex items-center justify-between gap-3 bg-green-50/60 border border-green-100 rounded-2xl px-4 py-3"
+          >
+            <p className="text-sm font-semibold text-gray-800">
+              {MONTHS[selectedMonth]} {year}
+              <span className="ml-2 font-normal text-gray-500">
+                {displayedOrders.length} order
+                {displayedOrders.length === 1 ? "" : "s"}
+              </span>
+            </p>
+            <button
+              type="button"
+              onClick={() => setSelectedMonth(null)}
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-green-200 text-green-700 text-xs font-semibold hover:bg-green-100"
+            >
+              <FiX size={14} />
+              All months
+            </button>
+          </div>
+        )}
+
         {/* ================= LOADING ================= */}
         {loading ? (
           <div className="bg-white border border-gray-100 rounded-2xl min-h-[40vh] flex items-center justify-center">
@@ -424,14 +590,28 @@ function Orders({ cartCount = 0 }) {
               </button>
             </div>
           </div>
-        ) : visibleOrders.length === 0 ? (
+        ) : selectedMonth === null ? (
+          <div className="bg-white border border-gray-100 rounded-2xl p-10 text-center">
+            <div className="w-14 h-14 mx-auto rounded-full bg-green-50 text-green-600 flex items-center justify-center mb-3">
+              <FiShoppingBag size={24} />
+            </div>
+            <p className="font-semibold text-gray-800">
+              Pick a month to see its orders
+            </p>
+            <p className="text-sm text-gray-500 mt-1">
+              Choose any month above to open the orders you placed then.
+            </p>
+          </div>
+        ) : displayedOrders.length === 0 ? (
           <div className="bg-white border border-gray-100 rounded-2xl p-10 text-center text-sm text-gray-500">
-            No {filter} orders.
+            {filter === "all"
+              ? `No orders in ${MONTHS[selectedMonth]} ${year}.`
+              : `No ${filter} orders in ${MONTHS[selectedMonth]} ${year}.`}
           </div>
         ) : (
           /* ================= ORDERS ================= */
           <div className="space-y-4">
-            {visibleOrders.map((order) => {
+            {displayedOrders.map((order) => {
               const status = normalizeOrderStatus(order);
               const style = STATUS_STYLES[status];
               const StatusIcon = STATUS_ICONS[status];

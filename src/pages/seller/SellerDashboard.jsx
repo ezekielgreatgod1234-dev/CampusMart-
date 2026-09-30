@@ -41,6 +41,26 @@ import {
 import { db } from "../../context/firebase";
 import { useAuth } from "../../context/AuthContext";
 
+// ================= ORDER STATUS (same rules as Orders + SellerOrders) =================
+const SUCCESS_WORDS = ["successful", "success", "delivered", "completed"];
+
+// Returns "pending" | "successful" | "cancelled" for a raw order document.
+const getOrderStatus = (data) => {
+  const raw = String(data?.status || "pending").toLowerCase();
+  if (["cancelled", "canceled"].includes(raw)) return "cancelled";
+  if (
+    data?.sellerConfirmed === true ||
+    data?.buyerConfirmed === true ||
+    SUCCESS_WORDS.includes(raw)
+  ) {
+    return "successful";
+  }
+  return "pending";
+};
+
+// How many orders the dashboard's Recent Orders card shows.
+const RECENT_ORDERS_LIMIT = 5;
+
 function SellerDashboard({ unreadMessages = 0, profile = {} }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -152,7 +172,7 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
           customer: data.customerName || data.fullName || data.customer?.fullName || "Customer",
           items: Array.isArray(data.items) ? data.items : [],
           total: Number(data.total) || 0,
-          status: String(data.status || "pending").toLowerCase(),
+          status: getOrderStatus(data),
           date: created
             ? created.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
             : data.date || "—",
@@ -223,7 +243,7 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
     [orders]
   );
   const pendingOrders = useMemo(
-    () => visibleOrders.filter((o) => ["pending", "placed", "processing"].includes(o.status)),
+    () => visibleOrders.filter((o) => o.status === "pending"),
     [visibleOrders]
   );
   const grossSales = useMemo(
@@ -298,20 +318,16 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
   );
 
   const recentOrders = useMemo(() => {
-    return visibleOrders.slice(0, 6).map((order) => {
+    return visibleOrders.slice(0, RECENT_ORDERS_LIMIT).map((order) => {
       const firstItem = order.items[0];
       const productName =
         firstItem?.name ||
         firstItem?.productName ||
         (order.items.length > 1 ? `${order.items.length} items` : "Order items");
       const qty = order.items.reduce((s, i) => s + Number(i.quantity || 1), 0);
-      const statusLabel =
-        order.status === "delivered"
-          ? "Delivered"
-          : order.status === "cancelled"
-          ? "Cancelled"
-          : "Pending";
+      const statusLabel = order.status === "successful" ? "Successful" : "Pending";
       return {
+        key: order.id,
         id: `#${order.orderNumber || order.id.slice(0, 8).toUpperCase()}`,
         customer: order.customer,
         product: productName,
@@ -1108,7 +1124,7 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
                   <div className="p-5 sm:p-6 border-b border-gray-100 flex items-center justify-between gap-3">
                     <div>
                       <h2 className="text-base sm:text-lg font-bold text-gray-800">Recent Orders</h2>
-                      <p className="text-xs sm:text-sm text-gray-500 mt-1">Latest paid orders from buyers.</p>
+                      <p className="text-xs sm:text-sm text-gray-500 mt-1">Your {RECENT_ORDERS_LIMIT} most recent orders.</p>
                     </div>
                     <button
                       type="button"
@@ -1149,7 +1165,7 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
                           </thead>
                           <tbody>
                             {recentOrders.map((order) => (
-                              <tr key={order.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50">
+                              <tr key={order.key} className="border-b border-gray-50 last:border-0 hover:bg-gray-50">
                                 <td className="px-4 py-4">
                                   <p className="text-sm font-semibold text-gray-800">{order.id}</p>
                                 </td>
@@ -1175,12 +1191,12 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
                                 <td className="px-4 py-4">
                                   <span
                                     className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold ${
-                                      order.status === "Delivered"
+                                      order.status === "Successful"
                                         ? "bg-green-50 text-green-700"
                                         : "bg-yellow-50 text-yellow-700"
                                     }`}
                                   >
-                                    {order.status === "Delivered" ? <FiCheckCircle size={11} /> : <FiClock size={11} />}
+                                    {order.status === "Successful" ? <FiCheckCircle size={11} /> : <FiClock size={11} />}
                                     {order.status}
                                   </span>
                                 </td>
@@ -1192,12 +1208,12 @@ function SellerDashboard({ unreadMessages = 0, profile = {} }) {
 
                       <div className="md:hidden divide-y divide-gray-100">
                         {recentOrders.map((order) => (
-                          <div key={order.id} className="p-4">
+                          <div key={order.key} className="p-4">
                             <div className="flex items-center justify-between gap-2">
                               <p className="text-xs font-bold text-[#008236]">{order.id}</p>
                               <span
                                 className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-semibold ${
-                                  order.status === "Delivered"
+                                  order.status === "Successful"
                                     ? "bg-green-50 text-green-700"
                                     : "bg-yellow-50 text-yellow-700"
                                 }`}

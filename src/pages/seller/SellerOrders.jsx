@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import {
@@ -26,6 +26,8 @@ import {
   FiLogOut,
   FiMenu,
   FiChevronDown,
+  FiChevronLeft,
+  FiChevronRight,
   FiX,
   FiSearch,
   FiClock,
@@ -58,6 +60,31 @@ const formatOrderDate = (value) => {
 const formatMoney = (value) => {
   const n = Number(String(value ?? 0).replace(/[₦,]/g, ""));
   return `₦${(Number.isFinite(n) ? n : 0).toLocaleString("en-NG")}`;
+};
+
+// How many of the seller's newest orders the live listener loads.
+// Raised from 60 so a full January–December view has data to show.
+// Lower it if you want to keep Firestore reads down.
+const ORDERS_LIMIT = 500;
+
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+const getOrderDate = (order) => {
+  const ms = toMillis(order?.createdAt);
+  return ms ? new Date(ms) : null;
 };
 
 const SUCCESS_WORDS = ["successful", "success", "delivered", "completed"];
@@ -179,6 +206,10 @@ function SellerOrders({ unreadMessages = 0, profile = {} }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [updatingId, setUpdatingId] = useState(null);
+  const currentYear = new Date().getFullYear();
+  const [year, setYear] = useState(currentYear);
+  const [selectedMonth, setSelectedMonth] = useState(null); // 0-11 or null
+  const listRef = useRef(null);
   // Orders that arrived unseen; they keep a "New" tag while this page is open.
   const [freshIds, setFreshIds] = useState(() => new Set());
 
@@ -221,13 +252,13 @@ function SellerOrders({ unreadMessages = 0, profile = {} }) {
       setLoading(false);
     };
 
-    // FREE-TIER: cap live listener size
+    // Cap live listener size (see ORDERS_LIMIT)
     const unsubscribe = onSnapshot(
       query(
         ordersRef,
         where("sellerId", "==", firebaseUser.uid),
         orderBy("createdAt", "desc"),
-        limit(60)
+        limit(ORDERS_LIMIT)
       ),
       applyDocs,
       (error) => {
@@ -238,7 +269,7 @@ function SellerOrders({ unreadMessages = 0, profile = {} }) {
           query(
             ordersRef,
             where("sellerId", "==", firebaseUser.uid),
-            limit(60)
+            limit(ORDERS_LIMIT)
           ),
           applyDocs,
           (err2) => {
@@ -395,7 +426,41 @@ function SellerOrders({ unreadMessages = 0, profile = {} }) {
     return s;
   }, [orders]);
 
-  const hasSearchOrFilter = search.trim().length > 0 || statusFilter !== "all";
+  const searching = search.trim().length > 0;
+  const hasSearchOrFilter = searching || statusFilter !== "all";
+
+  // January–December stat cards for the chosen year (respects search + status filter)
+  const monthStats = useMemo(() => {
+    const buckets = MONTHS.map(() => ({ count: 0, amount: 0 }));
+    filteredOrders.forEach((order) => {
+      const d = getOrderDate(order);
+      if (!d || d.getFullYear() !== year) return;
+      const bucket = buckets[d.getMonth()];
+      bucket.count += 1;
+      if (normalizeOrderStatus(order) !== "cancelled") {
+        bucket.amount += getOrderTotal(order);
+      }
+    });
+    return buckets;
+  }, [filteredOrders, year]);
+
+  // Orders shown in the list: the chosen month, or search results across all months
+  const displayedOrders = useMemo(() => {
+    if (selectedMonth !== null) {
+      return filteredOrders.filter((order) => {
+        const d = getOrderDate(order);
+        return d && d.getFullYear() === year && d.getMonth() === selectedMonth;
+      });
+    }
+    return searching ? filteredOrders : [];
+  }, [filteredOrders, selectedMonth, year, searching]);
+
+  // Bring the list into view when a month is opened
+  useEffect(() => {
+    if (selectedMonth !== null) {
+      listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [selectedMonth]);
 
   // ---------------------------------------------------------------
   // SELLER ACTIONS
@@ -693,7 +758,115 @@ function SellerOrders({ unreadMessages = 0, profile = {} }) {
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl border border-green-100 shadow-sm overflow-hidden">
+          {/* ORDERS BY MONTH: January to December */}
+          <div className="bg-white rounded-2xl border border-green-100 p-4 sm:p-5 shadow-sm mb-6">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <div>
+                <h2 className="font-bold text-gray-800">Orders by month</h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Tap a month to open its orders.
+                </p>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setYear((y) => y - 1)}
+                  aria-label="Previous year"
+                  className="w-9 h-9 rounded-lg border border-green-100 text-[#008236] hover:bg-green-50 flex items-center justify-center"
+                >
+                  <FiChevronLeft size={18} />
+                </button>
+                <span className="min-w-[56px] text-center text-sm font-bold text-gray-800">
+                  {year}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setYear((y) => y + 1)}
+                  disabled={year >= currentYear}
+                  aria-label="Next year"
+                  className="w-9 h-9 rounded-lg border border-green-100 text-[#008236] hover:bg-green-50 flex items-center justify-center disabled:opacity-40 disabled:hover:bg-transparent"
+                >
+                  <FiChevronRight size={18} />
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+              {MONTHS.map((monthName, index) => {
+                const stat = monthStats[index];
+                const active = selectedMonth === index;
+                return (
+                  <button
+                    key={monthName}
+                    type="button"
+                    onClick={() =>
+                      setSelectedMonth((prev) => (prev === index ? null : index))
+                    }
+                    aria-pressed={active}
+                    className={`
+                      rounded-2xl border p-4 text-left transition
+                      ${
+                        active
+                          ? "bg-[#008236] border-[#008236] text-white shadow-md shadow-green-700/20"
+                          : "bg-white border-green-100 hover:border-green-300 hover:bg-green-50/50"
+                      }
+                    `}
+                  >
+                    <p
+                      className={`text-xs font-semibold ${
+                        active ? "text-green-100" : "text-gray-500"
+                      }`}
+                    >
+                      {monthName}
+                    </p>
+                    <p
+                      className={`text-2xl font-bold mt-1 ${
+                        active ? "text-white" : "text-[#008236]"
+                      }`}
+                    >
+                      {stat.count}
+                    </p>
+                    <p
+                      className={`text-[11px] mt-1 truncate ${
+                        active ? "text-green-100" : "text-gray-400"
+                      }`}
+                    >
+                      {stat.count === 1 ? "order" : "orders"}
+                      {stat.count > 0 ? ` · ${formatMoney(stat.amount)}` : ""}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div
+            ref={listRef}
+            className="bg-white rounded-2xl border border-green-100 shadow-sm overflow-hidden scroll-mt-4"
+          >
+            {(selectedMonth !== null || searching) && !loading && orders.length > 0 && (
+              <div className="px-4 sm:px-5 py-3 border-b border-green-100 flex items-center justify-between gap-3 bg-green-50/40">
+                <p className="text-sm font-semibold text-gray-800">
+                  {selectedMonth !== null
+                    ? `${MONTHS[selectedMonth]} ${year}`
+                    : "Search results"}
+                  <span className="ml-2 font-normal text-gray-500">
+                    {displayedOrders.length} order
+                    {displayedOrders.length === 1 ? "" : "s"}
+                  </span>
+                </p>
+                {selectedMonth !== null && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMonth(null)}
+                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-green-200 text-[#008236] text-xs font-semibold hover:bg-green-50"
+                  >
+                    <FiX size={14} />
+                    All months
+                  </button>
+                )}
+              </div>
+            )}
             {loading ? (
               <div className="p-10 text-center">
                 <div className="w-10 h-10 mx-auto rounded-full border-4 border-green-100 border-t-green-600 animate-spin" />
@@ -710,18 +883,33 @@ function SellerOrders({ unreadMessages = 0, profile = {} }) {
                   here.
                 </p>
               </div>
-            ) : filteredOrders.length === 0 ? (
+            ) : selectedMonth === null && !searching ? (
+              <div className="p-10 text-center">
+                <div className="w-14 h-14 mx-auto rounded-full bg-green-50 text-green-600 flex items-center justify-center mb-3">
+                  <FiShoppingBag size={24} />
+                </div>
+                <p className="font-semibold text-gray-800">
+                  Pick a month to see its orders
+                </p>
+                <p className="text-sm text-gray-500 mt-1 max-w-sm mx-auto">
+                  Choose any month above, or search for a buyer, order number or
+                  product to look across all months.
+                </p>
+              </div>
+            ) : displayedOrders.length === 0 ? (
               <div className="p-10 text-center">
                 <div className="w-14 h-14 mx-auto rounded-full bg-green-50 text-green-600 flex items-center justify-center mb-3">
                   <FiSearch size={24} />
                 </div>
                 <p className="font-semibold text-gray-800">
-                  No buyer or orders found
+                  {selectedMonth !== null
+                    ? `No orders in ${MONTHS[selectedMonth]} ${year}`
+                    : "No buyer or orders found"}
                 </p>
                 <p className="text-sm text-gray-500 mt-1 max-w-sm mx-auto">
                   {hasSearchOrFilter
                     ? "Try a different name, order number, or clear your filters."
-                    : "Nothing matches your search."}
+                    : "Orders placed in this month will appear here."}
                 </p>
                 {hasSearchOrFilter && (
                   <button
@@ -738,7 +926,7 @@ function SellerOrders({ unreadMessages = 0, profile = {} }) {
               </div>
             ) : (
               <div className="divide-y divide-gray-100">
-                {filteredOrders.map((order) => {
+                {displayedOrders.map((order) => {
                   const status = normalizeOrderStatus(order);
                   const badge = STATUS_STYLES[status];
                   const StatusIcon = STATUS_ICONS[status];
