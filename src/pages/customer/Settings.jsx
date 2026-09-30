@@ -727,8 +727,33 @@ function Settings({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
 
               {activeSection === "faq" && (
                 <section>
-                  <Header title="FAQ" desc="Common questions." icon={FiMessageCircle} />
-                  <p className="mt-6 text-sm text-gray-600">Open Contact if you need more help.</p>
+                  <Header
+                    title="FAQ"
+                    desc="Common questions about selling on CampusMart."
+                    icon={FiMessageCircle}
+                  />
+
+                  <div className="mt-6 space-y-3">
+                    <FAQ
+                      question="How do I add a product?"
+                      answer="Go to Products, tap Add Product, fill in the details and save. Your listing will appear for buyers on CampusMart."
+                    />
+
+                    <FAQ
+                      question="How do I get paid?"
+                      answer="Earnings from completed sales appear on your Earnings page. You can track available balance and withdraw when ready."
+                    />
+
+                    <FAQ
+                      question="How do I chat with a buyer?"
+                      answer="Open Messages from the sidebar. Select a conversation and reply directly in the chat."
+                    />
+
+                    <FAQ
+                      question="Can I change my password?"
+                      answer="Yes. Open Settings → Change Password, enter your current password and set a new one."
+                    />
+                  </div>
                 </section>
               )}
 
@@ -767,19 +792,160 @@ function Settings({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
 
               {activeSection === "terms" && (
                 <section>
-                  <Header title="Terms & Conditions" desc="CampusMart rules." icon={FiFileText} />
-                  <p className="mt-6 text-sm text-gray-600 leading-7">
-                    By using CampusMart you agree to use the platform lawfully and responsibly.
-                  </p>
+                  <Header
+                    title="Terms & Conditions"
+                    desc="Rules that apply when selling on CampusMart."
+                    icon={FiFileText}
+                  />
+
+                  <div className="mt-6 space-y-6 text-sm leading-7 text-gray-600">
+                    <LegalSection number="1" title="Acceptance of Terms">
+                      By creating an account or using CampusMart, you agree to
+                      comply with these Terms & Conditions. If you do not agree
+                      with these terms, please do not use the platform.
+                    </LegalSection>
+
+                    <LegalSection number="2" title="Using CampusMart">
+                      CampusMart is a marketplace designed to help students and
+                      members of campus communities buy and sell products. You
+                      agree to use the platform responsibly and only for lawful
+                      purposes.
+                    </LegalSection>
+
+                    <LegalSection number="3" title="Accounts">
+                      You are responsible for providing accurate information
+                      when creating your account and for keeping your account
+                      credentials secure. You should not share your password
+                      with other people.
+                    </LegalSection>
+
+                    <LegalSection number="4" title="Buying and Selling">
+                      Buyers and sellers are responsible for the information
+                      they provide about products, prices, availability and
+                      transactions. CampusMart does not permit fraudulent,
+                      illegal, dangerous or prohibited items.
+                    </LegalSection>
+
+                    <LegalSection number="5" title="Seller Responsibility">
+                      Sellers must provide honest and accurate descriptions of
+                      their products. Sellers are responsible for fulfilling
+                      legitimate orders and communicating appropriately with
+                      buyers.
+                    </LegalSection>
+
+                    <LegalSection number="6" title="Buyer Responsibility">
+                      Buyers should review product information carefully before
+                      making a purchase. Buyers are responsible for
+                      communicating with sellers and following CampusMart's
+                      applicable ordering and payment procedures.
+                    </LegalSection>
+
+                    <LegalSection number="7" title="Prohibited Activities">
+                      Users must not use CampusMart for scams, impersonation,
+                      harassment, abuse, unauthorized access, spam, illegal
+                      transactions or activities that could harm other users or
+                      the platform.
+                    </LegalSection>
+
+                    <LegalSection number="8" title="Content">
+                      You are responsible for the content you post, including
+                      product descriptions, images and messages. Content must
+                      not violate applicable laws or the rights of other people.
+                    </LegalSection>
+
+                    <LegalSection number="9" title="Account Suspension">
+                      CampusMart may restrict, suspend or terminate an account
+                      where there is a violation of these terms, misuse of the
+                      platform, fraudulent activity or conduct that creates a
+                      risk to other users.
+                    </LegalSection>
+
+                    <LegalSection number="10" title="Changes to These Terms">
+                      We may update these Terms & Conditions from time to time.
+                      Continued use of CampusMart after an update means that you
+                      accept the updated terms.
+                    </LegalSection>
+                  </div>
                 </section>
               )}
 
               {activeSection === "privacy" && (
                 <section>
-                  <Header title="Privacy Policy" desc="How we handle data." icon={FiBookOpen} />
-                  <p className="mt-6 text-sm text-gray-600 leading-7">
-                    We use your information to run the marketplace and support your account.
-                  </p>
+                  <Header
+                    title="Privacy Policy"
+                    desc="How CampusMart handles your seller information."
+                    icon={FiBookOpen}
+                  />
+
+                  <div className="mt-6 space-y-6 text-sm leading-7 text-gray-600">
+                    <LegalSection number="1" title="Information We Collect">
+                      When you create and use a CampusMart account, we may
+                      collect information such as your name, email address,
+                      phone number, campus information, account details and
+                      information you provide while using the platform.
+                    </LegalSection>
+
+                    <LegalSection number="2" title="How We Use Your Information">
+                      Your information may be used to create and manage your
+                      account, provide marketplace functionality, process
+                      orders, facilitate communication between users, provide
+                      support and improve CampusMart.
+                    </LegalSection>
+
+                    <LegalSection number="3" title="Account Information">
+                      Your account information is associated with your
+                      CampusMart account. Some information may be displayed to
+                      other users depending on your profile visibility settings
+                      and the features you use.
+                    </LegalSection>
+
+                    <LegalSection number="4" title="Messages and Communications">
+                      Messages sent through CampusMart may be stored so that the
+                      messaging features can operate and so that we can address
+                      support, safety or platform-related issues where
+                      appropriate.
+                    </LegalSection>
+
+                    <LegalSection number="5" title="Firebase and Service Providers">
+                      CampusMart uses third-party services such as Firebase to
+                      provide authentication, database and other technical
+                      services. Information required for these services may be
+                      processed by those providers according to their applicable
+                      policies.
+                    </LegalSection>
+
+                    <LegalSection number="6" title="Security">
+                      We take reasonable steps to protect information associated
+                      with your CampusMart account. However, no internet service
+                      can guarantee absolute security.
+                    </LegalSection>
+
+                    <LegalSection number="7" title="Your Choices">
+                      You can update certain account information through
+                      Settings. You can also manage your profile visibility
+                      using the privacy controls provided by CampusMart.
+                    </LegalSection>
+
+                    <LegalSection number="8" title="Data Retention">
+                      We may retain information for as long as reasonably
+                      necessary to provide CampusMart services, maintain
+                      security, resolve disputes, comply with applicable
+                      requirements and improve the platform.
+                    </LegalSection>
+
+                    <LegalSection number="9" title="Children and Minors">
+                      CampusMart is intended for users who are legally permitted
+                      to use online marketplace services. If you are not legally
+                      permitted to use the service in your location, you should
+                      not create an account.
+                    </LegalSection>
+
+                    <LegalSection number="10" title="Changes to This Privacy Policy">
+                      We may update this Privacy Policy as CampusMart develops.
+                      When changes are made, the updated version will be made
+                      available through the platform.
+                    </LegalSection>
+                  </div>
                 </section>
               )}
             </div>
@@ -839,6 +1005,41 @@ function PassField({ label, name, value, onChange }) {
         <button type="button" onClick={() => setShow((s) => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
           {show ? <FiEye size={18} /> : <FiEyeOff size={18} />}
         </button>
+      </div>
+    </div>
+  );
+}
+
+function FAQ({ question, answer }) {
+  return (
+    <details className="group rounded-2xl border border-gray-100 bg-white overflow-hidden">
+      <summary className="flex items-center justify-between gap-4 cursor-pointer list-none p-5 text-sm font-semibold text-gray-800">
+        <span>{question}</span>
+
+        <FiChevronRight
+          size={18}
+          className="text-gray-400 transition group-open:rotate-90 shrink-0"
+        />
+      </summary>
+
+      <div className="px-5 pb-5 text-sm leading-6 text-gray-500">{answer}</div>
+    </details>
+  );
+}
+
+function LegalSection({ number, title, children }) {
+  return (
+    <div>
+      <div className="flex items-start gap-3">
+        <div className="w-8 h-8 rounded-lg bg-green-50 text-green-600 flex items-center justify-center shrink-0 text-xs font-bold">
+          {number}
+        </div>
+
+        <div>
+          <h3 className="text-base font-bold text-gray-800">{title}</h3>
+
+          <p className="mt-2 text-sm leading-7 text-gray-600">{children}</p>
+        </div>
       </div>
     </div>
   );
