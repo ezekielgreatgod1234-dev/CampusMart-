@@ -4,7 +4,6 @@ import { useNavigate, Link, useLocation } from "react-router-dom";
 import {
   signInWithEmailAndPassword,
   signOut,
-  sendEmailVerification,
 } from "firebase/auth";
 
 import { doc, getDoc } from "firebase/firestore";
@@ -59,6 +58,46 @@ async function sendWelcomeEmailIfNeeded(user, userData) {
     });
   } catch (err) {
     console.warn("Welcome email request failed:", err);
+  }
+}
+
+// =========================================================
+// VERIFICATION EMAIL
+// Asks the backend to send a fresh verification link.
+// Must be called BEFORE signing the user out (needs the ID token).
+// Returns { status: "sent" | "cooldown" | "failed", minutes, seconds }
+// =========================================================
+async function requestVerificationEmail(user) {
+  try {
+    const token = await user.getIdToken();
+
+    const response = await fetch(`${API_BASE_URL}/send-verification-email`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({}),
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (response.ok && data.sent) {
+      return { status: "sent", minutes: data.expiresInMinutes || 10 };
+    }
+
+    if (response.ok && data.reason === "cooldown") {
+      return {
+        status: "cooldown",
+        minutes: data.expiresInMinutes || 10,
+        seconds: data.retryAfterSeconds || 60,
+      };
+    }
+
+    return { status: "failed" };
+  } catch (err) {
+    console.warn("Verification email request failed:", err);
+    return { status: "failed" };
   }
 }
 
@@ -263,19 +302,24 @@ function Login() {
       await user.reload();
 
       if (!user.emailVerified && userEmail !== ADMIN_EMAIL.toLowerCase()) {
-        try {
-          await sendEmailVerification(user, {
-            url: `${window.location.origin}/login`,
-            handleCodeInApp: false,
-          });
-        } catch (verifyErr) {
-          console.warn("Resend verification failed:", verifyErr);
-        }
+        // Ask the backend for a fresh link BEFORE signing out.
+        const result = await requestVerificationEmail(user);
 
         await forceSignOut();
-        setError(
-          "Please verify your email first. We sent a new verification link to your inbox."
-        );
+
+        if (result.status === "sent") {
+          setError(
+            `Please verify your email first. We sent a new verification link to your inbox. It is valid for ${result.minutes} minutes.`
+          );
+        } else if (result.status === "cooldown") {
+          setError(
+            `Please verify your email first. A verification link was sent to your inbox a moment ago, so check your inbox and spam folder. You can request a new one in about ${result.seconds} seconds.`
+          );
+        } else {
+          setError(
+            "Please verify your email first. We could not send a new verification link right now, please try again in a moment."
+          );
+        }
         return;
       }
 

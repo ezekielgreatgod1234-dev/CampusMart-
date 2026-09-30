@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { FiMail, FiArrowRight } from "react-icons/fi";
+import { FiMail, FiArrowRight, FiAlertCircle } from "react-icons/fi";
 
 function RegistrationSuccess() {
   const navigate = useNavigate();
@@ -8,6 +8,11 @@ function RegistrationSuccess() {
   const params = new URLSearchParams(window.location.search);
   const email =
     location.state?.registeredEmail || params.get("email") || "";
+
+  // Passed from Register.jsx
+  const emailFailed = location.state?.verificationSent === false;
+  const verificationError = location.state?.verificationError || "";
+  const verificationMinutes = location.state?.verificationMinutes || 10;
 
   return (
     <div className="min-h-screen bg-[#f7faf8] flex items-center justify-center px-5 py-10">
@@ -45,12 +50,27 @@ function RegistrationSuccess() {
                 <span className="font-semibold text-gray-800">{email}</span>
               </>
             ) : null}
-            . Please check your inbox, spam/junks and click the verification link before
-            logging in, it expires in few seconds. 
+            . Please check your inbox and spam/junk folder, then click the
+            verification link before logging in. The link is valid for{" "}
+            <span className="font-semibold text-gray-800">
+              {verificationMinutes} minutes
+            </span>
+            .
           </p>
 
+          {emailFailed && (
+            <div className="mt-4 flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-left text-sm text-amber-700">
+              <FiAlertCircle size={18} className="shrink-0 mt-0.5" />
+              <span>
+                {verificationError ||
+                  "We could not send the verification email. You can request a new one from the login page."}
+              </span>
+            </div>
+          )}
+
           <p className="mt-3 text-sm text-gray-400">
-            Don’t see the email? Check your spam or promotions folder or You can send for another link in the login page.
+            Don’t see the email? Check your spam or promotions folder, or
+            request another link by logging in.
           </p>
 
           <button

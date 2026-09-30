@@ -815,15 +815,27 @@ function GigDetail({ cartCount = 0, profile }) {
       return;
     }
 
-    // Open the URL exactly as stored — do NOT rewrite/insert Cloudinary
-    // transformation flags (fl_attachment, fl_inline, etc). Cloudinary
-    // "raw" uploads (most non-image files, e.g. PDFs from a resume
-    // upload) don't support delivery flags at all, and if the URL is
-    // signed, changing it even slightly invalidates the signature —
-    // both cases come back as an HTTP 400 "page isn't working" error.
-    // The untouched URL already has the correct Content-Type, which is
-    // all that's needed for the browser to preview or download it.
-    const openUrl = String(url);
+    // Do NOT rewrite/insert Cloudinary transformation flags
+    // (fl_attachment, fl_inline, etc). Cloudinary "raw" uploads (most
+    // non-image files, e.g. PDFs) don't support delivery flags at all,
+    // and if the URL is signed, changing it even slightly invalidates
+    // the signature — both come back as an HTTP 400 error.
+    const rawUrl = String(url);
+
+    // Cloudinary serves "raw" uploads (PDFs included) with a generic
+    // Content-Type instead of application/pdf. Desktop browsers mostly
+    // ignore that and preview it anyway, but mobile browsers trust the
+    // header and just silently download the file instead of showing it.
+    // Google's document viewer fetches the file itself and renders it
+    // from the actual bytes, ignoring whatever Content-Type it was
+    // served with — so it reliably opens PDFs inline on mobile too.
+    const mobile = isMobileDevice();
+    const openUrl =
+      mobile && !isImage
+        ? `https://docs.google.com/viewer?url=${encodeURIComponent(
+            rawUrl
+          )}&embedded=true`
+        : rawUrl;
 
     const win = window.open(openUrl, "_blank", "noopener,noreferrer");
 

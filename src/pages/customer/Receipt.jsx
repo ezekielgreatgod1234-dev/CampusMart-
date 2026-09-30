@@ -769,7 +769,7 @@ function Receipt() {
               return (
                 <div
                   key={`${item?.id || index}`}
-                  className="px-4 py-4 border-t border-gray-100 first:border-t-0"
+                  className="px-4 py-5 sm:py-6 border-t border-gray-100 first:border-t-0"
                 >
                   <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_64px_110px_110px] gap-2 sm:gap-3 items-center">
                     <div className="flex items-center gap-3 min-w-0">
@@ -777,16 +777,16 @@ function Receipt() {
                         <img
                           src={item.image || item.imageUrl}
                           alt={item.name || "Product"}
-                          className="w-12 h-12 rounded-xl object-cover border border-gray-100 shrink-0"
+                          className="w-28 h-28 sm:w-40 sm:h-40 rounded-2xl object-cover border-2 border-gray-200 shadow-md shrink-0"
                         />
                       ) : (
-                        <div className="w-12 h-12 rounded-xl bg-green-50 text-[#008236] flex items-center justify-center shrink-0">
-                          <FiPackage size={20} />
+                        <div className="w-28 h-28 sm:w-40 sm:h-40 rounded-2xl bg-green-50 border-2 border-green-100 text-[#008236] flex items-center justify-center shrink-0">
+                          <FiPackage size={44} />
                         </div>
                       )}
 
                       <div className="min-w-0">
-                        <p className="font-semibold text-gray-800 break-words">
+                        <p className="text-base sm:text-lg font-bold text-gray-900 break-words">
                           {item?.name ||
                             item?.productName ||
                             "CampusMart Product"}

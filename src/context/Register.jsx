@@ -5,7 +5,6 @@ import {
   createUserWithEmailAndPassword,
   updateProfile,
   signOut,
-  sendEmailVerification,
 } from "firebase/auth";
 
 import {
@@ -28,6 +27,13 @@ import {
 } from "react-icons/fi";
 
 import { auth, db } from "./firebase";
+
+// Backend base URL (same server that exposes /send-welcome-email)
+const API_BASE_URL = String(
+  import.meta.env?.VITE_API_URL ||
+    import.meta.env?.VITE_BACKEND_URL ||
+    "http://localhost:5000"
+).replace(/\/+$/, "");
 
 async function sendWelcomeNotification(userId, userEmail, fullName) {
   if (!userId) return;
@@ -220,24 +226,44 @@ function Register() {
 
       let verificationSent = false;
       let verificationError = "";
+      let verificationMinutes = 10;
 
       try {
-        await Promise.race([
-          sendEmailVerification(user, {
-            url: `${window.location.origin}/login`,
-            handleCodeInApp: false,
-          }),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("verify-timeout")), 30000)
-          ),
-        ]);
+        // The ID token must be read BEFORE signOut below.
+        const idToken = await user.getIdToken();
+
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 45000);
+
+        let response;
+        try {
+          response = await fetch(`${API_BASE_URL}/send-verification-email`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${idToken}`,
+            },
+            body: JSON.stringify({}),
+            signal: controller.signal,
+          });
+        } finally {
+          clearTimeout(timer);
+        }
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok || !(data.sent || data.reason === "cooldown")) {
+          throw new Error(data.error || "verify-send-failed");
+        }
+
         verificationSent = true;
+        verificationMinutes = data.expiresInMinutes || 10;
       } catch (err) {
         console.warn("Verification email failed:", err);
         verificationError =
-          err?.message === "verify-timeout"
-            ? "Verification email timed out. You can resend it after login."
-            : "Verification email could not be sent. You can resend it after login.";
+          err?.name === "AbortError"
+            ? "Verification email timed out. You can request a new one from the login page."
+            : "Verification email could not be sent. You can request a new one from the login page.";
       }
 
       await signOut(auth);
@@ -248,6 +274,7 @@ function Register() {
           registeredEmail: email,
           verificationSent,
           verificationError,
+          verificationMinutes,
         },
       });
 

@@ -94,6 +94,7 @@ import AnnouncementBanner from "./components/AnnouncementBanner";
 import AIAssistant from "./pages/admin/AIAssistant";
 import Receipt from "./pages/customer/Receipt";
 import ServiceDetails from "./pages/customer/ServiceDetails";
+import VerifyEmail from "./pages/customer/VerifyEmail";
 
 const emptyProfile = {
   fullName: "",
@@ -2618,6 +2619,8 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        <Route path="/verify-email" element={<VerifyEmail />} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
