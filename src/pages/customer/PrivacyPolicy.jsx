@@ -459,7 +459,7 @@ function PrivacyPolicy() {
         <PolicySection
           icon={<FiDatabase />}
           number="7"
-          title="Firebase & Third-Party Services"
+          title="Third-Party Services"
         >
 
           <p>
@@ -468,7 +468,7 @@ function PrivacyPolicy() {
           </p>
 
           <p>
-            For example, Firebase services may be used for
+            For example, Backend services may be used for
             authentication, database storage, and other
             application functionality.
           </p>

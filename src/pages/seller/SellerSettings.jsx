@@ -2002,8 +2002,8 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
                       appropriate.
                     </LegalSection>
 
-                    <LegalSection number="5" title="Firebase and Service Providers">
-                      CampusMart uses third-party services such as Firebase to
+                    <LegalSection number="5" title="Service Providers">
+                      CampusMart uses third-party services to
                       provide authentication, database and other technical
                       services. Information required for these services may be
                       processed by those providers according to their applicable
