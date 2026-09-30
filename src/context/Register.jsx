@@ -233,7 +233,7 @@ function Register() {
         const idToken = await user.getIdToken();
 
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 45000);
+        const timer = setTimeout(() => controller.abort(), 60000);
 
         let response;
         try {
@@ -243,7 +243,7 @@ function Register() {
               "Content-Type": "application/json",
               Authorization: `Bearer ${idToken}`,
             },
-            body: JSON.stringify({}),
+            body: JSON.stringify({ origin: window.location.origin }),
             signal: controller.signal,
           });
         } finally {
@@ -252,7 +252,8 @@ function Register() {
 
         const data = await response.json().catch(() => ({}));
 
-        if (!response.ok || !(data.sent || data.reason === "cooldown")) {
+        if (!response.ok || !(data.sent === true || data.reason === "cooldown")) {
+          console.warn("Verification email not sent:", response.status, data);
           throw new Error(data.error || "verify-send-failed");
         }
 
@@ -262,8 +263,8 @@ function Register() {
         console.warn("Verification email failed:", err);
         verificationError =
           err?.name === "AbortError"
-            ? "Verification email timed out. You can request a new one from the login page."
-            : "Verification email could not be sent. You can request a new one from the login page.";
+            ? "Verification email timed out. Log in and tap Resend to get a new link."
+            : "Verification email could not be sent. Log in and tap Resend to get a new link.";
       }
 
       await signOut(auth);

@@ -103,7 +103,7 @@ function VerifyEmail() {
               <p className="mt-3 text-gray-500 leading-relaxed">
                 {linkLooksValid
                   ? message
-                  : "This verification link is not valid. Log in to get a new one."}
+                  : "This verification link is not valid. Log in and tap Resend to get a new one."}
               </p>
               <div className="mt-8 flex flex-col gap-3">
                 {linkLooksValid && (
@@ -120,7 +120,7 @@ function VerifyEmail() {
                   onClick={() => navigate("/login", { replace: true })}
                   className="w-full h-13 rounded-xl border border-gray-200 text-gray-700 font-bold text-sm hover:bg-gray-50 transition"
                 >
-                  Go to Login
+                  Go to Login to get a new link
                 </button>
               </div>
             </>

@@ -63,14 +63,15 @@ function RegistrationSuccess() {
               <FiAlertCircle size={18} className="shrink-0 mt-0.5" />
               <span>
                 {verificationError ||
-                  "We could not send the verification email. You can request a new one from the login page."}
+                  "We could not send the verification email. Go to the login page, enter your password and tap Resend."}
               </span>
             </div>
           )}
 
           <p className="mt-3 text-sm text-gray-400">
-            Don’t see the email? Check your spam or promotions folder, or
-            request another link by logging in.
+            Don’t see the email? Check your spam or promotions folder. If it
+            still has not arrived or the link expired, go to the login page,
+            enter your password and tap Resend. Always open the newest email.
           </p>
 
           <button

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 
 import {
@@ -65,11 +65,15 @@ async function sendWelcomeEmailIfNeeded(user, userData) {
 // VERIFICATION EMAIL
 // Asks the backend to send a fresh verification link.
 // Must be called BEFORE signing the user out (needs the ID token).
-// Returns { status: "sent" | "cooldown" | "failed", minutes, seconds }
+// Returns { status: "sent" | "cooldown" | "failed", minutes, seconds, message }
 // =========================================================
 async function requestVerificationEmail(user) {
+  const controller = new AbortController();
+  // Free hosting can take a while to wake up, so allow a long wait.
+  const timer = setTimeout(() => controller.abort(), 60000);
+
   try {
-    const token = await user.getIdToken();
+    const token = await user.getIdToken(true);
 
     const response = await fetch(`${API_BASE_URL}/send-verification-email`, {
       method: "POST",
@@ -77,12 +81,13 @@ async function requestVerificationEmail(user) {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ origin: window.location.origin }),
+      signal: controller.signal,
     });
 
     const data = await response.json().catch(() => ({}));
 
-    if (response.ok && data.sent) {
+    if (response.ok && data.sent === true) {
       return { status: "sent", minutes: data.expiresInMinutes || 10 };
     }
 
@@ -94,10 +99,23 @@ async function requestVerificationEmail(user) {
       };
     }
 
-    return { status: "failed" };
+    if (response.ok && data.alreadyVerified === true) {
+      return { status: "verified" };
+    }
+
+    console.warn("Verification email was not sent:", response.status, data);
+    return { status: "failed", message: data.error || "" };
   } catch (err) {
     console.warn("Verification email request failed:", err);
-    return { status: "failed" };
+    return {
+      status: "failed",
+      message:
+        err?.name === "AbortError"
+          ? "The server took too long to respond."
+          : "",
+    };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -158,6 +176,12 @@ function Login() {
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Resend verification email
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const cooldownTimer = useRef(null);
+
   const [savedAccounts, setSavedAccounts] = useState([]);
   const [selectedSavedEmail, setSelectedSavedEmail] = useState("");
   const [showOtherAccount, setShowOtherAccount] = useState(false);
@@ -198,6 +222,16 @@ function Login() {
       setSuccess("Account created! Please verify your email, then log in.");
     }
   }, [location.state]);
+
+  // Countdown for the "Resend" button
+  useEffect(() => {
+    if (resendCooldown <= 0) return undefined;
+    cooldownTimer.current = setTimeout(
+      () => setResendCooldown((s) => Math.max(0, s - 1)),
+      1000
+    );
+    return () => clearTimeout(cooldownTimer.current);
+  }, [resendCooldown]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -274,10 +308,74 @@ function Login() {
     }
   };
 
+  const handleResendVerification = async () => {
+    if (resending || resendCooldown > 0) return;
+
+    setError("");
+    setSuccess("");
+
+    const email = formData.email.trim().toLowerCase();
+    const password = formData.password;
+
+    if (!email || !password) {
+      setError("Enter your email and password above, then tap Resend.");
+      return;
+    }
+
+    try {
+      setResending(true);
+
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+      const user = userCredential.user;
+      await user.reload();
+
+      if (user.emailVerified) {
+        await forceSignOut();
+        setNeedsVerification(false);
+        setSuccess("Your email is already verified. You can log in now.");
+        return;
+      }
+
+      const result = await requestVerificationEmail(user);
+      await forceSignOut();
+
+      if (result.status === "sent") {
+        setSuccess(
+          `A new verification link was sent to ${email}. It is valid for ${result.minutes} minutes. Check your inbox and spam or junk folder, and open only the newest email.`
+        );
+        setResendCooldown(60);
+      } else if (result.status === "cooldown") {
+        setSuccess(
+          `A link was sent to ${email} a moment ago. Check your inbox and spam or junk folder.`
+        );
+        setResendCooldown(result.seconds || 60);
+      } else if (result.status === "verified") {
+        setNeedsVerification(false);
+        setSuccess("Your email is already verified. You can log in now.");
+      } else {
+        setError(
+          `We could not send the verification email. ${
+            result.message || "Please try again in a moment."
+          }`
+        );
+      }
+    } catch (err) {
+      console.error("Resend verification error:", err);
+      setError(getFirebaseErrorMessage(err));
+    } finally {
+      setResending(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setSuccess("");
+    setNeedsVerification(false);
 
     const email = formData.email.trim().toLowerCase();
     const password = formData.password;
@@ -302,24 +400,14 @@ function Login() {
       await user.reload();
 
       if (!user.emailVerified && userEmail !== ADMIN_EMAIL.toLowerCase()) {
-        // Ask the backend for a fresh link BEFORE signing out.
-        const result = await requestVerificationEmail(user);
-
+        // Do NOT send a new link automatically here. Every new link replaces
+        // the previous one, so a login attempt would invalidate the email the
+        // user is about to click. They can press "Resend" when they need one.
         await forceSignOut();
-
-        if (result.status === "sent") {
-          setError(
-            `Please verify your email first. We sent a new verification link to your inbox. It is valid for ${result.minutes} minutes.`
-          );
-        } else if (result.status === "cooldown") {
-          setError(
-            `Please verify your email first. A verification link was sent to your inbox a moment ago, so check your inbox and spam folder. You can request a new one in about ${result.seconds} seconds.`
-          );
-        } else {
-          setError(
-            "Please verify your email first. We could not send a new verification link right now, please try again in a moment."
-          );
-        }
+        setNeedsVerification(true);
+        setError(
+          "Please verify your email first. Open the verification link we sent to your inbox (check spam or junk too). If you did not get it or it expired, tap Resend below."
+        );
         return;
       }
 
@@ -520,6 +608,26 @@ function Login() {
             <div className="mb-5 rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-600">
               {error}
             </div>
+          )}
+
+          {needsVerification && (
+            <button
+              type="button"
+              onClick={handleResendVerification}
+              disabled={resending || resendCooldown > 0}
+              className="mb-5 w-full h-11 rounded-xl border border-green-600 text-green-700 text-sm font-bold flex items-center justify-center gap-2 hover:bg-green-50 transition disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {resending ? (
+                <>
+                  <span className="w-4 h-4 rounded-full border-2 border-green-200 border-t-green-600 animate-spin" />
+                  Sending...
+                </>
+              ) : resendCooldown > 0 ? (
+                `Resend available in ${resendCooldown}s`
+              ) : (
+                "Resend verification email"
+              )}
+            </button>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
