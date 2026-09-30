@@ -435,7 +435,7 @@ function OrderDetails({
                 You confirmed delivery
               </p>
               <p className="text-xs text-green-700 mt-1">
-                Admin can approve the seller&apos;s withdrawal / payout.
+                Paystack can now process the seller&apos;s withdrawal / payout.
               </p>
             </div>
           </section>
