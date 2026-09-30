@@ -10,6 +10,7 @@ import {
   limit,
   doc,
   updateDoc,
+  writeBatch,
   serverTimestamp,
 } from "firebase/firestore";
 
@@ -29,15 +30,145 @@ import {
   FiSearch,
   FiClock,
   FiCheckCircle,
+  FiXCircle,
 } from "react-icons/fi";
 
 import { db } from "../../context/firebase";
 import { useAuth } from "../../context/AuthContext";
 
-function SellerOrders({
-  unreadMessages = 0,
-  profile = {},
-}) {
+// ================= ORDER HELPERS (self-contained) =================
+const toMillis = (value) => {
+  if (!value) return 0;
+  if (typeof value.toMillis === "function") return value.toMillis();
+  if (value.seconds) return value.seconds * 1000;
+  if (typeof value === "number") return value;
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
+};
+
+const formatOrderDate = (value) => {
+  const ms = toMillis(value);
+  if (!ms) return "—";
+  return new Date(ms).toLocaleString([], {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+};
+
+const formatMoney = (value) => {
+  const n = Number(String(value ?? 0).replace(/[₦,]/g, ""));
+  return `₦${(Number.isFinite(n) ? n : 0).toLocaleString("en-NG")}`;
+};
+
+const SUCCESS_WORDS = ["successful", "success", "delivered", "completed"];
+
+const rawStatus = (order) => String(order?.status || "pending").toLowerCase();
+
+const isCancelled = (order) =>
+  ["cancelled", "canceled"].includes(rawStatus(order));
+
+const isBuyerConfirmed = (order) => order?.buyerConfirmed === true;
+
+const isSellerConfirmed = (order) =>
+  order?.sellerConfirmed === true ||
+  (SUCCESS_WORDS.includes(rawStatus(order)) && order?.buyerConfirmed !== true);
+
+const normalizeOrderStatus = (order) => {
+  if (isCancelled(order)) return "cancelled";
+  if (
+    order?.sellerConfirmed === true ||
+    order?.buyerConfirmed === true ||
+    SUCCESS_WORDS.includes(rawStatus(order))
+  ) {
+    return "successful";
+  }
+  return "pending";
+};
+
+const STATUS_STYLES = {
+  pending: {
+    label: "Pending",
+    className: "bg-amber-50 text-amber-700 border border-amber-100",
+  },
+  successful: {
+    label: "Successful",
+    className: "bg-[#008236] text-white",
+  },
+  cancelled: {
+    label: "Cancelled",
+    className: "bg-red-50 text-red-600 border border-red-100",
+  },
+};
+
+const getItemPrice = (item) =>
+  Number(String(item?.price ?? 0).replace(/[₦,]/g, "")) || 0;
+
+const getOrderItems = (order) => {
+  if (Array.isArray(order?.items) && order.items.length > 0) return order.items;
+  return [
+    {
+      name: order?.productName || order?.name || "Product",
+      quantity: order?.quantity || 1,
+      price: order?.price || order?.total,
+      image: order?.image,
+    },
+  ];
+};
+
+const getOrderTotal = (order) => {
+  const direct = order?.total || order?.amount || order?.amountPaid;
+  if (direct) return Number(String(direct).replace(/[₦,]/g, "")) || 0;
+  return getOrderItems(order).reduce(
+    (sum, item) => sum + getItemPrice(item) * (item.quantity || 1),
+    0
+  );
+};
+
+const getBuyerName = (order) =>
+  order?.customerName ||
+  order?.customer?.fullName ||
+  order?.customer?.name ||
+  order?.buyerName ||
+  "Buyer";
+
+const getOrderNumber = (order) =>
+  order?.orderNumber
+    ? String(order.orderNumber).startsWith("#")
+      ? order.orderNumber
+      : `#${order.orderNumber}`
+    : `#${String(order?.id || "").slice(0, 8).toUpperCase()}`;
+
+const getPaymentInfo = (order) => {
+  const method = String(order?.paymentMethod || "").toLowerCase();
+  const isCash = ["cash", "pod", "pay_on_delivery", "pay on delivery"].includes(
+    method
+  );
+  const ps = String(order?.paymentStatus || "").toLowerCase();
+  const paid = ps
+    ? ["paid", "success", "successful"].includes(ps)
+    : !isCash; // card/Paystack orders without a flag are treated as paid
+
+  return {
+    method: isCash ? "Pay on Delivery" : "Paystack",
+    paid,
+    label: isCash ? "Pay on Delivery" : paid ? "Paid" : "Awaiting payment",
+  };
+};
+
+const STATUS_ICONS = {
+  pending: FiClock,
+  successful: FiCheckCircle,
+  cancelled: FiXCircle,
+};
+
+const STATUS_FILTERS = [
+  { id: "all", label: "All" },
+  { id: "pending", label: "Pending" },
+  { id: "successful", label: "Successful" },
+  { id: "cancelled", label: "Cancelled" },
+];
+
+function SellerOrders({ unreadMessages = 0, profile = {} }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { firebaseUser } = useAuth();
@@ -48,6 +179,8 @@ function SellerOrders({
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [updatingId, setUpdatingId] = useState(null);
+  // Orders that arrived unseen; they keep a "New" tag while this page is open.
+  const [freshIds, setFreshIds] = useState(() => new Set());
 
   const sellerFullName =
     profile?.fullName ||
@@ -66,19 +199,102 @@ function SellerOrders({
     firebaseUser?.photoURL ||
     null;
 
-  const normalizeStatus = (status) => {
-    const s = String(status || "pending").toLowerCase();
-    if (s === "delivered") return "delivered";
-    if (s === "cancelled" || s === "canceled") return "cancelled";
-    return "pending";
-  };
+  // ---------------------------------------------------------------
+  // LIVE ORDERS for this seller
+  // ---------------------------------------------------------------
+  useEffect(() => {
+    if (!firebaseUser?.uid) {
+      setOrders([]);
+      setLoading(false);
+      return;
+    }
 
-  // Red badge = pending (new) orders
-  const newOrdersCount = useMemo(() => {
-    return orders.filter(
-      (order) => normalizeStatus(order.status) === "pending"
-    ).length;
-  }, [orders]);
+    setLoading(true);
+
+    const ordersRef = collection(db, "orders");
+    let unsubFallback = null;
+
+    const applyDocs = (snapshot) => {
+      const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+      list.sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
+      setOrders(list);
+      setLoading(false);
+    };
+
+    // FREE-TIER: cap live listener size
+    const unsubscribe = onSnapshot(
+      query(
+        ordersRef,
+        where("sellerId", "==", firebaseUser.uid),
+        orderBy("createdAt", "desc"),
+        limit(60)
+      ),
+      applyDocs,
+      (error) => {
+        console.error("Seller orders listener error:", error);
+
+        // Missing index? Fall back to an unordered query, sorted client-side.
+        unsubFallback = onSnapshot(
+          query(
+            ordersRef,
+            where("sellerId", "==", firebaseUser.uid),
+            limit(60)
+          ),
+          applyDocs,
+          (err2) => {
+            console.error("Seller orders fallback error:", err2);
+            setOrders([]);
+            setLoading(false);
+          }
+        );
+      }
+    );
+
+    return () => {
+      unsubscribe();
+      if (unsubFallback) unsubFallback();
+    };
+  }, [firebaseUser?.uid]);
+
+  // ---------------------------------------------------------------
+  // NEW ORDER BADGE (red in the sidebar)
+  // A "new" order = pending and the seller hasn't opened Orders yet.
+  // ---------------------------------------------------------------
+  const unseenOrders = useMemo(
+    () =>
+      orders.filter(
+        (o) => normalizeOrderStatus(o) === "pending" && o.sellerSeen !== true
+      ),
+    [orders]
+  );
+
+  const newOrdersCount = unseenOrders.length;
+
+  // While the seller is on this page, keep the "New" tag on fresh orders and
+  // mark them as seen after a short delay so the sidebar badge clears.
+  useEffect(() => {
+    if (unseenOrders.length === 0) return;
+
+    setFreshIds((prev) => {
+      const next = new Set(prev);
+      unseenOrders.forEach((o) => next.add(o.id));
+      return next;
+    });
+
+    const timer = setTimeout(async () => {
+      try {
+        const batch = writeBatch(db);
+        unseenOrders.forEach((o) =>
+          batch.update(doc(db, "orders", o.id), { sellerSeen: true })
+        );
+        await batch.commit();
+      } catch (error) {
+        console.error("Mark orders seen error:", error);
+      }
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, [unseenOrders]);
 
   const menuItems = useMemo(
     () => [
@@ -126,102 +342,21 @@ function SellerOrders({
     navigate("/logout");
   };
 
-  useEffect(() => {
-    if (!firebaseUser?.uid) {
-      setOrders([]);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-
-    const ordersRef = collection(db, "orders");
-    // FREE-TIER: cap live listener size
-    const q = query(
-      ordersRef,
-      where("sellerId", "==", firebaseUser.uid),
-      orderBy("createdAt", "desc"),
-      limit(40)
-    );
-
-    const applyDocs = (snapshot) => {
-      const list = snapshot.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
-      }));
-      setOrders(list);
-      setLoading(false);
-    };
-
-    const unsubscribe = onSnapshot(
-      q,
-      applyDocs,
-      (error) => {
-        console.error("Seller orders listener error:", error);
-
-        const fallbackQ = query(
-          ordersRef,
-          where("sellerId", "==", firebaseUser.uid),
-          limit(40)
-        );
-
-        onSnapshot(
-          fallbackQ,
-          (snap) => {
-            const list = snap.docs.map((d) => ({
-              id: d.id,
-              ...d.data(),
-            }));
-            list.sort((a, b) => {
-              const aT =
-                a.createdAt?.toMillis?.() ||
-                a.createdAt?.seconds * 1000 ||
-                Number(a.createdAt) ||
-                0;
-              const bT =
-                b.createdAt?.toMillis?.() ||
-                b.createdAt?.seconds * 1000 ||
-                Number(b.createdAt) ||
-                0;
-              return bT - aT;
-            });
-            setOrders(list);
-            setLoading(false);
-          },
-          (err2) => {
-            console.error("Seller orders fallback error:", err2);
-            setOrders([]);
-            setLoading(false);
-          }
-        );
-      }
-    );
-
-    return () => unsubscribe();
-  }, [firebaseUser?.uid]);
-
-  const visibleOrders = useMemo(() => {
-    return orders.filter(
-      (order) => normalizeStatus(order.status) !== "cancelled"
-    );
-  }, [orders]);
-
+  // ---------------------------------------------------------------
+  // FILTERING + STATS
+  // ---------------------------------------------------------------
   const filteredOrders = useMemo(() => {
     const q = search.trim().toLowerCase();
 
-    return visibleOrders.filter((order) => {
-      const status = normalizeStatus(order.status);
+    return orders.filter((order) => {
+      const status = normalizeOrderStatus(order);
 
-      if (statusFilter === "pending" && status !== "pending") return false;
-      if (statusFilter === "delivered" && status !== "delivered") return false;
-
+      if (statusFilter !== "all" && status !== statusFilter) return false;
       if (!q) return true;
 
-      const itemNames = Array.isArray(order.items)
-        ? order.items
-            .map((i) => i?.name || i?.productName || i?.title || "")
-            .join(" ")
-        : "";
+      const itemNames = getOrderItems(order)
+        .map((i) => i?.name || i?.productName || i?.title || "")
+        .join(" ");
 
       const haystack = [
         order.id,
@@ -250,87 +385,65 @@ function SellerOrders({
 
       return haystack.includes(q);
     });
-  }, [visibleOrders, search, statusFilter]);
+  }, [orders, search, statusFilter]);
 
   const stats = useMemo(() => {
-    const total = visibleOrders.length;
-    const pending = visibleOrders.filter(
-      (o) => normalizeStatus(o.status) === "pending"
-    ).length;
-    const delivered = visibleOrders.filter(
-      (o) => normalizeStatus(o.status) === "delivered"
-    ).length;
-    return { total, pending, delivered };
-  }, [visibleOrders]);
+    const s = { total: orders.length, pending: 0, successful: 0, cancelled: 0 };
+    orders.forEach((o) => {
+      s[normalizeOrderStatus(o)] += 1;
+    });
+    return s;
+  }, [orders]);
 
-  const formatMoney = (value) => {
-    const n = Number(String(value || 0).replace(/[₦,]/g, ""));
-    return `₦${(Number.isFinite(n) ? n : 0).toLocaleString()}`;
-  };
+  const hasSearchOrFilter = search.trim().length > 0 || statusFilter !== "all";
 
-  const formatDate = (value) => {
-    if (!value) return "—";
+  // ---------------------------------------------------------------
+  // SELLER ACTIONS
+  // ---------------------------------------------------------------
+  const markSuccessful = async (order) => {
+    if (!order?.id || updatingId) return;
+
+    const ok = window.confirm(
+      "Mark this order as successful? Confirm only after the buyer has received the items."
+    );
+    if (!ok) return;
+
+    setUpdatingId(order.id);
     try {
-      const ms =
-        typeof value?.toMillis === "function"
-          ? value.toMillis()
-          : value?.seconds
-          ? value.seconds * 1000
-          : typeof value === "number"
-          ? value
-          : Date.parse(value);
-      if (!ms || Number.isNaN(ms)) return "—";
-      return new Date(ms).toLocaleString([], {
-        dateStyle: "medium",
-        timeStyle: "short",
-      });
-    } catch {
-      return "—";
-    }
-  };
-
-  const statusBadge = (status) => {
-    const s = normalizeStatus(status);
-    if (s === "delivered") {
-      return {
-        label: "Delivered",
-        className: "bg-[#008236] text-white",
-        icon: FiCheckCircle,
-      };
-    }
-    return {
-      label: "Pending",
-      className: "bg-green-50 text-[#008236] border border-green-200",
-      icon: FiClock,
-    };
-  };
-
-  const updateOrderStatus = async (orderId, nextStatus) => {
-    if (!orderId || updatingId) return;
-    if (nextStatus !== "pending" && nextStatus !== "delivered") return;
-
-    setUpdatingId(orderId);
-    try {
-      await updateDoc(doc(db, "orders", orderId), {
-        status: nextStatus,
+      await updateDoc(doc(db, "orders", order.id), {
+        status: "successful",
+        sellerConfirmed: true,
+        sellerConfirmedAt: serverTimestamp(),
+        sellerSeen: true,
         updatedAt: serverTimestamp(),
       });
     } catch (error) {
-      console.error("Update order status error:", error);
+      console.error("Mark successful error:", error);
       alert("Could not update order status. Please try again.");
     } finally {
       setUpdatingId(null);
     }
   };
 
-  const statusFilters = [
-    { id: "all", label: "All" },
-    { id: "pending", label: "Pending" },
-    { id: "delivered", label: "Delivered" },
-  ];
+  // Only allowed while the buyer hasn't approved delivery.
+  const markPending = async (order) => {
+    if (!order?.id || updatingId || isBuyerConfirmed(order)) return;
 
-  const hasSearchOrFilter =
-    search.trim().length > 0 || statusFilter !== "all";
+    setUpdatingId(order.id);
+    try {
+      await updateDoc(doc(db, "orders", order.id), {
+        status: "pending",
+        sellerConfirmed: false,
+        sellerConfirmedAt: null,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (error) {
+      console.error("Mark pending error:", error);
+      alert("Could not update order status. Please try again.");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
 
   return (
     <div className="h-[100dvh] w-full bg-gray-50 text-gray-800 font-sans overflow-hidden flex flex-col">
@@ -359,24 +472,8 @@ function SellerOrders({
             <FiX size={21} strokeWidth={2.5} />
           </button>
           <div className="flex items-center gap-3 pr-10">
-            <div
-              className="
-                w-10
-                h-10
-                min-w-[40px]
-                rounded-xl
-                bg-[#006f2e]
-                flex
-                items-center
-                justify-center
-                shadow-lg
-                shadow-black/30
-                border
-                border-white/10
-                flex-shrink-0
-              "
-            >
-            <span className="text-white text-[16px] font-black tracking-tight">
+            <div className="w-10 h-10 min-w-[40px] rounded-xl bg-[#006f2e] flex items-center justify-center shadow-lg shadow-black/30 border border-white/10 flex-shrink-0">
+              <span className="text-white text-[16px] font-black tracking-tight">
                 CM
               </span>
             </div>
@@ -412,7 +509,11 @@ function SellerOrders({
                 <Icon size={19} className="flex-shrink-0" />
                 <span className="flex-1 text-[14px]">{label}</span>
                 {badge > 0 && (
-                  <span className="min-w-[21px] h-[21px] px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                  <span
+                    className={`min-w-[21px] h-[21px] px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center ${
+                      label === "Orders" ? "animate-pulse" : ""
+                    }`}
+                  >
                     {badge > 99 ? "99+" : badge}
                   </span>
                 )}
@@ -449,9 +550,12 @@ function SellerOrders({
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
-            className="lg:hidden w-10 h-10 rounded-lg hover:bg-white/10 flex items-center justify-center"
+            className="lg:hidden relative w-10 h-10 rounded-lg hover:bg-white/10 flex items-center justify-center"
           >
             <FiMenu size={24} />
+            {newOrdersCount > 0 && (
+              <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-red-500 ring-2 ring-[#007233]" />
+            )}
           </button>
 
           <div className="flex items-center gap-2">
@@ -514,16 +618,18 @@ function SellerOrders({
               Your Orders, {sellerFirstName}
             </h1>
             <p className="relative mt-2 max-w-xl text-sm text-green-100">
-              Mark orders Pending or Delivered. Buyers will see the update in
-              their Order Summary.
+              Mark an order successful once it is delivered. An order also
+              becomes successful when the buyer approves the delivery, and
+              buyers see every update in My Orders.
             </p>
           </div>
 
-          <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
             {[
               { label: "Total", value: stats.total },
               { label: "Pending", value: stats.pending },
-              { label: "Delivered", value: stats.delivered },
+              { label: "Successful", value: stats.successful },
+              { label: "Cancelled", value: stats.cancelled },
             ].map((s) => (
               <div
                 key={s.label}
@@ -564,7 +670,7 @@ function SellerOrders({
             </div>
 
             <div className="flex flex-wrap gap-2">
-              {statusFilters.map((item) => {
+              {STATUS_FILTERS.map((item) => {
                 const active = statusFilter === item.id;
                 return (
                   <button
@@ -593,7 +699,7 @@ function SellerOrders({
                 <div className="w-10 h-10 mx-auto rounded-full border-4 border-green-100 border-t-green-600 animate-spin" />
                 <p className="mt-4 text-sm text-gray-500">Loading orders...</p>
               </div>
-            ) : visibleOrders.length === 0 ? (
+            ) : orders.length === 0 ? (
               <div className="p-10 text-center">
                 <div className="w-14 h-14 mx-auto rounded-full bg-green-50 text-green-600 flex items-center justify-center mb-3">
                   <FiShoppingBag size={24} />
@@ -633,50 +739,30 @@ function SellerOrders({
             ) : (
               <div className="divide-y divide-gray-100">
                 {filteredOrders.map((order) => {
-                  const status = normalizeStatus(order.status);
-                  const badge = statusBadge(status);
-                  const StatusIcon = badge.icon;
+                  const status = normalizeOrderStatus(order);
+                  const badge = STATUS_STYLES[status];
+                  const StatusIcon = STATUS_ICONS[status];
 
-                  const items = Array.isArray(order.items)
-                    ? order.items
-                    : [
-                        {
-                          name:
-                            order.productName ||
-                            order.name ||
-                            "Product",
-                          quantity: order.quantity || 1,
-                          price: order.price || order.total,
-                        },
-                      ];
+                  const items = getOrderItems(order);
+                  const buyerName = getBuyerName(order);
+                  const total = getOrderTotal(order);
+                  const payment = getPaymentInfo(order);
 
-                  const buyerName =
-                    order.customerName ||
-                    order.customer?.fullName ||
-                    order.customer?.name ||
-                    order.buyerName ||
-                    "Buyer";
-
-                  const total =
-                    order.total ||
-                    order.amount ||
-                    items.reduce((sum, item) => {
-                      const price = Number(
-                        String(item.price || 0).replace(/[₦,]/g, "")
-                      );
-                      return sum + price * (item.quantity || 1);
-                    }, 0);
+                  const sellerDone = isSellerConfirmed(order);
+                  const buyerDone = isBuyerConfirmed(order);
+                  const isFresh = freshIds.has(order.id);
+                  const cancelled = status === "cancelled";
 
                   return (
-                    <div key={order.id} className="p-4 sm:p-5">
+                    <div
+                      key={order.id}
+                      className={`p-4 sm:p-5 ${isFresh ? "bg-green-50/50" : ""}`}
+                    >
                       <div className="flex flex-col lg:flex-row lg:items-start gap-4">
                         <div className="flex-1 min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="text-sm font-bold text-[#008236]">
-                              {order.orderNumber ||
-                                `#${String(order.id)
-                                  .slice(0, 8)
-                                  .toUpperCase()}`}
+                              {getOrderNumber(order)}
                             </p>
                             <span
                               className={`
@@ -689,6 +775,11 @@ function SellerOrders({
                               <StatusIcon size={12} />
                               {badge.label}
                             </span>
+                            {isFresh && (
+                              <span className="px-2 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-bold">
+                                New order
+                              </span>
+                            )}
                           </div>
 
                           <p className="text-sm font-semibold text-gray-800 mt-2">
@@ -700,13 +791,11 @@ function SellerOrders({
                               order.phone ||
                               "—"}
                             {order.customer?.campus || order.campus
-                              ? ` · ${
-                                  order.customer?.campus || order.campus
-                                }`
+                              ? ` · ${order.customer?.campus || order.campus}`
                               : ""}
                           </p>
                           <p className="text-xs text-gray-400 mt-1">
-                            {formatDate(order.createdAt)}
+                            {formatOrderDate(order.createdAt)}
                           </p>
 
                           <div className="mt-3 space-y-1.5">
@@ -716,21 +805,14 @@ function SellerOrders({
                                 className="flex items-center justify-between gap-3 text-sm"
                               >
                                 <span className="text-gray-700 truncate">
-                                  {item.name ||
-                                    item.productName ||
-                                    "Item"}{" "}
+                                  {item.name || item.productName || "Item"}{" "}
                                   <span className="text-gray-400">
                                     ×{item.quantity || 1}
                                   </span>
                                 </span>
                                 <span className="font-medium text-gray-800 shrink-0">
                                   {formatMoney(
-                                    (Number(
-                                      String(item.price || 0).replace(
-                                        /[₦,]/g,
-                                        ""
-                                      )
-                                    ) || 0) * (item.quantity || 1)
+                                    getItemPrice(item) * (item.quantity || 1)
                                   )}
                                 </span>
                               </div>
@@ -743,6 +825,37 @@ function SellerOrders({
                               {order.customer?.address || order.address}
                             </p>
                           )}
+
+                          {/* FULL STATUS */}
+                          {!cancelled && (
+                            <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-semibold">
+                              <span className="px-2 py-1 rounded-lg bg-gray-100 text-gray-600">
+                                Placed {formatOrderDate(order.createdAt)}
+                              </span>
+                              <span
+                                className={`px-2 py-1 rounded-lg ${
+                                  sellerDone
+                                    ? "bg-green-100 text-green-700"
+                                    : "bg-gray-100 text-gray-400"
+                                }`}
+                              >
+                                {sellerDone
+                                  ? "You marked successful"
+                                  : "Not marked by you"}
+                              </span>
+                              <span
+                                className={`px-2 py-1 rounded-lg ${
+                                  buyerDone
+                                    ? "bg-green-100 text-green-700"
+                                    : "bg-gray-100 text-gray-400"
+                                }`}
+                              >
+                                {buyerDone
+                                  ? "Buyer approved delivery"
+                                  : "Buyer hasn't approved yet"}
+                              </span>
+                            </div>
+                          )}
                         </div>
 
                         <div className="lg:text-right shrink-0 space-y-2">
@@ -750,47 +863,49 @@ function SellerOrders({
                             {formatMoney(total)}
                           </p>
                           <p className="text-[11px] text-gray-400 uppercase tracking-wide">
-                            {order.paymentMethod === "card"
-                              ? "Paid with card"
-                              : order.paymentMethod || "Card"}
+                            {payment.method === "Paystack"
+                              ? payment.paid
+                                ? "Paid with card"
+                                : "Awaiting payment"
+                              : "Pay on delivery"}
                           </p>
 
-                          <div className="flex flex-wrap lg:justify-end gap-2 pt-1">
-                            {status !== "pending" && (
-                              <button
-                                type="button"
-                                disabled={updatingId === order.id}
-                                onClick={() =>
-                                  updateOrderStatus(order.id, "pending")
-                                }
-                                className="
-                                  h-9 px-3 rounded-lg
-                                  border border-green-200 text-[#008236]
-                                  text-xs font-semibold hover:bg-green-50
-                                  disabled:opacity-50
-                                "
-                              >
-                                Mark pending
-                              </button>
-                            )}
-                            {status !== "delivered" && (
-                              <button
-                                type="button"
-                                disabled={updatingId === order.id}
-                                onClick={() =>
-                                  updateOrderStatus(order.id, "delivered")
-                                }
-                                className="
-                                  h-9 px-3 rounded-lg
-                                  bg-[#008236] hover:bg-[#006f2e]
-                                  text-white text-xs font-semibold
-                                  disabled:opacity-50
-                                "
-                              >
-                                Mark delivered
-                              </button>
-                            )}
-                          </div>
+                          {!cancelled && (
+                            <div className="flex flex-wrap lg:justify-end gap-2 pt-1">
+                              {sellerDone && !buyerDone && (
+                                <button
+                                  type="button"
+                                  disabled={updatingId === order.id}
+                                  onClick={() => markPending(order)}
+                                  className="
+                                    h-9 px-3 rounded-lg
+                                    border border-green-200 text-[#008236]
+                                    text-xs font-semibold hover:bg-green-50
+                                    disabled:opacity-50
+                                  "
+                                >
+                                  Mark pending
+                                </button>
+                              )}
+                              {!sellerDone && !buyerDone && (
+                                <button
+                                  type="button"
+                                  disabled={updatingId === order.id}
+                                  onClick={() => markSuccessful(order)}
+                                  className="
+                                    h-9 px-3 rounded-lg
+                                    bg-[#008236] hover:bg-[#006f2e]
+                                    text-white text-xs font-semibold
+                                    disabled:opacity-50
+                                  "
+                                >
+                                  {updatingId === order.id
+                                    ? "Saving..."
+                                    : "Mark successful"}
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
