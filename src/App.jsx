@@ -95,6 +95,7 @@ import AIAssistant from "./pages/admin/AIAssistant";
 import Receipt from "./pages/customer/Receipt";
 import ServiceDetails from "./pages/customer/ServiceDetails";
 import VerifyEmail from "./pages/customer/VerifyEmail";
+import ResetPassword from "./pages/customer/ResetPassword"; // adjust path to your file
 
 const emptyProfile = {
   fullName: "",
@@ -2621,6 +2622,9 @@ function App() {
         />
 
         <Route path="/verify-email" element={<VerifyEmail />} />
+
+        <Route path="/reset-password" element={<ResetPassword />} />
+
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

@@ -1,9 +1,5 @@
 import { useState } from "react";
-
-import { sendPasswordResetEmail } from "firebase/auth";
-
-import { useNavigate } from "react-router-dom";
-
+import { Link, useNavigate } from "react-router-dom";
 import {
   FiArrowLeft,
   FiArrowRight,
@@ -14,61 +10,42 @@ import {
   FiAlertCircle,
 } from "react-icons/fi";
 
-import { auth } from "../../context/firebase";
+// Backend base URL (same server that exposes /send-verification-email)
+const API_BASE_URL = String(
+  import.meta.env?.VITE_API_URL ||
+    import.meta.env?.VITE_BACKEND_URL ||
+    "http://localhost:5000"
+).replace(/\/+$/, "");
 
 function ForgotPassword() {
   const navigate = useNavigate();
 
-  // =========================================================
-  // STATE
-  // =========================================================
-
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [sentTo, setSentTo] = useState("");
+  const [expiresIn, setExpiresIn] = useState(30);
   const [error, setError] = useState("");
 
-  // =========================================================
-  // HANDLE EMAIL CHANGE
-  // =========================================================
-
   const handleEmailChange = (e) => {
-    const value = e.target.value;
-
-    setEmail(value);
-
-    // Clear the custom error when the user starts typing
-    if (error) {
-      setError("");
-    }
-
-    setSuccess(false);
+    setEmail(e.target.value);
+    if (error) setError("");
   };
-
-  // =========================================================
-  // HANDLE SUBMIT
-  // =========================================================
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (loading) return;
 
     setError("");
     setSuccess(false);
 
     const trimmedEmail = email.trim().toLowerCase();
 
-    // =======================================================
-    // EMPTY EMAIL
-    // =======================================================
-
     if (!trimmedEmail) {
       setError("Please enter your email address.");
       return;
     }
-
-    // =======================================================
-    // EMAIL VALIDATION
-    // =======================================================
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -77,317 +54,147 @@ function ForgotPassword() {
       return;
     }
 
-    // =======================================================
-    // INTERNET CHECK
-    // =======================================================
-
     if (!navigator.onLine) {
       setError(
         "Internet connection is required to reset your password. Please connect to the internet and try again."
       );
-
       return;
     }
-
-    // =======================================================
-    // SEND PASSWORD RESET
-    // =======================================================
 
     try {
       setLoading(true);
 
-      await sendPasswordResetEmail(
-        auth,
-        trimmedEmail
-      );
+      const response = await fetch(`${API_BASE_URL}/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // origin lets the backend put a link to the site you are actually
+        // on in the email (live site or localhost while testing).
+        body: JSON.stringify({
+          email: trimmedEmail,
+          origin: window.location.origin,
+        }),
+      });
 
-      // =====================================================
-      // SUCCESS
-      // =====================================================
+      const data = await response.json().catch(() => ({}));
 
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.error ||
+            "Unable to send the password reset email. Please try again."
+        );
+      }
+
+      setSentTo(trimmedEmail);
+      setExpiresIn(Number(data.expiresInMinutes) || 30);
       setSuccess(true);
       setEmail("");
-    } catch (error) {
-      console.error(
-        "Password reset error:",
-        error
+    } catch (err) {
+      console.error("Password reset error:", err);
+
+      setError(
+        err?.message === "Failed to fetch"
+          ? "Network error. Please check your internet connection and try again."
+          : err?.message ||
+              "Unable to send the password reset email. Please try again."
       );
-
-      // =====================================================
-      // FIREBASE ERRORS
-      // =====================================================
-
-      switch (error.code) {
-        case "auth/invalid-email":
-          setError(
-            "Please enter a valid email address."
-          );
-          break;
-
-        case "auth/user-not-found":
-          setError(
-            "No CampusMart account was found with this email address."
-          );
-          break;
-
-        case "auth/user-disabled":
-          setError(
-            "This CampusMart account has been disabled. Please contact CampusMart support."
-          );
-          break;
-
-        case "auth/too-many-requests":
-          setError(
-            "Too many password reset requests have been made. Please wait a little and try again."
-          );
-          break;
-
-        case "auth/network-request-failed":
-          setError(
-            "Network error. Please check your internet connection and try again."
-          );
-          break;
-
-        case "auth/operation-not-allowed":
-          setError(
-            "Password reset is not enabled for CampusMart accounts."
-          );
-          break;
-
-        default:
-          setError(
-            "Unable to send the password reset email. Please check the email address and try again."
-          );
-          break;
-      }
     } finally {
       setLoading(false);
     }
   };
 
-  // =========================================================
-  // RETURN
-  // =========================================================
-
   return (
     <div
-      className="
-        forgot-password-page
-        min-h-screen
-        w-full
-        flex
-        items-center
-        justify-center
-        bg-gray-50
-        text-gray-900
-        px-4
-        py-8
-      "
-      style={{
-        backgroundColor: "#f9fafb",
-        color: "#111827",
-        colorScheme: "light",
-      }}
+      className="min-h-screen bg-[#f7faf8] flex items-center justify-center px-5 py-10"
+      style={{ colorScheme: "light" }}
     >
-      <div className="w-full max-w-md">
-
-        {/* =================================================
-            CARD
-        ================================================= */}
-
-        <div
-          className="
-            w-full
-            bg-white
-            rounded-2xl
-            border
-            border-gray-100
-            shadow-sm
-            p-6
-            sm:p-8
-          "
-          style={{
-            backgroundColor: "#ffffff",
-            color: "#111827",
-            colorScheme: "light",
-          }}
-        >
-
-          {/* =================================================
-              ICON
-          ================================================= */}
-
-          <div className="flex justify-center">
-            <div
-              className="
-                w-16
-                h-16
-                rounded-2xl
-                flex
-                items-center
-                justify-center
-              "
-              style={{
-                backgroundColor: "#f0fdf4",
-                color: "#16a34a",
-              }}
-            >
-              <FiShield size={30} />
-            </div>
+      <div className="w-full max-w-md text-center">
+        <Link to="/" className="inline-flex items-center gap-3 group mb-10">
+          <div className="w-14 h-14 rounded-2xl bg-green-600 text-white flex items-center justify-center text-xl font-black tracking-tight shadow-[0_8px_20px_rgba(22,163,74,0.25)] ring-4 ring-green-100">
+            CM
           </div>
-
-          {/* =================================================
-              HEADER
-          ================================================= */}
-
-          <div className="text-center mt-5">
-            <h1
-              className="
-                text-xl
-                sm:text-2xl
-                font-bold
-              "
-              style={{
-                color: "#111827",
-              }}
-            >
-              Forgot your password?
-            </h1>
-
-            <p
-              className="
-                mt-2
-                text-sm
-                leading-6
-              "
-              style={{
-                color: "#6b7280",
-              }}
-            >
-              Enter the email address you used
-              to create your CampusMart account
-              and we'll send you a secure password
-              reset link.
+          <div className="text-left">
+            <div className="text-2xl font-black text-gray-900 tracking-tight">
+              Campus
+              <span className="text-green-600">Mart</span>
+            </div>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Your Campus Marketplace
             </p>
           </div>
+        </Link>
 
-          {/* =================================================
-              SUCCESS MESSAGE
-          ================================================= */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 sm:p-10">
+          {success ? (
+            <>
+              <div className="w-16 h-16 mx-auto rounded-full bg-green-100 text-green-600 flex items-center justify-center mb-6">
+                <FiCheck size={30} />
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
+                Check your email
+              </h1>
+              <p className="mt-3 text-gray-500 leading-relaxed">
+                If <span className="font-semibold text-gray-700">{sentTo}</span>{" "}
+                belongs to a CampusMart account, we've sent a password reset
+                link. It is valid for {expiresIn} minutes.
+              </p>
+              <p className="mt-3 text-xs text-gray-400 leading-relaxed">
+                Can't find it? Check your spam or junk folder.
+              </p>
 
-          {success && (
-            <div
-              className="
-                mt-6
-                rounded-xl
-                border
-                p-4
-                flex
-                items-start
-                gap-3
-              "
-              style={{
-                backgroundColor: "#f0fdf4",
-                borderColor: "#dcfce7",
-              }}
-            >
-              <div
-                className="
-                  w-8
-                  h-8
-                  rounded-full
-                  flex
-                  items-center
-                  justify-center
-                  shrink-0
-                "
-                style={{
-                  backgroundColor: "#dcfce7",
-                  color: "#16a34a",
-                }}
+              <div className="mt-8 flex flex-col gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSuccess(false);
+                    setError("");
+                  }}
+                  className="w-full h-13 py-3.5 rounded-xl border border-gray-200 text-gray-700 font-bold text-sm flex items-center justify-center gap-2 hover:bg-gray-50 transition"
+                >
+                  <FiMail size={16} />
+                  Try another email
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => navigate("/login")}
+                  className="w-full h-13 py-3.5 rounded-xl bg-green-600 text-white font-bold text-sm flex items-center justify-center gap-2 hover:bg-green-700 transition shadow-lg shadow-green-600/10"
+                >
+                  <FiArrowLeft size={16} />
+                  Back to Login
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="w-16 h-16 mx-auto rounded-full bg-green-100 text-green-600 flex items-center justify-center mb-6">
+                <FiShield size={28} />
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
+                Forgot your password?
+              </h1>
+              <p className="mt-3 text-gray-500 leading-relaxed">
+                Enter the email you used to create your CampusMart account and
+                we'll send you a secure link to choose a new password.
+              </p>
+
+              <form
+                onSubmit={handleSubmit}
+                noValidate
+                className="mt-8 text-left"
               >
-                <FiCheck size={17} />
-              </div>
-
-              <div>
-                <p
-                  className="
-                    text-sm
-                    font-semibold
-                  "
-                  style={{
-                    color: "#15803d",
-                  }}
-                >
-                  Reset email sent
-                </p>
-
-                <p
-                  className="
-                    mt-1
-                    text-xs
-                    leading-5
-                  "
-                  style={{
-                    color: "#16a34a",
-                  }}
-                >
-                  If this email belongs to a
-                  CampusMart account, a password
-                  reset link has been sent. Check
-                  your inbox and spam or junk folder.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* =================================================
-              FORM
-          ================================================= */}
-
-          {!success && (
-            <form
-              onSubmit={handleSubmit}
-              className="mt-6"
-              noValidate
-            >
-
-              {/* =================================================
-                  EMAIL
-              ================================================= */}
-
-              <div>
                 <label
                   htmlFor="email"
-                  className="
-                    block
-                    text-sm
-                    font-medium
-                    mb-2
-                  "
-                  style={{
-                    color: "#374151",
-                  }}
+                  className="block text-sm font-medium text-gray-700 mb-2"
                 >
-                  Registered Email Address
+                  Registered email address
                 </label>
 
                 <div className="relative">
-
                   <FiMail
                     size={19}
-                    className="
-                      absolute
-                      left-3
-                      top-1/2
-                      -translate-y-1/2
-                      pointer-events-none
-                    "
-                    style={{
-                      color: error
-                        ? "#ef4444"
-                        : "#9ca3af",
-                    }}
+                    className={`absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none ${
+                      error ? "text-red-500" : "text-gray-400"
+                    }`}
                   />
 
                   <input
@@ -400,248 +207,70 @@ function ForgotPassword() {
                     autoComplete="email"
                     disabled={loading}
                     aria-invalid={Boolean(error)}
-                    aria-describedby={
+                    aria-describedby={error ? "email-error" : undefined}
+                    className={`w-full pl-11 pr-4 py-3 rounded-xl border text-sm text-gray-800 bg-gray-50 outline-none transition duration-200 focus:ring-2 ${
                       error
-                        ? "email-error"
-                        : "email-help"
-                    }
-                    className="
-                      w-full
-                      pl-11
-                      pr-4
-                      py-3
-                      rounded-xl
-                      border
-                      text-sm
-                      outline-none
-                      transition
-                      duration-200
-                      focus:ring-2
-                    "
-                    style={{
-                      backgroundColor: "#f9fafb",
-                      color: "#1f2937",
-                      borderColor: error
-                        ? "#fca5a5"
-                        : "#e5e7eb",
-                      colorScheme: "light",
-                      "--tw-ring-color": error
-                        ? "rgba(239,68,68,0.10)"
-                        : "rgba(22,163,74,0.10)",
-                    }}
+                        ? "border-red-300 focus:ring-red-100"
+                        : "border-gray-200 focus:ring-green-100"
+                    }`}
                   />
                 </div>
 
-                {/* =================================================
-                    STYLED EMAIL ERROR
-                ================================================= */}
-
-                {error ? (
+                {error && (
                   <div
                     id="email-error"
-                    className="
-                      mt-2.5
-                      flex
-                      items-start
-                      gap-2
-                      rounded-lg
-                      px-3
-                      py-2.5
-                    "
-                    style={{
-                      backgroundColor: "#fef2f2",
-                      border: "1px solid #fee2e2",
-                    }}
+                    role="alert"
+                    className="mt-2.5 flex items-start gap-2 rounded-lg px-3 py-2.5 bg-red-50 border border-red-100"
                   >
                     <FiAlertCircle
                       size={15}
-                      className="mt-0.5 shrink-0"
-                      style={{
-                        color: "#dc2626",
-                      }}
+                      className="mt-0.5 shrink-0 text-red-600"
                     />
-
-                    <p
-                      className="
-                        text-xs
-                        leading-5
-                        font-medium
-                      "
-                      style={{
-                        color: "#dc2626",
-                      }}
-                    >
+                    <p className="text-xs leading-5 font-medium text-red-600">
                       {error}
                     </p>
                   </div>
-                ) : (
-                  <p
-                    id="email-help"
-                    className="
-                      mt-2
-                      text-xs
-                    "
-                    style={{
-                      color: "#9ca3af",
-                    }}
-                  >
-                    Use the same email address you
-                    used when creating your CampusMart
-                    account.
-                  </p>
                 )}
-              </div>
 
-              {/* =================================================
-                  SUBMIT BUTTON
-              ================================================= */}
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="mt-6 w-full py-3.5 rounded-xl bg-green-600 text-white font-bold text-sm flex items-center justify-center gap-2 hover:bg-green-700 transition shadow-lg shadow-green-600/10 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {loading ? (
+                    <>
+                      <span className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                      Sending reset link...
+                    </>
+                  ) : (
+                    <>
+                      Send Reset Link
+                      <FiArrowRight size={17} />
+                    </>
+                  )}
+                </button>
+              </form>
 
               <button
-                type="submit"
+                type="button"
+                onClick={() => navigate("/login")}
                 disabled={loading}
-                className="
-                  mt-5
-                  w-full
-                  flex
-                  items-center
-                  justify-center
-                  gap-2
-                  px-5
-                  py-3
-                  rounded-xl
-                  text-white
-                  text-sm
-                  font-semibold
-                  transition
-                  duration-200
-                  disabled:opacity-70
-                  disabled:cursor-not-allowed
-                  hover:shadow-md
-                  active:scale-[0.99]
-                "
-                style={{
-                  backgroundColor: loading
-                    ? "#4ade80"
-                    : "#16a34a",
-                  color: "#ffffff",
-                  colorScheme: "light",
-                  appearance: "none",
-                }}
+                className="mt-3 w-full py-3.5 rounded-xl border border-gray-200 text-gray-700 font-bold text-sm flex items-center justify-center gap-2 hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? (
-                  <>
-                    <FiRefreshCw
-                      size={17}
-                      className="animate-spin"
-                    />
-
-                    Sending reset link...
-                  </>
-                ) : (
-                  <>
-                    Send Reset Link
-
-                    <FiArrowRight size={17} />
-                  </>
-                )}
+                <FiArrowLeft size={16} />
+                Back to Login
               </button>
-            </form>
+            </>
           )}
+        </div>
 
-          {/* =================================================
-              TRY ANOTHER EMAIL
-          ================================================= */}
-
-          {success && (
-            <button
-              type="button"
-              onClick={() => {
-                setSuccess(false);
-                setError("");
-              }}
-              className="
-                mt-5
-                w-full
-                flex
-                items-center
-                justify-center
-                gap-2
-                px-5
-                py-3
-                rounded-xl
-                text-sm
-                font-semibold
-                transition
-                hover:bg-green-100
-              "
-              style={{
-                backgroundColor: "#f0fdf4",
-                color: "#15803d",
-                border: "1px solid #dcfce7",
-                colorScheme: "light",
-              }}
-            >
-              <FiMail size={16} />
-
-              Try another email
-            </button>
-          )}
-
-          {/* =================================================
-              BACK TO LOGIN
-          ================================================= */}
-
-          <button
-            type="button"
-            onClick={() => navigate("/login")}
-            disabled={loading}
-            className="
-              mt-5
-              w-full
-              flex
-              items-center
-              justify-center
-              gap-2
-              px-5
-              py-3
-              rounded-xl
-              border
-              text-sm
-              font-medium
-              transition
-              hover:bg-gray-50
-              disabled:opacity-50
-              disabled:cursor-not-allowed
-            "
-            style={{
-              backgroundColor: "#ffffff",
-              color: "#374151",
-              borderColor: "#e5e7eb",
-              colorScheme: "light",
-            }}
+        <div className="mt-8">
+          <Link
+            to="/"
+            className="text-sm text-gray-400 hover:text-green-600 transition"
           >
-            <FiArrowLeft size={16} />
-
-            Back to Login
-          </button>
-
-          {/* =================================================
-              FOOTER
-          ================================================= */}
-
-          <p
-            className="
-              mt-6
-              text-center
-              text-xs
-            "
-            style={{
-              color: "#9ca3af",
-            }}
-          >
-            CampusMart &mdash; Your Campus Marketplace
-          </p>
-
+            ← Back to CampusMart
+          </Link>
         </div>
       </div>
     </div>
