@@ -42,22 +42,41 @@ const API_BASE_URL = String(
 // welcomeEmailSent flag, so this can never send twice.
 // =========================================================
 async function sendWelcomeEmailIfNeeded(user, userData) {
-  try {
-    if (!user || !user.emailVerified) return;
-    if (userData?.welcomeEmailSent === true) return;
+  if (!user || !user.emailVerified) return;
+  if (userData?.welcomeEmailSent === true) return;
 
-    const token = await user.getIdToken();
+  // The backend now sends the welcome email the moment the verification
+  // link is opened. This is the fallback for when that attempt failed.
+  // Free hosting can be asleep, so try twice with a short pause.
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      const token = await user.getIdToken(true);
 
-    await fetch(`${API_BASE_URL}/send-welcome-email`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({}),
-    });
-  } catch (err) {
-    console.warn("Welcome email request failed:", err);
+      const response = await fetch(`${API_BASE_URL}/send-welcome-email`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({}),
+        keepalive: true,
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      // Sent, or nothing more to do (already sent / switched off).
+      if (response.ok && (data.emailSent === true || data.skipped === true)) {
+        return;
+      }
+
+      console.warn("Welcome email not sent yet:", response.status, data);
+    } catch (err) {
+      console.warn("Welcome email request failed:", err);
+    }
+
+    if (attempt < 2) {
+      await new Promise((r) => setTimeout(r, 4000));
+    }
   }
 }
 
