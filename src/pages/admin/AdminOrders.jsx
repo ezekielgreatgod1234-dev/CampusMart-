@@ -165,6 +165,39 @@ const readAdminSeenAt = () => {
   }
 };
 
+// Each seller has their own "seen" time. A seller card turns red while that
+// seller has orders newer than the last time the admin opened that seller.
+const SELLER_SEEN_KEY = "cm_admin_seller_orders_seen"; // { [sellerId]: ms }
+const SELLER_INIT_KEY = "cm_admin_seller_orders_init"; // first visit (ms)
+
+// First visit: only orders placed from now on count as new.
+const readSellerInit = () => {
+  try {
+    const saved = Number(localStorage.getItem(SELLER_INIT_KEY));
+    if (saved > 0) return saved;
+    const now = Date.now();
+    localStorage.setItem(SELLER_INIT_KEY, String(now));
+    return now;
+  } catch {
+    return Date.now();
+  }
+};
+
+const readSellerSeen = () => {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SELLER_SEEN_KEY) || "{}");
+    return raw && typeof raw === "object" ? raw : {};
+  } catch {
+    return {};
+  }
+};
+
+const isSellerUser = (u = {}) =>
+  u.isSeller === true ||
+  u.hasStore === true ||
+  String(u.role || "").toLowerCase() === "seller" ||
+  (Array.isArray(u.roles) && u.roles.includes("seller"));
+
 const ADMIN_EMAIL = "campusmart1234@gmail.com";
 const UNASSIGNED = "unassigned";
 
@@ -247,8 +280,42 @@ function AdminOrders() {
       ).length,
     [orders, seenAt]
   );
-  // Orders newer than this are tagged "New" while the page is open.
-  const [baselineSeen] = useState(readAdminSeenAt);
+  // Per-seller "new order" tracking
+  const [sellerInit] = useState(readSellerInit);
+  const [sellerSeen, setSellerSeen] = useState(readSellerSeen);
+  const sellerSeenRef = useRef(sellerSeen);
+  // Sellers registered on the platform (so every seller has a stat card,
+  // even before their first order).
+  const [sellerUsers, setSellerUsers] = useState([]);
+  // Orders newer than this are tagged "New" inside the open seller.
+  const [viewBaseline, setViewBaseline] = useState(0);
+
+  const markSellerSeen = (id) => {
+    if (!id) return;
+    const next = { ...sellerSeenRef.current, [id]: Date.now() };
+    sellerSeenRef.current = next;
+    setSellerSeen(next);
+    try {
+      localStorage.setItem(SELLER_SEEN_KEY, JSON.stringify(next));
+    } catch {
+      /* ignore */
+    }
+  };
+
+  // Opening a seller: remember what was new, then mark that seller as seen.
+  useEffect(() => {
+    if (!selectedSellerId) return;
+    setViewBaseline(sellerSeenRef.current[selectedSellerId] ?? sellerInit);
+    markSellerSeen(selectedSellerId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSellerId]);
+
+  // While a seller is open, orders that arrive don't turn their card red.
+  useEffect(() => {
+    if (!selectedSellerId || !ordersLoaded) return;
+    markSellerSeen(selectedSellerId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orders]);
 
   // =========================================================
   // ACCESS CONTROL (supports dual-role: buyer/seller + admin)
@@ -359,9 +426,37 @@ function AdminOrders() {
       }
     );
 
+    const unsubUsers = onSnapshot(
+      collection(db, "users"),
+      (snap) => {
+        const list = [];
+        snap.forEach((d) => {
+          const u = d.data() || {};
+          if (!isSellerUser(u)) return;
+          list.push({
+            id: d.id,
+            name:
+              u.storeName ||
+              u.businessName ||
+              u.shopName ||
+              u.fullName ||
+              u.name ||
+              u.displayName ||
+              u.profile?.fullName ||
+              "",
+          });
+        });
+        setSellerUsers(list);
+      },
+      (error) => {
+        console.warn("Could not load sellers list:", error);
+      }
+    );
+
     return () => {
       unsubOrders();
       unsubSupport();
+      unsubUsers();
     };
   }, [allowed]);
 
@@ -462,12 +557,18 @@ function AdminOrders() {
   // =========================================================
   // GROUP ORDERS BY SELLER
   // =========================================================
+  // Tag shown on an order inside the seller that is currently open.
   const isNewOrder = (order) =>
-    toMillis(order.createdAt) > baselineSeen &&
+    toMillis(order.createdAt) > viewBaseline &&
     normalizeOrderStatus(order) !== "cancelled";
 
   const sellerGroups = useMemo(() => {
     const map = new Map();
+
+    // Every registered seller gets a stat card, even with zero orders.
+    sellerUsers.forEach((u) => {
+      map.set(u.id, { id: u.id, orders: [], userName: u.name });
+    });
 
     orders.forEach((order) => {
       const id = order.sellerId || UNASSIGNED;
@@ -481,9 +582,12 @@ function AdminOrders() {
         const name =
           named ||
           sellerNames[group.id] ||
+          group.userName ||
           (group.id === UNASSIGNED
             ? "Unassigned orders"
             : `Seller ${String(group.id).slice(0, 6)}`);
+
+        const seenAt = sellerSeen[group.id] ?? sellerInit;
 
         let pending = 0;
         let successful = 0;
@@ -499,7 +603,9 @@ function AdminOrders() {
             successfulValue += getOrderTotal(o);
           }
           if (s === "cancelled") cancelled += 1;
-          if (isNewOrder(o)) newCount += 1;
+          if (s !== "cancelled" && toMillis(o.createdAt) > seenAt) {
+            newCount += 1;
+          }
         });
 
         return {
@@ -517,10 +623,10 @@ function AdminOrders() {
       .sort((a, b) => {
         if (b.newCount !== a.newCount) return b.newCount - a.newCount;
         if (b.pending !== a.pending) return b.pending - a.pending;
-        return b.latest - a.latest;
+        if (b.latest !== a.latest) return b.latest - a.latest;
+        return a.name.localeCompare(b.name);
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orders, sellerNames, baselineSeen]);
+  }, [orders, sellerNames, sellerUsers, sellerSeen, sellerInit]);
 
   const filteredSellers = useMemo(() => {
     const q = sellerSearch.trim().toLowerCase();
@@ -533,9 +639,17 @@ function AdminOrders() {
   }, [sellerGroups, sellerSearch]);
 
   const overall = useMemo(() => {
-    const s = { sellers: sellerGroups.length, total: orders.length, pending: 0 };
+    const s = {
+      sellers: sellerGroups.length,
+      total: orders.length,
+      pending: 0,
+      newOrders: 0,
+    };
     orders.forEach((o) => {
       if (normalizeOrderStatus(o) === "pending") s.pending += 1;
+    });
+    sellerGroups.forEach((g) => {
+      s.newOrders += g.newCount;
     });
     return s;
   }, [orders, sellerGroups]);
@@ -788,7 +902,7 @@ function AdminOrders() {
             <p className="text-[11px] text-green-100">
               {selectedSeller
                 ? "Orders placed with this seller"
-                : "Orders grouped by seller"}
+                : "Every seller has their own stats. Red means new orders."}
             </p>
           </div>
         </header>
@@ -804,18 +918,37 @@ function AdminOrders() {
                VIEW 1 — SELLER LIST
             ===================================================== */
             <>
-              <div className="grid grid-cols-3 gap-3 sm:gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
                 {[
-                  { label: "Sellers with orders", value: overall.sellers },
+                  { label: "Sellers", value: overall.sellers },
                   { label: "Total orders", value: overall.total },
                   { label: "Pending orders", value: overall.pending },
+                  {
+                    label: "New orders",
+                    value: overall.newOrders,
+                    alert: overall.newOrders > 0,
+                  },
                 ].map((s) => (
                   <div
                     key={s.label}
-                    className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm"
+                    className={`rounded-2xl border p-4 shadow-sm ${
+                      s.alert
+                        ? "bg-red-50 border-red-200"
+                        : "bg-white border-gray-100"
+                    }`}
                   >
-                    <p className="text-xs text-gray-500">{s.label}</p>
-                    <p className="text-2xl font-bold mt-1 text-[#008236]">
+                    <p
+                      className={`text-xs ${
+                        s.alert ? "text-red-500" : "text-gray-500"
+                      }`}
+                    >
+                      {s.label}
+                    </p>
+                    <p
+                      className={`text-2xl font-bold mt-1 ${
+                        s.alert ? "text-red-600" : "text-[#008236]"
+                      }`}
+                    >
                       {s.value}
                     </p>
                   </div>
@@ -843,57 +976,100 @@ function AdminOrders() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                  {filteredSellers.map((seller) => (
-                    <button
-                      key={seller.id}
-                      type="button"
-                      onClick={() => openSeller(seller.id)}
-                      className="text-left bg-white rounded-2xl border border-gray-100 shadow-sm p-5 hover:border-green-200 hover:shadow-md transition"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 rounded-xl bg-green-50 text-[#008236] flex items-center justify-center font-bold text-lg shrink-0">
-                          {seller.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="font-bold text-gray-800 truncate">
-                            {seller.name}
-                          </p>
-                          <p className="text-xs text-gray-400">
-                            Last order {formatOrderDate(seller.orders[0]?.createdAt)}
-                          </p>
-                        </div>
-                        {seller.newCount > 0 && (
-                          <span className="min-w-[22px] h-[22px] px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center animate-pulse">
-                            {seller.newCount} new
-                          </span>
-                        )}
-                        <FiChevronRight className="text-gray-300 shrink-0" />
-                      </div>
+                  {filteredSellers.map((seller) => {
+                    const hasNew = seller.newCount > 0;
 
-                      <div className="grid grid-cols-4 gap-2 mt-4 text-center">
-                        {[
-                          { label: "Orders", value: seller.total },
-                          { label: "Pending", value: seller.pending },
-                          { label: "Done", value: seller.successful },
-                          { label: "Cancelled", value: seller.cancelled },
-                        ].map((s) => (
-                          <div key={s.label} className="rounded-xl bg-gray-50 py-2">
-                            <p className="text-base font-bold text-gray-800">
-                              {s.value}
-                            </p>
-                            <p className="text-[10px] text-gray-400">{s.label}</p>
+                    return (
+                      <button
+                        key={seller.id}
+                        type="button"
+                        onClick={() => openSeller(seller.id)}
+                        className={`relative text-left rounded-2xl border shadow-sm p-5 transition hover:shadow-md ${
+                          hasNew
+                            ? "bg-red-50/70 border-red-300 ring-2 ring-red-200"
+                            : "bg-white border-gray-100 hover:border-green-200"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`relative w-11 h-11 rounded-xl flex items-center justify-center font-bold text-lg shrink-0 ${
+                              hasNew
+                                ? "bg-red-500 text-white"
+                                : "bg-green-50 text-[#008236]"
+                            }`}
+                          >
+                            {seller.name.charAt(0).toUpperCase()}
+                            {hasNew && (
+                              <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-600 ring-2 ring-white animate-pulse" />
+                            )}
                           </div>
-                        ))}
-                      </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-bold text-gray-800 truncate">
+                              {seller.name}
+                            </p>
+                            <p className="text-xs text-gray-400">
+                              {seller.orders.length > 0
+                                ? `Last order ${formatOrderDate(
+                                    seller.orders[0]?.createdAt
+                                  )}`
+                                : "No orders yet"}
+                            </p>
+                          </div>
+                          {hasNew && (
+                            <span className="min-w-[22px] h-[22px] px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center animate-pulse">
+                              {seller.newCount} new
+                            </span>
+                          )}
+                          <FiChevronRight className="text-gray-300 shrink-0" />
+                        </div>
 
-                      <p className="text-xs text-gray-500 mt-3">
-                        Successful sales:{" "}
-                        <span className="font-bold text-gray-800">
-                          {formatMoney(seller.successfulValue)}
-                        </span>
-                      </p>
-                    </button>
-                  ))}
+                        <div className="grid grid-cols-5 gap-2 mt-4 text-center">
+                          {[
+                            { label: "Orders", value: seller.total },
+                            {
+                              label: "New",
+                              value: seller.newCount,
+                              alert: hasNew,
+                            },
+                            { label: "Pending", value: seller.pending },
+                            { label: "Done", value: seller.successful },
+                            { label: "Cancelled", value: seller.cancelled },
+                          ].map((s) => (
+                            <div
+                              key={s.label}
+                              className={`rounded-xl py-2 ${
+                                s.alert
+                                  ? "bg-red-500 text-white animate-pulse"
+                                  : "bg-gray-50"
+                              }`}
+                            >
+                              <p
+                                className={`text-base font-bold ${
+                                  s.alert ? "text-white" : "text-gray-800"
+                                }`}
+                              >
+                                {s.value}
+                              </p>
+                              <p
+                                className={`text-[10px] ${
+                                  s.alert ? "text-red-100" : "text-gray-400"
+                                }`}
+                              >
+                                {s.label}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+
+                        <p className="text-xs text-gray-500 mt-3">
+                          Successful sales:{" "}
+                          <span className="font-bold text-gray-800">
+                            {formatMoney(seller.successfulValue)}
+                          </span>
+                        </p>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </>

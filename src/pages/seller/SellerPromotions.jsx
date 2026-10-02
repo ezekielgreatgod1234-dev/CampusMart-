@@ -45,6 +45,61 @@ import { useAuth } from "../../context/AuthContext";
 
 const BACKEND_URL = "https://campusbackend-1.onrender.com";
 
+// Paystack Inline (v2) lets the card form open inside CampusMart as a popup,
+// so the seller never leaves the page or opens another tab.
+const PAYSTACK_INLINE_SRC = "https://js.paystack.co/v2/inline.js";
+const PENDING_PROMO_KEY = "campusmart_pending_promotion";
+
+const loadPaystackInline = () =>
+  new Promise((resolve, reject) => {
+    if (typeof window === "undefined") {
+      reject(new Error("Paystack can only load in the browser."));
+      return;
+    }
+
+    if (window.PaystackPop) {
+      resolve(window.PaystackPop);
+      return;
+    }
+
+    let script = document.querySelector(
+      `script[src="${PAYSTACK_INLINE_SRC}"]`
+    );
+
+    const handleLoad = () => {
+      if (window.PaystackPop) resolve(window.PaystackPop);
+      else reject(new Error("Paystack did not load."));
+    };
+    const handleError = () =>
+      reject(new Error("Could not load the Paystack payment window."));
+
+    if (!script) {
+      script = document.createElement("script");
+      script.src = PAYSTACK_INLINE_SRC;
+      script.async = true;
+      document.body.appendChild(script);
+    }
+
+    script.addEventListener("load", handleLoad, { once: true });
+    script.addEventListener("error", handleError, { once: true });
+
+    // Safety net: stop waiting after 15 seconds.
+    setTimeout(() => {
+      if (!window.PaystackPop) handleError();
+    }, 15000);
+  });
+
+// Paystack's checkout URL ends with the access code:
+// https://checkout.paystack.com/<access_code>
+const accessCodeFromUrl = (url) => {
+  try {
+    const parts = new URL(url).pathname.split("/").filter(Boolean);
+    return parts[parts.length - 1] || "";
+  } catch {
+    return "";
+  }
+};
+
 function SellerPromotions({ unreadMessages = 0, profile = {} }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -469,7 +524,96 @@ function SellerPromotions({ unreadMessages = 0, profile = {} }) {
   };
 
   // =====================================================
-  // PAY WITH CARD — same Paystack flow as buyer checkout
+  // CONFIRM A CARD PAYMENT AND BOOST THE PRODUCTS
+  // Used by the in-app popup and by the old redirect-return path.
+  // =====================================================
+  const finalizeCardPromotion = async ({
+    reference,
+    pending,
+    confirmedByPaystack = false,
+  }) => {
+    if (!reference || !pending) return false;
+
+    // Avoid double-apply on re-render
+    const appliedKey = `cm_promo_applied_${reference}`;
+    try {
+      if (sessionStorage.getItem(appliedKey)) {
+        sessionStorage.removeItem(PENDING_PROMO_KEY);
+        return true;
+      }
+    } catch {
+      // ignore
+    }
+
+    try {
+      setSubmitting(true);
+      setFormError("");
+
+      // Verify with backend (Paystack)
+      let verified = false;
+      try {
+        const verifyRes = await fetch(
+          `${BACKEND_URL}/verify-payment/${encodeURIComponent(reference)}`
+        );
+        const verifyData = await verifyRes.json();
+        if (verifyRes.ok && verifyData?.data?.status === "success") {
+          verified = true;
+        }
+      } catch (verifyErr) {
+        console.warn("Verify endpoint failed, checking reference only:", verifyErr);
+      }
+
+      // If the verify endpoint is down but Paystack itself reported success
+      // (popup success or redirect back with a reference), still apply the boost.
+      if (!verified && !confirmedByPaystack) {
+        throw new Error(
+          "Payment was not confirmed. If you were charged, contact support with your reference."
+        );
+      }
+
+      const plan =
+        boostPlans.find((p) => p.id === pending.planId) || {
+          id: pending.planId,
+          label: pending.planLabel,
+          days: pending.planDays,
+          price: pending.amountPerProduct,
+        };
+
+      await applyBoostToProducts({
+        productIds: pending.productIds || [],
+        plan,
+        amountPerProduct: pending.amountPerProduct,
+        totalPaid: pending.totalAmount,
+        paidVia: "Card (Paystack)",
+        paystackReference: reference,
+      });
+
+      try {
+        sessionStorage.setItem(appliedKey, "1");
+      } catch {
+        // ignore
+      }
+      sessionStorage.removeItem(PENDING_PROMO_KEY);
+
+      setSuccessMessage(
+        `Payment successful. ${(pending.productIds || []).length} product(s) are now boosted.`
+      );
+      setSelectedProductIds([]);
+      return true;
+    } catch (e) {
+      console.error(e);
+      setFormError(
+        e?.message ||
+          "Payment may have succeeded but boost failed. Contact support with your Paystack reference."
+      );
+      return false;
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // =====================================================
+  // PAY WITH CARD — Paystack popup inside the app
   // =====================================================
   const payWithCard = async () => {
     if (!firebaseUser?.uid) {
@@ -483,6 +627,7 @@ function SellerPromotions({ unreadMessages = 0, profile = {} }) {
     setSubmitting(true);
     setShowPaymentModal(false);
     setFormError("");
+    setSuccessMessage("");
 
     try {
       const response = await fetch(`${BACKEND_URL}/initialize-payment`, {
@@ -506,136 +651,114 @@ function SellerPromotions({ unreadMessages = 0, profile = {} }) {
 
       // Support flat + nested response shapes from backend
       const authorizationUrl =
-        data?.data?.authorization_url || data?.authorization_url;
-      const reference = data?.data?.reference || data?.reference;
+        data?.data?.authorization_url || data?.authorization_url || "";
+      const reference = data?.data?.reference || data?.reference || "";
+      const accessCode =
+        data?.data?.access_code ||
+        data?.access_code ||
+        accessCodeFromUrl(authorizationUrl);
 
-      if (!response.ok || !authorizationUrl) {
+      if (!response.ok || (!accessCode && !authorizationUrl)) {
         throw new Error(
           data?.error || data?.message || "Could not start Paystack payment"
         );
       }
 
-      sessionStorage.setItem(
-        "campusmart_pending_promotion",
-        JSON.stringify({
-          productIds: selectedProductIds,
-          planId: selectedPlan.id,
-          planLabel: selectedPlan.label,
-          planDays: selectedPlan.days,
-          amountPerProduct: selectedPlan.price,
-          totalAmount,
-          reference,
-          sellerId: firebaseUser.uid,
-        })
-      );
+      const pending = {
+        productIds: selectedProductIds,
+        planId: selectedPlan.id,
+        planLabel: selectedPlan.label,
+        planDays: selectedPlan.days,
+        amountPerProduct: selectedPlan.price,
+        totalAmount,
+        reference,
+        sellerId: firebaseUser.uid,
+      };
 
-      window.location.href = authorizationUrl;
+      sessionStorage.setItem(PENDING_PROMO_KEY, JSON.stringify(pending));
+
+      // Open the Paystack card form inside the app.
+      let PaystackPop = null;
+      if (accessCode) {
+        try {
+          PaystackPop = await loadPaystackInline();
+        } catch (loadErr) {
+          console.warn("Paystack popup unavailable:", loadErr);
+        }
+      }
+
+      if (!PaystackPop) {
+        // Last resort only (script blocked / offline): same-tab redirect.
+        if (authorizationUrl) {
+          window.location.href = authorizationUrl;
+          return;
+        }
+        throw new Error(
+          "Could not open the payment window. Check your connection and try again."
+        );
+      }
+
+      const popup = new PaystackPop();
+
+      popup.resumeTransaction(accessCode, {
+        onSuccess: async (transaction) => {
+          const paidReference = transaction?.reference || reference;
+          await finalizeCardPromotion({
+            reference: paidReference,
+            pending: { ...pending, reference: paidReference },
+            confirmedByPaystack: true,
+          });
+        },
+        onCancel: () => {
+          sessionStorage.removeItem(PENDING_PROMO_KEY);
+          setFormError("Payment cancelled. You were not charged.");
+          setSubmitting(false);
+        },
+        onError: (popupError) => {
+          console.error("Paystack popup error:", popupError);
+          sessionStorage.removeItem(PENDING_PROMO_KEY);
+          setFormError(
+            popupError?.message || "The payment window could not be opened."
+          );
+          setSubmitting(false);
+        },
+      });
     } catch (error) {
       console.error(error);
+      sessionStorage.removeItem(PENDING_PROMO_KEY);
       setFormError(error?.message || "Unable to open payment.");
       setSubmitting(false);
     }
   };
 
-  // After Paystack redirects back with ?reference=
+  // Fallback only: if the popup could not load and the seller was sent to
+  // Paystack in the same tab, finish the boost when they come back with ?reference=
   useEffect(() => {
     const run = async () => {
       const params = new URLSearchParams(location.search);
       const refFromUrl = params.get("reference") || params.get("trxref");
+      if (!refFromUrl || !firebaseUser?.uid) return;
 
-      const raw = sessionStorage.getItem("campusmart_pending_promotion");
-      if (!raw || !firebaseUser?.uid) return;
+      const raw = sessionStorage.getItem(PENDING_PROMO_KEY);
+      if (!raw) return;
 
       let pending;
       try {
         pending = JSON.parse(raw);
       } catch {
-        sessionStorage.removeItem("campusmart_pending_promotion");
+        sessionStorage.removeItem(PENDING_PROMO_KEY);
         return;
       }
 
       if (pending.sellerId !== firebaseUser.uid) return;
 
-      const reference = refFromUrl || pending.reference;
-      if (!reference) return;
+      await finalizeCardPromotion({
+        reference: refFromUrl,
+        pending,
+        confirmedByPaystack: true,
+      });
 
-      // Avoid double-apply on re-render
-      const appliedKey = `cm_promo_applied_${reference}`;
-      try {
-        if (sessionStorage.getItem(appliedKey)) {
-          sessionStorage.removeItem("campusmart_pending_promotion");
-          if (location.search) {
-            navigate("/seller/promotions", { replace: true });
-          }
-          return;
-        }
-      } catch {
-        // ignore
-      }
-
-      try {
-        setSubmitting(true);
-        setFormError("");
-
-        // Verify with backend (Paystack)
-        let verified = false;
-        try {
-          const verifyRes = await fetch(
-            `${BACKEND_URL}/verify-payment/${encodeURIComponent(reference)}`
-          );
-          const verifyData = await verifyRes.json();
-          if (verifyRes.ok && verifyData?.data?.status === "success") {
-            verified = true;
-          }
-        } catch (verifyErr) {
-          console.warn("Verify endpoint failed, checking reference only:", verifyErr);
-        }
-
-        // If verify endpoint is down but we have a reference from Paystack redirect, still try boost
-        if (!verified && !refFromUrl) {
-          throw new Error(
-            "Payment was not confirmed. If you were charged, contact support with your reference."
-          );
-        }
-
-        const plan =
-          boostPlans.find((p) => p.id === pending.planId) || {
-            id: pending.planId,
-            label: pending.planLabel,
-            days: pending.planDays,
-            price: pending.amountPerProduct,
-          };
-
-        await applyBoostToProducts({
-          productIds: pending.productIds || [],
-          plan,
-          amountPerProduct: pending.amountPerProduct,
-          totalPaid: pending.totalAmount,
-          paidVia: "Card (Paystack)",
-          paystackReference: reference,
-        });
-
-        try {
-          sessionStorage.setItem(appliedKey, "1");
-        } catch {
-          // ignore
-        }
-        sessionStorage.removeItem("campusmart_pending_promotion");
-
-        setSuccessMessage(
-          `Payment successful. ${(pending.productIds || []).length} product(s) are now boosted.`
-        );
-        setSelectedProductIds([]);
-        navigate("/seller/promotions", { replace: true });
-      } catch (e) {
-        console.error(e);
-        setFormError(
-          e?.message ||
-            "Payment may have succeeded but boost failed. Contact support with your Paystack reference."
-        );
-      } finally {
-        setSubmitting(false);
-      }
+      navigate("/seller/promotions", { replace: true });
     };
 
     run();
@@ -1160,7 +1283,7 @@ function SellerPromotions({ unreadMessages = 0, profile = {} }) {
                   <div>
                     <p className="text-sm font-semibold">Pay with card</p>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      Paystack secure checkout
+                      Secure Paystack checkout, right here in the app
                     </p>
                   </div>
                 </button>
