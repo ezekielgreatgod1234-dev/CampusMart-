@@ -931,10 +931,10 @@ function AdminOrders() {
                 ].map((s) => (
                   <div
                     key={s.label}
-                    className={`rounded-2xl border p-4 shadow-sm ${
+                    className={`rounded-2xl border p-4 ${
                       s.alert
-                        ? "bg-red-50 border-red-200"
-                        : "bg-white border-gray-100"
+                        ? "bg-red-50 border-red-200 shadow-[0_8px_24px_rgba(239,68,68,0.35)]"
+                        : "bg-white border-gray-200 shadow-[0_8px_24px_rgba(0,0,0,0.18)]"
                     }`}
                   >
                     <p
@@ -984,10 +984,10 @@ function AdminOrders() {
                         key={seller.id}
                         type="button"
                         onClick={() => openSeller(seller.id)}
-                        className={`relative text-left rounded-2xl border shadow-sm p-5 transition hover:shadow-md ${
+                        className={`relative text-left rounded-2xl border p-5 transition hover:-translate-y-0.5 ${
                           hasNew
-                            ? "bg-red-50/70 border-red-300 ring-2 ring-red-200"
-                            : "bg-white border-gray-100 hover:border-green-200"
+                            ? "bg-red-50/70 border-red-300 ring-2 ring-red-200 shadow-[0_10px_30px_rgba(239,68,68,0.45)] hover:shadow-[0_14px_36px_rgba(239,68,68,0.55)]"
+                            : "bg-white border-gray-200 shadow-[0_10px_30px_rgba(0,0,0,0.20)] hover:border-green-300 hover:shadow-[0_14px_36px_rgba(0,0,0,0.28)]"
                         }`}
                       >
                         <div className="flex items-center gap-3">

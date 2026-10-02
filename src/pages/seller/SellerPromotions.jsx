@@ -50,6 +50,17 @@ const BACKEND_URL = "https://campusbackend-1.onrender.com";
 const PAYSTACK_INLINE_SRC = "https://js.paystack.co/v2/inline.js";
 const PENDING_PROMO_KEY = "campusmart_pending_promotion";
 
+// The popup class from Paystack Inline v2. The app may already load the
+// older v1 script (where window.PaystackPop is a plain object, not a class),
+// so v2 is loaded separately and the existing window.PaystackPop is put back.
+let paystackV2Class = null;
+
+const pickPopupClass = (candidate) => {
+  if (typeof candidate === "function") return candidate;
+  if (typeof candidate?.default === "function") return candidate.default;
+  return null;
+};
+
 const loadPaystackInline = () =>
   new Promise((resolve, reject) => {
     if (typeof window === "undefined") {
@@ -57,36 +68,53 @@ const loadPaystackInline = () =>
       return;
     }
 
-    if (window.PaystackPop) {
-      resolve(window.PaystackPop);
+    if (paystackV2Class) {
+      resolve(paystackV2Class);
       return;
     }
 
-    let script = document.querySelector(
-      `script[src="${PAYSTACK_INLINE_SRC}"]`
-    );
-
-    const handleLoad = () => {
-      if (window.PaystackPop) resolve(window.PaystackPop);
-      else reject(new Error("Paystack did not load."));
-    };
-    const handleError = () =>
-      reject(new Error("Could not load the Paystack payment window."));
-
-    if (!script) {
-      script = document.createElement("script");
-      script.src = PAYSTACK_INLINE_SRC;
-      script.async = true;
-      document.body.appendChild(script);
+    // Already a v2 class on the page (not the v1 object)?
+    const existing = pickPopupClass(window.PaystackPop);
+    if (existing && typeof existing.prototype?.resumeTransaction === "function") {
+      paystackV2Class = existing;
+      resolve(existing);
+      return;
     }
 
-    script.addEventListener("load", handleLoad, { once: true });
-    script.addEventListener("error", handleError, { once: true });
+    const previous = window.PaystackPop;
+    const script = document.createElement("script");
+    script.src = PAYSTACK_INLINE_SRC;
+    script.async = true;
 
-    // Safety net: stop waiting after 15 seconds.
-    setTimeout(() => {
-      if (!window.PaystackPop) handleError();
-    }, 15000);
+    let settled = false;
+    const finish = (error, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      // Give the rest of the app its original Paystack object back.
+      if (previous !== undefined) window.PaystackPop = previous;
+      if (error) reject(error);
+      else resolve(value);
+    };
+
+    const timer = setTimeout(
+      () => finish(new Error("The Paystack payment window took too long to load.")),
+      15000
+    );
+
+    script.onload = () => {
+      const cls = pickPopupClass(window.PaystackPop);
+      if (cls) {
+        paystackV2Class = cls;
+        finish(null, cls);
+      } else {
+        finish(new Error("Paystack did not load correctly."));
+      }
+    };
+    script.onerror = () =>
+      finish(new Error("Could not load the Paystack payment window."));
+
+    document.body.appendChild(script);
   });
 
 // Paystack's checkout URL ends with the access code:
@@ -698,7 +726,19 @@ function SellerPromotions({ unreadMessages = 0, profile = {} }) {
         );
       }
 
-      const popup = new PaystackPop();
+      let popup;
+      try {
+        popup = new PaystackPop();
+      } catch (ctorError) {
+        console.warn("Paystack popup could not start:", ctorError);
+        if (authorizationUrl) {
+          window.location.href = authorizationUrl;
+          return;
+        }
+        throw new Error(
+          "Could not open the payment window. Please refresh and try again."
+        );
+      }
 
       popup.resumeTransaction(accessCode, {
         onSuccess: async (transaction) => {
