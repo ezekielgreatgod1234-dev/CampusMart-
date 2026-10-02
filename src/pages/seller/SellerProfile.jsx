@@ -40,6 +40,10 @@ import {
   query,
   where,
   onSnapshot,
+  doc,
+  getDoc,
+  setDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 
 import { db } from "../../context/firebase";
@@ -67,6 +71,15 @@ function VerifiedBadge({ size = 18, className = "" }) {
   );
 }
 
+// A user who has opened a store is a seller. The users document keeps
+// role "buyer" (one account, two dashboards), so on the seller pages we
+// never show the "buyer" tag. Admin (or any other special role) is kept.
+function getSellerRoleLabel(role) {
+  const r = String(role || "").trim().toLowerCase();
+  if (!r || r === "buyer" || r === "seller") return "Seller";
+  return r.charAt(0).toUpperCase() + r.slice(1);
+}
+
 const DEFAULT_PROFILE = {
   fullName: "",
   email: "",
@@ -88,6 +101,10 @@ function SellerProfile({
   const location = useLocation();
   const { firebaseUser } = useAuth();
 
+  // Bio read straight from the users document, in case the profile passed
+  // in from the app does not include it.
+  const [storedBio, setStoredBio] = useState("");
+
   const profile = {
     ...DEFAULT_PROFILE,
     ...(profileFromApp || {}),
@@ -107,8 +124,12 @@ function SellerProfile({
       profileFromApp?.avatar ||
       firebaseUser?.photoURL ||
       null,
-    bio: profileFromApp?.bio || profileFromApp?.about || "",
-    role: profileFromApp?.role || "Seller",
+    bio:
+      profileFromApp?.bio ||
+      profileFromApp?.about ||
+      storedBio ||
+      "",
+    role: getSellerRoleLabel(profileFromApp?.role),
     isVerifiedSeller: profileFromApp?.isVerifiedSeller === true,
   };
 
@@ -182,6 +203,84 @@ function SellerProfile({
 
     return () => unsubscribe();
   }, [firebaseUser?.uid]);
+
+  // Copy the public parts of the profile (including the bio shown as
+  // "About" on the public store) to publicProfiles, which is the document
+  // other users are allowed to read.
+  // With { throwOnError: true } a failed write is reported to the caller.
+  const syncPublicProfile = async (fields = {}, { throwOnError = false } = {}) => {
+    if (!firebaseUser?.uid) return;
+
+    try {
+      await setDoc(
+        doc(db, "publicProfiles", firebaseUser.uid),
+        {
+          isSeller: true,
+          hasStore: true,
+          ...fields,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (error) {
+      console.warn("Could not update public profile:", error);
+      if (throwOnError) throw error;
+    }
+  };
+
+  // Read the saved bio from the users document (any of the places it may
+  // have been stored).
+  useEffect(() => {
+    if (!firebaseUser?.uid) return undefined;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const snap = await getDoc(doc(db, "users", firebaseUser.uid));
+        if (!snap.exists() || cancelled) return;
+
+        const u = snap.data() || {};
+        const p = u.profile || {};
+        const bio = String(u.bio || p.bio || u.about || p.about || "").trim();
+
+        if (bio) setStoredBio(bio);
+      } catch (error) {
+        console.warn("Could not read saved bio:", error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [firebaseUser?.uid]);
+
+  // Once per visit, make sure an existing bio is also public.
+  // An empty bio is never written here, so this can never wipe a bio
+  // that is already public (for example while the profile is still loading).
+  const publicSyncedRef = useRef(false);
+
+  useEffect(() => {
+    if (!firebaseUser?.uid || publicSyncedRef.current) return;
+    if (!profile.fullName) return;
+
+    const bio = String(profile.bio || "").trim();
+    if (!bio) return;
+
+    publicSyncedRef.current = true;
+
+    const fields = {
+      fullName: profile.fullName,
+      displayName: profile.fullName,
+      campus: profile.campus || "",
+      bio,
+    };
+
+    if (profile.profileImage) fields.profileImage = profile.profileImage;
+
+    syncPublicProfile(fields);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firebaseUser?.uid, profile.fullName, profile.bio]);
 
   const sellerFullName =
     profile.fullName?.trim() ||
@@ -356,6 +455,7 @@ function SellerProfile({
 
         setSaving(true);
         await updateProfile({ profileImage: imageUrl });
+        await syncPublicProfile({ profileImage: imageUrl });
         window.dispatchEvent(new Event("profileUpdated"));
       } catch (error) {
         console.error("Error updating profile picture:", error);
@@ -400,8 +500,54 @@ function SellerProfile({
     try {
       setSaving(true);
       await updateProfile(updatedProfile);
+
+      // Make sure the bio is saved on the user's own document too, whatever
+      // updateProfile does with it.
+      if (firebaseUser?.uid) {
+        try {
+          await setDoc(
+            doc(db, "users", firebaseUser.uid),
+            {
+              bio: updatedProfile.bio,
+              profile: { bio: updatedProfile.bio },
+              updatedAt: serverTimestamp(),
+            },
+            { merge: true }
+          );
+        } catch (error) {
+          console.warn("Could not save bio on user document:", error);
+        }
+      }
+
+      setStoredBio(updatedProfile.bio);
+
+      // Make the bio (and other public details) visible on the public store.
+      const publicFields = {
+        fullName: updatedProfile.fullName,
+        displayName: updatedProfile.fullName,
+        campus: updatedProfile.campus,
+        bio: updatedProfile.bio,
+      };
+
+      if (profile.profileImage) {
+        publicFields.profileImage = profile.profileImage;
+      }
+
+      let publicFailed = false;
+      try {
+        await syncPublicProfile(publicFields, { throwOnError: true });
+      } catch {
+        publicFailed = true;
+      }
+
       window.dispatchEvent(new Event("profileUpdated"));
       setEditing(false);
+
+      if (publicFailed) {
+        alert(
+          "Your profile was saved, but your bio could not be published to your public store. Please check your Firestore rules for the publicProfiles collection."
+        );
+      }
     } catch (error) {
       console.error("Error saving profile:", error);
       alert("Could not save your profile. Please try again.");
@@ -418,7 +564,7 @@ function SellerProfile({
     setEditing(false);
   };
 
-  const roleText = String(profile.role || "").trim() || "Seller";
+  const roleText = getSellerRoleLabel(profile.role);
 
   return (
     <div className="h-[100dvh] w-full bg-gray-50 text-gray-800 font-sans overflow-hidden flex flex-col">

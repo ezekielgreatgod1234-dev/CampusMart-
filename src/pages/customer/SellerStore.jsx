@@ -176,6 +176,37 @@ function SellerStore({
     };
   }, [sellerId]);
 
+  // Keep the About text (and name / photo) live, so when the seller edits
+  // their bio the public store updates without a refresh.
+  useEffect(() => {
+    if (!sellerId) return undefined;
+
+    const unsub = onSnapshot(
+      doc(db, "publicProfiles", String(sellerId)),
+      (snap) => {
+        if (!snap.exists()) return;
+        const d = snap.data() || {};
+
+        setSeller((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            bio: typeof d.bio === "string" ? d.bio : prev.bio,
+            fullName: d.fullName || prev.fullName,
+            displayName: d.displayName || prev.displayName,
+            campus: typeof d.campus === "string" ? d.campus : prev.campus,
+            profileImage: d.profileImage || prev.profileImage,
+          };
+        });
+      },
+      () => {
+        // ignore: the first load already filled the page
+      }
+    );
+
+    return () => unsub();
+  }, [sellerId]);
+
   useEffect(() => {
     if (!sellerId) {
       setProducts([]);
@@ -255,17 +286,22 @@ function SellerStore({
     seller?.avatar ||
     null;
 
-  const bio =
-    seller?.bio ||
-    seller?.about ||
-    (seller?.campus
-      ? `Seller on CampusMart · ${seller.campus}`
-      : "Seller on CampusMart. Browse products and chat to buy securely.");
-
   const isVerified = seller?.isVerifiedSeller === true;
   const productCount = products.length;
   const isOwnStore =
     firebaseUser?.uid && String(firebaseUser.uid) === String(sellerId);
+
+  const sellerBio = String(seller?.bio || seller?.about || "").trim();
+
+  // The seller's own bio is the About text. Only when they have not
+  // written one do we show a short default line.
+  const bio =
+    sellerBio ||
+    (isOwnStore
+      ? "You have not added a bio yet. Add one in your profile so buyers can learn about you."
+      : seller?.campus
+        ? `Seller on CampusMart · ${seller.campus}`
+        : "Seller on CampusMart. Browse products and chat to buy securely.");
 
   const handleCopyLink = async () => {
     try {

@@ -399,13 +399,39 @@ function Settings({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
         },
         { merge: true }
       );
+      // Copy the public details (including any bio) so the public store
+      // page can show them as soon as the store exists.
+      let u = {};
+      try {
+        const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
+        if (userSnap.exists()) u = userSnap.data() || {};
+      } catch (e) {
+        console.warn("Could not read profile for public copy:", e);
+      }
+
+      const p = u.profile || {};
+      const publicName =
+        u.fullName || p.fullName || firebaseUser.displayName || "";
+      const publicBio = String(u.bio || p.bio || "").trim();
+      const publicImage = u.profileImage || firebaseUser.photoURL || null;
+
+      const publicFields = {
+        hasStore: true,
+        isSeller: true,
+        updatedAt: serverTimestamp(),
+      };
+
+      if (publicName) {
+        publicFields.fullName = publicName;
+        publicFields.displayName = publicName;
+      }
+      if (u.campus || p.campus) publicFields.campus = u.campus || p.campus;
+      if (publicBio) publicFields.bio = publicBio;
+      if (publicImage) publicFields.profileImage = publicImage;
+
       await setDoc(
         doc(db, "publicProfiles", firebaseUser.uid),
-        {
-          hasStore: true,
-          isSeller: true,
-          updatedAt: serverTimestamp(),
-        },
+        publicFields,
         { merge: true }
       ).catch(() => {});
       setHasStore(true);

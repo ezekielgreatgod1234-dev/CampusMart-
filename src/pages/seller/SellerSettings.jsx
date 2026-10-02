@@ -166,6 +166,7 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
   });
 
   const [personalSaved, setPersonalSaved] = useState(false);
+  const [personalError, setPersonalError] = useState("");
 
   /* =======================================================
      PASSWORD
@@ -395,6 +396,21 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
             bio: loadedProfile.bio,
           });
 
+          // Make sure an existing bio is also public, so the About section
+          // on this seller's store shows it. Empty bios are never written.
+          if (String(loadedProfile.bio || "").trim()) {
+            setDoc(
+              doc(db, "publicProfiles", firebaseUser.uid),
+              {
+                bio: String(loadedProfile.bio).trim(),
+                updatedAt: serverTimestamp(),
+              },
+              { merge: true }
+            ).catch((publicError) => {
+              console.warn("Could not publish bio:", publicError);
+            });
+          }
+
           setProfileVisibility(
             savedSettings.profileVisibility || "campus"
           );
@@ -574,6 +590,7 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
     }));
 
     setPersonalSaved(false);
+    setPersonalError("");
   };
 
   const handlePersonalSave = async () => {
@@ -604,25 +621,38 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
         }
       );
 
-      await setDoc(
-        doc(db, "publicProfiles", firebaseUser.uid),
-        {
-          fullName: updatedProfile.fullName || "",
-          displayName: updatedProfile.fullName || "",
-          campus: updatedProfile.campus || "",
-          phone: updatedProfile.phone || "",
-          bio: updatedProfile.bio || "",
-          profileImage:
-            profile?.profileImage ||
-            profile?.photoURL ||
-            firebaseUser.photoURL ||
-            null,
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-
       setSellerProfile(updatedProfile);
+
+      // Publish the public details (including the bio shown as "About" on
+      // the store). This is a separate step so a failure here is reported.
+      try {
+        await setDoc(
+          doc(db, "publicProfiles", firebaseUser.uid),
+          {
+            isSeller: true,
+            hasStore: true,
+            fullName: updatedProfile.fullName || "",
+            displayName: updatedProfile.fullName || "",
+            campus: updatedProfile.campus || "",
+            phone: updatedProfile.phone || "",
+            bio: updatedProfile.bio || "",
+            profileImage:
+              profile?.profileImage ||
+              profile?.photoURL ||
+              firebaseUser.photoURL ||
+              null,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+        setPersonalError("");
+      } catch (publicError) {
+        console.error("Could not publish bio:", publicError);
+        setPersonalError(
+          "Your details were saved, but your bio could not be shown on your public store. Please check your Firestore rules for the publicProfiles collection."
+        );
+      }
+
       setPersonalSaved(true);
 
       window.dispatchEvent(new Event("profileUpdated"));
@@ -633,6 +663,7 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
     } catch (error) {
       console.error("Could not save personal information:", error);
       setPersonalSaved(false);
+      setPersonalError("Could not save your information. Please try again.");
     }
   };
 
@@ -1412,8 +1443,14 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
                     icon={FiUser}
                   />
 
-                  {personalSaved && (
+                  {personalSaved && !personalError && (
                     <SuccessMessage message="Your personal information has been saved successfully." />
+                  )}
+
+                  {personalError && (
+                    <div className="mt-5">
+                      <ErrorMessage message={personalError} />
+                    </div>
                   )}
 
                   <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-5">

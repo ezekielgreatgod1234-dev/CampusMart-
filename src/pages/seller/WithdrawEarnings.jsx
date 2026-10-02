@@ -23,6 +23,7 @@ import {
   FiLock,
   FiEye,
   FiEyeOff,
+  FiMail,
 } from "react-icons/fi";
 
 import {
@@ -147,6 +148,25 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
   const [showPin, setShowPin] = useState(false);
   const [showConfirmPin, setShowConfirmPin] = useState(false);
   const [pendingWithdrawal, setPendingWithdrawal] = useState(null);
+
+  // PIN reset (6-digit code sent by email)
+  const [resetCode, setResetCode] = useState("");
+  const [resetCodeSent, setResetCodeSent] = useState(false);
+  const [resetSending, setResetSending] = useState(false);
+  const [resetCooldown, setResetCooldown] = useState(0);
+  const [resetEmailHint, setResetEmailHint] = useState("");
+  const [pinNotice, setPinNotice] = useState("");
+  const [pageNotice, setPageNotice] = useState("");
+
+  // Countdown for the "Resend code" button
+  useEffect(() => {
+    if (resetCooldown <= 0) return undefined;
+    const timer = setTimeout(
+      () => setResetCooldown((s) => Math.max(0, s - 1)),
+      1000
+    );
+    return () => clearTimeout(timer);
+  }, [resetCooldown]);
 
   // Pending orders badge (optional live count)
   const [newOrdersCount, setNewOrdersCount] = useState(0);
@@ -418,6 +438,9 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
     setPinError("");
     setShowPin(false);
     setShowConfirmPin(false);
+    setPinNotice("");
+    setResetCode("");
+    setResetCodeSent(false);
     setPinMode(hasPaymentPin ? "verify" : "set");
     setPinModalOpen(true);
   };
@@ -486,12 +509,181 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
     setPinValue("");
     setConfirmPinValue("");
     setPinError("");
+    setPinNotice("");
+    setResetCode("");
+    setResetCodeSent(false);
     setPendingWithdrawal(null);
+  };
+
+  // =====================================================
+  // FORGOT PIN → RESET BY EMAIL CODE
+  // =====================================================
+  const requestResetCode = async () => {
+    if (resetSending || resetCooldown > 0) return;
+
+    if (!firebaseUser) {
+      setPinError("Please log in again.");
+      return;
+    }
+
+    setResetSending(true);
+    setPinError("");
+
+    const controller = new AbortController();
+    // Free hosting can take a while to wake up.
+    const timer = setTimeout(() => controller.abort(), 60000);
+
+    try {
+      const token = await firebaseUser.getIdToken();
+
+      const response = await fetch(`${BACKEND_URL}/pin-reset/request`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({}),
+        signal: controller.signal,
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Could not send the reset email.");
+      }
+
+      const hint = data.maskedEmail || firebaseUser.email || "your email";
+
+      setResetCodeSent(true);
+      setResetEmailHint(hint);
+      setResetCooldown(
+        data.reason === "cooldown" ? data.retryAfterSeconds || 60 : 60
+      );
+      setPinNotice(
+        data.sent
+          ? `We sent a 6-digit code to ${hint}. It expires in ${
+              data.expiresInMinutes || 10
+            } minutes. Check your spam folder too.`
+          : "A code was sent a moment ago. Check your inbox and spam folder."
+      );
+    } catch (error) {
+      console.error("PIN reset request error:", error);
+      setPinError(
+        error?.name === "AbortError"
+          ? "The server took too long to respond. Please try again."
+          : error.message || "Could not send the reset email."
+      );
+    } finally {
+      clearTimeout(timer);
+      setResetSending(false);
+    }
+  };
+
+  const startPinReset = () => {
+    setPinValue("");
+    setConfirmPinValue("");
+    setResetCode("");
+    setPinError("");
+    setPinNotice("");
+    setShowPin(false);
+    setShowConfirmPin(false);
+    setResetCodeSent(false);
+    setPinMode("reset");
+
+    if (resetCooldown > 0) {
+      // A code was just sent, do not send another one.
+      setResetCodeSent(true);
+      setPinNotice(
+        "A code was sent recently. Check your inbox and spam folder, or resend when the timer ends."
+      );
+      return;
+    }
+
+    requestResetCode();
+  };
+
+  // "Forgot PIN?" link on the page itself (outside a withdrawal).
+  const openPinResetFromPage = () => {
+    setPendingWithdrawal(null);
+    setPageNotice("");
+    startPinReset();
+    setPinModalOpen(true);
+  };
+
+  const handleResetSubmit = async () => {
+    const code = String(resetCode).trim();
+    const pin = String(pinValue).trim();
+    const confirm = String(confirmPinValue).trim();
+
+    if (!/^\d{6}$/.test(code)) {
+      setPinError("Enter the 6-digit code from your email.");
+      return;
+    }
+
+    if (!/^\d{4}$/.test(pin)) {
+      setPinError("New PIN must be exactly 4 digits.");
+      return;
+    }
+
+    if (pin !== confirm) {
+      setPinError("PINs do not match. Please try again.");
+      return;
+    }
+
+    setPinSubmitting(true);
+
+    try {
+      const token = await firebaseUser.getIdToken();
+
+      const response = await fetch(`${BACKEND_URL}/pin-reset/confirm`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ code, newPin: pin }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Could not reset your PIN.");
+      }
+
+      setResetCode("");
+      setPinValue("");
+      setConfirmPinValue("");
+      setResetCodeSent(false);
+      setResetCooldown(0);
+      setPinError("");
+
+      if (pendingWithdrawal) {
+        // Back to the normal PIN prompt so the withdrawal can continue.
+        setPinMode("verify");
+        setPinNotice("PIN reset successfully. Enter your new PIN to continue.");
+      } else {
+        setPinModalOpen(false);
+        setPinNotice("");
+        setPageNotice("Your withdrawal PIN has been reset.");
+      }
+    } catch (error) {
+      console.error("PIN reset confirm error:", error);
+      setPinError(error.message || "Could not reset your PIN.");
+    } finally {
+      setPinSubmitting(false);
+    }
   };
 
   const handlePinSubmit = async (event) => {
     event.preventDefault();
     setPinError("");
+
+    if (pinMode === "reset") {
+      await handleResetSubmit();
+      return;
+    }
+
+    setPinNotice("");
 
     const pin = String(pinValue).trim();
 
@@ -820,6 +1012,16 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
                   </div>
                 )}
 
+                {pageNotice && (
+                  <div className="rounded-xl bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800 flex items-center gap-2">
+                    <FiCheckCircle
+                      size={16}
+                      className="flex-shrink-0 text-green-600"
+                    />
+                    {pageNotice}
+                  </div>
+                )}
+
                 {/* Amount */}
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-2">
@@ -1060,6 +1262,18 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
                   PIN before the transfer is made.
                 </div>
 
+                {hasPaymentPin && (
+                  <button
+                    type="button"
+                    onClick={openPinResetFromPage}
+                    disabled={submitting}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#008236] hover:underline disabled:opacity-50"
+                  >
+                    <FiLock size={13} />
+                    Forgot your payment PIN? Reset it by email
+                  </button>
+                )}
+
                 <div className="flex flex-col sm:flex-row gap-3 pt-1">
                   <button
                     type="button"
@@ -1117,12 +1331,16 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
                   <h3 className="text-base font-bold text-gray-800">
                     {pinMode === "set"
                       ? "Set Payment PIN"
-                      : "Enter Payment PIN"}
+                      : pinMode === "reset"
+                        ? "Reset Payment PIN"
+                        : "Enter Payment PIN"}
                   </h3>
                   <p className="text-[11px] text-gray-500 mt-0.5">
                     {pinMode === "set"
                       ? "Create a 4-digit PIN to secure withdrawals."
-                      : "Enter your 4-digit PIN to continue."}
+                      : pinMode === "reset"
+                        ? "Enter the code we emailed you and choose a new PIN."
+                        : "Enter your 4-digit PIN to continue."}
                   </p>
                 </div>
               </div>
@@ -1145,9 +1363,72 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
                 </div>
               )}
 
+              {pinNotice && (
+                <div className="rounded-xl bg-green-50 border border-green-100 px-3.5 py-2.5 text-xs text-green-800 flex items-start gap-2">
+                  <FiCheckCircle
+                    size={14}
+                    className="flex-shrink-0 mt-0.5 text-green-600"
+                  />
+                  {pinNotice}
+                </div>
+              )}
+
+              {pinMode === "reset" && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-2">
+                    Reset code
+                    {resetEmailHint ? ` (sent to ${resetEmailHint})` : ""}
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    value={resetCode}
+                    onChange={(e) => {
+                      const value = e.target.value
+                        .replace(/\D/g, "")
+                        .slice(0, 6);
+                      setResetCode(value);
+                      if (pinError) setPinError("");
+                    }}
+                    disabled={pinSubmitting}
+                    placeholder="------"
+                    autoFocus
+                    className="w-full h-12 px-3.5 rounded-xl border border-gray-200 bg-gray-50 text-sm font-semibold tracking-[0.4em] text-center text-gray-800 outline-none focus:border-[#008236] focus:ring-4 focus:ring-green-50 transition disabled:opacity-60"
+                  />
+                  <div className="mt-2 flex items-center justify-between gap-3 text-[11px]">
+                    <span className="text-gray-500 flex items-center gap-1">
+                      <FiMail size={12} />
+                      Check your spam folder too.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={requestResetCode}
+                      disabled={
+                        resetSending || resetCooldown > 0 || pinSubmitting
+                      }
+                      className="font-semibold text-[#008236] hover:underline disabled:opacity-50 disabled:no-underline"
+                    >
+                      {resetSending
+                        ? "Sending..."
+                        : resetCooldown > 0
+                          ? `Resend in ${resetCooldown}s`
+                          : resetCodeSent
+                            ? "Resend code"
+                            : "Send code"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-2">
-                  {pinMode === "set" ? "Create PIN" : "Payment PIN"}
+                  {pinMode === "set"
+                    ? "Create PIN"
+                    : pinMode === "reset"
+                      ? "New PIN"
+                      : "Payment PIN"}
                 </label>
                 <div className="relative">
                   <input
@@ -1164,7 +1445,7 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
                     }}
                     disabled={pinSubmitting}
                     placeholder="••••"
-                    autoFocus
+                    autoFocus={pinMode !== "reset"}
                     className="w-full h-12 px-3.5 pr-11 rounded-xl border border-gray-200 bg-gray-50 text-sm font-semibold tracking-[0.4em] text-center text-gray-800 outline-none focus:border-[#008236] focus:ring-4 focus:ring-green-50 transition disabled:opacity-60"
                   />
                   <button
@@ -1178,10 +1459,10 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
                 </div>
               </div>
 
-              {pinMode === "set" && (
+              {(pinMode === "set" || pinMode === "reset") && (
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-2">
-                    Confirm PIN
+                    {pinMode === "reset" ? "Confirm new PIN" : "Confirm PIN"}
                   </label>
                   <div className="relative">
                     <input
@@ -1216,10 +1497,23 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
                 </div>
               )}
 
+              {pinMode === "verify" && (
+                <button
+                  type="button"
+                  onClick={startPinReset}
+                  disabled={pinSubmitting}
+                  className="w-full text-center text-xs font-semibold text-[#008236] hover:underline disabled:opacity-50"
+                >
+                  Forgot PIN? Reset it by email
+                </button>
+              )}
+
               <div className="rounded-xl bg-green-50 border border-green-100 px-3.5 py-2.5 text-[11px] text-gray-600 leading-5">
                 {pinMode === "set"
                   ? "This PIN will be required for all future withdrawals. Keep it safe."
-                  : "Your PIN is securely stored and remembered for this account."}
+                  : pinMode === "reset"
+                    ? "Enter the 6-digit code from your email and a new 4-digit PIN. Never share the code with anyone."
+                    : "Your PIN is securely stored and remembered for this account."}
               </div>
 
               <div className="flex flex-col sm:flex-row gap-3 pt-1">
@@ -1237,21 +1531,29 @@ function WithdrawEarnings({ unreadMessages = 0, profile = {} }) {
                   disabled={
                     pinSubmitting ||
                     pinValue.length !== 4 ||
-                    (pinMode === "set" && confirmPinValue.length !== 4)
+                    ((pinMode === "set" || pinMode === "reset") &&
+                      confirmPinValue.length !== 4) ||
+                    (pinMode === "reset" && resetCode.length !== 6)
                   }
                   className="h-11 px-4 rounded-xl bg-[#008236] text-white text-sm font-semibold flex items-center justify-center gap-2 hover:bg-[#006f2e] active:bg-[#005f28] transition shadow-sm disabled:opacity-60 disabled:cursor-not-allowed sm:flex-[1.3]"
                 >
                   {pinSubmitting ? (
                     <>
                       <FiRefreshCw size={16} className="animate-spin" />
-                      {pinMode === "set" ? "Saving..." : "Verifying..."}
+                      {pinMode === "set"
+                        ? "Saving..."
+                        : pinMode === "reset"
+                          ? "Resetting..."
+                          : "Verifying..."}
                     </>
                   ) : (
                     <>
                       <FiLock size={16} />
                       {pinMode === "set"
                         ? "Set PIN & Continue"
-                        : "Confirm & Withdraw"}
+                        : pinMode === "reset"
+                          ? "Reset PIN"
+                          : "Confirm & Withdraw"}
                     </>
                   )}
                 </button>
