@@ -1089,7 +1089,8 @@ function SellerProfile({
             <div className="px-5 sm:px-8 pb-6">
               <div className="flex flex-col sm:flex-row sm:items-start gap-4">
                 <div className="relative z-10 w-32 h-32 sm:w-40 sm:h-40 flex-shrink-0 mx-auto sm:mx-0 -mt-16 sm:-mt-20">
-                  <div
+                  <button
+                    type="button"
                     onClick={() =>
                       profile.profileImage &&
                       setLightbox({
@@ -1097,8 +1098,9 @@ function SellerProfile({
                         alt: "Profile picture",
                       })
                     }
-                    className={`w-full h-full rounded-full bg-green-100 text-green-600 flex items-center justify-center text-5xl font-bold border-4 border-white shadow-md overflow-hidden ${
-                      profile.profileImage ? "cursor-zoom-in" : ""
+                    aria-label="View profile picture"
+                    className={`w-full h-full rounded-full bg-green-100 text-green-600 flex items-center justify-center text-5xl font-bold border-4 border-white shadow-md overflow-hidden p-0 touch-manipulation ${
+                      profile.profileImage ? "cursor-pointer" : "cursor-default"
                     }`}
                   >
                     {profile.profileImage ? (
@@ -1112,7 +1114,7 @@ function SellerProfile({
                         {profile.fullName?.charAt(0)?.toUpperCase() || "S"}
                       </span>
                     )}
-                  </div>
+                  </button>
 
                   <button
                     type="button"
