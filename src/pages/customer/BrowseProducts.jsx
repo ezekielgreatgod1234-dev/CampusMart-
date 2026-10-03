@@ -13,6 +13,8 @@ import {
   startAfter,
 } from "firebase/firestore";
 import { db } from "../../context/firebase";
+import { useAuth } from "../../context/AuthContext";
+import { filterVisibleItems } from "../../utils/profileVisibility";
 
 import {
   FiSearch,
@@ -64,6 +66,7 @@ function BrowseProducts({
   toggleWishlist,
 }) {
   const navigate = useNavigate();
+  const { firebaseUser } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const activeTab =
@@ -204,9 +207,14 @@ function BrowseProducts({
           );
         }
 
-        const batch = snapshot.docs
+        const rawBatch = snapshot.docs
           .map((d) => mapDoc(d, activeTab === "services" ? "service" : "product"))
           .filter(isActive);
+
+        // Hide items of sellers with a private / campus-only profile
+        const batch = await filterVisibleItems(db, rawBatch, {
+          viewerId: firebaseUser?.uid,
+        });
 
         setLastDoc(
           snapshot.docs.length ? snapshot.docs[snapshot.docs.length - 1] : null
@@ -222,7 +230,7 @@ function BrowseProducts({
         setLoadingMore(false);
       }
     },
-    [activeTab, collectionName, lastDoc]
+    [activeTab, collectionName, lastDoc, firebaseUser?.uid]
   );
 
   useEffect(() => {

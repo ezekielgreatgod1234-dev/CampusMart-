@@ -5,6 +5,7 @@ import CustomerLayout from "../../layouts/CustomerLayout";
 import InstallHelpModal from "../../components/InstallHelpModal";
 import { useAuth } from "../../context/AuthContext";
 import { enableCampusMartPush } from "../../utils/pushNotifications";
+import { syncProfileVisibility } from "../../utils/profileVisibility";
 
 import {
   FiArrowLeft,
@@ -81,7 +82,7 @@ function Settings({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
   const [passwordMessage, setPasswordMessage] = useState("");
   const [passwordUpdating, setPasswordUpdating] = useState(false);
 
-  const [profileVisibility, setProfileVisibility] = useState("campus");
+  const [profileVisibility, setProfileVisibility] = useState("public");
 
   const [contactForm, setContactForm] = useState({ subject: "", message: "" });
   const [contactSent, setContactSent] = useState(false);
@@ -164,7 +165,16 @@ function Settings({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
             phone: loaded.phone,
             campus: loaded.campus,
           });
-          setProfileVisibility(s.profileVisibility || "campus");
+          setProfileVisibility(s.profileVisibility || "public");
+          // Make sure the saved choice is also visible to other users' screens
+          if (s.profileVisibility) {
+            syncProfileVisibility(
+              db,
+              firebaseUser.uid,
+              s.profileVisibility,
+              loaded.campus || d.campus
+            ).catch(() => {});
+          }
           setNotificationsEnabled(d.notificationsEnabled === true);
           setHasStore(
             d.hasStore === true ||
@@ -181,7 +191,7 @@ function Settings({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
           };
           await setDoc(
             doc(db, "users", firebaseUser.uid),
-            { profile: loaded, settings: { profileVisibility: "campus" } },
+            { profile: loaded, settings: { profileVisibility: "public" } },
             { merge: true }
           );
           setProfile(loaded);
@@ -265,6 +275,17 @@ function Settings({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
         { merge: true }
       );
       setProfile(updated);
+      // Keep the public copy (used by search + campus-only check) up to date
+      setDoc(
+        doc(db, "publicProfiles", firebaseUser.uid),
+        {
+          fullName: updated.fullName || "",
+          displayName: updated.fullName || "",
+          campus: updated.campus || "",
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      ).catch(() => {});
       setPersonalSaved(true);
       window.dispatchEvent(new Event("profileUpdated"));
       setTimeout(() => setPersonalSaved(false), 3000);
@@ -328,12 +349,26 @@ function Settings({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
 
   const handleVisibilityChange = async (value) => {
     if (!firebaseUser?.uid) return;
+    const previous = profileVisibility;
     setProfileVisibility(value);
-    await setDoc(
-      doc(db, "users", firebaseUser.uid),
-      { settings: { profileVisibility: value } },
-      { merge: true }
-    );
+    try {
+      await setDoc(
+        doc(db, "users", firebaseUser.uid),
+        { settings: { profileVisibility: value } },
+        { merge: true }
+      );
+      // Copy to publicProfiles so other people's screens obey it
+      await syncProfileVisibility(
+        db,
+        firebaseUser.uid,
+        value,
+        profile.campus || personalForm.campus
+      );
+    } catch (e) {
+      console.error("Could not update profile visibility:", e);
+      setProfileVisibility(previous);
+      alert("Could not update your profile visibility. Please try again.");
+    }
   };
 
   const handleEnableNotifications = async () => {
@@ -623,7 +658,14 @@ function Settings({ cartCount = 0, wishlist = [], unreadMessages = 0 }) {
                           profileVisibility === v ? "border-green-500 bg-green-50" : "border-gray-100"
                         }`}
                       >
-                        <p className="font-semibold text-sm capitalize">{v === "public" ? "Everyone" : v === "campus" ? "Campus only" : "Private"}</p>
+                        <p className="font-semibold text-sm">{v === "public" ? "Everyone" : v === "campus" ? "Campus only" : "Private"}</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {v === "public"
+                            ? "Students from every campus can see your profile picture, cover photo and products."
+                            : v === "campus"
+                              ? "Only students from your campus can see your profile picture, cover photo and products."
+                              : "Only you can see your profile picture, cover photo and products."}
+                        </p>
                       </button>
                     ))}
                   </div>

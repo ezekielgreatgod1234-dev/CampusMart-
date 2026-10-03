@@ -15,6 +15,7 @@ import {
 
 import { db } from "../../context/firebase";
 import { useAuth } from "../../context/AuthContext";
+import { canViewProfile, getCampusOf } from "../../utils/profileVisibility";
 
 import {
   FiArrowLeft,
@@ -27,6 +28,7 @@ import {
   FiUser,
   FiCopy,
   FiExternalLink,
+  FiLock,
   FiX,
 } from "react-icons/fi";
 
@@ -70,6 +72,9 @@ function SellerStore({
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [viewerCampus, setViewerCampus] = useState("");
+  const [viewerLoaded, setViewerLoaded] = useState(false);
+  const [lightbox, setLightbox] = useState(null); // { src, alt }
 
   // Always uses current site origin (localhost in dev, real domain in production)
   const storeUrl = useMemo(() => {
@@ -144,6 +149,10 @@ function SellerStore({
                 data?.isVerifiedSeller === true,
               role: u.role || data?.role || "seller",
               shopName: u.shopName || data?.shopName || "",
+              coverPhoto:
+                u.coverPhoto || u.profile?.coverPhoto || data?.coverPhoto || "",
+              profileVisibility:
+                u.settings?.profileVisibility || data?.profileVisibility || "",
             };
           }
         } catch {
@@ -196,6 +205,9 @@ function SellerStore({
             displayName: d.displayName || prev.displayName,
             campus: typeof d.campus === "string" ? d.campus : prev.campus,
             profileImage: d.profileImage || prev.profileImage,
+            coverPhoto:
+              typeof d.coverPhoto === "string" ? d.coverPhoto : prev.coverPhoto,
+            profileVisibility: d.profileVisibility || prev.profileVisibility,
           };
         });
       },
@@ -207,8 +219,61 @@ function SellerStore({
     return () => unsub();
   }, [sellerId]);
 
+  // Who is looking? Their campus decides "campus only" profiles.
   useEffect(() => {
-    if (!sellerId) {
+    let cancelled = false;
+
+    if (!firebaseUser?.uid) {
+      setViewerCampus("");
+      setViewerLoaded(true);
+      return undefined;
+    }
+
+    setViewerLoaded(false);
+
+    (async () => {
+      try {
+        const snap = await getDoc(doc(db, "users", firebaseUser.uid));
+        if (!cancelled) {
+          setViewerCampus(snap.exists() ? getCampusOf(snap.data() || {}) : "");
+        }
+      } catch {
+        if (!cancelled) setViewerCampus("");
+      } finally {
+        if (!cancelled) setViewerLoaded(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [firebaseUser?.uid]);
+
+  // Public / campus only / private
+  const access = useMemo(
+    () =>
+      canViewProfile({
+        ownerId: sellerId,
+        owner: seller,
+        viewerId: firebaseUser?.uid,
+        viewerCampus,
+      }),
+    [sellerId, seller, firebaseUser?.uid, viewerCampus]
+  );
+  const canSee = access.allowed;
+
+  // Close the picture viewer with Esc
+  useEffect(() => {
+    if (!lightbox) return undefined;
+    const onKey = (e) => {
+      if (e.key === "Escape") setLightbox(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lightbox]);
+
+  useEffect(() => {
+    if (!sellerId || !canSee) {
       setProducts([]);
       setProductsLoading(false);
       return;
@@ -271,7 +336,7 @@ function SellerStore({
     );
 
     return () => unsub();
-  }, [sellerId, seller?.fullName, seller?.isVerifiedSeller]);
+  }, [sellerId, canSee, seller?.fullName, seller?.isVerifiedSeller]);
 
   const displayName =
     seller?.shopName ||
@@ -285,6 +350,8 @@ function SellerStore({
     seller?.photoURL ||
     seller?.avatar ||
     null;
+
+  const coverPhoto = seller?.coverPhoto || "";
 
   const isVerified = seller?.isVerifiedSeller === true;
   const productCount = products.length;
@@ -365,7 +432,7 @@ function SellerStore({
     setShareOpen(true);
   };
 
-  if (loading) {
+  if (loading || (!viewerLoaded && access.visibility === "campus")) {
     return (
       <CustomerLayout cartCount={cartCount}>
         <div className="min-h-[50vh] flex items-center justify-center">
@@ -403,6 +470,60 @@ function SellerStore({
     );
   }
 
+  // ========== LOCKED PROFILE ==========
+  if (!canSee) {
+    const isPrivate = access.reason === "private";
+
+    return (
+      <CustomerLayout cartCount={cartCount}>
+        <div className="max-w-lg mx-auto text-center py-16 px-4">
+          <div className="w-20 h-20 mx-auto rounded-full bg-gray-100 text-gray-400 flex items-center justify-center border-4 border-white shadow-sm">
+            <FiLock size={30} />
+          </div>
+
+          <h1 className="text-xl font-bold text-gray-800 mt-4">
+            {displayName}
+          </h1>
+
+          <p className="text-base font-semibold text-gray-700 mt-3">
+            {isPrivate
+              ? "This person has locked their profile"
+              : "This profile is for one campus only"}
+          </p>
+
+          <p className="text-sm text-gray-500 mt-2 leading-relaxed">
+            {isPrivate
+              ? "You won't see their profile picture, cover photo, goods or products."
+              : `Only students of ${
+                  access.ownerCampus || "their campus"
+                } can see their profile picture, cover photo, goods and products.${
+                  viewerCampus
+                    ? ""
+                    : " If you study there, add your campus in Settings > Personal Information."
+                }`}
+          </p>
+
+          <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className="h-11 px-6 rounded-xl border border-gray-200 bg-white text-gray-700 text-sm font-semibold hover:bg-gray-50"
+            >
+              Go back
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/browse-products")}
+              className="h-11 px-6 rounded-xl bg-[#008236] text-white text-sm font-semibold hover:bg-[#006f2e]"
+            >
+              Browse products
+            </button>
+          </div>
+        </div>
+      </CustomerLayout>
+    );
+  }
+
   return (
     <CustomerLayout cartCount={cartCount}>
       <div className="max-w-5xl mx-auto space-y-6 pb-10">
@@ -418,11 +539,31 @@ function SellerStore({
         {/* ========== PROFILE CARD ========== */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           {/* Cover only — no text on cover */}
-          <div className="h-28 sm:h-36 bg-gradient-to-r from-[#007233] to-[#00a34a] relative">
-            <div className="absolute inset-0 opacity-20 pointer-events-none">
-              <div className="absolute -right-10 -top-10 w-40 h-40 rounded-full bg-white/30" />
-              <div className="absolute right-20 bottom-0 w-24 h-24 rounded-full bg-white/20" />
-            </div>
+          <div className="h-32 sm:h-44 bg-gradient-to-r from-[#007233] to-[#00a34a] relative overflow-hidden">
+            {coverPhoto ? (
+              <button
+                type="button"
+                onClick={() =>
+                  setLightbox({
+                    src: coverPhoto,
+                    alt: `${displayName} cover photo`,
+                  })
+                }
+                className="absolute inset-0 w-full h-full cursor-zoom-in"
+                aria-label="View cover photo"
+              >
+                <img
+                  src={coverPhoto}
+                  alt=""
+                  className="w-full h-full object-cover"
+                />
+              </button>
+            ) : (
+              <div className="absolute inset-0 opacity-20 pointer-events-none">
+                <div className="absolute -right-10 -top-10 w-40 h-40 rounded-full bg-white/30" />
+                <div className="absolute right-20 bottom-0 w-24 h-24 rounded-full bg-white/20" />
+              </div>
+            )}
           </div>
 
           {/* Avatar + name sit in WHITE area below cover */}
@@ -430,11 +571,18 @@ function SellerStore({
             {/* Avatar overlaps cover slightly */}
             <div className="relative -mt-12 sm:-mt-14 mb-3">
               {avatar ? (
-                <img
-                  src={avatar}
-                  alt={displayName}
-                  className="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover border-4 border-white shadow-md bg-white"
-                />
+                <button
+                  type="button"
+                  onClick={() => setLightbox({ src: avatar, alt: displayName })}
+                  className="block rounded-full cursor-zoom-in"
+                  aria-label="View profile picture"
+                >
+                  <img
+                    src={avatar}
+                    alt={displayName}
+                    className="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover border-4 border-white shadow-md bg-white"
+                  />
+                </button>
               ) : (
                 <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full border-4 border-white shadow-md bg-green-50 text-[#008236] flex items-center justify-center text-3xl font-bold">
                   {String(displayName).charAt(0).toUpperCase()}
@@ -613,6 +761,31 @@ function SellerStore({
           )}
         </div>
       </div>
+
+      {/* ========== PICTURE VIEWER ========== */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-[110] bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setLightbox(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <button
+            type="button"
+            onClick={() => setLightbox(null)}
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
+            aria-label="Close"
+          >
+            <FiX size={22} />
+          </button>
+          <img
+            src={lightbox.src}
+            alt={lightbox.alt}
+            onClick={(e) => e.stopPropagation()}
+            className="max-w-full max-h-[88vh] object-contain rounded-lg"
+          />
+        </div>
+      )}
 
       {/* ========== SHARE MODAL ========== */}
       {shareOpen && (

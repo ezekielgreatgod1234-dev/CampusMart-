@@ -8,6 +8,34 @@ import {
   FiImage,
 } from "react-icons/fi";
 
+// "New" for the first 5 days after a product is added, then "Recent"
+// until day 30, then no tag. Every product runs its own clock from its
+// createdAt, so a product added later starts at "New" again.
+// Change these two numbers to adjust.
+const NEW_DAYS = 5;
+const RECENT_DAYS = 30;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function getCreatedMs(createdAt) {
+  if (!createdAt) return 0;
+  if (typeof createdAt.toMillis === "function") return createdAt.toMillis();
+  if (createdAt instanceof Date) return createdAt.getTime();
+  if (typeof createdAt === "object" && createdAt.seconds !== undefined) {
+    return Number(createdAt.seconds) * 1000;
+  }
+  const parsed = new Date(createdAt).getTime();
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function getProductTag(createdAt) {
+  const created = getCreatedMs(createdAt);
+  if (!created) return null;
+  const age = Date.now() - created;
+  if (age < NEW_DAYS * DAY_MS) return "new";
+  if (age < RECENT_DAYS * DAY_MS) return "recent";
+  return null;
+}
+
 // Meta-style green verified badge
 function VerifiedBadge({ size = 14, className = "" }) {
   const s = Number(size) || 14;
@@ -110,25 +138,7 @@ function ProductCard({
   const isWishlisted = wishlist.includes(productId);
   const formattedPrice = `₦${productPrice.toLocaleString("en-NG")}`;
 
-  const isNewProduct = (() => {
-    if (!product?.createdAt) return false;
-    let createdTime = 0;
-    if (typeof product.createdAt.toMillis === "function") {
-      createdTime = product.createdAt.toMillis();
-    } else if (product.createdAt instanceof Date) {
-      createdTime = product.createdAt.getTime();
-    } else if (
-      typeof product.createdAt === "object" &&
-      product.createdAt?.seconds !== undefined
-    ) {
-      createdTime = Number(product.createdAt.seconds) * 1000;
-    } else {
-      const parsed = new Date(product.createdAt).getTime();
-      createdTime = Number.isNaN(parsed) ? 0 : parsed;
-    }
-    if (!createdTime) return false;
-    return Date.now() - createdTime <= 7 * 24 * 60 * 60 * 1000;
-  })();
+  const productTag = getProductTag(product?.createdAt);
 
   const handleAddToCart = (e) => {
     e.stopPropagation();
@@ -198,9 +208,15 @@ function ProductCard({
           </div>
         </div>
 
-        {isNewProduct && (
-          <span className="absolute top-3 left-3 bg-white text-green-700 text-xs font-semibold px-3 py-1 rounded-full shadow-sm">
-            New
+        {productTag && (
+          <span
+            className={`absolute top-3 left-3 text-xs font-semibold px-3 py-1 rounded-full shadow-sm ${
+              productTag === "new"
+                ? "bg-white text-green-700"
+                : "bg-amber-100 text-amber-700"
+            }`}
+          >
+            {productTag === "new" ? "New" : "Recent"}
           </span>
         )}
 

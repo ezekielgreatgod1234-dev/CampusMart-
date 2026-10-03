@@ -100,14 +100,29 @@ export async function enableCampusMartPush(userId) {
 
   let registration;
   try {
-    // Register FCM SW at root so it can receive pushes site-wide
-    registration = await navigator.serviceWorker.register(
-      "/firebase-messaging-sw.js",
-      {
-        scope: "/",
-        updateViaCache: "none",
+    // The app already has ONE service worker (the PWA one, which now loads
+    // firebase-messaging-sw.js inside it - see vite.config.js). A site can
+    // only have one worker per scope, so reuse it instead of registering a
+    // second worker that would replace it.
+    registration = await navigator.serviceWorker.getRegistration("/");
+
+    const activeUrl = registration?.active?.scriptURL || "";
+    const isLegacyWorker = activeUrl.endsWith("/firebase-messaging-sw.js");
+
+    if (!registration || isLegacyWorker) {
+      try {
+        registration = await navigator.serviceWorker.register("/sw.js", {
+          scope: "/",
+          updateViaCache: "none",
+        });
+      } catch (_) {
+        // No PWA worker (for example in dev) - fall back to the push worker
+        registration = await navigator.serviceWorker.register(
+          "/firebase-messaging-sw.js",
+          { scope: "/", updateViaCache: "none" }
+        );
       }
-    );
+    }
 
     try {
       await registration.update();

@@ -49,6 +49,62 @@ import {
 import { db } from "../../context/firebase";
 import { useAuth } from "../../context/AuthContext";
 
+// Shrinks a chosen photo in the browser and returns a JPEG data URL, so the
+// profile picture and cover photo always fit inside a Firestore document (1 MB).
+function compressImageFile(
+  file,
+  { maxWidth = 1280, maxHeight = 1280, maxBytes = 200 * 1024 } = {}
+) {
+  return new Promise((resolve, reject) => {
+    if (!file || !String(file.type).startsWith("image/")) {
+      reject(new Error("Please select an image file."));
+      return;
+    }
+
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+
+      let scale = Math.min(
+        1,
+        maxWidth / img.naturalWidth,
+        maxHeight / img.naturalHeight
+      );
+      let quality = 0.82;
+      let dataUrl = "";
+
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        const w = Math.max(1, Math.round(img.naturalWidth * scale));
+        const h = Math.max(1, Math.round(img.naturalHeight * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+        dataUrl = canvas.toDataURL("image/jpeg", quality);
+
+        if (Math.ceil((dataUrl.length * 3) / 4) <= maxBytes) break;
+
+        if (quality > 0.5) quality -= 0.1;
+        else scale *= 0.85;
+      }
+
+      resolve(dataUrl);
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Could not read the selected image."));
+    };
+
+    img.src = url;
+  });
+}
+
 function VerifiedBadge({ size = 18, className = "" }) {
   const s = Number(size) || 18;
   return (
@@ -425,53 +481,108 @@ function SellerProfile({
     }
   };
 
-  const handleProfileImage = (e) => {
+  const handleProfileImage = async (e) => {
     const file = e.target.files?.[0];
+
+    // Allow the same image to be selected again.
+    e.target.value = "";
+
     if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
-      alert("Please select an image file.");
-      e.target.value = "";
+    if (typeof updateProfile !== "function") {
+      alert("Profile update function is not available.");
       return;
     }
 
-    if (file.size > 700 * 1024) {
-      alert("Please choose a profile image smaller than 700 KB.");
-      e.target.value = "";
-      return;
-    }
+    try {
+      setSaving(true);
 
-    const reader = new FileReader();
+      // Shrink the photo so it always fits in Firestore.
+      const imageUrl = await compressImageFile(file, {
+        maxWidth: 512,
+        maxHeight: 512,
+        maxBytes: 120 * 1024,
+      });
 
-    reader.onload = async () => {
-      try {
-        const imageUrl = reader.result;
-        if (!imageUrl) return;
-
-        if (typeof updateProfile !== "function") {
-          alert("Profile update function is not available.");
-          return;
-        }
-
-        setSaving(true);
-        await updateProfile({ profileImage: imageUrl });
-        await syncPublicProfile({ profileImage: imageUrl });
-        window.dispatchEvent(new Event("profileUpdated"));
-      } catch (error) {
-        console.error("Error updating profile picture:", error);
-        alert("Could not update your profile picture. Please try again.");
-      } finally {
-        setSaving(false);
-      }
-    };
-
-    reader.onerror = () => {
-      alert("Could not read the selected image.");
+      await updateProfile({ profileImage: imageUrl });
+      await syncPublicProfile({ profileImage: imageUrl });
+      window.dispatchEvent(new Event("profileUpdated"));
+    } catch (error) {
+      console.error("Error updating profile picture:", error);
+      alert(
+        error?.message ||
+          "Could not update your profile picture. Please try again."
+      );
+    } finally {
       setSaving(false);
-    };
+    }
+  };
 
-    reader.readAsDataURL(file);
+  // ---------- COVER PHOTO ----------
+  const coverInputRef = useRef(null);
+  const [coverPhoto, setCoverPhoto] = useState("");
+  const [coverSaving, setCoverSaving] = useState(false);
+
+  useEffect(() => {
+    if (!firebaseUser?.uid) return undefined;
+
+    const unsubscribe = onSnapshot(
+      doc(db, "users", firebaseUser.uid),
+      (snapshot) => {
+        const data = snapshot.data() || {};
+        setCoverPhoto(data.coverPhoto || data.profile?.coverPhoto || "");
+      },
+      () => {}
+    );
+
+    return () => unsubscribe();
+  }, [firebaseUser?.uid]);
+
+  const saveCover = async (value) => {
+    await setDoc(
+      doc(db, "users", firebaseUser.uid),
+      { coverPhoto: value, updatedAt: serverTimestamp() },
+      { merge: true }
+    );
+    await syncPublicProfile({ coverPhoto: value });
+    setCoverPhoto(value);
+  };
+
+  const handleCoverImage = async (e) => {
+    const file = e.target.files?.[0];
     e.target.value = "";
+
+    if (!file || !firebaseUser?.uid) return;
+
+    try {
+      setCoverSaving(true);
+      const imageUrl = await compressImageFile(file, {
+        maxWidth: 1280,
+        maxHeight: 720,
+        maxBytes: 180 * 1024,
+      });
+      await saveCover(imageUrl);
+    } catch (error) {
+      console.error("Error updating cover photo:", error);
+      alert(
+        error?.message || "Could not update your cover photo. Please try again."
+      );
+    } finally {
+      setCoverSaving(false);
+    }
+  };
+
+  const handleRemoveCover = async () => {
+    if (!firebaseUser?.uid || coverSaving) return;
+    try {
+      setCoverSaving(true);
+      await saveCover("");
+    } catch (error) {
+      console.error("Error removing cover photo:", error);
+      alert("Could not remove your cover photo. Please try again.");
+    } finally {
+      setCoverSaving(false);
+    }
   };
 
   const handleEdit = () => {
@@ -886,17 +997,64 @@ function SellerProfile({
             </p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="bg-white rounded-2xl border border-green-100 p-6 h-fit shadow-sm">
-              <div className="flex flex-col items-center text-center">
-                <div className="relative">
-                  <div
-                    className="
-                      w-28 h-28 rounded-full bg-green-100 text-green-600
-                      flex items-center justify-center text-4xl font-bold
-                      border-4 border-white shadow-sm overflow-hidden
-                    "
+          {/* =================================================
+              COVER + PROFILE PICTURE (Facebook style)
+              The profile picture sits on the bottom edge of the cover photo.
+          ================================================= */}
+
+          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+            {/* COVER */}
+            <div className="relative h-40 sm:h-60 bg-gradient-to-r from-[#007233] to-[#00a34a]">
+              {coverPhoto && (
+                <img
+                  src={coverPhoto}
+                  alt="Cover"
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+              )}
+
+              <div className="absolute bottom-3 right-3 flex items-center gap-2">
+                {coverPhoto && (
+                  <button
+                    type="button"
+                    onClick={handleRemoveCover}
+                    disabled={coverSaving}
+                    className="h-9 px-3 rounded-full bg-black/50 hover:bg-black/70 disabled:opacity-60 text-white text-xs font-semibold"
                   >
+                    Remove
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => !coverSaving && coverInputRef.current?.click()}
+                  disabled={coverSaving}
+                  className="h-9 px-3 rounded-full bg-white/90 hover:bg-white disabled:opacity-60 text-gray-800 text-xs font-semibold flex items-center gap-2 shadow"
+                  title="Change cover photo"
+                >
+                  <FiCamera size={14} />
+                  {coverSaving
+                    ? "Saving..."
+                    : coverPhoto
+                      ? "Change cover"
+                      : "Add cover photo"}
+                </button>
+              </div>
+
+              <input
+                ref={coverInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleCoverImage}
+                className="hidden"
+              />
+            </div>
+
+            {/* PICTURE + NAME */}
+            <div className="px-5 sm:px-8 pb-6">
+              <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+                <div className="relative z-10 w-32 h-32 sm:w-40 sm:h-40 flex-shrink-0 mx-auto sm:mx-0 -mt-16 sm:-mt-20">
+                  <div className="w-full h-full rounded-full bg-green-100 text-green-600 flex items-center justify-center text-5xl font-bold border-4 border-white shadow-md overflow-hidden">
                     {profile.profileImage ? (
                       <img
                         src={profile.profileImage}
@@ -914,13 +1072,7 @@ function SellerProfile({
                     type="button"
                     onClick={handleCameraClick}
                     disabled={saving}
-                    className="
-                      absolute bottom-1 right-1 w-9 h-9 rounded-full
-                      bg-green-600 hover:bg-green-700
-                      disabled:bg-green-400 disabled:cursor-not-allowed
-                      text-white flex items-center justify-center
-                      border-4 border-white transition
-                    "
+                    className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed text-white flex items-center justify-center border-4 border-white transition"
                     title="Change profile picture"
                   >
                     <FiCamera size={15} />
@@ -935,27 +1087,47 @@ function SellerProfile({
                   />
                 </div>
 
-                <div className="mt-4 flex items-center justify-center gap-1.5 flex-wrap">
-                  <h2 className="text-xl font-bold text-gray-800">
-                    {profile.fullName || "Your Name"}
-                  </h2>
+                <div className="min-w-0 flex-1 text-center sm:text-left sm:pt-4">
+                  <div className="flex items-center justify-center sm:justify-start gap-1.5 flex-wrap">
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-800">
+                      {profile.fullName || "Your Name"}
+                    </h2>
                   {profile.isVerifiedSeller && <VerifiedBadge size={20} />}
-                </div>
-
-                <p className="text-sm text-gray-500 mt-1 break-all">
-                  {profile.email || "No email"}
-                </p>
-
-                <p className="text-sm text-gray-500 mt-1">{roleText}</p>
+                  </div>
 
                 {profile.isVerifiedSeller && (
-                  <p className="text-xs text-[#008236] font-semibold mt-2">
+                  <p className="text-xs text-[#008236] font-semibold mt-1">
                     Verified CampusMart seller
                   </p>
                 )}
 
+                  <p className="text-sm text-gray-500 mt-1 break-all">
+                    {profile.email || "No email"}
+                  </p>
+
+                  <p className="text-sm text-gray-500 mt-0.5">{roleText}</p>
+
+                  <div className="mt-3 flex flex-wrap items-center justify-center sm:justify-start gap-3">
+                    <button
+                      type="button"
+                      onClick={handleCameraClick}
+                      disabled={saving}
+                      className="text-sm text-green-600 hover:text-green-700 disabled:text-green-400 font-medium"
+                    >
+                      {saving ? "Saving..." : "Change Profile Picture"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="bg-white rounded-2xl border border-green-100 p-6 h-fit shadow-sm">
+              <div className="flex flex-col items-center text-center">
                 {profile.bio && (
-                  <p className="text-xs text-gray-500 mt-3 leading-relaxed px-1">
+                  <p className="text-xs text-gray-500 leading-relaxed px-1">
                     {profile.bio}
                   </p>
                 )}
@@ -970,18 +1142,6 @@ function SellerProfile({
                   <span className="w-2 h-2 rounded-full bg-green-500" />
                   Active Account
                 </div>
-
-                <button
-                  type="button"
-                  onClick={handleCameraClick}
-                  disabled={saving}
-                  className="
-                    mt-4 text-sm text-green-600 hover:text-green-700
-                    disabled:text-green-400 font-medium
-                  "
-                >
-                  {saving ? "Saving..." : "Change Profile Picture"}
-                </button>
 
                 {/* Public store actions */}
                 <div className="w-full mt-5 pt-5 border-t border-gray-100 space-y-2">

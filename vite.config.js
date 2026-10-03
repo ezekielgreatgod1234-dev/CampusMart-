@@ -62,6 +62,11 @@ export default defineConfig({
       },
 
       workbox: {
+        // Push notifications: the app has ONE service worker for the whole
+        // site. Loading the Firebase messaging worker INSIDE it means push
+        // messages are still handled after the PWA worker updates.
+        // (File lives at public/firebase-messaging-sw.js)
+        importScripts: ["firebase-messaging-sw.js"],
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,

@@ -8,6 +8,7 @@ import {
   FiHeart,
   FiX,
   FiChevronRight,
+  FiLock,
 } from "react-icons/fi";
 
 import { useNavigate } from "react-router-dom";
@@ -21,6 +22,10 @@ import {
 
 import { useAuth } from "../../context/AuthContext";
 import { db } from "../../context/firebase";
+import {
+  canViewProfile,
+  getCampusOf,
+} from "../../utils/profileVisibility";
 
 const DEFAULT_PROFILE = {
   fullName: "GreatGod",
@@ -164,6 +169,8 @@ async function findPeopleByName(query) {
         profileImage: getProfileImage(prev) || getProfileImage(u),
         photoURL: prev.photoURL || u.photoURL,
         campus: prev.campus || u.campus || prev.school || u.school,
+        profileVisibility:
+          prev.profileVisibility || u.settings?.profileVisibility || "",
         isVerifiedSeller:
           prev.isVerifiedSeller === true || u.isVerifiedSeller === true,
       });
@@ -215,6 +222,9 @@ function Navbar({
   const [showPeopleDropdown, setShowPeopleDropdown] = useState(false);
 
   const wishlistCount = wishlist.length;
+
+  // The viewer's own campus (used to decide who they may see in "campus only")
+  const viewerCampus = getCampusOf(profile);
 
   useEffect(() => {
     if (!firebaseUser?.uid) return undefined;
@@ -306,6 +316,7 @@ function Navbar({
       return;
     }
 
+    // Pasting a link is an explicit "take me there", so that still opens directly.
     const linkTarget = extractLinkTarget(trimmedSearch);
     if (linkTarget?.type === "product") {
       openProduct(linkTarget.id);
@@ -320,12 +331,9 @@ function Navbar({
       setSearching(true);
       const matches = await findPeopleByName(trimmedSearch);
 
-      if (matches.length === 1) {
-        openPersonProfile(matches[0].id);
-        return;
-      }
-
-      if (matches.length > 1) {
+      // Even a single match is shown in the dropdown first.
+      // The profile only opens when the person taps it.
+      if (matches.length > 0) {
         setPeopleSuggestions(matches.slice(0, 12));
         setShowPeopleDropdown(true);
         setSearching(false);
@@ -370,23 +378,7 @@ function Navbar({
                 }}
                 placeholder="Search name, product, or paste a link…"
                 disabled={searching}
-                className="
-                  w-full
-                  bg-green-700
-                  text-white
-                  placeholder-green-200
-                  rounded-full
-                  py-2.5
-                  pl-10 sm:pl-11
-                  pr-10
-                  outline-none
-                  border
-                  border-green-600
-                  focus:ring-2
-                  focus:ring-green-400
-                  disabled:opacity-70
-                  text-sm
-                "
+                className="w-full bg-green-700 text-white placeholder-green-200 rounded-full py-2.5 pl-10 sm:pl-11 pr-10 outline-none border border-green-600 focus:ring-2 focus:ring-green-400 disabled:opacity-70 text-sm"
               />
 
               {searching && (
@@ -395,30 +387,7 @@ function Navbar({
             </form>
 
             {showPeopleDropdown && peopleSuggestions.length > 0 && (
-              <div
-                className="
-                  fixed
-                  left-3
-                  right-3
-                  top-[4.75rem]
-                  z-[60]
-                  sm:absolute
-                  sm:left-0
-                  sm:right-0
-                  sm:top-[calc(100%+10px)]
-                  sm:w-full
-                  bg-white
-                  text-gray-800
-                  rounded-2xl
-                  shadow-[0_20px_50px_rgba(0,0,0,0.22)]
-                  border
-                  border-gray-100
-                  overflow-hidden
-                  max-h-[min(70vh,420px)]
-                  flex
-                  flex-col
-                "
-              >
+              <div className="fixed left-3 right-3 top-[4.75rem] z-[60] sm:absolute sm:left-0 sm:right-0 sm:top-[calc(100%+10px)] sm:w-full bg-white text-gray-800 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.22)] border border-gray-100 overflow-hidden max-h-[min(70vh,420px)] flex flex-col">
                 <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-2 bg-gray-50 shrink-0">
                   <p className="text-xs font-semibold text-gray-600">
                     {peopleSuggestions.length === 1
@@ -440,8 +409,20 @@ function Navbar({
                     const name =
                       getDisplayName(person) || "CampusMart User";
                     const campus = person.campus || person.school || "";
-                    const image =
-                      person._image || getProfileImage(person) || null;
+
+                    // Respect the person's profile visibility setting:
+                    // locked profiles don't show their picture in search.
+                    const access = canViewProfile({
+                      ownerId: person.id,
+                      owner: person,
+                      viewerId: firebaseUser?.uid,
+                      viewerCampus,
+                    });
+                    const locked = !access.allowed;
+
+                    const image = locked
+                      ? null
+                      : person._image || getProfileImage(person) || null;
                     const isStoreOwner = Boolean(person._hasStore);
                     const verified =
                       isStoreOwner && person.isVerifiedSeller === true;
@@ -451,20 +432,7 @@ function Navbar({
                         <button
                           type="button"
                           onClick={() => handleSelectPerson(person)}
-                          className="
-                            w-full
-                            flex
-                            items-center
-                            gap-3
-                            px-3
-                            py-3
-                            rounded-xl
-                            text-left
-                            transition
-                            cursor-pointer
-                            hover:bg-green-50
-                            active:bg-green-100
-                          "
+                          className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition cursor-pointer hover:bg-green-50 active:bg-green-100"
                         >
                           <div className="w-11 h-11 rounded-full bg-green-100 text-[#008236] flex items-center justify-center overflow-hidden shrink-0 font-bold border border-green-100">
                             {image ? (
@@ -476,6 +444,8 @@ function Navbar({
                                   e.currentTarget.style.display = "none";
                                 }}
                               />
+                            ) : locked ? (
+                              <FiLock size={16} className="text-gray-400" />
                             ) : (
                               <span className="text-sm font-bold">
                                 {name.charAt(0).toUpperCase() || "U"}
@@ -488,7 +458,7 @@ function Navbar({
                               <p className="text-sm font-bold text-gray-900 truncate">
                                 {name}
                               </p>
-                              {verified && <VerifiedBadge size={13} />}
+                              {verified && !locked && <VerifiedBadge size={13} />}
                             </div>
 
                             <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
@@ -502,7 +472,16 @@ function Navbar({
                                 </span>
                               )}
 
-                              {campus ? (
+                              {locked && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200 inline-flex items-center gap-1">
+                                  <FiLock size={9} />
+                                  {access.reason === "private"
+                                    ? "Private"
+                                    : "Campus only"}
+                                </span>
+                              )}
+
+                              {campus && !locked ? (
                                 <span className="text-xs text-gray-500 truncate max-w-[140px]">
                                   {campus}
                                 </span>

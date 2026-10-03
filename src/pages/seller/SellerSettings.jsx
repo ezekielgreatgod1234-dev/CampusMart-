@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import InstallHelpModal from "../../components/InstallHelpModal";
 import { enableCampusMartPush } from "../../utils/pushNotifications";
+import { syncProfileVisibility } from "../../utils/profileVisibility";
 
 import {
   FiGrid,
@@ -185,7 +186,7 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
      PROFILE VISIBILITY
   ======================================================= */
 
-  const [profileVisibility, setProfileVisibility] = useState("campus");
+  const [profileVisibility, setProfileVisibility] = useState("public");
 
   /* =======================================================
      CONTACT SUPPORT
@@ -412,8 +413,17 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
           }
 
           setProfileVisibility(
-            savedSettings.profileVisibility || "campus"
+            savedSettings.profileVisibility || "public"
           );
+          // Make sure the saved choice is also visible to other users' screens
+          if (savedSettings.profileVisibility) {
+            syncProfileVisibility(
+              db,
+              firebaseUser.uid,
+              savedSettings.profileVisibility,
+              loadedProfile.campus
+            ).catch(() => {});
+          }
           setNotificationsEnabled(userData.notificationsEnabled === true);
         } else {
           const newProfile = {
@@ -426,7 +436,7 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
           };
 
           const newSettings = {
-            profileVisibility: "campus",
+            profileVisibility: "public",
           };
 
           await setDoc(
@@ -449,7 +459,7 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
             bio: "",
           });
 
-          setProfileVisibility("campus");
+          setProfileVisibility("public");
           setNotificationsEnabled(false);
         }
       } catch (error) {
@@ -810,6 +820,8 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
   const handleVisibilityChange = async (value) => {
     if (!firebaseUser?.uid) return;
 
+    const previous = profileVisibility;
+
     try {
       setProfileVisibility(value);
 
@@ -826,8 +838,18 @@ function SellerSettings({ unreadMessages = 0, profile = {} }) {
           merge: true,
         }
       );
+
+      // Copy to publicProfiles so other people's screens obey it
+      await syncProfileVisibility(
+        db,
+        firebaseUser.uid,
+        value,
+        sellerProfile.campus || personalForm.campus
+      );
     } catch (error) {
       console.error("Could not update profile visibility:", error);
+      setProfileVisibility(previous);
+      alert("Could not update your profile visibility. Please try again.");
     }
   };
 

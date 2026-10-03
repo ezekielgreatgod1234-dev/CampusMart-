@@ -9,6 +9,8 @@ import {
 } from "firebase/firestore";
 
 import { db } from "../../context/firebase";
+import { useAuth } from "../../context/AuthContext";
+import { filterVisibleItems } from "../../utils/profileVisibility";
 import ProductCard from "./ProductCard";
 
 function isCurrentlyBoosted(product) {
@@ -44,6 +46,7 @@ function RecommendedProducts({
   toggleWishlist,
 }) {
   const navigate = useNavigate();
+  const { firebaseUser } = useAuth();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -71,7 +74,7 @@ function RecommendedProducts({
 
         if (cancelled) return;
 
-        const sellerProducts = snapshot.docs
+        const allProducts = snapshot.docs
           .map((productDoc) => {
             const data = productDoc.data() || {};
             return {
@@ -111,10 +114,15 @@ function RecommendedProducts({
               return getPromotedAtMs(b) - getPromotedAtMs(a);
             }
             return getCreatedAtMs(b) - getCreatedAtMs(a);
-          })
-          .slice(0, 12);
+          });
 
-        setProducts(sellerProducts);
+        // Hide products of sellers with a private / campus-only profile
+        const visibleProducts = await filterVisibleItems(db, allProducts, {
+          viewerId: firebaseUser?.uid,
+        });
+        if (cancelled) return;
+
+        setProducts(visibleProducts.slice(0, 12));
         setError("");
       } catch (firebaseError) {
         console.error("Error loading recommended products:", firebaseError);
@@ -128,7 +136,7 @@ function RecommendedProducts({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [firebaseUser?.uid]);
 
   return (
     <section className="bg-white rounded-2xl p-5 shadow-sm">
