@@ -410,6 +410,12 @@ function Navbar({
                       getDisplayName(person) || "CampusMart User";
                     const campus = person.campus || person.school || "";
 
+                    // You can always see your own picture, whatever your
+                    // visibility is set to.
+                    const isOwner =
+                      Boolean(firebaseUser?.uid) &&
+                      String(person.id) === String(firebaseUser.uid);
+
                     // Respect the person's profile visibility setting:
                     // locked profiles don't show their picture in search.
                     const access = canViewProfile({
@@ -418,7 +424,7 @@ function Navbar({
                       viewerId: firebaseUser?.uid,
                       viewerCampus,
                     });
-                    const locked = !access.allowed;
+                    const locked = !isOwner && !access.allowed;
 
                     const image = locked
                       ? null

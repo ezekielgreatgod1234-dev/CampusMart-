@@ -249,6 +249,12 @@ function SellerStore({
     };
   }, [firebaseUser?.uid]);
 
+  // The owner of the store can always see their own picture, cover and products,
+  // whatever their visibility setting is.
+  const isOwnStore = Boolean(
+    firebaseUser?.uid && String(firebaseUser.uid) === String(sellerId)
+  );
+
   // Public / campus only / private
   const access = useMemo(
     () =>
@@ -260,7 +266,7 @@ function SellerStore({
       }),
     [sellerId, seller, firebaseUser?.uid, viewerCampus]
   );
-  const canSee = access.allowed;
+  const canSee = isOwnStore || access.allowed;
 
   // Close the picture viewer with Esc
   useEffect(() => {
@@ -345,19 +351,15 @@ function SellerStore({
     seller?.name ||
     "CampusMart Seller";
 
-  const avatar =
-    seller?.profileImage ||
-    seller?.photoURL ||
-    seller?.avatar ||
-    null;
+  // Locked viewers never get the picture or cover (the owner always does).
+  const avatar = canSee
+    ? seller?.profileImage || seller?.photoURL || seller?.avatar || null
+    : null;
 
-  const coverPhoto = seller?.coverPhoto || "";
+  const coverPhoto = canSee ? seller?.coverPhoto || "" : "";
 
   const isVerified = seller?.isVerifiedSeller === true;
   const productCount = products.length;
-  const isOwnStore =
-    firebaseUser?.uid && String(firebaseUser.uid) === String(sellerId);
-
   const sellerBio = String(seller?.bio || seller?.about || "").trim();
 
   // The seller's own bio is the About text. Only when they have not
@@ -471,53 +473,96 @@ function SellerStore({
   }
 
   // ========== LOCKED PROFILE ==========
+  // The visitor still lands on the store page, but sees no profile picture,
+  // no cover photo and no products.
   if (!canSee) {
     const isPrivate = access.reason === "private";
 
     return (
       <CustomerLayout cartCount={cartCount}>
-        <div className="max-w-lg mx-auto text-center py-16 px-4">
-          <div className="w-20 h-20 mx-auto rounded-full bg-gray-100 text-gray-400 flex items-center justify-center border-4 border-white shadow-sm">
-            <FiLock size={30} />
+        <div className="max-w-5xl mx-auto space-y-6 pb-10">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-2 text-sm text-gray-500 hover:text-[#008236] transition"
+          >
+            <FiArrowLeft size={16} />
+            Back
+          </button>
+
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            {/* Plain cover (the real cover photo is hidden) */}
+            <div className="h-32 sm:h-44 bg-gradient-to-r from-[#007233] to-[#00a34a] relative overflow-hidden">
+              <div className="absolute inset-0 opacity-20 pointer-events-none">
+                <div className="absolute -right-10 -top-10 w-40 h-40 rounded-full bg-white/30" />
+                <div className="absolute right-20 bottom-0 w-24 h-24 rounded-full bg-white/20" />
+              </div>
+            </div>
+
+            <div className="px-4 sm:px-6 pb-6">
+              {/* Lock instead of the profile picture */}
+              <div className="relative -mt-12 sm:-mt-14 mb-3">
+                <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full border-4 border-white shadow-md bg-gray-100 text-gray-400 flex items-center justify-center">
+                  <FiLock size={30} />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+                  {displayName}
+                </h1>
+                {seller?.isVerifiedSeller === true && <VerifiedBadge size={20} />}
+              </div>
+
+              <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500 border border-gray-200">
+                <FiLock size={12} />
+                {isPrivate ? "Private profile" : "Campus only profile"}
+              </p>
+
+              <p className="text-sm text-gray-500 mt-3 leading-relaxed">
+                {isPrivate
+                  ? "This person has locked their profile. You won't see their profile picture, cover photo or products."
+                  : `Only students of ${
+                      access.ownerCampus || "their campus"
+                    } can see their profile picture, cover photo and products.${
+                      viewerCampus
+                        ? ""
+                        : " If you study there, add your campus in Settings > Personal Information."
+                    }`}
+              </p>
+            </div>
           </div>
 
-          <h1 className="text-xl font-bold text-gray-800 mt-4">
-            {displayName}
-          </h1>
+          {/* Products stay hidden */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
+            <div className="w-14 h-14 mx-auto rounded-full bg-gray-100 text-gray-400 flex items-center justify-center">
+              <FiLock size={22} />
+            </div>
+            <p className="font-semibold text-gray-800 mt-3">
+              Products are hidden
+            </p>
+            <p className="text-sm text-gray-500 mt-1">
+              {isPrivate
+                ? "This seller keeps their products private."
+                : "Products are only shown to students of this seller's campus."}
+            </p>
 
-          <p className="text-base font-semibold text-gray-700 mt-3">
-            {isPrivate
-              ? "This person has locked their profile"
-              : "This profile is for one campus only"}
-          </p>
-
-          <p className="text-sm text-gray-500 mt-2 leading-relaxed">
-            {isPrivate
-              ? "You won't see their profile picture, cover photo, goods or products."
-              : `Only students of ${
-                  access.ownerCampus || "their campus"
-                } can see their profile picture, cover photo, goods and products.${
-                  viewerCampus
-                    ? ""
-                    : " If you study there, add your campus in Settings > Personal Information."
-                }`}
-          </p>
-
-          <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <button
-              type="button"
-              onClick={() => navigate(-1)}
-              className="h-11 px-6 rounded-xl border border-gray-200 bg-white text-gray-700 text-sm font-semibold hover:bg-gray-50"
-            >
-              Go back
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/browse-products")}
-              className="h-11 px-6 rounded-xl bg-[#008236] text-white text-sm font-semibold hover:bg-[#006f2e]"
-            >
-              Browse products
-            </button>
+            <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => navigate(-1)}
+                className="h-11 px-6 rounded-xl border border-gray-200 bg-white text-gray-700 text-sm font-semibold hover:bg-gray-50"
+              >
+                Go back
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("/browse-products")}
+                className="h-11 px-6 rounded-xl bg-[#008236] text-white text-sm font-semibold hover:bg-[#006f2e]"
+              >
+                Browse products
+              </button>
+            </div>
           </div>
         </div>
       </CustomerLayout>

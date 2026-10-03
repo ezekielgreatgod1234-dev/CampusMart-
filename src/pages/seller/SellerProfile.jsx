@@ -161,6 +161,22 @@ function SellerProfile({
   // in from the app does not include it.
   const [storedBio, setStoredBio] = useState("");
 
+  // Your own picture, read straight from your own account document, so you
+  // always see it on this page whatever your profile visibility is set to.
+  const [ownImage, setOwnImage] = useState("");
+
+  // Full-size picture viewer: tap your profile picture or cover to open it.
+  const [lightbox, setLightbox] = useState(null); // { src, alt }
+
+  useEffect(() => {
+    if (!lightbox) return undefined;
+    const onKey = (e) => {
+      if (e.key === "Escape") setLightbox(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lightbox]);
+
   const profile = {
     ...DEFAULT_PROFILE,
     ...(profileFromApp || {}),
@@ -178,6 +194,7 @@ function SellerProfile({
       profileFromApp?.profileImage ||
       profileFromApp?.photoURL ||
       profileFromApp?.avatar ||
+      ownImage ||
       firebaseUser?.photoURL ||
       null,
     bio:
@@ -531,6 +548,13 @@ function SellerProfile({
       (snapshot) => {
         const data = snapshot.data() || {};
         setCoverPhoto(data.coverPhoto || data.profile?.coverPhoto || "");
+        setOwnImage(
+          data.profileImage ||
+            data.photoURL ||
+            data.avatar ||
+            data.profile?.profileImage ||
+            ""
+        );
       },
       () => {}
     );
@@ -1013,7 +1037,18 @@ function SellerProfile({
                 />
               )}
 
-              <div className="absolute bottom-3 right-3 flex items-center gap-2">
+              {coverPhoto && (
+              <button
+                type="button"
+                onClick={() =>
+                  setLightbox({ src: coverPhoto, alt: "Cover photo" })
+                }
+                className="absolute inset-0 w-full h-full cursor-zoom-in"
+                aria-label="View cover photo"
+              />
+            )}
+
+            <div className="absolute bottom-3 right-3 z-10 flex items-center gap-2">
                 {coverPhoto && (
                   <button
                     type="button"
@@ -1054,7 +1089,18 @@ function SellerProfile({
             <div className="px-5 sm:px-8 pb-6">
               <div className="flex flex-col sm:flex-row sm:items-start gap-4">
                 <div className="relative z-10 w-32 h-32 sm:w-40 sm:h-40 flex-shrink-0 mx-auto sm:mx-0 -mt-16 sm:-mt-20">
-                  <div className="w-full h-full rounded-full bg-green-100 text-green-600 flex items-center justify-center text-5xl font-bold border-4 border-white shadow-md overflow-hidden">
+                  <div
+                    onClick={() =>
+                      profile.profileImage &&
+                      setLightbox({
+                        src: profile.profileImage,
+                        alt: "Profile picture",
+                      })
+                    }
+                    className={`w-full h-full rounded-full bg-green-100 text-green-600 flex items-center justify-center text-5xl font-bold border-4 border-white shadow-md overflow-hidden ${
+                      profile.profileImage ? "cursor-zoom-in" : ""
+                    }`}
+                  >
                     {profile.profileImage ? (
                       <img
                         src={profile.profileImage}
@@ -1408,6 +1454,31 @@ function SellerProfile({
           </div>
         </main>
       </div>
+
+      {/* ========== PICTURE VIEWER ========== */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-[110] bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setLightbox(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <button
+            type="button"
+            onClick={() => setLightbox(null)}
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
+            aria-label="Close"
+          >
+            <FiX size={22} />
+          </button>
+          <img
+            src={lightbox.src}
+            alt={lightbox.alt}
+            onClick={(e) => e.stopPropagation()}
+            className="max-w-full max-h-[88vh] object-contain rounded-lg"
+          />
+        </div>
+      )}
 
       {/* ========== SHARE MODAL ========== */}
       {shareOpen && (
